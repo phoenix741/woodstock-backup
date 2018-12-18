@@ -14,5 +14,13 @@
     "backup"
   ],
   "author": "Ulrich Vandenhekke",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "rsync": "^0.6.1"
+  },
+  "devDependencies": {
+    "@types/rsync": "^0.4.30",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.2.2"
+  }
 }
