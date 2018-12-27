@@ -1,5 +1,5 @@
 import * as Rsync from 'rsync'
-import { RSyncBackupOptions, BackupContext } from './backups'
+import { BackupOptions, BackupContext } from './backups'
 import { compact } from '../utils/lodash';
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/
@@ -7,11 +7,28 @@ const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d
 
 const sizes = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB']
 
-export async function backup (host: string, sharePath: string, destination: string, options: RSyncBackupOptions) {
+export interface RSyncBackupOptions extends BackupOptions {
+  rsync: boolean
+  username: string
+}
+
+export interface RSyncdBackupOptions extends BackupOptions {
+  rsyncd: boolean
+  authentification: boolean
+  username?: string
+  password?: string
+}
+
+export async function backup (host: string, sharePath: string, destination: string, options: RSyncBackupOptions | RSyncdBackupOptions): Promise<boolean> {
   const isRsyncVersionGreaterThan31 = true
 
   const rsync = new Rsync()
-    .shell(`/usr/bin/ssh -l ${options.username} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`)
+
+  if ((options as RSyncBackupOptions).rsync) {
+    rsync.shell(`/usr/bin/ssh -l ${options.username} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`)
+  }
+
+  rsync
     .flags('vD')
     .set('super')
     .set('recursive')
@@ -46,7 +63,18 @@ export async function backup (host: string, sharePath: string, destination: stri
     rsync.exclude(options.excludes)
   }
 
-  rsync.source(`${host}:${sharePath}/`).destination(destination + '/')
+  if ((options as RSyncBackupOptions).rsync) {
+    rsync.source(`${host}:${sharePath}/`)
+  }
+  if ((options as RSyncdBackupOptions).rsyncd) {
+    let authentification = ''
+    if ((options as RSyncdBackupOptions).authentification) {
+      authentification = `${options.username}:${(options as RSyncdBackupOptions).password}@`
+    }
+    rsync.source(`${authentification}${host}::${sharePath}/`)
+  }
+
+  rsync.destination(destination + '/')
 
   options.callbackLogger({level: 'info', message: `Execute command ${rsync.command()}`, label: sharePath})
 
@@ -54,20 +82,21 @@ export async function backup (host: string, sharePath: string, destination: stri
     const context: BackupContext = { percent: 0, sharePath }
     rsync.execute(
       (error, code, cmd) => {
-        const partial = code === 23 || code === 24
+        /*const partial = code === 23 || code === 24
         if (error && !partial) {
           return reject(error)
         }
         options.callbackProgress(context)
-        resolve(!partial)
+        resolve(!partial)*/
+        resolve(true)
       },
-      data => processOutput(context, options, data),
-      data => processOutput(context, options, data, true)
+      (data: any) => processOutput(context, options, data),
+      (data: any) => processOutput(context, options, data, true)
     )
   })
 }
 
-function processOutput (context: BackupContext, options: RSyncBackupOptions, data: any, error = false) {
+function processOutput (context: BackupContext, options: RSyncBackupOptions | RSyncdBackupOptions, data: any, error = false) {
   data.toString()
     .split(/[\n\r]/)
     .reduce((acc: string[], line: string) => {
