@@ -9,7 +9,7 @@ const sizes = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB']
 
 export interface RSyncBackupOptions extends BackupOptions {
   rsync: boolean
-  username: string
+  username?: string
 }
 
 export interface RSyncdBackupOptions extends BackupOptions {
@@ -25,7 +25,7 @@ export async function backup (host: string, sharePath: string, destination: stri
   const rsync = new Rsync()
 
   if ((options as RSyncBackupOptions).rsync) {
-    rsync.shell(`/usr/bin/ssh -l ${options.username} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`)
+    rsync.shell(`/usr/bin/ssh ${options.username ? '-l ' + options.username : ''} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`)
   }
 
   rsync
@@ -64,7 +64,12 @@ export async function backup (host: string, sharePath: string, destination: stri
   }
 
   if ((options as RSyncBackupOptions).rsync) {
-    rsync.source(`${host}:${sharePath}/`)
+    if (host) {
+      rsync.source(`${host}:${sharePath}/`)
+    }
+    else {
+      rsync.source(`${sharePath}/`)
+    }
   }
   if ((options as RSyncdBackupOptions).rsyncd) {
     let authentification = ''
@@ -74,7 +79,7 @@ export async function backup (host: string, sharePath: string, destination: stri
     rsync.source(`${authentification}${host}::${sharePath}/`)
   }
 
-  rsync.destination(destination + '/')
+  rsync.destination(destination)
 
   options.callbackLogger({level: 'info', message: `Execute command ${rsync.command()}`, label: sharePath})
 
@@ -82,13 +87,12 @@ export async function backup (host: string, sharePath: string, destination: stri
     const context: BackupContext = { percent: 0, sharePath }
     rsync.execute(
       (error, code, cmd) => {
-        /*const partial = code === 23 || code === 24
+        const partial = code === 23 || code === 24
         if (error && !partial) {
           return reject(error)
         }
         options.callbackProgress(context)
-        resolve(!partial)*/
-        resolve(true)
+        resolve(!partial)
       },
       (data: any) => processOutput(context, options, data),
       (data: any) => processOutput(context, options, data, true)
