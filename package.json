@@ -18,7 +18,6 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^6.2.0",
-    "fs-extra": "^7.0.1",
     "js-yaml": "^3.12.0",
     "mkdirp": "^0.5.1",
     "rsync": "^0.6.1",
@@ -26,7 +25,6 @@
     "uuid": "^3.3.2"
   },
   "devDependencies": {
-    "@types/fs-extra": "^5.0.4",
     "@types/js-yaml": "^3.11.4",
     "@types/mkdirp": "^0.5.2",
     "@types/rsync": "^0.4.30",

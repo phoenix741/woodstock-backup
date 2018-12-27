@@ -1,6 +1,5 @@
 import * as path from 'path'
 import * as fs from 'fs'
-import * as fse from 'fs-extra'
 import * as uuid from 'uuid'
 import * as yaml from 'js-yaml'
 import * as mkdirp from 'mkdirp'
@@ -129,7 +128,15 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
       description: 'Clone the backup from previous',
       state: BackupState.WAITING,
       failable: true,
-      command: () => fse.copy(lastDestinationDirectory, nextDestinationDirectory, { dereference: false, preserveTimestamps: true })
+      command: async (host, task) => {
+        function callbackProgress (progression: BackupProgression) {
+          task.progression = progression
+
+          progressTask(host, task)
+        }
+
+        await backupRsync(null, lastDestinationDirectory, nextDestinationDirectory, { rsync: true, includes: [], excludes: [], callbackLogger, callbackProgress })
+      }
     })
   } else {
     await mkdirpPromise(nextDestinationDirectory)
@@ -172,7 +179,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
           progressTask(host, task)
         }
 
-        host.isBackupFull = host.isBackupFull && await backupRsync(host.host, share.name, nextDestinationDirectory, { rsync: true, username: 'root', includes, excludes, callbackProgress, callbackLogger })
+        host.isBackupFull = host.isBackupFull && await backupRsync(host.host, share.name, nextDestinationDirectory + '/' + share.name, { rsync: true, username: 'root', includes, excludes, callbackProgress, callbackLogger })
       }
     })
   }
@@ -194,7 +201,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
     description: 'Register the backup',
     state: BackupState.WAITING,
     failable: false,
-    command: host => register(host, lastBackupNumber)
+    command: host => register(host, nextBackupNumber)
   })
 
   return task
