@@ -20,6 +20,7 @@
   "dependencies": {
     "dotenv": "^6.2.0",
     "js-yaml": "^3.12.0",
+    "kue": "^0.11.6",
     "mkdirp": "^0.5.1",
     "rsync": "^0.6.1",
     "shelljs": "^0.8.3",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^3.11.4",
+    "@types/kue": "^0.11.10",
     "@types/mkdirp": "^0.5.2",
     "@types/rsync": "^0.4.30",
     "@types/shelljs": "^0.8.1",

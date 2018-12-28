@@ -91,6 +91,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
 
   const task: BackupTask = {
     id: uuid.v1(),
+    number: nextBackupNumber,
     host: config.name,
     startDate: new Date(),
 
@@ -108,18 +109,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
     isBackupFull: true,
 
     state: BackupState.WAITING,
-    subtasks: [],
-    logger: winston.createLogger({
-      level: 'info',
-      format: combine(
-        timestamp(),
-        loggerFormat
-      ),
-      transports: [
-        new winston.transports.File({ filename: path.join(nextDestinationDirectory, `backup.errors.log`), level: 'error', tailable: true }),
-        new winston.transports.File({ filename: path.join(nextDestinationDirectory, `backup.log`), tailable: true })
-      ]
-    })
+    subtasks: []
   }
 
   // Step 0: Clone previous backup
@@ -130,7 +120,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
       state: BackupState.WAITING,
       failable: true,
       progress: false,
-      command: async (host, task, progressFn) => backupRsync(null, lastDestinationDirectory, nextDestinationDirectory, { rsync: true, includes: [], excludes: [], callbackLogger: obj => host.logger.log(obj), callbackProgress: progressFn })
+      command: async (host, task, progressFn, loggerFn) => backupRsync(null, lastDestinationDirectory, nextDestinationDirectory, { rsync: true, includes: [], excludes: [], callbackLogger: loggerFn, callbackProgress: progressFn })
     })
   }
 
@@ -152,7 +142,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
       state: BackupState.WAITING,
       failable: false,
       progress: false,
-      command: host => executeScript(config.backup.preUserCommand || '', { callbackLogger: (obj: BackupLogger) => host.logger.log(obj), label: 'pre' })
+      command: (host, task, progressFn, loggerFn) => executeScript(config.backup.preUserCommand || '', { callbackLogger: loggerFn, label: 'pre' })
     })
   }
 
@@ -164,11 +154,11 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
       state: BackupState.WAITING,
       failable: true,
       progress: true,
-      command: async (host, task, progressFn) => {
+      command: async (host, task, progressFn, loggerFn) => {
         const includes = [...(share.includes || []), ...(config.backup.includes || [])]
         const excludes = [...(share.excludes || []), ...(config.backup.excludes || [])]
 
-        host.isBackupFull = host.isBackupFull && await backupRsync(host.host, share.name, nextDestinationDirectory + '/' + share.name, { rsync: true, username: 'root', includes, excludes, callbackProgress: progressFn, callbackLogger: (obj: BackupLogger) => host.logger.log(obj) })
+        host.isBackupFull = host.isBackupFull && await backupRsync(host.host, share.name, nextDestinationDirectory + '/' + share.name, { rsync: true, username: 'root', includes, excludes, callbackProgress: progressFn, callbackLogger: loggerFn })
       }
     })
   }
@@ -181,7 +171,7 @@ export async function createTask (config: BackupTaskConfig): Promise<BackupTask>
       state: BackupState.WAITING,
       failable: false,
       progress: false,
-      command: host => executeScript(config.backup.postUserCommand || '', { callbackLogger: (obj: BackupLogger) => host.logger.log(obj), label: 'pre' })
+      command: (host, task, progressFn, loggerFn) => executeScript(config.backup.postUserCommand || '', { callbackLogger: loggerFn, label: 'pre' })
     })
   }
 
@@ -204,6 +194,19 @@ export async function launchBackup (task: BackupTask, taskChanged: CallbackTaskC
   task.state = BackupState.RUNNING
   taskChanged(task)
 
+  const destinationDirectory = getBackupDestinationDirectory(task.host, task.number)
+  const logger = winston.createLogger({
+    level: 'info',
+    format: combine(
+      timestamp(),
+      loggerFormat
+    ),
+    transports: [
+      new winston.transports.File({ filename: path.join(destinationDirectory, `backup.errors.log`), level: 'error', tailable: true }),
+      new winston.transports.File({ filename: path.join(destinationDirectory, `backup.log`), tailable: true })
+    ]
+  })
+
   for (let subtask of task.subtasks) {
     if (failed && subtask.failable) {
       subtask.state = BackupState.ABORTED
@@ -219,14 +222,14 @@ export async function launchBackup (task: BackupTask, taskChanged: CallbackTaskC
       await subtask.command(task, subtask, progression => {
         progressTask(task, subtask, progression)
         taskChanged(task)
-      })
+      }, (obj: BackupLogger) => logger.log(obj))
       subtask.progression.percent = 100
       subtask.state = BackupState.SUCCESS
 
       progressTask(task, subtask)
       taskChanged(task)
     } catch (err) {
-      task.logger.log({ level: 'error', message: err.message, label: subtask.name })
+      logger.log({ level: 'error', message: err.message, label: subtask.name })
       subtask.state = BackupState.FAILED
       taskChanged(task)
       failed = true

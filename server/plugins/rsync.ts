@@ -90,7 +90,7 @@ export async function backup (host: string | null, sharePath: string, destinatio
   return new Promise((resolve, reject) => {
     const context: BackupContext = { percent: 0, sharePath }
     rsync.execute(
-      (error, code, cmd) => {
+      (error, code) => {
         const partial = code === 23 || code === 24
         if (error && !partial) {
           return reject(error)
