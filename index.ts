@@ -18,9 +18,11 @@ const config: BackupTaskConfig = {
       }
     ]
   }
-};
+}
 
-(async function () {
+async function start () {
   const task = await createTask(config)
-  await launchBackup(task)
-})()
+  await launchBackup(task, task => console.log('progression ' + (task.progression || { percent: 0 }).percent + '% (' + task.state + ')'))
+}
+
+start().then(console.log).catch(console.log)
