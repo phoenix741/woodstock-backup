@@ -1,3 +1,6 @@
+import { Logger } from 'winston'
+import { CallbackProgressFn } from '../plugins/backups'
+
 export enum BackupState {
   WAITING,
   RUNNING,
@@ -31,7 +34,8 @@ export interface BackupSubTask {
   description: string
   state: BackupState
   failable: boolean
-  command: (host: BackupTask, task: BackupSubTask) => Promise<void>
+  progress: boolean
+  command: (host: BackupTask, task: BackupSubTask, progressFn: CallbackProgressFn) => Promise<any>
   progression?: TaskProgression
 }
 
@@ -40,7 +44,8 @@ export interface BackupTask {
   host: string
   startDate: Date
   isBackupFull: boolean
-  progression?: TaskProgression
+  progression: TaskProgression
   state: BackupState
   subtasks: Array<BackupSubTask>
+  logger: Logger
 }

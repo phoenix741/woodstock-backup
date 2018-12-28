@@ -1,6 +1,6 @@
 import * as Rsync from 'rsync'
 import { BackupOptions, BackupContext } from './backups'
-import { compact } from '../utils/lodash';
+import { compact } from '../utils/lodash'
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/
 const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/
@@ -19,7 +19,7 @@ export interface RSyncdBackupOptions extends BackupOptions {
   password?: string
 }
 
-export async function backup (host: string, sharePath: string, destination: string, options: RSyncBackupOptions | RSyncdBackupOptions): Promise<boolean> {
+export async function backup (host: string | null, sharePath: string, destination: string, options: RSyncBackupOptions | RSyncdBackupOptions): Promise<boolean> {
   const isRsyncVersionGreaterThan31 = true
 
   const rsync = new Rsync()
@@ -48,6 +48,11 @@ export async function backup (host: string, sharePath: string, destination: stri
     .set('checksum')
     .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L')
 
+  // If not is root
+  if (! (process.getuid && process.getuid() === 0)) {
+    rsync.set('fake-super')
+  }
+
   if (isRsyncVersionGreaterThan31) {
     rsync.set('info', 'progress2')
   }
@@ -66,8 +71,7 @@ export async function backup (host: string, sharePath: string, destination: stri
   if ((options as RSyncBackupOptions).rsync) {
     if (host) {
       rsync.source(`${host}:${sharePath}/`)
-    }
-    else {
+    } else {
       rsync.source(`${sharePath}/`)
     }
   }
@@ -81,7 +85,7 @@ export async function backup (host: string, sharePath: string, destination: stri
 
   rsync.destination(destination)
 
-  options.callbackLogger({level: 'info', message: `Execute command ${rsync.command()}`, label: sharePath})
+  options.callbackLogger({ level: 'info', message: `Execute command ${rsync.command()}`, label: sharePath })
 
   return new Promise((resolve, reject) => {
     const context: BackupContext = { percent: 0, sharePath }
@@ -146,7 +150,6 @@ function processOutput (context: BackupContext, options: RSyncBackupOptions | RS
         Object.assign(context, compact({
           fileCount: getValueOfRegex(line, /Number of files:\s+([\d+,.]+)\s+.*/),
           newFileCount: getValueOfRegex(line, /Number of created files:\s+([\d+,.]+)\s+.*/),
-          //fileCount: getValueOfRegex(line, /Number of deleted files:.*([\d+,]+)\s+.*/)
           fileSize: getValueOfRegex(line, /Total file size:\s+([\d+,.]+)\s+.*/),
           newFileSize: getValueOfRegex(line, /Total transferred file size:\s+([\d+,.]+)\s+.*/)
         }))
@@ -154,11 +157,11 @@ function processOutput (context: BackupContext, options: RSyncBackupOptions | RS
 
       return true
     })
-    .forEach((line: string) => options.callbackLogger({level: error ? 'error' : 'info', message: line, label: context.sharePath}))
+    .forEach((line: string) => options.callbackLogger({ level: error ? 'error' : 'info', message: line, label: context.sharePath }))
 }
 
 function rsyncNumberToInt (value: string, unit = 'bytes'): number {
-  let numberValue = parseInt(value.replace(/,/g, ''))
+  let numberValue = parseInt(value.replace(/,/g, ''), 10)
   numberValue = numberValue * Math.pow(1024, sizes.indexOf(unit))
   return numberValue
 }
@@ -166,7 +169,7 @@ function rsyncNumberToInt (value: string, unit = 'bytes'): number {
 function getValueOfRegex (line: string, regex: RegExp): number | undefined {
   const match = line.match(regex)
   if (match) {
-    return parseInt(match[1].replace(/,/g, ''))
+    return parseInt(match[1].replace(/,/g, ''), 10)
   }
   return undefined
 }
