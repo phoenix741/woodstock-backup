@@ -42,6 +42,6 @@ export class ApplicationLogger {
   }
 }
 
-ApplicationLogger.init()
+ApplicationLogger.init().catch(() => console.error('Can\'t create the directory where log will be stored'))
 
 export default new ApplicationLogger()

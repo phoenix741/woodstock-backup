@@ -10,3 +10,9 @@ export function compact<T> (obj: T | Array<T>): T | Array<T> {
   }
   return copy
 }
+
+export function pick<T> (obj: T, ...args: string[]): Partial<T> {
+  return Object.entries(obj)
+    .filter(([key]) => args.includes(key))
+    .reduce((obj, [key, val]) => Object.assign(obj, { [key]: val }), {})
+}

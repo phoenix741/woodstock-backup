@@ -1,13 +1,13 @@
 import 'dotenv/config'
 import backupQueue from './server/services/backup-queue'
-import { getHosts } from './server/models/host';
+import hostsList from './server/models/host'
 
 async function start () {
-  const hosts = await getHosts()
+  const hosts = await hostsList.hosts
 
   for (let config of hosts) {
     await backupQueue.addJob(config)
   }
 }
 
-start().then(console.log).catch(console.log)
+start().catch(console.log)
