@@ -22,6 +22,9 @@ export interface Backup {
   speed: number
 }
 
+/**
+ * Manage backups file for each host
+ */
 export class HostBackup {
   private _backups: Array<Backup>
 

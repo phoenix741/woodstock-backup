@@ -6,6 +6,9 @@ import logger from '../utils/logger'
 
 const jobGetPromise = util.promisify(Job.get)
 
+/**
+ * Manage the queue of the backup
+ */
 export class BackupQueue {
   private _queue: Queue
   private _parallele = 1
@@ -15,6 +18,11 @@ export class BackupQueue {
     this.listen()
   }
 
+  /**
+   * Add a job to the backup queue
+   *
+   * @param config Configuration of the backup
+   */
   async addJob (config: BackupTaskConfig): Promise<void> {
     return new Promise((resolve, reject) => {
       this._queue.create('backup', config).save((err: Error) => {
@@ -26,11 +34,17 @@ export class BackupQueue {
     })
   }
 
+  /**
+   * Number of backup to make in parallele
+   */
   set parallele (parallele: number) {
     this._parallele = parallele
     this.shutdown().finally(() => this.listen()).catch(err => logger.log({ level: 'error', message: 'Can\' restart worker that make backup', err }))
   }
 
+  /**
+   * Launch process of backup
+   */
   private listen () {
     this._queue = createQueue()
     this._queue

@@ -19,22 +19,22 @@
   "license": "MIT",
   "dependencies": {
     "dotenv": "^6.2.0",
-    "js-yaml": "^3.12.0",
+    "js-yaml": "^3.12.1",
     "kue": "^0.11.6",
     "mkdirp": "^0.5.1",
     "rsync": "^0.6.1",
     "shelljs": "^0.8.3",
-    "winston": "^3.1.0"
+    "winston": "^3.2.1"
   },
   "devDependencies": {
-    "@types/js-yaml": "^3.11.4",
+    "@types/js-yaml": "^3.12.0",
     "@types/kue": "^0.11.10",
     "@types/mkdirp": "^0.5.2",
     "@types/rsync": "^0.4.30",
-    "@types/shelljs": "^0.8.1",
-    "ts-node": "^7.0.1",
-    "tslint": "^5.12.0",
+    "@types/shelljs": "^0.8.3",
+    "ts-node": "^8.0.2",
+    "tslint": "^5.12.1",
     "tslint-config-standard": "^8.0.1",
-    "typescript": "^3.2.2"
+    "typescript": "^3.3.3"
   }
 }

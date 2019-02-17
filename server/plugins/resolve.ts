@@ -7,7 +7,16 @@ import { BackupTaskConfig } from '../models/host'
 
 const dnsLookupPromise = util.promisify(dns.lookup)
 
-export async function resolveFromConfig (config: BackupTaskConfig) {
+/**
+ * Resolve a host from name to IP.
+ *
+ * Read the configuration file.
+ *
+ * @param config Configuration of the host
+ * @returns The IP of the host
+ * @throws If the IP of the host can't be found
+ */
+export async function resolveFromConfig (config: BackupTaskConfig): Promise<string> {
   if (config.dhcp) {
     for (let dhcp of config.dhcp) {
       const ip = await searchIpFromRange(config.name, dhcp.address, dhcp.start, dhcp.end)
@@ -22,6 +31,14 @@ export async function resolveFromConfig (config: BackupTaskConfig) {
   }
 }
 
+/**
+ * Find the host from a list of address.
+ *
+ * @param host Hostname from the config file
+ * @param addresses Lost of address alternative to the host
+ * @returns The IP of the host
+ * @throws If the IP of the host can't be found
+ */
 export async function resolve (host: string, addresses: Array<string>): Promise<string> {
   const testableHostname = [host, ...addresses]
 
@@ -35,6 +52,16 @@ export async function resolve (host: string, addresses: Array<string>): Promise<
   throw new Error(`Can't find any IP for host ${host}`)
 }
 
+/**
+ * Search the IP for a host for a given network, from start to end.
+ *
+ * @param host Hostname from the config file
+ * @param network The 3 first number of the IP (that represent the network)
+ * @param start Start of the IP to check
+ * @param end End of the IP to check
+ * @returns The IP of the host
+ * @throws If the IP of the host can't be found
+ */
 export async function searchIpFromRange (host: string, network: string, start: number, end: number): Promise<string> {
   for (let n = start; n <= end; n++) {
     const ip = network + '.' + n

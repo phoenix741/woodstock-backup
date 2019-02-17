@@ -13,6 +13,9 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
   return `${info.timestamp} ${info.level}: ${info.message}`
 })
 
+/**
+ * Logger of the application
+ */
 export class ApplicationLogger {
   private logger: Logger
 

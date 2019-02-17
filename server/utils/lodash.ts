@@ -11,6 +11,12 @@ export function compact<T> (obj: T | Array<T>): T | Array<T> {
   return copy
 }
 
+/**
+ * Pick member of an object.
+ *
+ * @param obj Object to update
+ * @param args List of member to keep
+ */
 export function pick<T> (obj: T, ...args: string[]): Partial<T> {
   return Object.entries(obj)
     .filter(([key]) => args.includes(key))
