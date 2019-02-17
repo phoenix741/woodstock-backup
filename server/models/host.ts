@@ -8,18 +8,33 @@ import logger from '../utils/logger'
 
 const mkdirpPromise = util.promisify(mkdirp)
 
+/**
+ * Part of config file.
+ *
+ * Store information about a share
+ */
 export interface BackupTaskShare {
   name: string
   includes?: Array<string>
   excludes?: Array<string>
 }
 
+/**
+ * Part of config file
+ *
+ * Store information about a DHCP Address
+ */
 export interface DhcpAddress {
   address: string
   start: number
   end: number
 }
 
+/**
+ * Config file for one Host
+ *
+ * Contains all information that can be used to backup a host.
+ */
 export interface BackupTaskConfig {
   name: string
   addresses?: Array<string>
@@ -34,9 +49,15 @@ export interface BackupTaskConfig {
   }
 }
 
+/**
+ * Class used to manage configuration file for hosts.
+ */
 export class Hosts {
   private _hosts: Array<BackupTaskConfig>
 
+  /**
+   * Get all hosts, and associated config file.
+   */
   get hosts (): Promise<Array<BackupTaskConfig>> {
     if (! this._hosts) {
       return this.loadHosts().then(() => this._hosts)
@@ -44,6 +65,9 @@ export class Hosts {
     return Promise.resolve(this._hosts)
   }
 
+  /**
+   * Load host from the file stored at NG_MASS_BACKUP_CONFIG_HOSTS_PATH
+   */
   private async loadHosts (): Promise<void> {
     logger.log({ level: 'info', message: `Hosts.loadHosts: Read the file ${NG_MASS_BACKUP_CONFIG_HOSTS_PATH}` })
 
@@ -58,6 +82,9 @@ export class Hosts {
     }
   }
 
+  /**
+   * Save all modification made on the config file in NG_MASS_BACKUP_CONFIG_HOSTS_PATH
+   */
   private async writeHosts (): Promise<void> {
     logger.log({ level: 'info', message: `Hosts.writeHosts: Write the file ${NG_MASS_BACKUP_CONFIG_HOSTS_PATH}` })
 
@@ -72,4 +99,7 @@ export class Hosts {
   }
 }
 
+/**
+ * Host management from config file
+ */
 export default new Hosts()

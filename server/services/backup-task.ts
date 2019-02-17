@@ -69,6 +69,9 @@ export interface IBackupTask {
   subtasks: Array<IBackupSubTask>
 }
 
+/**
+ * Create a backup task from the config.
+ */
 export class BackupTask {
   private _hostBackup: HostBackup
   private isBackupFull = true

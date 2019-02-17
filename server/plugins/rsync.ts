@@ -19,6 +19,15 @@ export interface RSyncdBackupOptions extends BackupOptions {
   password?: string
 }
 
+/**
+ * Launch a RSync backup
+ *
+ * @param host Host to backup (resolved)
+ * @param sharePath The source path
+ * @param destination The destination path
+ * @param options Options of the backup
+ * @returns Is the backup partial
+ */
 export async function backup (host: string | null, sharePath: string, destination: string, options: RSyncBackupOptions | RSyncdBackupOptions): Promise<boolean> {
   const isRsyncVersionGreaterThan31 = true
 

@@ -6,6 +6,12 @@ export interface ScriptOptions {
   label: string
 }
 
+/**
+ * Execute a script on the backup host
+ *
+ * @param command Command to launch
+ * @param options Options used for the command
+ */
 export async function executeScript (command: string, options: ScriptOptions) {
   try {
     options.callbackLogger({ level: 'info', message: command, label: options.label })
