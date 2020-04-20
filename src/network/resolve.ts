@@ -103,7 +103,9 @@ export class ResolveService {
         let ipAddr = null;
 
         for (const line of result.split(/[\n\r]/)) {
-          const subnetResult = new RegExp(`querying\\s+${hostname}\\s+on\\s+((\\d+\.\\d+\.\\d+)\.(\\d+))`, 'i').exec(line);
+          const subnetResult = new RegExp(`querying\\s+${hostname}\\s+on\\s+((\\d+\.\\d+\.\\d+)\.(\\d+))`, 'i').exec(
+            line,
+          );
           const regexIPResult = new RegExp(`^\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+${hostname}`).exec(line);
           if (subnetResult && subnetResult.length) {
             subnet = subnetResult[1];
@@ -123,7 +125,7 @@ export class ResolveService {
         ipAddr = ipAddr || firstIpAddr;
 
         if (ipAddr) {
-          this.logger.log(`Found IP addresse ${ipAddr} for host ${hostname}`);
+          this.logger.debug(`Found IP addresse ${ipAddr} for host ${hostname}`);
           resolve(ipAddr);
         } else {
           this.logger.error(`Couldn't find IP addresse for host ${hostname}`);

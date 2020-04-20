@@ -6,7 +6,11 @@ import { SchedulerConfigService } from './scheduler-config.service';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit {
-  constructor(@InjectQueue('schedule') private scheduleQueue: Queue<object>, private schedulerConfigService: SchedulerConfigService, private hostService: HostsService) {}
+  constructor(
+    @InjectQueue('schedule') private scheduleQueue: Queue<object>,
+    private schedulerConfigService: SchedulerConfigService,
+    private hostService: HostsService,
+  ) {}
 
   async startScheduler() {
     const schedule = (await this.schedulerConfigService.getScheduler()).wakeupSchedule;

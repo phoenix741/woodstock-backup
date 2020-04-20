@@ -62,7 +62,9 @@ export class BtrfsService {
       if (err && err.code === 'ENOENT') {
         if (previousBackup) {
           this.logger.debug(`Create snapshot ${nextBackup} from ${previousBackup}`);
-          await this.executeCommandService.executeCommand(`btrfs subvolume snapshot "${previousBackup}" "${nextBackup}"`);
+          await this.executeCommandService.executeCommand(
+            `btrfs subvolume snapshot "${previousBackup}" "${nextBackup}"`,
+          );
         } else {
           this.logger.debug(`Create first volume ${nextBackup}`);
           await this.executeCommandService.executeCommand(`btrfs subvolume create "${nextBackup}"`);
@@ -74,6 +76,7 @@ export class BtrfsService {
   }
 
   async removeSnapshot(path: string) {
+    await this.markReadWrite(path);
     await this.executeCommandService.executeCommand(`btrfs subvolume delete "${path}"`);
   }
 
@@ -81,8 +84,14 @@ export class BtrfsService {
     await this.executeCommandService.executeCommand(`btrfs property set -ts "${path}" ro true`);
   }
 
+  async markReadWrite(path: string) {
+    await this.executeCommandService.executeCommand(`btrfs property set -ts "${path}" ro false`);
+  }
+
   async stats() {
-    const { stdout } = await this.executeCommandService.executeCommand(`btrfs filesystem du --raw -s "${this.hostspath}"`);
+    const { stdout } = await this.executeCommandService.executeCommand(
+      `btrfs filesystem du --raw -s "${this.hostspath}"`,
+    );
     const [, line] = stdout.toString().split(/[\n\r]/);
     const [total, exclusive, shared] = line
       .split(/\s+/)

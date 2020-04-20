@@ -54,7 +54,7 @@ export class HostsService {
    * Load host from the file stored at this.hostsPath
    */
   private async loadHosts(): Promise<void> {
-    this.logger.log(`Hosts.loadHosts: Read the file ${this.hostsPath}`);
+    this.logger.debug(`Hosts.loadHosts: Read the file ${this.hostsPath}`);
 
     try {
       await mkdirp(this.configPath);
@@ -63,7 +63,7 @@ export class HostsService {
       this._hosts = yaml.safeLoad(hostsFromStr) || [];
     } catch (err) {
       this._hosts = [];
-      this.logger.error(`Hosts.loadHosts: Can't read hosts files ${err.message}`);
+      this.logger.warn(`Hosts.loadHosts: Can't read hosts files ${err.message}`);
     }
   }
 
@@ -71,15 +71,11 @@ export class HostsService {
    * Save all modification made on the config file in this.hostsPath
    */
   private async writeHosts(): Promise<void> {
-    this.logger.log(`Hosts.writeHosts: Write the file ${this.hostsPath}`);
+    this.logger.debug(`Hosts.writeHosts: Write the file ${this.hostsPath}`);
 
-    try {
-      await mkdirp(this.configPath);
+    await mkdirp(this.configPath);
 
-      const hostsFromStr = yaml.safeDump(compact(this._hosts));
-      await fs.promises.writeFile(this.hostsPath, hostsFromStr, 'utf-8');
-    } catch (err) {
-      this.logger.error(`Hosts.writeHosts: Can't write hosts files: ${err.message}`);
-    }
+    const hostsFromStr = yaml.safeDump(compact(this._hosts));
+    await fs.promises.writeFile(this.hostsPath, hostsFromStr, 'utf-8');
   }
 }

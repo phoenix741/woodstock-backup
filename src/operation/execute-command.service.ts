@@ -1,13 +1,11 @@
-import { Logger, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as shell from 'shelljs';
 import { ExecuteCommandOperation } from 'src/hosts/host-config.dto';
 
-import { Options, BackupProgression } from './interfaces/options';
+import { BackupProgression, Options } from './interfaces/options';
 
 @Injectable()
 export class ExecuteCommandService {
-  private logger = new Logger(ExecuteCommandService.name);
-
   /**
    * Execute a script on the backup host
    *
@@ -18,20 +16,16 @@ export class ExecuteCommandService {
     try {
       options.callbackProgress(new BackupProgression(0));
 
-      this.logger.log({ ...operation, ...options });
+      options.backupLogger.log(`Execute commande "${operation.command} ...`, options.context);
 
       const { stdout, stderr } = await this.executeCommand(operation.command);
-      stderr && this.logger.error({ message: stderr, ...operation, ...options });
-      stdout && this.logger.error({ message: stdout, ...operation, ...options });
+      stderr && options.backupLogger.error(stderr, options.context);
+      stdout && options.backupLogger.log(stdout, options.context);
 
       options.callbackProgress(new BackupProgression(100));
-    } catch (error) {
-      this.logger.error({
-        message: error.message,
-        ...operation,
-        ...options,
-      });
-      throw error;
+    } catch (err) {
+      options.backupLogger.error(err.message, err.stack, options.context);
+      throw err;
     }
   }
 
@@ -42,10 +36,7 @@ export class ExecuteCommandService {
           return resolve({ stdout, stderr });
         }
 
-        return reject({
-          stdout,
-          stderr: stderr || `Can't execute the command ${command}`,
-        });
+        return reject(new Error(stderr || `Can't execute the command ${command}`));
       });
     });
   }

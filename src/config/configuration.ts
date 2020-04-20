@@ -4,7 +4,7 @@ export default () => {
   const backupPath = process.env.BACKUP_PATH || '/var/lib/woodstock';
   const configPath = process.env.CONFIG_PATH || join(backupPath, 'config');
   const hostPath = process.env.HOST_PATH || join(backupPath, 'hosts');
-  const logPath = process.env.HOST_PATH || join(backupPath, 'log');
+  const logPath = process.env.LOG_PATH || join(backupPath, 'log');
 
   return {
     paths: {

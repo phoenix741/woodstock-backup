@@ -27,17 +27,20 @@
     "@nestjs/core": "^7.0.0",
     "@nestjs/platform-express": "^7.0.0",
     "@nestjs/swagger": "^4.5.2",
+    "@types/logform": "^1.10.1",
     "bull": "^3.13.0",
     "class-transformer": "^0.2.3",
     "class-validator": "^0.12.1",
     "js-yaml": "^3.13.1",
+    "logform": "^2.1.2",
     "mkdirp": "^1.0.4",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rsync": "^0.6.1",
     "rxjs": "^6.5.4",
     "shelljs": "^0.8.3",
-    "swagger-ui-express": "^4.1.4"
+    "swagger-ui-express": "^4.1.4",
+    "winston": "^3.2.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^7.0.0",

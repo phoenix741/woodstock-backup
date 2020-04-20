@@ -1,5 +1,5 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
-import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job, Queue } from 'bull';
 
@@ -10,6 +10,8 @@ import { ResolveService } from '../network/resolve';
 import { InternalBackupTask } from './tasks.class';
 import { BackupTask } from './tasks.dto';
 import { TasksService } from './tasks.service';
+import { BtrfsService } from '../storage/btrfs/btrfs.service';
+import { BackupLogger } from '../logger/BackupLogger.logger';
 
 @Processor('queue')
 export class HostConsumer {
@@ -22,7 +24,8 @@ export class HostConsumer {
     private resolveService: ResolveService,
     private pingService: PingService,
     private tasksService: TasksService,
-    configService: ConfigService,
+    private btrfsService: BtrfsService,
+    private configService: ConfigService,
   ) {
     this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
   }
@@ -33,22 +36,11 @@ export class HostConsumer {
 
     const config = await this.updateBackupTaskConfig(job);
 
-    const backupTask = job.data;
-    const hostBackup = new BackupList(this.hostpath, job.data.host);
-
-    /* *********** LOCK ************ */
-    const previousLock = await hostBackup.lock('' + job.id);
-    if (previousLock) {
-      const previousJob = await this.hostsQueue.getJob(previousLock);
-      if (!previousJob || !(await previousJob.isActive())) {
-        await hostBackup.lock('' + job.id, true);
-      } else {
-        throw new Error(`Host ${job.data.host} already locked by ${previousLock}`);
-      }
-    }
-    /* *********** END LOCK ************ */
+    await this.lock(job);
 
     try {
+      const backupTask = job.data;
+      const hostBackup = new BackupList(this.hostpath, job.data.host);
       if (backupTask.number === undefined || !backupTask.destinationDirectory) {
         const lastBackup = await hostBackup.getLastBackup();
         if (lastBackup?.complete) {
@@ -69,20 +61,21 @@ export class HostConsumer {
         job.update(backupTask);
       }
 
+      // Set the logger
+      const backupLogger = new BackupLogger(this.configService, job.data.host, job.data.number);
+
       const task = new InternalBackupTask(backupTask);
       this.tasksService.addSubTasks(task);
-      await this.tasksService.launchBackup(task, task => {
+      await this.tasksService.launchBackup(backupLogger, task, task => {
         job.update(task);
         job.progress(task.progression?.percent);
       });
 
       hostBackup.addBackup(task.toBackup());
     } finally {
-      /* ************** UNLOCK ************ */
-      await hostBackup.unlock('' + job.id);
-      /* ************** END UNLOCK ************ */
+      await this.unlock(job);
     }
-    this.logger.log(`END: Of backup of the host ${job.data.host}`);
+    this.logger.debug(`END: Of backup of the host ${job.data.host}`);
   }
 
   @Process('schedule_host')
@@ -96,7 +89,10 @@ export class HostConsumer {
 
     // If backup is activated, and the last backup is old, we crete a new backup
     const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate.getTime() || 0)) / 1000;
-    this.logger.log(`Last backup for the host ${job.data.host} have been made at ${timeSinceLastBackup / 3600} hours past (should be made after ${config.schedule.backupPerdiod / 3600} hour)`);
+    this.logger.debug(
+      `Last backup for the host ${job.data.host} have been made at ${timeSinceLastBackup /
+        3600} hours past (should be made after ${config.schedule.backupPerdiod / 3600} hour)`,
+    );
     if (config.schedule.activated && timeSinceLastBackup > config.schedule.backupPerdiod) {
       // Check if we can ping
       // Add a more complexe logic, to backup only if not in a blackout period.
@@ -104,13 +100,52 @@ export class HostConsumer {
         // Yes we can, so we backup
         this.hostsQueue.add('backup', job.data);
       } else {
-        this.logger.warn(`END: Host ${job.data.host} not available on network`);
+        this.logger.debug(`END: Host ${job.data.host} not available on network`);
       }
     } else {
-      this.logger.log(`END: Host ${job.data.host} will not be backuped`);
+      this.logger.debug(`END: Host ${job.data.host} will not be backuped`);
     }
 
     // Check if some backup should be removed
+  }
+
+  @Process('remove_backup')
+  async remove(job: Job<BackupTask>) {
+    this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number}`);
+    if (!job.data.host || job.data.number === undefined) {
+      throw new BadRequestException(`Host and backup number should be defined`);
+    }
+
+    await this.lock(job);
+    try {
+      const hostBackup = new BackupList(this.hostpath, job.data.host);
+      await hostBackup.removeBackup(job.data.number);
+      await this.btrfsService.removeSnapshot(await hostBackup.getDestinationDirectory(job.data.number));
+    } finally {
+      await this.unlock(job);
+    }
+  }
+
+  private async lock(job: Job<BackupTask>) {
+    /* *********** LOCK ************ */
+    const hostBackup = new BackupList(this.hostpath, job.data.host);
+    const previousLock = await hostBackup.lock('' + job.id);
+    if (previousLock) {
+      const previousJob = await this.hostsQueue.getJob(previousLock);
+      if (!previousJob || !(await previousJob.isActive())) {
+        await hostBackup.lock('' + job.id, true);
+      } else {
+        throw new Error(`Host ${job.data.host} already locked by ${previousLock}`);
+      }
+    }
+    /* *********** END LOCK ************ */
+  }
+
+  private async unlock(job: Job<BackupTask>) {
+    const hostBackup = new BackupList(this.hostpath, job.data.host);
+    /* ************** UNLOCK ************ */
+    await hostBackup.unlock('' + job.id);
+    /* ************** END UNLOCK ************ */
   }
 
   private async updateBackupTaskConfig(job: Job<BackupTask>) {

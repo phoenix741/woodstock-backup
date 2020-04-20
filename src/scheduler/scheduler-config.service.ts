@@ -44,7 +44,7 @@ export class SchedulerConfigService {
    * Load host from the file stored at this.hostsPath
    */
   private async loadConfig(): Promise<ApplicationScheduler> {
-    this.logger.log(`SchedulerService.loadConfig: Read the file ${this.schedulerPath}`);
+    this.logger.debug(`SchedulerService.loadConfig: Read the file ${this.schedulerPath}`);
 
     try {
       await mkdirp(this.configPath);
@@ -52,7 +52,7 @@ export class SchedulerConfigService {
       const schedulerStr = await fs.promises.readFile(this.schedulerPath, 'utf8');
       return yaml.safeLoad(schedulerStr) || [];
     } catch (err) {
-      this.logger.error(`SchedulerService.loadConfig: Can't read hosts files ${err.message}`);
+      this.logger.warn(`SchedulerService.loadConfig: Can't read hosts files ${err.message}`);
       return new ApplicationScheduler();
     }
   }
@@ -63,13 +63,9 @@ export class SchedulerConfigService {
   private async writeConfig(): Promise<void> {
     this.logger.log(`SchedulerService.writeConfig: Write the file ${this.schedulerPath}`);
 
-    try {
-      await mkdirp(this.configPath);
+    await mkdirp(this.configPath);
 
-      const schedulerStr = yaml.safeDump(this._scheduler);
-      await fs.promises.writeFile(this.schedulerPath, schedulerStr, 'utf-8');
-    } catch (err) {
-      this.logger.error(`SchedulerService.writeConfig: Can't write hosts files: ${err.message}`);
-    }
+    const schedulerStr = yaml.safeDump(this._scheduler);
+    await fs.promises.writeFile(this.schedulerPath, schedulerStr, 'utf-8');
   }
 }

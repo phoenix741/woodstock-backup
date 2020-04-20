@@ -4,6 +4,7 @@ import { CallbackProgressFn } from '../operation/interfaces/options';
 import { pick } from '../utils/lodash';
 import { BackupState, BackupSubTask, BackupTask, TaskProgression } from './tasks.dto';
 import { InternalServerErrorException } from '@nestjs/common';
+import { BackupLogger } from '../logger/BackupLogger.logger';
 
 export type CallbackTaskChangeFn = (task: BackupTask) => void;
 
@@ -13,7 +14,12 @@ export class InternalBackupSubTask implements BackupSubTask {
     public readonly description: string,
     public readonly failable: boolean,
     public readonly progress: boolean,
-    public readonly command: (task: BackupTask, subtask: BackupSubTask, progressFn: CallbackProgressFn) => Promise<any>,
+    public readonly command: (
+      task: BackupTask,
+      subtask: BackupSubTask,
+      progressFn: CallbackProgressFn,
+      backupLogger: BackupLogger,
+    ) => Promise<any>,
 
     public state: BackupState = BackupState.WAITING,
     public progression?: TaskProgression,
@@ -96,7 +102,19 @@ export class InternalBackupTask implements BackupTask {
   }
 
   toJSON() {
-    return pick(this, 'host', 'config', 'number', 'ip', 'destinationDirectory', 'startDate', 'subtasks', 'state', 'progression', 'complete');
+    return pick(
+      this,
+      'host',
+      'config',
+      'number',
+      'ip',
+      'destinationDirectory',
+      'startDate',
+      'subtasks',
+      'state',
+      'progression',
+      'complete',
+    );
   }
 
   toBackup(): Backup {
