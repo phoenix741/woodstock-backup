@@ -19,6 +19,8 @@ import { ServerController } from './server/server.controller';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
+import { BackupLogger } from './logger/BackupLogger.logger';
+import { ApplicationLogger } from './logger/ApplicationLogger.logger';
 
 @Module({
   imports: [
@@ -39,6 +41,19 @@ import { TasksService } from './tasks/tasks.service';
     ),
   ],
   controllers: [QueueController, BackupController, HostController, ServerController],
-  providers: [TasksService, ResolveService, ExecuteCommandService, RSyncCommandService, HostsService, HostConsumer, BtrfsService, SchedulerService, SchedulerConfigService, SchedulerConsumer, PingService],
+  providers: [
+    TasksService,
+    ResolveService,
+    ExecuteCommandService,
+    RSyncCommandService,
+    HostsService,
+    HostConsumer,
+    BtrfsService,
+    SchedulerService,
+    SchedulerConfigService,
+    SchedulerConsumer,
+    PingService,
+    ApplicationLogger,
+  ],
 })
 export class AppModule {}

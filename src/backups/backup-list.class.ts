@@ -28,6 +28,19 @@ export class BackupList {
     return join(this._hostPath, this._host, '' + backupNumber);
   }
 
+  getLogDirectory() {
+    return join(this._hostPath, this._host, 'logs');
+  }
+
+  getLogFile(backupNumber?: number, type?: string) {
+    return join(
+      this._hostPath,
+      this._host,
+      'logs',
+      `backup.${backupNumber ? backupNumber + '.' : ''}${type ? type + '.' : ''}log`,
+    );
+  }
+
   async getBackups(): Promise<Backup[]> {
     if (!this._backups.length) {
       await this.loadBackups();
@@ -89,12 +102,24 @@ export class BackupList {
     await this.saveBackups();
   }
 
+  async removeBackup(number: number) {
+    await this.loadBackups();
+
+    const foundIndex = this._backups.findIndex(element => element.number === number);
+
+    if (foundIndex >= 0) {
+      this._backups.splice(foundIndex, 1);
+    }
+
+    await this.saveBackups();
+  }
+
   private async loadBackups() {
-    this.logger.log(`Load backup for the host ${this._host}.`);
+    this.logger.debug(`Load backup for the host ${this._host}.`);
     try {
       const backupsFromFile = await fs.promises.readFile(this.backupFile, 'utf8');
       this._backups = yaml.safeLoad(backupsFromFile) || [];
-      this.logger.log(`Found ${this._backups.length} for the host ${this._host}`);
+      this.logger.debug(`Found ${this._backups.length} for the host ${this._host}`);
     } catch (err) {
       this._backups = [];
       this.logger.warn(`Can't load backups for the host ${this._host}: ${err.message}`);
@@ -102,7 +127,7 @@ export class BackupList {
   }
 
   private async saveBackups() {
-    this.logger.log(`Save backup for the host ${this._host}.`);
+    this.logger.debug(`Save backup for the host ${this._host}.`);
     const backupsFromStr = yaml.safeDump(this._backups);
     await fs.promises.writeFile(this.backupFile, backupsFromStr, 'utf-8');
   }

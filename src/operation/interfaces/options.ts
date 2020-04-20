@@ -1,3 +1,4 @@
+import { BackupLogger } from '../../logger/BackupLogger.logger';
 export class BackupProgression {
   newFileSize = 0;
   fileSize = 0;
@@ -14,5 +15,6 @@ export interface Options {
   host: string;
   context: string;
 
+  backupLogger: BackupLogger;
   callbackProgress: CallbackProgressFn;
 }

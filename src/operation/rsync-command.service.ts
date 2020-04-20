@@ -23,8 +23,6 @@ export interface RSyncdBackupOptions extends BackupOptions {
 
 @Injectable()
 export class RSyncCommandService {
-  private logger = new Logger(RSyncCommandService.name);
-
   /**
    * Launch a RSync backup
    *
@@ -34,13 +32,22 @@ export class RSyncCommandService {
    * @param options Options of the backup
    * @returns Is the backup partial
    */
-  async backup(host: string | null, sharePath: string, destination: string, options: RSyncBackupOptions | RSyncdBackupOptions): Promise<void> {
+  async backup(
+    host: string | null,
+    sharePath: string,
+    destination: string,
+    options: RSyncBackupOptions | RSyncdBackupOptions,
+  ): Promise<void> {
     const isRsyncVersionGreaterThan31 = true;
 
     const rsync = new Rsync();
 
     if ((options as RSyncBackupOptions).rsync) {
-      rsync.shell(`/usr/bin/ssh ${options.username ? '-l ' + options.username : ''} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`);
+      rsync.shell(
+        `/usr/bin/ssh ${
+          options.username ? '-l ' + options.username : ''
+        } -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`,
+      );
     }
 
     rsync
@@ -100,7 +107,7 @@ export class RSyncCommandService {
 
     rsync.destination(destination);
 
-    this.logger.log({ message: `Execute command ${rsync.command()}`, sharePath, ...options });
+    options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);
 
     return new Promise((resolve, reject) => {
       const context: BackupContext = new BackupContext(sharePath);
@@ -118,7 +125,12 @@ export class RSyncCommandService {
     });
   }
 
-  private processOutput(context: BackupContext, options: RSyncBackupOptions | RSyncdBackupOptions, data: any, error = false) {
+  private processOutput(
+    context: BackupContext,
+    options: RSyncBackupOptions | RSyncdBackupOptions,
+    data: any,
+    error = false,
+  ) {
     data
       .toString()
       .split(/[\n\r]/)
@@ -181,7 +193,9 @@ export class RSyncCommandService {
 
         return true;
       })
-      .forEach((line: string) => (error ? this.logger.error({ message: line, sharePath: context.sharePath, ...options }) : this.logger.log({ message: line, sharePath: context.sharePath, ...options })));
+      .forEach((line: string) =>
+        error ? options.backupLogger.error(line, context.sharePath) : options.backupLogger.log(line, context.sharePath),
+      );
   }
 
   private rsyncNumberToInt(value: string, unit = 'bytes'): number {

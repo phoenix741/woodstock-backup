@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Post, Delete, ParseIntPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { Queue } from 'bull';
@@ -13,7 +13,11 @@ import { Backup } from './backup.dto';
 export class BackupController {
   private hostpath: string;
 
-  constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService, configService: ConfigService) {
+  constructor(
+    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    private hostsService: HostsService,
+    configService: ConfigService,
+  ) {
     this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
   }
 
@@ -39,5 +43,17 @@ export class BackupController {
     }
 
     await this.hostsQueue.add('backup', { host: name });
+  }
+
+  @Delete(':number')
+  @ApiOkResponse({
+    description: 'Delete a backup',
+  })
+  async removeBackup(@Param('name') name: string, @Param('number', ParseIntPipe) number: number) {
+    if (!(await this.hostsService.getHost(name))) {
+      throw new NotFoundException(`Can't find the host with the name ${name}`);
+    }
+
+    await this.hostsQueue.add('remove_backup', { host: name, number });
   }
 }
