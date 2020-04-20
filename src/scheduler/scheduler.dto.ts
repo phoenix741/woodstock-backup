@@ -1,0 +1,21 @@
+import { ApiProperty } from '@nestjs/swagger';
+
+export class ScheduledBackupToKeep {
+  hourly = -1;
+  daily = 7;
+  weekly = 4;
+  monthly = 12;
+  yearly = -1;
+}
+
+export class Schedule {
+  @ApiProperty({ type: Boolean })
+  activated = true;
+  backupPerdiod = 24 * 3600 - 5 * 60;
+  backupToKeep = new ScheduledBackupToKeep();
+}
+
+export class ApplicationScheduler {
+  wakeupSchedule = '0 * * * *';
+  defaultSchdule = new Schedule();
+}
