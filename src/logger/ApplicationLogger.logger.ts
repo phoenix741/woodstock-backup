@@ -18,7 +18,7 @@ export class ApplicationLogger implements LoggerService {
     const logPath = join(process.env.BACKUP_PATH || '', 'log');
     mkdirp(logPath);
     this.logger = createLogger({
-      level: 'info',
+      level: 'debug',
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.Console({

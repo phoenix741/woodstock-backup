@@ -2,10 +2,12 @@ import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupController } from './backups/backups.controller';
 import configuration from './config/configuration';
 import { HostController } from './hosts/hosts.controller';
 import { HostsService } from './hosts/hosts.service';
+import { ApplicationLogger } from './logger/ApplicationLogger.logger';
 import { PingService } from './network/ping';
 import { ResolveService } from './network/resolve';
 import { ExecuteCommandService } from './operation/execute-command.service';
@@ -19,8 +21,7 @@ import { ServerController } from './server/server.controller';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
-import { BackupLogger } from './logger/BackupLogger.logger';
-import { ApplicationLogger } from './logger/ApplicationLogger.logger';
+import { BackupsFilesService } from './backups/backups-files.service';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { ApplicationLogger } from './logger/ApplicationLogger.logger';
       },
     ),
   ],
-  controllers: [QueueController, BackupController, HostController, ServerController],
+  controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],
   providers: [
     TasksService,
     ResolveService,
@@ -54,6 +55,7 @@ import { ApplicationLogger } from './logger/ApplicationLogger.logger';
     SchedulerConsumer,
     PingService,
     ApplicationLogger,
+    BackupsFilesService,
   ],
 })
 export class AppModule {}
