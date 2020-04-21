@@ -1,14 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { join } from 'path';
 
 import { HostConfig, Operation } from '../hosts/host-config.dto';
+import { BackupLogger } from '../logger/BackupLogger.logger';
 import { ResolveService } from '../network/resolve';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { RSyncCommandService } from '../operation/rsync-command.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
 import { CallbackTaskChangeFn, InternalBackupSubTask, InternalBackupTask } from './tasks.class';
 import { BackupState, TaskProgression } from './tasks.dto';
-import { BackupLogger } from '../logger/BackupLogger.logger';
 
 @Injectable()
 export class TasksService {

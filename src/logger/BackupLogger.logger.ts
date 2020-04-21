@@ -23,7 +23,7 @@ export class BackupLogger implements LoggerService {
 
     mkdirp(destinationDirectory);
     this.logger = createLogger({
-      level: 'info',
+      level: 'debug',
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({
