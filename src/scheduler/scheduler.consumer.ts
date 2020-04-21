@@ -13,7 +13,7 @@ export class SchedulerConsumer {
 
   @Process()
   async schedule(job: Job<object>) {
-    this.logger.log(`Scheduler wakeup at ${new Date(job.timestamp).toISOString()}`);
+    this.logger.log(`Scheduler wakeup at ${new Date().toISOString()}`);
     for (const host of await this.hostsService.getHosts()) {
       await this.hostsQueue.add('schedule_host', { host: host.name });
     }
