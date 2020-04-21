@@ -68,6 +68,7 @@ export class RSyncCommandService {
       .set('partial')
       .set('stats')
       .set('checksum')
+      .set('inplace')
       .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L');
 
     // If not is root
