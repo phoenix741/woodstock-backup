@@ -1,22 +1,42 @@
 import Vue from 'vue';
 import VueRouter, { RouteConfig } from 'vue-router';
-import Home from '../views/Home.vue';
 
 Vue.use(VueRouter);
 
 const routes: Array<RouteConfig> = [
   {
-    path: '/',
-    name: 'Home',
-    component: Home,
+    name: 'Dashboard',
+    path: '/dashboard',
+    component: () => import(/* webpackChunkName: "dashboard" */ '../views/Dashboard.vue'),
   },
   {
-    path: '/about',
-    name: 'About',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/About.vue'),
+    name: 'Hosts',
+    path: '/hosts',
+    component: () => import(/* webpackChunkName: "hosts" */ '../views/Hosts.vue'),
+  },
+  {
+    name: 'RunningTasks',
+    path: '/tasks',
+    component: () => import(/* webpackChunkName: "tasks" */ '../views/RunningTasks.vue'),
+  },
+  {
+    name: 'Logs',
+    path: '/logs',
+    component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
+  },
+  {
+    name: 'Backups',
+    path: '/backups/:host',
+    component: () => import(/* webpackChunkName: "backups" */ '../views/Backups.vue'),
+  },
+  {
+    name: 'BackupsBrowse',
+    path: '/backups/:host/:number',
+    component: () => import(/* webpackChunkName: "browse" */ '../views/BackupsBrowse.vue'),
+  },
+  {
+    path: '/',
+    redirect: '/dashboard',
   },
 ];
 
