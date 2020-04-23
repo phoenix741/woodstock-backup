@@ -22,11 +22,11 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
-import Task from '../components/Task.vue';
+import { Component, Vue } from "vue-property-decorator";
+import Task from "../components/Task.vue";
 
 @Component({
-  components: { Task },
+  components: { Task }
 })
 export default class Hosts extends Vue {}
 </script>

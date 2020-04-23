@@ -4,7 +4,9 @@
       <v-list>
         <v-list-item>
           <v-list-item-content>
-            <v-list-item-title class="title text-center">Woodstock Admin</v-list-item-title>
+            <v-list-item-title class="title text-center"
+              >Woodstock Admin</v-list-item-title
+            >
           </v-list-item-content>
         </v-list-item>
       </v-list>
@@ -89,7 +91,11 @@
           <v-list>
             <v-list-item>
               <v-list-item-avatar>
-                <v-progress-circular :value="20" width="3" color="primary"></v-progress-circular>
+                <v-progress-circular
+                  :value="20"
+                  width="3"
+                  color="primary"
+                ></v-progress-circular>
               </v-list-item-avatar>
 
               <v-list-item-content>
@@ -100,7 +106,11 @@
 
             <v-list-item>
               <v-list-item-avatar>
-                <v-progress-circular :value="50" width="3" color="primary"></v-progress-circular>
+                <v-progress-circular
+                  :value="50"
+                  width="3"
+                  color="primary"
+                ></v-progress-circular>
               </v-list-item-avatar>
 
               <v-list-item-content>
@@ -120,7 +130,7 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
+import { Component, Vue } from "vue-property-decorator";
 
 @Component({})
 export default class App extends Vue {

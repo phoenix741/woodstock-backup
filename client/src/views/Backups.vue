@@ -1,13 +1,26 @@
 <template>
   <v-container>
     <v-card>
-      <v-data-table show-select :headers="headers" :items="desserts" :items-per-page="15">
+      <v-data-table
+        show-select
+        :headers="headers"
+        :items="desserts"
+        :items-per-page="15"
+      >
         <template slot="item.show" scope="props">
           <td class="align-center">
-            <v-btn class="secondary" rounded :to="`/backups/${props.item.host}/${props.item.number}`">
+            <v-btn
+              class="secondary"
+              rounded
+              :to="`/backups/${props.item.host}/${props.item.number}`"
+            >
               Browse
             </v-btn>
-            <v-btn class="ml-1 secondary" rounded :to="`/backups/${props.item.host}/${props.item.number}/logs`">
+            <v-btn
+              class="ml-1 secondary"
+              rounded
+              :to="`/backups/${props.item.host}/${props.item.number}/logs`"
+            >
               Show Log
             </v-btn>
           </td>
@@ -21,29 +34,29 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
+import { Component, Vue } from "vue-property-decorator";
 
 @Component({})
 export default class Hosts extends Vue {
   headers = [
     {
-      text: 'Backup#',
-      align: 'start',
-      value: 'number',
+      text: "Backup#",
+      align: "start",
+      value: "number"
     },
-    { text: 'Start date', value: 'startDate' },
-    { text: 'Duration', value: 'duration' },
-    { text: 'Files Count', value: 'filesCount' },
-    { text: 'Files Size', value: 'filesSize' },
-    { text: 'Existing Files Count', value: 'existingFileCount' },
-    { text: 'Existing Files Size', value: 'existingFileSize' },
-    { text: 'New Files Count', value: 'newFileCount' },
-    { text: 'New Files Size', value: 'newFileSize' },
-    { text: '', value: 'show', sortable: false },
+    { text: "Start date", value: "startDate" },
+    { text: "Duration", value: "duration" },
+    { text: "Files Count", value: "filesCount" },
+    { text: "Files Size", value: "filesSize" },
+    { text: "Existing Files Count", value: "existingFileCount" },
+    { text: "Existing Files Size", value: "existingFileSize" },
+    { text: "New Files Count", value: "newFileCount" },
+    { text: "New Files Size", value: "newFileSize" },
+    { text: "", value: "show", sortable: false }
   ];
   desserts = [
     {
-      host: 'pc-ulrich',
+      host: "pc-ulrich",
       number: 1,
       startDate: new Date(),
       duration: 55,
@@ -52,8 +65,8 @@ export default class Hosts extends Vue {
       existingFileCount: 12313,
       existingFileSize: 12312312,
       newFileCount: 12332,
-      newFileSize: 123123,
-    },
+      newFileSize: 123123
+    }
   ];
 }
 </script>
