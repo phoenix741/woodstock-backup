@@ -9,6 +9,7 @@ import { RSyncCommandService } from '../operation/rsync-command.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
 import { CallbackTaskChangeFn, InternalBackupSubTask, InternalBackupTask } from './tasks.class';
 import { BackupState, TaskProgression } from './tasks.dto';
+import { pick } from '../utils/lodash';
 
 @Injectable()
 export class TasksService {
@@ -115,6 +116,7 @@ export class TasksService {
           ),
         ];
       case 'RSyncBackup':
+      case 'RSyncdBackup':
         return operation.share.map(share => {
           return new InternalBackupSubTask(
             share.name,
@@ -136,7 +138,12 @@ export class TasksService {
                 host: config.name,
                 context: share.name,
 
-                rsync: true,
+                rsync: operation.name === 'RSyncBackup',
+                rsyncd: operation.name === 'RSyncdBackup',
+                ...(operation.name === 'RSyncdBackup'
+                  ? pick(operation, 'authentification', 'username', 'password')
+                  : {}),
+
                 username: 'root',
                 includes,
                 excludes,

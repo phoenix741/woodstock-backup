@@ -65,9 +65,34 @@ export class RSyncBackupOperation {
   timeout!: number;
 }
 
-export type Operation = ExecuteCommandOperation | RSyncBackupOperation;
+export class RSyncdBackupOperation {
+  @ApiProperty({ type: String, enum: ['RSyncdBackup'] })
+  name!: 'RSyncdBackup';
 
-@ApiExtraModels(RSyncBackupOperation, ExecuteCommandOperation)
+  @ApiProperty({ type: Boolean })
+  authentification?: boolean;
+
+  username?: string;
+
+  password?: string;
+
+  @ValidateNested()
+  share!: Array<BackupTaskShare>;
+
+  @ApiProperty({ example: [] })
+  includes?: Array<string>;
+
+  @ApiProperty({ example: [] })
+  excludes?: Array<string>;
+
+  @ApiProperty({ example: 1200 })
+  @IsNumber()
+  timeout!: number;
+}
+
+export type Operation = ExecuteCommandOperation | RSyncBackupOperation | RSyncdBackupOperation;
+
+@ApiExtraModels(RSyncBackupOperation, ExecuteCommandOperation, RSyncdBackupOperation)
 export class HostConfigOperation {
   @ApiProperty({
     type: 'array',

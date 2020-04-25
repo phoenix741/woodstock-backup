@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
+import * as mkdirp from 'mkdirp';
 import { join } from 'path';
 
 import { Backup } from './backup.dto';
@@ -37,7 +38,7 @@ export class BackupList {
       this._hostPath,
       this._host,
       'logs',
-      `backup.${backupNumber ? backupNumber + '.' : ''}${type ? type + '.' : ''}log`,
+      `backup.${backupNumber !== undefined ? backupNumber + '.' : ''}${type ? type + '.' : ''}log`,
     );
   }
 
@@ -48,13 +49,14 @@ export class BackupList {
     return this._backups;
   }
 
-  async getLastBackup(): Promise<Backup | null> {
+  async getLastBackup(): Promise<Backup | undefined> {
     const backups = await this.getBackups();
-    return backups.length ? backups[backups.length - 1] : null;
+    return backups.length ? backups[backups.length - 1] : undefined;
   }
 
   async lock(jobId: string, force = false): Promise<string | null> {
     try {
+      await mkdirp(this.directory);
       await fs.promises.writeFile(this.lockFile, jobId, { encoding: 'utf-8', flag: force ? 'w' : 'wx' });
 
       return null;
@@ -129,6 +131,7 @@ export class BackupList {
   private async saveBackups() {
     this.logger.debug(`Save backup for the host ${this._host}.`);
     const backupsFromStr = yaml.safeDump(this._backups);
+    await mkdirp(this.directory);
     await fs.promises.writeFile(this.backupFile, backupsFromStr, 'utf-8');
   }
 }

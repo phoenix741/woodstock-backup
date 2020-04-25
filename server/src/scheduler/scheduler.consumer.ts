@@ -13,9 +13,9 @@ export class SchedulerConsumer {
 
   @Process()
   async schedule(job: Job<object>) {
-    this.logger.log(`Scheduler wakeup at ${new Date().toISOString()}`);
+    this.logger.log(`Scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
-      await this.hostsQueue.add('schedule_host', { host: host.name });
+      await this.hostsQueue.add('schedule_host', { host: host.name }, { removeOnComplete: true });
     }
   }
 }

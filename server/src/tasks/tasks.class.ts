@@ -6,8 +6,6 @@ import { BackupState, BackupSubTask, BackupTask, TaskProgression } from './tasks
 import { InternalServerErrorException } from '@nestjs/common';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 
-export type CallbackTaskChangeFn = (task: BackupTask) => void;
-
 export class InternalBackupSubTask implements BackupSubTask {
   constructor(
     public readonly context: string,
@@ -138,3 +136,5 @@ export class InternalBackupTask implements BackupTask {
     };
   }
 }
+
+export type CallbackTaskChangeFn = (task: InternalBackupTask) => void;
