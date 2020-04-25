@@ -32,7 +32,7 @@ export class HostConsumer {
 
   @Process('backup')
   async launchBackup(job: Job<BackupTask>) {
-    this.logger.log(`START: Launch the backup of the host ${job.data.host}`);
+    this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
 
     const config = await this.updateBackupTaskConfig(job);
 
@@ -69,18 +69,19 @@ export class HostConsumer {
       await this.tasksService.launchBackup(backupLogger, task, task => {
         job.update(task);
         job.progress(task.progression?.percent);
+        hostBackup.addBackup(task.toBackup());
       });
 
       hostBackup.addBackup(task.toBackup());
     } finally {
       await this.unlock(job);
     }
-    this.logger.debug(`END: Of backup of the host ${job.data.host}`);
+    this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
   }
 
   @Process('schedule_host')
   async schedule(job: Job<BackupTask>) {
-    this.logger.log(`START: Test ${job.data.host} for backup`);
+    this.logger.log(`START: Test ${job.data.host} for backup - JOB ID = ${job.id}`);
 
     const config = await this.updateBackupTaskConfig(job);
 
@@ -91,19 +92,19 @@ export class HostConsumer {
     const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate.getTime() || 0)) / 1000;
     this.logger.debug(
       `Last backup for the host ${job.data.host} have been made at ${timeSinceLastBackup /
-        3600} hours past (should be made after ${config.schedule.backupPerdiod / 3600} hour)`,
+        3600} hours past (should be made after ${config.schedule.backupPerdiod / 3600} hour)  - JOB ID = ${job.id}`,
     );
     if (config.schedule.activated && timeSinceLastBackup > config.schedule.backupPerdiod) {
       // Check if we can ping
       // Add a more complexe logic, to backup only if not in a blackout period.
       if (await this.pingService.pingFromConfig(config)) {
         // Yes we can, so we backup
-        this.hostsQueue.add('backup', job.data);
+        this.hostsQueue.add('backup', job.data, { removeOnComplete: true });
       } else {
-        this.logger.debug(`END: Host ${job.data.host} not available on network`);
+        this.logger.debug(`END: Host ${job.data.host} not available on network - JOB ID = ${job.id}`);
       }
     } else {
-      this.logger.debug(`END: Host ${job.data.host} will not be backuped`);
+      this.logger.debug(`END: Host ${job.data.host} will not be backuped - JOB ID = ${job.id}`);
     }
 
     // Check if some backup should be removed
@@ -111,7 +112,7 @@ export class HostConsumer {
 
   @Process('remove_backup')
   async remove(job: Job<BackupTask>) {
-    this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number}`);
+    this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number} - JOB ID = ${job.id}`);
     if (!job.data.host || job.data.number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);
     }

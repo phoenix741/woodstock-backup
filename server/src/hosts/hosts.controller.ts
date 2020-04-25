@@ -3,18 +3,30 @@ import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
 import { HostConfig } from './host-config.dto';
 import { HostsService } from './hosts.service';
+import { HostInformation } from './hosts.dto';
+import { BackupList } from '../backups/backup-list.class';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('hosts')
 export class HostController {
-  constructor(private hostsService: HostsService) {}
+  hostpath: string;
+
+  constructor(private configService: ConfigService, private hostsService: HostsService) {
+    this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
+  }
 
   @Get()
   @ApiOkResponse({
     description: 'Return the list of host',
-    type: [String],
+    type: [HostInformation],
   })
   async list() {
-    return (await this.hostsService.getHosts()).map(config => config.name);
+    return Promise.all(
+      (await this.hostsService.getHosts()).map(async config => {
+        const list = new BackupList(this.hostpath, config.name);
+        return new HostInformation(config.name, await list.getLastBackup());
+      }),
+    );
   }
 
   @Get(':name')

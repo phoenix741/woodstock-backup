@@ -69,7 +69,8 @@ export class RSyncCommandService {
       .set('stats')
       .set('checksum')
       .set('inplace')
-      .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L');
+      .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L')
+      .set('rsync-path', '/usr/bin/rsync');
 
     // If not is root
     if (!(process.getuid && process.getuid() === 0)) {
@@ -84,11 +85,30 @@ export class RSyncCommandService {
       rsync.set('timeout', '' + options.timeout);
     }
 
-    if (options.includes.length) {
-      rsync.include(options.includes);
+    let includes = new Set<string>();
+    let excludes = new Set<string>(...(options.excludes || []));
+
+    for (let include of options.includes || []) {
+      include = `/${include.replace(/\/$/, '')}`.replace(/\/\/+/g, '/');
+      if (include === '/') {
+        includes.add(include);
+        continue;
+      }
+
+      const [, ...elts] = include.split('/');
+      let path = '';
+      for (const elt of elts) {
+        excludes.add(`${path}/*`);
+        path = `${path}/${elt}`;
+        includes.add(path);
+      }
     }
-    if (options.excludes.length) {
-      rsync.exclude(options.excludes);
+
+    if (includes.size) {
+      rsync.include(Array.from(includes));
+    }
+    if (excludes.size) {
+      rsync.exclude(Array.from(excludes));
     }
 
     if ((options as RSyncBackupOptions).rsync) {
@@ -101,9 +121,9 @@ export class RSyncCommandService {
     if ((options as RSyncdBackupOptions).rsyncd) {
       let authentification = '';
       if ((options as RSyncdBackupOptions).authentification) {
-        authentification = `${options.username}:${(options as RSyncdBackupOptions).password}@`;
+        authentification = `${options.username}:${(options as RSyncdBackupOptions).password}@`; // FIXME: Utiliser l'option password-file
       }
-      rsync.source(`${authentification}${host}::${sharePath}/`);
+      rsync.source(`${authentification}${host}::${sharePath}`);
     }
 
     rsync.destination(destination);

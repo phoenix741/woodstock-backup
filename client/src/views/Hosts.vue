@@ -7,22 +7,31 @@
       class="elevation-1"
     >
       <template slot="item.show" scope="props">
-        <td class="align-center">
-          <v-btn class="secondary" rounded :to="`/backups/${props.item.name}`">
-            list
-          </v-btn>
-        </td>
+        <v-btn class="secondary" rounded :to="`/backups/${props.item.name}`">
+          list
+        </v-btn>
+      </template>
+      <template slot="item.lastBackupAge" scope="props">
+        {{ (props.item.lastBackupAge / (24 * 3600000)).toFixed(2) }}
+      </template>
+      <template slot="item.lastBackupSize" scope="props">
+        {{
+          props.item.lastBackupSize &&
+            humanize.filesize(props.item.lastBackupSize)
+        }}
       </template>
     </v-data-table>
   </v-container>
 </template>
 
 <script lang="ts">
+import { humanize } from "humanize";
 import { Component, Vue } from "vue-property-decorator";
 import axios from "axios";
 
 @Component({})
 export default class Hosts extends Vue {
+  humanize = humanize;
   headers = [
     {
       text: "Host",
@@ -36,36 +45,19 @@ export default class Hosts extends Vue {
     { text: "State", value: "state" },
     { text: "", value: "show", sortable: false },
   ];
-  hosts = [
-    {
-      name: "pc-ulrich",
-      user: "phoenix",
-      lastBackupNumber: 5,
-      lastBackupAge: 3,
-      lastBackupSize: 60,
-      state: "idle",
-    },
-    {
-      name: "pc-eve",
-      user: "eve",
-      lastBackupNumber: 10,
-      lastBackupAge: 4,
-      lastBackupSize: 350,
-      state: "backup",
-    },
-    {
-      name: "server",
-      user: "eve",
-      lastBackupNumber: 10,
-      lastBackupAge: 1,
-      lastBackupSize: 100,
-      state: "failed",
-    },
-  ];
+  hosts = [];
 
   async mounted() {
     const response = await axios.get("/api/hosts");
-    this.hosts = response.data.map((host: string) => ({ name: host }));
+    this.hosts = response.data.map((host: any) => ({
+      name: host.name,
+      lastBackupNumber: host.lastBackup?.number,
+      lastBackupAge:
+        host.lastBackup &&
+        new Date().getTime() - new Date(host.lastBackup?.startDate).getTime(),
+      lastBackupSize: host.lastBackup?.fileSize,
+      state: host.lastBackup?.complete ? "sucess" : "failed",
+    }));
   }
 }
 </script>
