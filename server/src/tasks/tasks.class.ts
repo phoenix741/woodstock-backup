@@ -1,10 +1,12 @@
+import { InternalServerErrorException } from '@nestjs/common';
+import { Observable } from 'rxjs';
+
 import { Backup } from '../backups/backup.dto';
-import { HostConfig } from '../hosts/host-config.dto';
-import { CallbackProgressFn } from '../operation/interfaces/options';
+import { HostConfiguration } from '../hosts/host-configuration.dto';
+import { BackupLogger } from '../logger/BackupLogger.logger';
+import { BackupProgression } from '../operation/interfaces/options';
 import { pick } from '../utils/lodash';
 import { BackupState, BackupSubTask, BackupTask, TaskProgression } from './tasks.dto';
-import { InternalServerErrorException } from '@nestjs/common';
-import { BackupLogger } from '../logger/BackupLogger.logger';
 
 export class InternalBackupSubTask implements BackupSubTask {
   constructor(
@@ -15,9 +17,8 @@ export class InternalBackupSubTask implements BackupSubTask {
     public readonly command: (
       task: BackupTask,
       subtask: BackupSubTask,
-      progressFn: CallbackProgressFn,
       backupLogger: BackupLogger,
-    ) => Promise<any>,
+    ) => Observable<BackupProgression | void>,
 
     public state: BackupState = BackupState.WAITING,
     public progression?: TaskProgression,
@@ -26,7 +27,7 @@ export class InternalBackupSubTask implements BackupSubTask {
 
 export class InternalBackupTask implements BackupTask {
   public readonly host: string;
-  public readonly config: HostConfig;
+  public readonly config: HostConfiguration;
   public readonly number: number;
   public readonly ip: string;
   public readonly destinationDirectory: string;
@@ -122,7 +123,7 @@ export class InternalBackupTask implements BackupTask {
       complete: this.complete,
 
       startDate: this.startDate,
-      endDate,
+      endDate: this.complete ? endDate : null,
 
       fileCount: this.progression.fileCount,
       newFileCount: this.progression.newFileCount,
@@ -136,5 +137,3 @@ export class InternalBackupTask implements BackupTask {
     };
   }
 }
-
-export type CallbackTaskChangeFn = (task: InternalBackupTask) => void;

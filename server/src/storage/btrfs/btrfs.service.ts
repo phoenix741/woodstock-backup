@@ -5,22 +5,22 @@ import { join } from 'path';
 
 import { ExecuteCommandService } from '../../operation/execute-command.service';
 import { BtrfsCheck } from './btrfs.dto';
+import { ApplicationConfigService } from '../../config/application-config.service';
 
 @Injectable()
 export class BtrfsService {
   private logger = new Logger(BtrfsService.name);
-  private hostspath: string;
 
-  constructor(configService: ConfigService, private executeCommandService: ExecuteCommandService) {
-    this.hostspath = configService.get<string>('paths.hostPath', '<defunct>');
-  }
+  constructor(private configService: ApplicationConfigService, private executeCommandService: ExecuteCommandService) {}
 
   async check(): Promise<BtrfsCheck> {
     const checks = new BtrfsCheck();
     // Is btrfs available on the backup directory
     {
-      const { stdout } = await this.executeCommandService.executeCommand(`stat -f --format=%T ${this.hostspath}`);
-      checks.backupVolume = this.hostspath;
+      const { stdout } = await this.executeCommandService.executeCommand(
+        `stat -f --format=%T ${this.configService.hostPath}`,
+      );
+      checks.backupVolume = this.configService.hostPath;
       checks.backupVolumeFileSystem = `${stdout}`.trim();
       checks.isBtrfsVolume = checks.backupVolumeFileSystem === 'btrfs';
     }
@@ -32,7 +32,7 @@ export class BtrfsService {
 
     {
       try {
-        const tmpVolume = join(this.hostspath, '__tmp');
+        const tmpVolume = join(this.configService.hostPath, '__tmp');
         await this.createSnapshot(tmpVolume);
         await this.removeSnapshot(tmpVolume);
         checks.hasAuthorization = true;
@@ -90,7 +90,7 @@ export class BtrfsService {
 
   async stats() {
     const { stdout } = await this.executeCommandService.executeCommand(
-      `btrfs filesystem du --raw -s "${this.hostspath}"`,
+      `btrfs filesystem du --raw -s "${this.configService.hostPath}"`,
     );
     const [, line] = stdout.toString().split(/[\n\r]/);
     const [total, exclusive, shared] = line

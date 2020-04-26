@@ -1,5 +1,7 @@
+import { ObjectType, Field, createUnionType } from '@nestjs/graphql';
 import { ApiExtraModels, ApiProperty, getSchemaPath } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { IsNumber, Matches, Max, Min, ValidateNested } from 'class-validator';
+
 import { Schedule } from '../scheduler/scheduler.dto';
 
 /**
@@ -7,6 +9,7 @@ import { Schedule } from '../scheduler/scheduler.dto';
  *
  * Store information about a share
  */
+@ObjectType()
 export class BackupTaskShare {
   @ApiProperty({ example: '/home' })
   name!: string;
@@ -23,6 +26,7 @@ export class BackupTaskShare {
  *
  * Store information about a DHCP Address
  */
+@ObjectType()
 export class DhcpAddress {
   @ApiProperty({ example: '192.168.101' })
   @Matches(/^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/)
@@ -39,16 +43,20 @@ export class DhcpAddress {
   end!: number;
 }
 
+@ObjectType()
 export class ExecuteCommandOperation {
   @ApiProperty({ type: String, enum: ['ExecuteCommand'] })
+  @Field(() => String)
   name!: 'ExecuteCommand';
 
   @ApiProperty({ example: '/bin/true' })
   command!: string;
 }
 
+@ObjectType()
 export class RSyncBackupOperation {
   @ApiProperty({ type: String, enum: ['RSyncBackup'] })
+  @Field(() => String)
   name!: 'RSyncBackup';
 
   @ValidateNested()
@@ -62,14 +70,17 @@ export class RSyncBackupOperation {
 
   @ApiProperty({ example: 1200 })
   @IsNumber()
-  timeout!: number;
+  timeout?: number;
 }
 
+@ObjectType()
 export class RSyncdBackupOperation {
   @ApiProperty({ type: String, enum: ['RSyncdBackup'] })
+  @Field(() => String)
   name!: 'RSyncdBackup';
 
   @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
   authentification?: boolean;
 
   username?: string;
@@ -87,12 +98,28 @@ export class RSyncdBackupOperation {
 
   @ApiProperty({ example: 1200 })
   @IsNumber()
-  timeout!: number;
+  timeout?: number;
 }
 
 export type Operation = ExecuteCommandOperation | RSyncBackupOperation | RSyncdBackupOperation;
 
+export const OperationUnion = createUnionType({
+  name: 'Operation',
+  types: () => [ExecuteCommandOperation, RSyncBackupOperation, RSyncdBackupOperation],
+  resolveType(value) {
+    if (value.command) {
+      return ExecuteCommandOperation;
+    } else if (value.authentification) {
+      return RSyncdBackupOperation;
+    } else if (value.share) {
+      return RSyncBackupOperation;
+    }
+    return null;
+  },
+});
+
 @ApiExtraModels(RSyncBackupOperation, ExecuteCommandOperation, RSyncdBackupOperation)
+@ObjectType()
 export class HostConfigOperation {
   @ApiProperty({
     type: 'array',
@@ -101,7 +128,8 @@ export class HostConfigOperation {
     },
   })
   @ValidateNested()
-  tasks: Operation[] = [];
+  @Field(() => [OperationUnion])
+  tasks?: Operation[];
 
   @ApiProperty({
     type: 'array',
@@ -110,7 +138,8 @@ export class HostConfigOperation {
     },
   })
   @ValidateNested()
-  finalizeTasks: Operation[] = [];
+  @Field(() => [OperationUnion])
+  finalizeTasks?: Operation[];
 }
 
 /**
@@ -118,11 +147,8 @@ export class HostConfigOperation {
  *
  * Contains all information that can be used to backup a host.
  */
-export class HostConfig {
-  @ApiProperty({ example: 'pc-ulrich' })
-  @IsNotEmpty()
-  name!: string;
-
+@ObjectType()
+export class HostConfiguration {
   @ApiProperty({ example: [] })
   addresses?: string[];
 
@@ -130,8 +156,8 @@ export class HostConfig {
   dhcp?: DhcpAddress[];
 
   @ValidateNested()
-  operations = new HostConfigOperation();
+  operations? = new HostConfigOperation();
 
   @ValidateNested()
-  schedule = new Schedule();
+  schedule?: Schedule;
 }

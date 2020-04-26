@@ -3,6 +3,9 @@ import * as Rsync from 'rsync';
 
 import { compact } from '../utils/lodash';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
+import { Observable, Subject } from 'rxjs';
+import { BackupProgression } from './interfaces/options';
+import { BackupLogger } from '../logger/BackupLogger.logger';
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/;
 const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/;
@@ -32,12 +35,15 @@ export class RSyncCommandService {
    * @param options Options of the backup
    * @returns Is the backup partial
    */
-  async backup(
+  backup(
     host: string | null,
     sharePath: string,
     destination: string,
     options: RSyncBackupOptions | RSyncdBackupOptions,
-  ): Promise<void> {
+  ): Observable<BackupProgression> {
+    const progression = new Subject<BackupProgression>();
+    progression.next(new BackupProgression(0));
+
     const isRsyncVersionGreaterThan31 = true;
 
     const rsync = new Rsync();
@@ -86,7 +92,7 @@ export class RSyncCommandService {
     }
 
     let includes = new Set<string>();
-    let excludes = new Set<string>(...(options.excludes || []));
+    let excludes = new Set<string>(options.excludes || []);
 
     for (let include of options.includes || []) {
       include = `/${include.replace(/\/$/, '')}`.replace(/\/\/+/g, '/');
@@ -130,26 +136,27 @@ export class RSyncCommandService {
 
     options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);
 
-    return new Promise((resolve, reject) => {
-      const context: BackupContext = new BackupContext(sharePath);
-      rsync.execute(
-        (error, code) => {
-          if (error && code !== 24) {
-            return reject(error);
-          }
-          options.callbackProgress(context);
-          resolve();
-        },
-        (data: any) => this.processOutput(context, options, data),
-        (data: any) => this.processOutput(context, options, data, true),
-      );
-    });
+    const context: BackupContext = new BackupContext(sharePath);
+    rsync.execute(
+      (error, code) => {
+        if (error && code !== 24) {
+          return progression.error(error);
+        }
+        progression.next(context);
+        progression.complete();
+      },
+      (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data),
+      (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data, true),
+    );
+
+    return progression.asObservable();
   }
 
   private processOutput(
     context: BackupContext,
-    options: RSyncBackupOptions | RSyncdBackupOptions,
-    data: any,
+    backupLogger: BackupLogger,
+    progression: Subject<BackupProgression>,
+    data: Buffer,
     error = false,
   ) {
     data
@@ -181,7 +188,7 @@ export class RSyncCommandService {
               }),
             );
 
-            options.callbackProgress(context);
+            progression.next(context);
           }
 
           const progressionWithoutXfer = line.match(PROGRESS_INFO);
@@ -197,7 +204,7 @@ export class RSyncCommandService {
               }),
             );
 
-            options.callbackProgress(context);
+            progression.next(context);
             return false;
           }
 
@@ -215,7 +222,7 @@ export class RSyncCommandService {
         return true;
       })
       .forEach((line: string) =>
-        error ? options.backupLogger.error(line, context.sharePath) : options.backupLogger.log(line, context.sharePath),
+        error ? backupLogger.error(line, context.sharePath) : backupLogger.log(line, context.sharePath),
       );
   }
 

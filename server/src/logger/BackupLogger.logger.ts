@@ -5,6 +5,7 @@ import * as mkdirp from 'mkdirp';
 import { createLogger, format, Logger, transports } from 'winston';
 
 import { BackupList } from '../backups/backup-list.class';
+import { ApplicationConfigService } from '../config/application-config.service';
 
 const { combine, timestamp, printf } = format;
 
@@ -14,11 +15,9 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 
 export class BackupLogger implements LoggerService {
   private logger: Logger;
-  private hostpath: string;
 
-  constructor(configService: ConfigService, hostname: string, number?: number) {
-    this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
-    const host = new BackupList(this.hostpath, hostname);
+  constructor(configService: ApplicationConfigService, hostname: string, number?: number) {
+    const host = new BackupList(configService.hostPath, hostname);
     const destinationDirectory = host.getLogDirectory();
 
     mkdirp(destinationDirectory);

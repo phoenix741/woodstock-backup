@@ -7,7 +7,7 @@ import { createLogger, format, Logger, transports } from 'winston';
 const { combine, timestamp, printf, colorize } = format;
 
 const applicationFormat = printf((info: logform.TransformableInfo) => {
-  return `${info.timestamp} [${info.context.padEnd(25, ' ')}] ${info.level}: ${info.message}`;
+  return `${info.timestamp} [${(info.context || '').padEnd(25, ' ')}] ${info.level}: ${info.message}`;
 });
 
 @Injectable()

@@ -1,19 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as filetype from 'file-type';
 import * as fs from 'fs';
 import { isAbsolute, join } from 'path';
 
+import { ApplicationConfigService } from '../config/application-config.service';
 import { BackupList } from './backup-list.class';
 import { EnumFileType, FileDescription } from './backups-files.dto';
 
 @Injectable()
 export class BackupsFilesService {
-  private hostpath: string;
-
-  constructor(configService: ConfigService) {
-    this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
-  }
+  constructor(private configService: ApplicationConfigService) {}
 
   async list(name: string, number: number, path = '/'): Promise<FileDescription[]> {
     if (!isAbsolute(path)) {
@@ -21,7 +17,7 @@ export class BackupsFilesService {
     }
 
     try {
-      const destinationDirectory = new BackupList(this.hostpath, name).getDestinationDirectory(number);
+      const destinationDirectory = new BackupList(this.configService.hostPath, name).getDestinationDirectory(number);
       const files = await fs.promises.readdir(join(destinationDirectory, path), { withFileTypes: true });
       return Promise.all(
         files.map(async file => ({
@@ -45,7 +41,7 @@ export class BackupsFilesService {
     }
 
     try {
-      const destinationDirectory = new BackupList(this.hostpath, name).getDestinationDirectory(number);
+      const destinationDirectory = new BackupList(this.configService.hostPath, name).getDestinationDirectory(number);
       const filename = join(destinationDirectory, path);
       const stats = await this.getFileStat(filename);
       const mimetype = (stats.isFile() && (await filetype.fromFile(filename))?.mime) || undefined;
