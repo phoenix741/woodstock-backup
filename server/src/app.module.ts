@@ -9,6 +9,8 @@ import { setQueues, UI } from 'bull-board';
 import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
 import { BackupController } from './backups/backups.controller';
+import { BackupsService } from './backups/backups.service';
+import { ApplicationConfigModule } from './config/application-config.module';
 import { ApplicationConfigService } from './config/application-config.service';
 import { HostController } from './hosts/hosts.controller';
 import { HostsResolver } from './hosts/hosts.resolver';
@@ -27,8 +29,8 @@ import { ServerController } from './server/server.controller';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
+import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
-import { ApplicationConfigModule } from './config/application-config.module';
 
 @Module({
   imports: [
@@ -48,6 +50,9 @@ import { ApplicationConfigModule } from './config/application-config.module';
     ),
     GraphQLModule.forRoot({
       autoSchemaFile: true,
+      buildSchemaOptions: {
+        dateScalarMode: 'timestamp',
+      },
     }),
   ],
   controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],
@@ -66,8 +71,10 @@ import { ApplicationConfigModule } from './config/application-config.module';
     SchedulerConsumer,
     PingService,
     ApplicationLogger,
+    BackupsService,
     BackupsFilesService,
     YamlService,
+    LockService,
   ],
 })
 export class AppModule implements OnModuleInit {

@@ -3,13 +3,12 @@ import * as filetype from 'file-type';
 import * as fs from 'fs';
 import { isAbsolute, join } from 'path';
 
-import { ApplicationConfigService } from '../config/application-config.service';
-import { BackupList } from './backup-list.class';
 import { EnumFileType, FileDescription } from './backups-files.dto';
+import { BackupsService } from './backups.service';
 
 @Injectable()
 export class BackupsFilesService {
-  constructor(private configService: ApplicationConfigService) {}
+  constructor(private backupsService: BackupsService) {}
 
   async list(name: string, number: number, path = '/'): Promise<FileDescription[]> {
     if (!isAbsolute(path)) {
@@ -17,7 +16,7 @@ export class BackupsFilesService {
     }
 
     try {
-      const destinationDirectory = new BackupList(this.configService.hostPath, name).getDestinationDirectory(number);
+      const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
       const files = await fs.promises.readdir(join(destinationDirectory, path), { withFileTypes: true });
       return Promise.all(
         files.map(async file => ({
@@ -41,7 +40,7 @@ export class BackupsFilesService {
     }
 
     try {
-      const destinationDirectory = new BackupList(this.configService.hostPath, name).getDestinationDirectory(number);
+      const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
       const filename = join(destinationDirectory, path);
       const stats = await this.getFileStat(filename);
       const mimetype = (stats.isFile() && (await filetype.fromFile(filename))?.mime) || undefined;

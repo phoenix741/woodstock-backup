@@ -6,15 +6,15 @@ import { Queue } from 'bull';
 import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupTask } from '../tasks/tasks.dto';
-import { BackupList } from './backup-list.class';
 import { Backup } from './backup.dto';
+import { BackupsService } from './backups.service';
 
 @Controller('hosts/:name/backups')
 export class BackupController {
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
     private hostsService: HostsService,
-    private configService: ApplicationConfigService,
+    private backupsService: BackupsService,
   ) {}
 
   @Get()
@@ -27,8 +27,7 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    const list = new BackupList(this.configService.hostPath, name);
-    return list.getBackups();
+    return this.backupsService.getBackups(name);
   }
 
   @Post()

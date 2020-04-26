@@ -1,19 +1,20 @@
+import { ObjectType } from '@nestjs/graphql';
+
+@ObjectType()
 export class Backup {
-  constructor(
-    public number: number,
-    public complete: boolean,
+  number!: number;
+  complete!: boolean;
 
-    public startDate: Date,
-    public endDate: Date | null,
+  startDate!: Date;
+  endDate?: Date;
 
-    public fileCount: number,
-    public newFileCount: number,
-    public existingFileCount: number,
+  fileCount!: number;
+  newFileCount!: number;
+  existingFileCount!: number;
 
-    public fileSize: number,
-    public existingFileSize: number,
-    public newFileSize: number,
+  fileSize!: number;
+  existingFileSize!: number;
+  newFileSize!: number;
 
-    public speed: number,
-  ) {}
+  speed!: number;
 }

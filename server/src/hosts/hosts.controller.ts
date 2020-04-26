@@ -1,15 +1,15 @@
-import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
-import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
+import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { ApiOkResponse } from '@nestjs/swagger';
 
-import { BackupList } from '../backups/backup-list.class';
 import { ApplicationConfigService } from '../config/application-config.service';
 import { HostConfiguration } from './host-configuration.dto';
 import { HostInformation } from './hosts.dto';
 import { HostsService } from './hosts.service';
+import { BackupsService } from '../backups/backups.service';
 
 @Controller('hosts')
 export class HostController {
-  constructor(private configService: ApplicationConfigService, private hostsService: HostsService) {}
+  constructor(private backupsService: BackupsService, private hostsService: HostsService) {}
 
   @Get()
   @ApiOkResponse({
@@ -19,8 +19,7 @@ export class HostController {
   async list() {
     return Promise.all(
       (await this.hostsService.getHosts()).map(async host => {
-        const list = new BackupList(this.configService.hostPath, host);
-        return new HostInformation(host, await list.getLastBackup());
+        return new HostInformation(host, await this.backupsService.getLastBackup(host));
       }),
     );
   }
