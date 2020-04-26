@@ -1,20 +1,19 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Job, Queue } from 'bull';
 import { auditTime, map } from 'rxjs/operators';
 
-import { BackupList } from '../backups/backup-list.class';
+import { BackupsService } from '../backups/backups.service';
+import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { PingService } from '../network/ping';
 import { ResolveService } from '../network/resolve';
+import { SchedulerConfigService } from '../scheduler/scheduler-config.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
 import { InternalBackupTask } from './tasks.class';
 import { BackupTask } from './tasks.dto';
 import { TasksService } from './tasks.service';
-import { ApplicationConfigService } from '../config/application-config.service';
-import { SchedulerConfigService } from '../scheduler/scheduler-config.service';
 
 @Processor('queue')
 export class HostConsumer {
@@ -29,6 +28,7 @@ export class HostConsumer {
     private btrfsService: BtrfsService,
     private configService: ApplicationConfigService,
     private schedulerConfigService: SchedulerConfigService,
+    private backupsService: BackupsService,
   ) {}
 
   @Process({
@@ -44,16 +44,15 @@ export class HostConsumer {
 
     try {
       const backupTask = job.data;
-      const hostBackup = new BackupList(this.configService.hostPath, job.data.host);
       if (backupTask.number === undefined || !backupTask.destinationDirectory) {
-        const lastBackup = await hostBackup.getLastBackup();
+        const lastBackup = await this.backupsService.getLastBackup(job.data.host);
         if (lastBackup?.complete) {
           backupTask.number = lastBackup.number + 1;
-          backupTask.previousDirectory = hostBackup.getDestinationDirectory(lastBackup.number);
+          backupTask.previousDirectory = this.backupsService.getDestinationDirectory(job.data.host, lastBackup.number);
         } else {
           backupTask.number = lastBackup?.number || 0;
         }
-        backupTask.destinationDirectory = hostBackup.getDestinationDirectory(backupTask.number);
+        backupTask.destinationDirectory = this.backupsService.getDestinationDirectory(job.data.host, backupTask.number);
         job.update(backupTask);
       }
 
@@ -66,7 +65,7 @@ export class HostConsumer {
       }
 
       // Set the logger
-      const backupLogger = new BackupLogger(this.configService, job.data.host, job.data.number);
+      const backupLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number);
 
       const task = new InternalBackupTask(backupTask);
       this.tasksService.addSubTasks(task);
@@ -77,7 +76,7 @@ export class HostConsumer {
           map(task => {
             job.update(task);
             job.progress(task.progression?.percent);
-            hostBackup.addBackup(task.toBackup());
+            this.backupsService.addBackup(job.data.host, task.toBackup());
             return task;
           }),
         )
@@ -86,7 +85,7 @@ export class HostConsumer {
       job.update(processedTask);
       job.progress(processedTask.progression?.percent);
 
-      hostBackup.addBackup(processedTask.toBackup());
+      this.backupsService.addBackup(job.data.host, processedTask.toBackup());
     } catch (err) {
       this.logger.error(
         `END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`,
@@ -110,14 +109,13 @@ export class HostConsumer {
     const schedulerConfig = await this.schedulerConfigService.getScheduler();
     const schedule = Object.assign({}, config.schedule, schedulerConfig.defaultSchedule);
 
-    const hostBackup = new BackupList(this.configService.hostPath, job.data.host);
-    const lockedJobId = await hostBackup.isLocked();
+    const lockedJobId = await this.backupsService.isLocked(job.data.host);
     if (lockedJobId && (await (await this.hostsQueue.getJob(lockedJobId))?.isActive())) {
       this.logger.debug(`END: A job (${lockedJobId}) is already running for  ${job.data.host} - JOB ID = ${job.id}`);
       return;
     }
 
-    const lastBackup = await hostBackup.getLastBackup();
+    const lastBackup = await this.backupsService.getLastBackup(job.data.host);
 
     // If backup is activated, and the last backup is old, we crete a new backup
     const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate.getTime() || 0)) / 1000;
@@ -150,9 +148,10 @@ export class HostConsumer {
 
     await this.lock(job);
     try {
-      const hostBackup = new BackupList(this.configService.hostPath, job.data.host);
-      await hostBackup.removeBackup(job.data.number);
-      await this.btrfsService.removeSnapshot(await hostBackup.getDestinationDirectory(job.data.number));
+      await this.backupsService.removeBackup(job.data.host, job.data.number);
+      await this.btrfsService.removeSnapshot(
+        await this.backupsService.getDestinationDirectory(job.data.host, job.data.number),
+      );
     } finally {
       await this.unlock(job);
     }
@@ -160,12 +159,11 @@ export class HostConsumer {
 
   private async lock(job: Job<BackupTask>) {
     /* *********** LOCK ************ */
-    const hostBackup = new BackupList(this.configService.hostPath, job.data.host);
-    const previousLock = await hostBackup.lock(job.id);
+    const previousLock = await this.backupsService.lock(job.data.host, job.id);
     if (previousLock) {
       const previousJob = await this.hostsQueue.getJob(previousLock);
       if (!previousJob || !(await previousJob.isActive())) {
-        await hostBackup.lock('' + job.id, true);
+        await this.backupsService.lock(job.data.host, job.id, true);
       } else {
         throw new Error(`Host ${job.data.host} already locked by ${previousLock}`);
       }
@@ -174,9 +172,8 @@ export class HostConsumer {
   }
 
   private async unlock(job: Job<BackupTask>) {
-    const hostBackup = new BackupList(this.configService.hostPath, job.data.host);
     /* ************** UNLOCK ************ */
-    await hostBackup.unlock(job.id);
+    await this.backupsService.unlock(job.data.host, job.id);
     /* ************** END UNLOCK ************ */
   }
 

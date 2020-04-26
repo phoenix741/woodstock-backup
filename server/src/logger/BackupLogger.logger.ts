@@ -4,8 +4,8 @@ import * as logform from 'logform';
 import * as mkdirp from 'mkdirp';
 import { createLogger, format, Logger, transports } from 'winston';
 
-import { BackupList } from '../backups/backup-list.class';
 import { ApplicationConfigService } from '../config/application-config.service';
+import { BackupsService } from '../backups/backups.service';
 
 const { combine, timestamp, printf } = format;
 
@@ -16,9 +16,8 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 export class BackupLogger implements LoggerService {
   private logger: Logger;
 
-  constructor(configService: ApplicationConfigService, hostname: string, number?: number) {
-    const host = new BackupList(configService.hostPath, hostname);
-    const destinationDirectory = host.getLogDirectory();
+  constructor(backupsService: BackupsService, hostname: string, number?: number) {
+    const destinationDirectory = backupsService.getLogDirectory(hostname);
 
     mkdirp(destinationDirectory);
     this.logger = createLogger({
@@ -26,10 +25,10 @@ export class BackupLogger implements LoggerService {
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({
-          filename: host.getLogFile(number, 'error'),
+          filename: backupsService.getLogFile(hostname, number, 'error'),
           level: 'error',
         }),
-        new transports.File({ filename: host.getLogFile(number) }),
+        new transports.File({ filename: backupsService.getLogFile(hostname, number) }),
       ],
     });
   }

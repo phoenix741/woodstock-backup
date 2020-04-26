@@ -123,7 +123,7 @@ export class InternalBackupTask implements BackupTask {
       complete: this.complete,
 
       startDate: this.startDate,
-      endDate: this.complete ? endDate : null,
+      endDate: this.complete ? endDate : undefined,
 
       fileCount: this.progression.fileCount,
       newFileCount: this.progression.newFileCount,
