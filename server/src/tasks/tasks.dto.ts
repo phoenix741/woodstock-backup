@@ -1,4 +1,4 @@
-import { HostConfig } from '../hosts/host-config.dto';
+import { HostConfiguration } from '../hosts/host-configuration.dto';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum BackupState {
@@ -29,7 +29,7 @@ export class BackupSubTask {
 
 export class BackupTask {
   host!: string;
-  config?: HostConfig;
+  config?: HostConfiguration;
   number?: number;
   ip?: string;
   previousDirectory?: string;

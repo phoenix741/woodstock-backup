@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Observable, Subject } from 'rxjs';
 import * as shell from 'shelljs';
-import { ExecuteCommandOperation } from 'src/hosts/host-config.dto';
+import { ExecuteCommandOperation } from 'src/hosts/host-configuration.dto';
 
 import { BackupProgression, Options } from './interfaces/options';
 
@@ -12,21 +13,25 @@ export class ExecuteCommandService {
    * @param command Command to launch
    * @param options Options used for the command
    */
-  async execute(operation: ExecuteCommandOperation, options: Options) {
-    try {
-      options.callbackProgress(new BackupProgression(0));
+  execute(operation: ExecuteCommandOperation, options: Options): Observable<BackupProgression> {
+    options.backupLogger.log(`Execute commande "${operation.command} ...`, options.context);
 
-      options.backupLogger.log(`Execute commande "${operation.command} ...`, options.context);
+    const progression = new Subject<BackupProgression>();
+    progression.next(new BackupProgression(0));
 
-      const { stdout, stderr } = await this.executeCommand(operation.command);
-      stderr && options.backupLogger.error(stderr, options.context);
-      stdout && options.backupLogger.log(stdout, options.context);
+    this.executeCommand(operation.command)
+      .then(({ stdout, stderr }) => {
+        stderr && options.backupLogger.error(stderr, options.context);
+        stdout && options.backupLogger.log(stdout, options.context);
+        progression.next(new BackupProgression(100));
+        progression.complete();
+      })
+      .catch(err => {
+        options.backupLogger.error(err.message, err.stack, options.context);
+        progression.error(err);
+      });
 
-      options.callbackProgress(new BackupProgression(100));
-    } catch (err) {
-      options.backupLogger.error(err.message, err.stack, options.context);
-      throw err;
-    }
+    return progression.asObservable();
   }
 
   async executeCommand(command: string): Promise<{ stdout: string; stderr: string }> {

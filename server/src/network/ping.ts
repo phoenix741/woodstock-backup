@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as shell from 'shelljs';
 
-import { HostConfig } from '../hosts/host-config.dto';
+import { HostConfiguration } from '../hosts/host-configuration.dto';
 import { ResolveService } from './resolve';
 
 @Injectable()
@@ -10,16 +10,16 @@ export class PingService {
 
   constructor(private resolveService: ResolveService) {}
 
-  async pingFromConfig(config: HostConfig): Promise<boolean> {
+  async pingFromConfig(hostname: string, config: HostConfiguration): Promise<boolean> {
     try {
-      this.logger.debug(`Ping host ${config.name} from config`);
-      const ip = await this.resolveService.resolveFromConfig(config);
-      this.logger.debug(`IP for the host ${config.name} is ${ip}`);
+      this.logger.debug(`Ping host ${hostname} from config`);
+      const ip = await this.resolveService.resolveFromConfig(hostname, config);
+      this.logger.debug(`IP for the host ${hostname} is ${ip}`);
       const result = await this.ping(ip);
-      this.logger.debug(`Ping of the host ${config.name} with IP ${ip}: ${result}`);
+      this.logger.debug(`Ping of the host ${hostname} with IP ${ip}: ${result}`);
       return result;
     } catch (err) {
-      this.logger.debug(`Can't find an ip for the host ${config.name}`);
+      this.logger.debug(`Can't find an ip for the host ${hostname}`);
       return false;
     }
   }

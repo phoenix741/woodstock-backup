@@ -4,7 +4,7 @@ export class Backup {
     public complete: boolean,
 
     public startDate: Date,
-    public endDate: Date,
+    public endDate: Date | null,
 
     public fileCount: number,
     public newFileCount: number,

@@ -12,9 +12,6 @@ export class BackupProgression {
 export type CallbackProgressFn = (progression: BackupProgression) => void;
 
 export interface Options {
-  host: string;
   context: string;
-
   backupLogger: BackupLogger;
-  callbackProgress: CallbackProgressFn;
 }

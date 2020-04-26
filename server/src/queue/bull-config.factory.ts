@@ -1,17 +1,15 @@
+import { BullModuleOptions, BullOptionsFactory } from '@nestjs/bull';
 import { Injectable } from '@nestjs/common';
-import { BullOptionsFactory, BullModuleOptions } from '@nestjs/bull';
-import { ConfigService } from '@nestjs/config';
+
+import { ApplicationConfigService } from '../config/application-config.service';
 
 @Injectable()
 export class BullConfigService implements BullOptionsFactory {
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ApplicationConfigService) {}
 
   createBullOptions(): BullModuleOptions {
     return {
-      redis: {
-        host: this.configService.get<string>('redis.host', 'localhost'),
-        port: this.configService.get<number>('redis.port', 6379),
-      },
+      redis: this.configService.redis,
       prefix: 'woodstock-backup',
     };
   }

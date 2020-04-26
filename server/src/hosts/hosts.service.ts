@@ -1,81 +1,66 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as yaml from 'js-yaml';
-import * as mkdirp from 'mkdirp';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { join } from 'path';
 
-import { compact } from '../utils/lodash';
-import { HostConfig } from './host-config.dto';
-import { SchedulerConfigService } from '../scheduler/scheduler-config.service';
+import { ApplicationConfigService } from '../config/application-config.service';
+import { YamlService } from '../utils/yaml.service';
+import { HostConfiguration } from './host-configuration.dto';
 
 /**
  * Class used to manage configuration file for hosts.
  */
 @Injectable()
 export class HostsService {
-  private logger = new Logger(HostsService.name);
-  private _hosts: Array<HostConfig> = [];
-  private configPath: string;
-  private hostsPath: string;
-
-  constructor(configService: ConfigService, private schedulerConfigService: SchedulerConfigService) {
-    this.configPath = configService.get<string>('paths.configPath', '<defunct>');
-    this.hostsPath = configService.get<string>('paths.configHostPath', '<defunct>');
-  }
-
-  async getHost(host: string): Promise<HostConfig | undefined> {
-    return (await this.getHosts()).find(h => h.name === host);
-  }
+  constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
 
   /**
-   * Get all hosts, and associated config file.
+   * Get the configuration of an host
+   * @param host host name
    */
-  async getHosts(): Promise<HostConfig[]> {
-    if (!this._hosts.length) {
-      await this.loadHosts();
+  async getHostConfiguration(host: string): Promise<HostConfiguration> {
+    const hosts = await this.getHosts();
+    if (!hosts.includes(host)) {
+      throw new NotFoundException(`Can't find configuration for the host with name ${host}`);
     }
 
-    const schedulerConfig = await this.schedulerConfigService.getScheduler();
-    return this._hosts.map(host => {
-      host.schedule = Object.assign({}, host.schedule, schedulerConfig.defaultSchdule);
-      return host;
-    });
-  }
-
-  async addHost(config: HostConfig) {
-    await this.loadHosts();
-
-    this._hosts.push(config);
-
-    await this.writeHosts();
+    return await this.yamlService.loadFile(this.getHostFile(host), new HostConfiguration());
   }
 
   /**
-   * Load host from the file stored at this.hostsPath
+   * Create/Update the configuration of an host
    */
-  private async loadHosts(): Promise<void> {
-    this.logger.debug(`Hosts.loadHosts: Read the file ${this.hostsPath}`);
-
-    try {
-      await mkdirp(this.configPath);
-
-      const hostsFromStr = await fs.promises.readFile(this.hostsPath, 'utf8');
-      this._hosts = yaml.safeLoad(hostsFromStr) || [];
-    } catch (err) {
-      this._hosts = [];
-      this.logger.warn(`Hosts.loadHosts: Can't read hosts files ${err.message}`);
+  async updateHostConfiguration(host: string, config: HostConfiguration) {
+    const hosts = await this.getHosts();
+    if (!hosts.includes(host)) {
+      throw new NotFoundException(`Can't find configuration for the host with name ${host}`);
     }
+
+    await this.yamlService.writeFile(this.getHostFile(host), config);
   }
 
   /**
-   * Save all modification made on the config file in this.hostsPath
+   * Get all hosts names.
    */
-  private async writeHosts(): Promise<void> {
-    this.logger.debug(`Hosts.writeHosts: Write the file ${this.hostsPath}`);
+  async getHosts(): Promise<string[]> {
+    return this.yamlService.loadFile(this.configService.configPathOfHosts, []);
+  }
 
-    await mkdirp(this.configPath);
+  /**
+   * Add an host in the configuration file
+   *
+   * @param host the hostname
+   */
+  async addHost(host: string) {
+    if (host === 'hosts') {
+      throw new BadRequestException(`Host ${host} is an invalid name`);
+    }
 
-    const hostsFromStr = yaml.safeDump(compact(this._hosts));
-    await fs.promises.writeFile(this.hostsPath, hostsFromStr, 'utf-8');
+    const hosts = new Set(await this.getHosts());
+    hosts.add(host);
+
+    await this.yamlService.writeFile(this.configService.configPathOfHosts, Array.from(hosts));
+  }
+
+  private getHostFile(host: string): string {
+    return join(this.configService.configPath, `${host}.yml`);
   }
 }

@@ -28,6 +28,7 @@
       </v-data-table>
       <v-card-actions>
         <v-btn class="primary ml-12" text>Delete</v-btn>
+        <v-btn class="primary" text>Launch backup</v-btn>
       </v-card-actions>
     </v-card>
   </v-container>
@@ -42,7 +43,7 @@ export default class Hosts extends Vue {
     {
       text: "Backup#",
       align: "start",
-      value: "number"
+      value: "number",
     },
     { text: "Start date", value: "startDate" },
     { text: "Duration", value: "duration" },
@@ -52,7 +53,7 @@ export default class Hosts extends Vue {
     { text: "Existing Files Size", value: "existingFileSize" },
     { text: "New Files Count", value: "newFileCount" },
     { text: "New Files Size", value: "newFileSize" },
-    { text: "", value: "show", sortable: false }
+    { text: "", value: "show", sortable: false },
   ];
   desserts = [
     {
@@ -65,8 +66,8 @@ export default class Hosts extends Vue {
       existingFileCount: 12313,
       existingFileSize: 12312312,
       newFileCount: 12332,
-      newFileSize: 123123
-    }
+      newFileSize: 123123,
+    },
   ];
 }
 </script>

@@ -1,19 +1,15 @@
 import { Body, Controller, Get, NotFoundException, Param, Post } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 
-import { HostConfig } from './host-config.dto';
-import { HostsService } from './hosts.service';
-import { HostInformation } from './hosts.dto';
 import { BackupList } from '../backups/backup-list.class';
-import { ConfigService } from '@nestjs/config';
+import { ApplicationConfigService } from '../config/application-config.service';
+import { HostConfiguration } from './host-configuration.dto';
+import { HostInformation } from './hosts.dto';
+import { HostsService } from './hosts.service';
 
 @Controller('hosts')
 export class HostController {
-  hostpath: string;
-
-  constructor(private configService: ConfigService, private hostsService: HostsService) {
-    this.hostpath = configService.get<string>('paths.hostPath', '<defunct>');
-  }
+  constructor(private configService: ApplicationConfigService, private hostsService: HostsService) {}
 
   @Get()
   @ApiOkResponse({
@@ -22,9 +18,9 @@ export class HostController {
   })
   async list() {
     return Promise.all(
-      (await this.hostsService.getHosts()).map(async config => {
-        const list = new BackupList(this.hostpath, config.name);
-        return new HostInformation(config.name, await list.getLastBackup());
+      (await this.hostsService.getHosts()).map(async host => {
+        const list = new BackupList(this.configService.hostPath, host);
+        return new HostInformation(host, await list.getLastBackup());
       }),
     );
   }
@@ -32,21 +28,13 @@ export class HostController {
   @Get(':name')
   @ApiOkResponse({
     description: 'Return the configuration of an host',
-    type: HostConfig,
+    type: HostConfiguration,
   })
   async get(@Param('name') name: string) {
-    const host = await this.hostsService.getHost(name);
+    const host = await this.hostsService.getHostConfiguration(name);
     if (!host) {
       throw new NotFoundException(`Can't find the host with name ${name}`);
     }
     return host;
-  }
-
-  @Post()
-  @ApiCreatedResponse({
-    description: 'Add an host to the configuration',
-  })
-  async create(@Body() hostConfig: HostConfig) {
-    await this.hostsService.addHost(hostConfig);
   }
 }

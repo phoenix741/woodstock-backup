@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ObjectType } from '@nestjs/graphql';
 
+@ObjectType()
 export class ScheduledBackupToKeep {
   hourly = -1;
   daily = 7;
@@ -7,7 +9,7 @@ export class ScheduledBackupToKeep {
   monthly = 12;
   yearly = -1;
 }
-
+@ObjectType()
 export class Schedule {
   @ApiProperty({ type: Boolean })
   activated = true;
@@ -17,5 +19,5 @@ export class Schedule {
 
 export class ApplicationScheduler {
   wakeupSchedule = '0 * * * *';
-  defaultSchdule = new Schedule();
+  defaultSchedule = new Schedule();
 }

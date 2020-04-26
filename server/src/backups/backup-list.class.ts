@@ -5,13 +5,16 @@ import * as mkdirp from 'mkdirp';
 import { join } from 'path';
 
 import { Backup } from './backup.dto';
+import { JobId } from 'bull';
 
 export class BackupList {
   private logger = new Logger(BackupList.name);
 
   private _backups: Array<Backup> = [];
 
-  constructor(private _hostPath: string, private _host: string) {}
+  constructor(private _hostPath: string, private _host: string) {
+    
+  }
 
   get directory() {
     return join(this._hostPath, this._host);
@@ -54,15 +57,18 @@ export class BackupList {
     return backups.length ? backups[backups.length - 1] : undefined;
   }
 
-  async lock(jobId: string, force = false): Promise<string | null> {
+  async lock(jobId: JobId, force = false): Promise<JobId | null> {
     try {
       await mkdirp(this.directory);
-      await fs.promises.writeFile(this.lockFile, jobId, { encoding: 'utf-8', flag: force ? 'w' : 'wx' });
+      await fs.promises.writeFile(this.lockFile, JSON.stringify(jobId), {
+        encoding: 'utf-8',
+        flag: force ? 'w' : 'wx',
+      });
 
       return null;
     } catch (err) {
       if (err.code === 'EEXIST') {
-        const previousLock = await fs.promises.readFile(this.lockFile, 'utf-8');
+        const previousLock = JSON.parse(await fs.promises.readFile(this.lockFile, 'utf-8'));
         if (previousLock === jobId) {
           return await this.lock(jobId, true);
         }
@@ -72,9 +78,21 @@ export class BackupList {
     }
   }
 
-  async unlock(jobId: string, force = false): Promise<string | null> {
+  async isLocked(): Promise<JobId | null> {
     try {
-      const currentLock = await fs.promises.readFile(this.lockFile, 'utf-8');
+      return JSON.parse(await fs.promises.readFile(this.lockFile, 'utf-8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        // Not locked
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  async unlock(jobId: JobId, force = false): Promise<JobId | null> {
+    try {
+      const currentLock = JSON.parse(await fs.promises.readFile(this.lockFile, 'utf-8'));
       if (currentLock !== jobId && !force) {
         return currentLock;
       }

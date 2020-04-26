@@ -3,7 +3,7 @@ import * as dns from 'dns';
 import * as shell from 'shelljs';
 import * as util from 'util';
 
-import { HostConfig } from '../hosts/host-config.dto';
+import { HostConfiguration } from '../hosts/host-configuration.dto';
 
 const dnsLookupPromise = util.promisify(dns.lookup);
 
@@ -23,18 +23,18 @@ export class ResolveService {
    * @returns The IP of the host
    * @throws If the IP of the host can't be found
    */
-  async resolveFromConfig(config: HostConfig): Promise<string> {
+  async resolveFromConfig(hostname: string, config: HostConfiguration): Promise<string> {
     if (config.dhcp) {
       for (const dhcp of config.dhcp) {
-        const ip = await this.searchIpFromRange(config.name, dhcp.address, dhcp.start, dhcp.end);
+        const ip = await this.searchIpFromRange(hostname, dhcp.address, dhcp.start, dhcp.end);
         if (ip) {
           return ip;
         }
       }
 
-      throw new Error(`Can't find any IP for host ${config.name}`);
+      throw new Error(`Can't find any IP for host ${hostname}`);
     } else {
-      return this.resolve(config.name, config.addresses || []);
+      return this.resolve(hostname, config.addresses || []);
     }
   }
 
