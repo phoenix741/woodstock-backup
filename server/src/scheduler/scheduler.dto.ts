@@ -18,6 +18,6 @@ export class Schedule {
 }
 
 export class ApplicationScheduler {
-  wakeupSchedule = '*/5 * * * *';
+  wakeupSchedule = '0 * * * *';
   defaultSchedule = new Schedule();
 }
