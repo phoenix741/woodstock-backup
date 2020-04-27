@@ -1,25 +1,29 @@
+import { ObjectType, Field } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
 
+@ObjectType()
 export class BtrfsCheckTools {
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
   btrfstools?: boolean;
-  @ApiProperty()
+
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
   compsize?: boolean;
 }
 
+@ObjectType()
 export class BtrfsCheck {
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
   isBtrfsVolume?: boolean;
 
-  @ApiProperty()
   backupVolume?: string;
-
-  @ApiProperty()
   backupVolumeFileSystem?: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
   hasAuthorization?: boolean;
 
-  @ApiProperty({ type: BtrfsCheckTools })
   toolsAvailable: BtrfsCheckTools = {};
 }
