@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { ObjectType, registerEnumType } from '@nestjs/graphql';
 
 export enum EnumFileType {
   BLOCK_DEVICE = 'BLOCK_DEVICE',
@@ -11,6 +12,11 @@ export enum EnumFileType {
   UNKNOWN = 'UNKNOWN',
 }
 
+registerEnumType(EnumFileType, {
+  name: 'EnumFileType',
+});
+
+@ObjectType()
 export class FileDescription {
   name!: string;
   type!: EnumFileType;

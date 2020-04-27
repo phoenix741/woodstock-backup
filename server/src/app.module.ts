@@ -9,6 +9,7 @@ import { setQueues, UI } from 'bull-board';
 import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
 import { BackupController } from './backups/backups.controller';
+import { BackupsResolver } from './backups/backups.resolver';
 import { BackupsService } from './backups/backups.service';
 import { ApplicationConfigModule } from './config/application-config.module';
 import { ApplicationConfigService } from './config/application-config.service';
@@ -26,6 +27,7 @@ import { SchedulerConfigService } from './scheduler/scheduler-config.service';
 import { SchedulerConsumer } from './scheduler/scheduler.consumer';
 import { SchedulerService } from './scheduler/scheduler.service';
 import { ServerController } from './server/server.controller';
+import { ServerResolver } from './server/server.resolver';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
@@ -69,8 +71,10 @@ import { YamlService } from './utils/yaml.service';
     SchedulerService,
     SchedulerConfigService,
     SchedulerConsumer,
+    ServerResolver,
     PingService,
     ApplicationLogger,
+    BackupsResolver,
     BackupsService,
     BackupsFilesService,
     YamlService,
