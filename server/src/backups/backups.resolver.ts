@@ -52,7 +52,7 @@ export class BackupsResolver {
 
     const job = await this.hostsQueue.add('backup', { host: hostname }, { removeOnComplete: true });
     return {
-      id: `${job.id}`,
+      id: job.id as number,
     };
   }
 
@@ -64,7 +64,7 @@ export class BackupsResolver {
 
     const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: true });
     return {
-      id: `${job.id}`,
+      id: job.id as number,
     };
   }
 }

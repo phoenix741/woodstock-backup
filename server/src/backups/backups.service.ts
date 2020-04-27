@@ -76,14 +76,14 @@ export class BackupsService {
   }
 
   async lock(hostname: string, jobId: JobId, force = false): Promise<JobId | null> {
-    return this.lockService.lock(this.getLockFile(hostname), jobId, force);
+    return await this.lockService.lock(this.getLockFile(hostname), jobId, force);
   }
 
   async isLocked(hostname: string): Promise<JobId | null> {
-    return this.isLocked(this.getLockFile(hostname));
+    return await this.lockService.isLocked(this.getLockFile(hostname));
   }
 
   async unlock(hostname: string, jobId: JobId, force = false): Promise<JobId | null> {
-    return this.lockService.unlock(this.getLockFile(hostname), jobId, force);
+    return await this.lockService.unlock(this.getLockFile(hostname), jobId, force);
   }
 }

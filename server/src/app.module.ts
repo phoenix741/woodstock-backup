@@ -33,6 +33,10 @@ import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
 import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
+import { QueueResolver } from './queue/queue.resolver';
+
+import { PubSub } from 'graphql-subscriptions';
+import { QueueService } from './queue/queue.service';
 
 @Module({
   imports: [
@@ -51,6 +55,7 @@ import { YamlService } from './utils/yaml.service';
       },
     ),
     GraphQLModule.forRoot({
+      installSubscriptionHandlers: true,
       autoSchemaFile: true,
       buildSchemaOptions: {
         dateScalarMode: 'timestamp',
@@ -79,6 +84,12 @@ import { YamlService } from './utils/yaml.service';
     BackupsFilesService,
     YamlService,
     LockService,
+    QueueResolver,
+    QueueService,
+    {
+      provide: 'BACKUP_QUEUE_PUB_SUB',
+      useValue: new PubSub(),
+    },
   ],
 })
 export class AppModule implements OnModuleInit {

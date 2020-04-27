@@ -1,11 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as Rsync from 'rsync';
-
-import { compact } from '../utils/lodash';
-import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
 import { Observable, Subject } from 'rxjs';
-import { BackupProgression } from './interfaces/options';
+
 import { BackupLogger } from '../logger/BackupLogger.logger';
+import { compactObject } from '../utils/lodash';
+import { BackupProgression } from './interfaces/options';
+import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/;
 const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/;
@@ -182,7 +182,7 @@ export class RSyncCommandService {
 
             Object.assign(
               context,
-              compact({
+              compactObject({
                 newFileCount: this.rsyncNumberToInt(count),
                 fileCount: this.rsyncNumberToInt(total),
               }),
@@ -197,7 +197,7 @@ export class RSyncCommandService {
 
             Object.assign(
               context,
-              compact({
+              compactObject({
                 newFileSize: this.rsyncNumberToInt(transferedFileSize),
                 percent: this.rsyncNumberToInt(percent),
                 speed: this.rsyncNumberToInt(speed, speedUnit),
@@ -210,7 +210,7 @@ export class RSyncCommandService {
 
           Object.assign(
             context,
-            compact({
+            compactObject({
               fileCount: this.getValueOfRegex(line, /Number of files:\s+([\d+,.]+)\s+.*/),
               newFileCount: this.getValueOfRegex(line, /Number of created files:\s+([\d+,.]+)\s+.*/),
               fileSize: this.getValueOfRegex(line, /Total file size:\s+([\d+,.]+)\s+.*/),
