@@ -3,5 +3,5 @@ import { JobId } from 'bull';
 
 @ObjectType()
 export class JobResponse {
-  id!: string;
+  id!: number;
 }

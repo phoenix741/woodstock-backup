@@ -1,7 +1,7 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { HostsService } from 'src/hosts/hosts.service';
 import { InjectQueue } from '@nestjs/bull';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bull';
+
 import { SchedulerConfigService } from './scheduler-config.service';
 
 @Injectable()
@@ -9,7 +9,6 @@ export class SchedulerService implements OnModuleInit {
   constructor(
     @InjectQueue('schedule') private scheduleQueue: Queue<object>,
     private schedulerConfigService: SchedulerConfigService,
-    private hostService: HostsService,
   ) {}
 
   async startScheduler() {

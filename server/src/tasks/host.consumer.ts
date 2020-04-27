@@ -69,23 +69,23 @@ export class HostConsumer {
 
       const task = new InternalBackupTask(backupTask);
       this.tasksService.addSubTasks(task);
-      const processedTask = await this.tasksService
+      await this.tasksService
         .launchBackup(backupLogger, task)
         .pipe(
           auditTime(5000), // FIXME: Conf
-          map(task => {
+          map(async task => {
             job.update(task);
             job.progress(task.progression?.percent);
-            this.backupsService.addBackup(job.data.host, task.toBackup());
+            await this.backupsService.addBackup(job.data.host, task.toBackup());
             return task;
           }),
         )
         .toPromise();
 
-      job.update(processedTask);
-      job.progress(processedTask.progression?.percent);
+      job.update(task);
+      job.progress(task.progression?.percent);
 
-      this.backupsService.addBackup(job.data.host, processedTask.toBackup());
+      this.backupsService.addBackup(job.data.host, task.toBackup());
     } catch (err) {
       this.logger.error(
         `END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`,

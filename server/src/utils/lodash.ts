@@ -1,14 +1,31 @@
-/**
- * Remove from the object or from the array, all null and undefined value.
- * @param obj Object to clean
- * @returns Cleaned object
- */
-export function compact<T>(obj: T | Array<T>): T | Array<T> {
-  let copy = JSON.parse(JSON.stringify(obj));
-  if (copy instanceof Array) {
-    copy = copy.filter(v => !!v);
+interface CompactableObject {
+  [key: string]: any;
+}
+
+export function compactArray<T>(obj: Array<T>): Array<T> {
+  return obj.filter(v => !(v === undefined || v === null)).map(v => compact(v as any));
+}
+
+export function compactObject<T extends CompactableObject>(obj: T): T {
+  for (const key in obj) {
+    if (!(obj[key] === undefined || obj[key] === null)) {
+      obj[key] = obj[key];
+    } else {
+      delete obj[key];
+    }
   }
-  return copy;
+
+  return obj;
+}
+
+export function compact<T>(obj: T | Array<T>): T | Array<T> {
+  if (Array.isArray(obj)) {
+    return compactArray(obj);
+  } else if (typeof obj === 'object') {
+    return compactObject(obj);
+  } else {
+    return obj;
+  }
 }
 
 /**
