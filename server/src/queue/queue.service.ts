@@ -37,11 +37,6 @@ export class QueueService {
     this.pubSub.publish('jobWaiting', { jobWaiting: jobId });
   }
 
-  @OnQueueStalled()
-  onStalled(job: Job<BackupTask>) {
-    this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
-  }
-
   @OnQueueCompleted()
   onCompleted(job: Job<BackupTask>) {
     this.pubSub.publish('jobUpdated', { jobUpdated: job });
@@ -50,6 +45,11 @@ export class QueueService {
   @OnQueueProgress()
   onProgress(job: Job<BackupTask>) {
     this.pubSub.publish('jobUpdated', { jobUpdated: job });
+  }
+
+  @OnQueueStalled()
+  onStalled(job: Job<BackupTask>) {
+    this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
   }
 
   @OnQueueFailed()

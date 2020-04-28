@@ -42,7 +42,7 @@ export class BackupTask {
   ip?: string;
   previousDirectory?: string;
   destinationDirectory?: string;
-  startDate?: Date;
+  startDate?: number;
 
   subtasks?: BackupSubTask[];
   state?: BackupState;

@@ -11,8 +11,6 @@ const DEFAULT_SCHEDULER = new ApplicationScheduler();
  */
 @Injectable()
 export class SchedulerConfigService {
-  private logger = new Logger(SchedulerConfigService.name);
-
   constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
 
   /**

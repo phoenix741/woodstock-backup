@@ -1,0 +1,9 @@
+#import "./FragmentActiveJob.graphql"
+
+query RunningTasksMenu {
+  queue {
+    active {
+      ...FragmentActiveJob
+    }
+  }
+}

@@ -1,0 +1,11 @@
+fragment FragmentActiveJob on Job {
+  id
+  state
+  data {
+    host
+    progression {
+      fileCount
+      percent
+    }
+  }
+}

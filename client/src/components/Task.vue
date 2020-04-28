@@ -5,46 +5,54 @@
         <v-row no-gutters>
           <v-col cols="8">
             <span class="font-weight-light">
-              <v-icon small>mdi-cloud-download</v-icon> {{ task.name }} -
-              {{ startDate }} - {{ task.percent }}%
+              <v-icon small>mdi-cloud-download</v-icon> {{ task.data.host }} - {{ startDate }}
             </span>
           </v-col>
-          <v-col cols="4" v-if="task.state == 'RUNNING'">
+          <v-col cols="4" v-if="taskRunning">
             <div class="text-right font-weight-light">{{ progressText }}</div>
           </v-col>
         </v-row>
         <v-row class="pt-5" no-gutters>
-          <v-col cols="12" v-if="task.state == 'RUNNING'">
+          <v-col cols="12" v-if="taskRunning">
             <v-progress-linear
-              v-model="task.percent"
-              :indeterminate="!task.percent"
-            ></v-progress-linear>
+              color="primary"
+              striped
+              :value="(task.data.progression || {}).percent"
+              :indeterminate="!(task.data.progression || {}).percent"
+              height="25"
+            >
+              <template v-slot="{ value }">
+                <strong>{{ value | formatPercent }} ({{ speedText }}) </strong>
+              </template>
+            </v-progress-linear>
+          </v-col>
+          <v-col cols="12" v-else>
+            <v-progress-linear color="red" striped :value="(task.data.progression || {}).percent" height="25">
+              <template v-slot="{ value }">
+                <strong>{{ value | formatPercent }} ({{ task.failedReason }}) </strong>
+              </template>
+            </v-progress-linear>
           </v-col>
         </v-row>
       </v-container>
     </v-expansion-panel-header>
     <v-expansion-panel-content>
       <v-list>
-        <template v-for="(subtask, index) in task.subtasks">
-          <v-list-item :key="subtask.name + '-item'">
+        <template v-for="(subtask, index) in task.data.subtasks || []">
+          <v-list-item :key="subtask.context + '-item' + index">
             <v-list-item-content>
-              <v-list-item-title>{{ subtask.name }}</v-list-item-title>
+              <v-list-item-title>{{ subtask.description }}</v-list-item-title>
             </v-list-item-content>
             <v-list-item-avatar v-if="subtask.state === 'SUCCESS'">
-              <v-icon class="green--text"
-                >mdi-checkbox-marked-circle-outline</v-icon
-              >
+              <v-icon class="green--text">mdi-checkbox-marked-circle-outline</v-icon>
             </v-list-item-avatar>
             <v-list-item-avatar v-else-if="subtask.state === 'WAITING'">
               <v-icon>mdi-clock-outline</v-icon>
             </v-list-item-avatar>
-            <v-list-item-avatar v-else-if="subtask.state === 'RUNNING'">
-              <v-progress-circular
-                indeterminate
-                color="primary"
-              ></v-progress-circular>
+            <v-list-item-avatar v-else-if="subtask.state === 'RUNNING' && taskRunning">
+              <v-progress-circular indeterminate color="primary"></v-progress-circular>
             </v-list-item-avatar>
-            <v-list-item-avatar v-else-if="subtask.state === 'FAILED'">
+            <v-list-item-avatar v-else-if="subtask.state === 'FAILED' || (subtask.state === 'RUNNING' && !taskRunning)">
               <v-icon class="red--text">mdi-alert-circle-outline</v-icon>
             </v-list-item-avatar>
             <v-list-item-avatar v-else-if="subtask.state === 'ABORTED'">
@@ -52,8 +60,8 @@
             </v-list-item-avatar>
           </v-list-item>
           <v-divider
-            :key="subtask.name + '-divider'"
-            v-if="index !== task.subtasks.length - 1"
+            :key="subtask.context + '-divider' + index"
+            v-if="index !== (task.data.subtasks || []).length - 1"
           ></v-divider>
         </template>
       </v-list>
@@ -61,35 +69,33 @@
   </v-expansion-panel>
 </template>
 
-<script>
-import { humanize } from "humanize";
-import { Vue, Component } from "vue-property-decorator";
+<script lang="ts">
+import filesize from 'filesize.js';
+import { format } from 'date-fns';
+import { Vue, Component, Prop } from 'vue-property-decorator';
+import { Job } from '../generated/graphql';
 
 @Component({})
 export default class Task extends Vue {
-  task = {
-    name: "pc-ulrich",
-    speed: 100000,
-    newFileCount: 123123,
-    fileCount: 1545343,
-    state: "RUNNING",
-    percent: 35,
-    subtasks: [
-      { name: "task 1", state: "RUNNING" },
-      { name: "task 2", state: "WAITING" },
-      { name: "task 3", state: "FAILED" }
-    ],
-    startDate: new Date()
-  };
+  @Prop()
+  task!: Job;
+
+  get taskRunning() {
+    return this.task.state === 'active';
+  }
+
+  get speedText() {
+    return `${filesize(this.task.data.progression?.speed || 0)}/s`;
+  }
 
   get progressText() {
-    return `${humanize.filesize(this.task.speed)}/s - ${
-      this.task.newFileCount
-    } ${this.task.fileCount ? "/" + this.task.fileCount : ""}`;
+    return `${this.task.data.progression?.newFileCount} ${
+      this.task.data.progression?.fileCount ? '/' + this.task.data.progression?.fileCount : ''
+    } files`;
   }
 
   get startDate() {
-    return humanize.naturalDay(this.task.startDate, "m/j/Y H:i");
+    return this.task.data.startDate && format(this.task.data.startDate, 'MM/dd/yyyy HH:mm');
   }
 }
 </script>

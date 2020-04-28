@@ -41,7 +41,17 @@ export class BackupsService {
   }
 
   async getBackups(hostname: string): Promise<Backup[]> {
-    return await this.yamlService.loadFile(this.getBackupFile(hostname), []);
+    const backups = await this.yamlService.loadFile<Backup[]>(this.getBackupFile(hostname), []);
+
+    return backups.map(backup => {
+      if ((backup.startDate as any) instanceof Date) {
+        backup.startDate = ((backup.startDate as any) as Date).getTime();
+      }
+      if ((backup.endDate as any) instanceof Date) {
+        backup.endDate = ((backup.endDate as any) as Date).getTime();
+      }
+      return backup;
+    });
   }
 
   async getLastBackup(hostname: string): Promise<Backup | undefined> {

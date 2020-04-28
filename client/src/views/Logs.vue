@@ -84,11 +84,11 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from "vue-property-decorator";
+import { Component, Vue } from 'vue-property-decorator';
 
 @Component({})
 export default class Logs extends Vue {
-  items = ["application.log", "exception.log"];
+  items = ['application.log', 'exception.log'];
 }
 </script>
 
