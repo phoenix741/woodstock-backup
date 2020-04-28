@@ -5,8 +5,8 @@ export class Backup {
   number!: number;
   complete!: boolean;
 
-  startDate!: Date;
-  endDate?: Date;
+  startDate!: number;
+  endDate?: number;
 
   fileCount!: number;
   newFileCount!: number;

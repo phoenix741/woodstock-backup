@@ -33,7 +33,7 @@ export class InternalBackupTask implements BackupTask {
   public readonly destinationDirectory: string;
   public readonly previousDirectory?: string;
 
-  public startDate: Date = new Date();
+  public startDate: number = new Date().getTime();
   public subtasks: InternalBackupSubTask[] = [];
 
   constructor(original: BackupTask) {
@@ -56,7 +56,7 @@ export class InternalBackupTask implements BackupTask {
   }
 
   start() {
-    this.startDate = new Date();
+    this.startDate = new Date().getTime();
   }
 
   get state() {
@@ -117,7 +117,7 @@ export class InternalBackupTask implements BackupTask {
   }
 
   toBackup(): Backup {
-    const endDate = new Date();
+    const endDate = new Date().getTime();
     return {
       number: this.number,
       complete: this.complete,
@@ -133,7 +133,7 @@ export class InternalBackupTask implements BackupTask {
       existingFileSize: this.progression.fileSize - this.progression.newFileSize,
       newFileSize: this.progression.newFileSize,
 
-      speed: this.progression.newFileSize / (endDate.getTime() - this.startDate.getTime()),
+      speed: this.progression.newFileSize / (endDate - this.startDate),
     };
   }
 }

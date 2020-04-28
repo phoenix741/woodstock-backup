@@ -4,7 +4,6 @@ import { Job, Queue } from 'bull';
 import { auditTime, map } from 'rxjs/operators';
 
 import { BackupsService } from '../backups/backups.service';
-import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { PingService } from '../network/ping';
@@ -26,7 +25,6 @@ export class HostConsumer {
     private pingService: PingService,
     private tasksService: TasksService,
     private btrfsService: BtrfsService,
-    private configService: ApplicationConfigService,
     private schedulerConfigService: SchedulerConfigService,
     private backupsService: BackupsService,
   ) {}
@@ -118,7 +116,7 @@ export class HostConsumer {
     const lastBackup = await this.backupsService.getLastBackup(job.data.host);
 
     // If backup is activated, and the last backup is old, we crete a new backup
-    const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate.getTime() || 0)) / 1000;
+    const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate || 0)) / 1000;
     this.logger.debug(
       `Last backup for the host ${job.data.host} have been made at ${timeSinceLastBackup /
         3600} hours past (should be made after ${schedule.backupPerdiod / 3600} hour)  - JOB ID = ${job.id}`,

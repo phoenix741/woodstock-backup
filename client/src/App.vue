@@ -4,9 +4,7 @@
       <v-list>
         <v-list-item>
           <v-list-item-content>
-            <v-list-item-title class="title text-center"
-              >Woodstock Admin</v-list-item-title
-            >
+            <v-list-item-title class="title text-center">Woodstock Admin</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
       </v-list>
@@ -63,64 +61,8 @@
 
       <v-spacer></v-spacer>
 
-      <v-menu left bottom>
-        <template v-slot:activator="{ on }">
-          <v-btn icon v-on="on">
-            <v-badge color="red" content="6" overlap>
-              <v-icon>mdi-animation</v-icon>
-            </v-badge>
-          </v-btn>
-        </template>
-
-        <v-card>
-          <v-list>
-            <v-list-item>
-              <v-list-item-content>
-                <v-list-item-title>You have 17 tasks running</v-list-item-title>
-              </v-list-item-content>
-              <v-list-item-action>
-                <v-chip color="primary">
-                  View all
-                </v-chip>
-              </v-list-item-action>
-            </v-list-item>
-          </v-list>
-
-          <v-divider></v-divider>
-
-          <v-list>
-            <v-list-item>
-              <v-list-item-avatar>
-                <v-progress-circular
-                  :value="20"
-                  width="3"
-                  color="primary"
-                ></v-progress-circular>
-              </v-list-item-avatar>
-
-              <v-list-item-content>
-                <v-list-item-title>pc-ulrich</v-list-item-title>
-                <v-list-item-subtitle>5477 files</v-list-item-subtitle>
-              </v-list-item-content>
-            </v-list-item>
-
-            <v-list-item>
-              <v-list-item-avatar>
-                <v-progress-circular
-                  :value="50"
-                  width="3"
-                  color="primary"
-                ></v-progress-circular>
-              </v-list-item-avatar>
-
-              <v-list-item-content>
-                <v-list-item-title>pc-eve</v-list-item-title>
-                <v-list-item-subtitle>23589 files</v-list-item-subtitle>
-              </v-list-item-content>
-            </v-list-item>
-          </v-list>
-        </v-card>
-      </v-menu>
+      <RunningTasksMenu></RunningTasksMenu>
+      
     </v-app-bar>
 
     <v-content>
@@ -130,9 +72,14 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from "vue-property-decorator";
+import { Component, Vue } from 'vue-property-decorator';
+import RunningTasksMenu from './components/RunningTasksMenu.vue';
 
-@Component({})
+@Component({
+  components: {
+    RunningTasksMenu,
+  },
+})
 export default class App extends Vue {
   drawer = false;
 }

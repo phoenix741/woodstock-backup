@@ -5,6 +5,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { Queue } from 'bull';
 import { setQueues, UI } from 'bull-board';
+import { PubSub } from 'graphql-subscriptions';
 
 import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
@@ -22,7 +23,10 @@ import { ResolveService } from './network/resolve';
 import { ExecuteCommandService } from './operation/execute-command.service';
 import { RSyncCommandService } from './operation/rsync-command.service';
 import { BullConfigService } from './queue/bull-config.factory';
+import { JobResolver } from './queue/job.resolver';
 import { QueueController } from './queue/queue.controller';
+import { QueueResolver } from './queue/queue.resolver';
+import { QueueService } from './queue/queue.service';
 import { SchedulerConfigService } from './scheduler/scheduler-config.service';
 import { SchedulerConsumer } from './scheduler/scheduler.consumer';
 import { SchedulerService } from './scheduler/scheduler.service';
@@ -33,10 +37,6 @@ import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
 import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
-import { QueueResolver } from './queue/queue.resolver';
-
-import { PubSub } from 'graphql-subscriptions';
-import { QueueService } from './queue/queue.service';
 
 @Module({
   imports: [
@@ -84,6 +84,7 @@ import { QueueService } from './queue/queue.service';
     BackupsFilesService,
     YamlService,
     LockService,
+    JobResolver,
     QueueResolver,
     QueueService,
     {

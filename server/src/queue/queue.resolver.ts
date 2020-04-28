@@ -1,14 +1,15 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Resolver, Query, ResolveField, Subscription, Int } from '@nestjs/graphql';
-import { Queue, Job as BullJob } from 'bull';
-
-import { BackupTask, Job, BackupQueue } from '../tasks/tasks.dto';
-import { Inject } from '@nestjs/common';
-
+import { Inject, Logger } from '@nestjs/common';
+import { Int, Query, ResolveField, Resolver, Subscription } from '@nestjs/graphql';
+import { Queue } from 'bull';
 import { PubSub } from 'graphql-subscriptions';
+
+import { BackupQueue, BackupTask, Job } from '../tasks/tasks.dto';
 
 @Resolver(() => BackupQueue)
 export class QueueResolver {
+  private logger = new Logger(QueueResolver.name);
+
   constructor(
     @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
@@ -20,33 +21,36 @@ export class QueueResolver {
   }
 
   @ResolveField(() => [Job])
+  async all() {
+    return await this.backupQueue.getJobs([]);
+  }
+
+  @ResolveField(() => [Job])
   async waiting() {
-    return (await this.backupQueue.getJobs(['waiting'])).map(job => job.toJSON());
+    return await this.backupQueue.getJobs(['waiting']);
   }
 
   @ResolveField(() => [Job])
   async active() {
-    return (await this.backupQueue.getJobs(['active'])).map(job => job.toJSON());
+    return await this.backupQueue.getJobs(['active']);
   }
 
   @ResolveField(() => [Job])
   async failed() {
-    return (await this.backupQueue.getJobs(['failed'])).map(job => job.toJSON());
+    return await this.backupQueue.getJobs(['failed']);
   }
 
   @ResolveField(() => [Job])
   async delayed() {
-    return (await this.backupQueue.getJobs(['delayed'])).map(job => job.toJSON());
+    return await this.backupQueue.getJobs(['delayed']);
   }
 
   @ResolveField(() => [Job])
   async completed() {
-    return (await this.backupQueue.getJobs(['completed'])).map(job => job.toJSON());
+    return await this.backupQueue.getJobs(['completed']);
   }
 
-  @Subscription(() => Job, {
-    resolve: (value: { jobUpdated: BullJob }) => value.jobUpdated.toJSON(),
-  })
+  @Subscription(() => Job)
   jobUpdated() {
     return this.pubSub.asyncIterator('jobUpdated');
   }
@@ -56,16 +60,12 @@ export class QueueResolver {
     return this.pubSub.asyncIterator('jobWaiting');
   }
 
-  @Subscription(() => Job, {
-    resolve: (value: { jobFailed: BullJob }) => value.jobFailed.toJSON(),
-  })
+  @Subscription(() => Job)
   jobFailed() {
     return this.pubSub.asyncIterator('jobFailed');
   }
 
-  @Subscription(() => Job, {
-    resolve: (value: { jobRemoved: BullJob }) => value.jobRemoved.toJSON(),
-  })
+  @Subscription(() => Job)
   jobRemoved() {
     return this.pubSub.asyncIterator('jobRemoved');
   }
