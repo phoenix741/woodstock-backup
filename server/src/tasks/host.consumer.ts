@@ -98,7 +98,7 @@ export class HostConsumer {
 
   @Process({
     name: 'schedule_host',
-    concurrency: 1,
+    concurrency: 0,
   })
   async schedule(job: Job<BackupTask>) {
     this.logger.log(`START: Test ${job.data.host} for backup - JOB ID = ${job.id}`);

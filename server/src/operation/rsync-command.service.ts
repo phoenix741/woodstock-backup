@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
 import * as Rsync from 'rsync';
 import { Observable, Subject } from 'rxjs';
+import * as tmp from 'tmp';
 
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { compactObject } from '../utils/lodash';
 import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
+
+tmp.setGracefulCleanup();
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/;
 const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/;
@@ -15,6 +20,7 @@ const sizes = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
 export interface RSyncBackupOptions extends BackupOptions {
   rsync: boolean;
   username?: string;
+  checksum?: boolean;
 }
 
 export interface RSyncdBackupOptions extends BackupOptions {
@@ -22,6 +28,7 @@ export interface RSyncdBackupOptions extends BackupOptions {
   authentification: boolean;
   username?: string;
   password?: string;
+  checksum?: boolean;
 }
 
 @Injectable()
@@ -65,6 +72,8 @@ export class RSyncCommandService {
       .set('perms')
       .set('owner')
       .set('group')
+      .set('devices')
+      .set('specials')
       .set('times')
       .set('links')
       .set('hard-links')
@@ -73,10 +82,13 @@ export class RSyncCommandService {
       .set('one-file-system')
       .set('partial')
       .set('stats')
-      .set('checksum')
       .set('inplace')
-      .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L')
-      .set('rsync-path', '/usr/bin/rsync');
+
+      .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L');
+
+    if (options.checksum) {
+      rsync.set('checksum');
+    }
 
     // If not is root
     if (!(process.getuid && process.getuid() === 0)) {
@@ -91,8 +103,8 @@ export class RSyncCommandService {
       rsync.set('timeout', '' + options.timeout);
     }
 
-    let includes = new Set<string>();
-    let excludes = new Set<string>(options.excludes || []);
+    const includes = new Set<string>();
+    const excludes = new Set<string>(options.excludes || []);
 
     for (let include of options.includes || []) {
       include = `/${include.replace(/\/$/, '')}`.replace(/\/\/+/g, '/');
@@ -118,36 +130,54 @@ export class RSyncCommandService {
     }
 
     if ((options as RSyncBackupOptions).rsync) {
+      rsync.set('rsync-path', '/usr/bin/rsync');
       if (host) {
         rsync.source(`${host}:${sharePath}/`);
       } else {
         rsync.source(`${sharePath}/`);
       }
     }
-    if ((options as RSyncdBackupOptions).rsyncd) {
-      let authentification = '';
-      if ((options as RSyncdBackupOptions).authentification) {
-        authentification = `${options.username}:${(options as RSyncdBackupOptions).password}@`; // FIXME: Utiliser l'option password-file
+
+    tmp.file({ detachDescriptor: true }, async (err, path, fd, cleanupCallback) => {
+      if (err) {
+        return progression.thrownError(err);
       }
-      rsync.source(`${authentification}${host}::${sharePath}`);
-    }
-
-    rsync.destination(destination);
-
-    options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);
-
-    const context: BackupContext = new BackupContext(sharePath);
-    rsync.execute(
-      (error, code) => {
-        if (error && code !== 24) {
-          return progression.error(error);
+      try {
+        if ((options as RSyncdBackupOptions).rsyncd) {
+          let authentification = '';
+          if ((options as RSyncdBackupOptions).authentification) {
+            authentification = `${options.username}@`;
+            await fs.promises.writeFile(path, (options as RSyncdBackupOptions).password, { encoding: 'utf-8' });
+            rsync.set('password-file', path);
+          }
+          rsync.source(`${authentification}${host}::${sharePath}`);
         }
-        progression.next(context);
-        progression.complete();
-      },
-      (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data),
-      (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data, true),
-    );
+
+        rsync.destination(destination);
+
+        options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);
+
+        const context: BackupContext = new BackupContext(sharePath);
+        await mkdirp(destination);
+
+        rsync.execute(
+          (error, code) => {
+            if (error && code !== 24) {
+              return progression.error(error);
+            }
+            progression.next(context);
+            progression.complete();
+            cleanupCallback();
+          },
+          (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data),
+          (data: Buffer) => this.processOutput(context, options.backupLogger, progression, data, true),
+        );
+      } catch (err) {
+        cleanupCallback();
+
+        progression.thrownError(err);
+      }
+    });
 
     return progression.asObservable();
   }

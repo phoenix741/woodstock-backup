@@ -1,5 +1,5 @@
 <template>
-  <v-menu left bottom>
+  <v-menu left bottom v-if="runningTasks && runningTasks.length">
     <template v-slot:activator="{ on }">
       <v-btn icon v-on="on">
         <v-badge color="red" :content="runningTasks.length" overlap>
@@ -43,45 +43,15 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
-import Task from '../components/Task.vue';
+import { mixins } from 'vue-class-component';
+import { Component } from 'vue-property-decorator';
 import runningTasks from './RunningTasksMenu.graphql';
 import runningTasksSub from './RunningTasksMenuSubscription.graphql';
+import { QueueComponent } from './QueueComponent';
 import { RunningTasksMenuQuery, RunningTasksSubSubscription } from '../generated/graphql';
 
-type QueueQuery = RunningTasksMenuQuery['queue']['active'];
-type RunningTaskQueue = {
-  [key in string]: QueueQuery;
-};
-
-@Component({
-  components: { Task },
-  apollo: {
-    runningTasks: {
-      query: runningTasks,
-      update: ({ queue }: RunningTasksMenuQuery) => queue.active,
-      subscribeToMore: {
-        document: runningTasksSub,
-        updateQuery: (
-          previous: RunningTasksMenuQuery,
-          { subscriptionData }: { subscriptionData: { data: RunningTasksSubSubscription } },
-        ) => {
-          const index = previous.queue.active.findIndex(task => task.id === subscriptionData.data.jobUpdated.id);
-          if (index >= 0) {
-            return;
-          }
-
-          const result = {
-            ...previous,
-            queue: { ...previous.queue, active: [...previous.queue.active, subscriptionData.data.jobUpdated] },
-          };
-          return result;
-        },
-      },
-    },
-  },
-})
-export default class RunningTasksMenu extends Vue {
-  runningTasks: QueueQuery = [];
-}
+@Component({})
+export default class RunningTasksMenu extends mixins(
+  QueueComponent<RunningTasksMenuQuery, RunningTasksSubSubscription>(runningTasks, runningTasksSub, 'active'),
+) {}
 </script>

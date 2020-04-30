@@ -1,11 +1,10 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
 
-import { ApplicationConfigService } from '../config/application-config.service';
+import { BackupsService } from '../backups/backups.service';
 import { HostConfiguration } from './host-configuration.dto';
 import { HostInformation } from './hosts.dto';
 import { HostsService } from './hosts.service';
-import { BackupsService } from '../backups/backups.service';
 
 @Controller('hosts')
 export class HostController {

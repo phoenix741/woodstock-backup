@@ -26,12 +26,14 @@ const routes: Array<RouteConfig> = [
   },
   {
     name: 'Backups',
-    path: '/backups/:host',
+    path: '/backups/:hostname',
+    props: true,
     component: () => import(/* webpackChunkName: "backups" */ '../views/Backups.vue'),
   },
   {
     name: 'BackupsBrowse',
-    path: '/backups/:host/:number',
+    path: '/backups/:hostname/:number',
+    props: true,
     component: () => import(/* webpackChunkName: "browse" */ '../views/BackupsBrowse.vue'),
   },
   {

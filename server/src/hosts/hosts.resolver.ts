@@ -1,4 +1,5 @@
-import { Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import { NotFoundException } from '@nestjs/common';
+import { Args, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 
 import { Backup } from '../backups/backup.dto';
 import { BackupsService } from '../backups/backups.service';
@@ -15,6 +16,15 @@ export class HostsResolver {
     return (await this.hostsService.getHosts()).map(host => ({
       name: host,
     }));
+  }
+
+  @Query(() => Host)
+  async host(@Args('hostname') host: string): Promise<Host> {
+    if (!(await this.hostsService.getHosts()).includes(host)) {
+      throw new NotFoundException(`Can't find the host with the name ${host}`);
+    }
+
+    return { name: host };
   }
 
   @ResolveField(() => HostConfiguration)
