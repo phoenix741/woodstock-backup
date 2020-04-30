@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { Args, Parent, Query, ResolveField, Resolver, Mutation } from '@nestjs/graphql';
+import { Args, Parent, Query, ResolveField, Resolver, Mutation, Int } from '@nestjs/graphql';
 
 import { Backup } from '../backups/backup.dto';
 import { BackupsService } from '../backups/backups.service';
@@ -24,8 +24,22 @@ export class BackupsResolver {
     private backupsService: BackupsService,
   ) {}
 
+  @Query(() => [Backup])
+  async backups(@Args('hostname') hostname: string): Promise<ExtendedBackup[]> {
+    if (!(await this.hostsService.getHosts()).includes(hostname)) {
+      throw new NotFoundException(`Can't find the host with the name ${hostname}`);
+    }
+
+    const backups = await this.backupsService.getBackups(hostname);
+
+    return backups.map(backup => Object.assign({ hostname }, backup));
+  }
+
   @Query(() => Backup)
-  async backup(@Args('hostname') hostname: string, @Args('number') number: number): Promise<ExtendedBackup> {
+  async backup(
+    @Args('hostname') hostname: string,
+    @Args('number', { type: () => Int }) number: number,
+  ): Promise<ExtendedBackup> {
     if (!(await this.hostsService.getHosts()).includes(hostname)) {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }

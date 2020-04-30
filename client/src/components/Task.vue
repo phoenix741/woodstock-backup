@@ -5,14 +5,15 @@
         <v-row no-gutters>
           <v-col cols="8">
             <span class="font-weight-light">
-              <v-icon small>mdi-cloud-download</v-icon> {{ task.data.host }} - {{ startDate }}
+              <v-icon small>mdi-cloud-download</v-icon> {{ task.data.host }}
+              <template v-if="task.data.startDate">- {{ task.data.startDate | date }}</template>
             </span>
           </v-col>
           <v-col cols="4" v-if="taskRunning">
             <div class="text-right font-weight-light">{{ progressText }}</div>
           </v-col>
         </v-row>
-        <v-row class="pt-5" no-gutters>
+        <v-row class="pt-5" no-gutters v-if="taskRunning || taskFailed">
           <v-col cols="12" v-if="taskRunning">
             <v-progress-linear
               color="primary"
@@ -22,11 +23,13 @@
               height="25"
             >
               <template v-slot="{ value }">
-                <strong>{{ value | formatPercent }} ({{ speedText }}) </strong>
+                <strong
+                  >{{ value | formatPercent }} ({{ (task.data.progression || {}).speed || 0 | filesize }}/s)
+                </strong>
               </template>
             </v-progress-linear>
           </v-col>
-          <v-col cols="12" v-else>
+          <v-col cols="12" v-else-if="taskFailed">
             <v-progress-linear color="red" striped :value="(task.data.progression || {}).percent" height="25">
               <template v-slot="{ value }">
                 <strong>{{ value | formatPercent }} ({{ task.failedReason }}) </strong>
@@ -70,8 +73,6 @@
 </template>
 
 <script lang="ts">
-import filesize from 'filesize.js';
-import { format } from 'date-fns';
 import { Vue, Component, Prop } from 'vue-property-decorator';
 import { Job } from '../generated/graphql';
 
@@ -84,18 +85,14 @@ export default class Task extends Vue {
     return this.task.state === 'active';
   }
 
-  get speedText() {
-    return `${filesize(this.task.data.progression?.speed || 0)}/s`;
+  get taskFailed() {
+    return this.task.state === 'failed' || this.task.data.state === 'FAILED';
   }
 
   get progressText() {
     return `${this.task.data.progression?.newFileCount} ${
       this.task.data.progression?.fileCount ? '/' + this.task.data.progression?.fileCount : ''
     } files`;
-  }
-
-  get startDate() {
-    return this.task.data.startDate && format(this.task.data.startDate, 'MM/dd/yyyy HH:mm');
   }
 }
 </script>

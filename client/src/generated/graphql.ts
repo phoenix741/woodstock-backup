@@ -69,6 +69,7 @@ export type BackupTask = {
 };
 
 export type BackupTaskShare = {
+  checksum?: Maybe<Scalars['Boolean']>;
   name: Scalars['String'];
   includes?: Maybe<Array<Scalars['String']>>;
   excludes?: Maybe<Array<Scalars['String']>>;
@@ -189,15 +190,27 @@ export type MutationRemoveBackupArgs = {
 export type Operation = ExecuteCommandOperation | RSyncBackupOperation | RSyncdBackupOperation;
 
 export type Query = {
+  backups: Array<Backup>;
   backup: Backup;
   hosts: Array<Host>;
+  host: Host;
   queue: BackupQueue;
   status: BtrfsCheck;
 };
 
 
+export type QueryBackupsArgs = {
+  hostname: Scalars['String'];
+};
+
+
 export type QueryBackupArgs = {
-  number: Scalars['Float'];
+  number: Scalars['Int'];
+  hostname: Scalars['String'];
+};
+
+
+export type QueryHostArgs = {
   hostname: Scalars['String'];
 };
 
@@ -251,16 +264,39 @@ export type TaskProgression = {
 };
 
 
+export type FragmentActiveJobFragment = (
+  Pick<Job, 'id' | 'state'>
+  & { data: (
+    Pick<BackupTask, 'host'>
+    & { progression?: Maybe<Pick<TaskProgression, 'fileCount' | 'percent'>> }
+  ) }
+);
+
 export type RunningTasksMenuQueryVariables = {};
 
 
-export type RunningTasksMenuQuery = { queue: { active: Array<(
-      Pick<Job, 'id' | 'state'>
-      & { data: (
-        Pick<BackupTask, 'host'>
-        & { progression?: Maybe<Pick<TaskProgression, 'fileCount' | 'percent'>> }
-      ) }
-    )> } };
+export type RunningTasksMenuQuery = { queue: { active: Array<FragmentActiveJobFragment> } };
+
+export type RunningTasksMenuSubSubscriptionVariables = {};
+
+
+export type RunningTasksMenuSubSubscription = { jobUpdated: FragmentActiveJobFragment };
+
+export type BackupsQueryVariables = {
+  hostname: Scalars['String'];
+};
+
+
+export type BackupsQuery = { backups: Array<Pick<Backup, 'number' | 'complete' | 'startDate' | 'endDate' | 'fileCount' | 'newFileCount' | 'existingFileCount' | 'fileSize' | 'newFileSize' | 'existingFileSize' | 'speed'>> };
+
+export type BackupsBrowseQueryVariables = {
+  hostname: Scalars['String'];
+  number: Scalars['Int'];
+  path: Scalars['String'];
+};
+
+
+export type BackupsBrowseQuery = { backup: { files: Array<Pick<FileDescription, 'name' | 'type' | 'mode' | 'size' | 'mtime'>> } };
 
 export type FragmentJobFragment = (
   Pick<Job, 'id' | 'state' | 'failedReason'>

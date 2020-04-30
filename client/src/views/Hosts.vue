@@ -10,14 +10,13 @@
         {{ (props.item.lastBackupAge / (24 * 3600000)).toFixed(2) }}
       </template>
       <template slot="item.lastBackupSize" slot-scope="props">
-        {{ props.item.lastBackupSize && calculateFileSize(props.item.lastBackupSize) }}
+        {{ props.item.lastBackupSize | filesize }}
       </template>
     </v-data-table>
   </v-container>
 </template>
 
 <script lang="ts">
-import filesize from 'filesize.js';
 import { Component, Vue } from 'vue-property-decorator';
 import hosts from './Hosts.graphql';
 import { HostsQuery } from '../generated/graphql';
@@ -52,23 +51,5 @@ export default class Hosts extends Vue {
     { text: '', value: 'show', sortable: false },
   ];
   hosts = [];
-  /*
-  async mounted() {
-    const response = await axios.get("/api/hosts");
-    this.hosts = response.data.map((host: any) => ({
-      name: host.name,
-      lastBackupNumber: host.lastBackup?.number,
-      lastBackupAge:
-        host.lastBackup &&
-        new Date().getTime() - new Date(host.lastBackup?.startDate).getTime(),
-      lastBackupSize: host.lastBackup?.fileSize,
-      state: host.lastBackup?.complete ? "sucess" : "failed",
-    }));
-  }
-  */
-
-  calculateFileSize(size: number) {
-    return filesize(size);
-  }
 }
 </script>

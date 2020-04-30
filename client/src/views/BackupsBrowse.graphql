@@ -1,0 +1,11 @@
+query BackupsBrowse($hostname: String!, $number: Int!, $path: String!) {
+  backup(hostname: $hostname, number: $number) {
+    files(path: $path) {
+      name
+      type
+      mode
+      size
+      mtime
+    }
+  }
+}

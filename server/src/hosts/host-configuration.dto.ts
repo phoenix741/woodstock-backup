@@ -19,6 +19,10 @@ export class BackupTaskShare {
 
   @ApiProperty({ example: ['*.bak'] })
   excludes?: string[];
+
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
+  checksum?: boolean;
 }
 
 /**

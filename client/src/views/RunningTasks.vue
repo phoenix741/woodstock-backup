@@ -19,11 +19,13 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
+import { mixins } from 'vue-class-component';
+import { Component } from 'vue-property-decorator';
 import Task from '../components/Task.vue';
 import runningTasks from './RunningTasks.graphql';
 import runningTasksSub from './RunningTasksSubscription.graphql';
-import { RunningTasksQuery, FragmentJobFragment, RunningTasksSubSubscription } from '../generated/graphql';
+import { RunningTasksQuery, RunningTasksSubSubscription } from '../generated/graphql';
+import { QueueComponent } from '../components/QueueComponent';
 
 type QueueQuery = RunningTasksQuery['queue']['all'];
 type RunningTaskQueue = {
@@ -32,37 +34,14 @@ type RunningTaskQueue = {
 
 @Component({
   components: { Task },
-  apollo: {
-    runningTasks: {
-      query: runningTasks,
-      update: ({ queue }: RunningTasksQuery) => queue.all,
-      subscribeToMore: {
-        document: runningTasksSub,
-        updateQuery: (
-          previous: RunningTasksQuery,
-          { subscriptionData }: { subscriptionData: { data: RunningTasksSubSubscription } },
-        ) => {
-          const index = previous.queue.all.findIndex(task => task.id === subscriptionData.data.jobUpdated.id);
-          if (index >= 0) {
-            return;
-          }
-
-          const result = {
-            ...previous,
-            queue: { ...previous.queue, all: [...previous.queue.all, subscriptionData.data.jobUpdated] },
-          };
-          return result;
-        },
-      },
-    },
-  },
 })
-export default class RunningTasks extends Vue {
-  runningTasks: QueueQuery = [];
+export default class RunningTasks extends mixins(
+  QueueComponent<RunningTasksQuery, RunningTasksSubSubscription>(runningTasks, runningTasksSub, 'all'),
+) {
   tab = 0;
 
   get runningTasksNotEmpty() {
-    return this.runningTasks.reduce((acc: RunningTaskQueue, job: FragmentJobFragment) => {
+    return this.runningTasks.reduce((acc, job) => {
       if (job.state) {
         acc[job.state] = acc[job.state] || [];
         acc[job.state].push(job);

@@ -1,33 +1,101 @@
 <template>
-  <v-treeview v-model="tree" :open="open" :items="items" item-key="name" open-on-click>
+  <v-treeview
+    v-model="tree"
+    :items="items"
+    :open="open"
+    activatable
+    item-key="name"
+    open-on-click
+    :load-children="fetchPaths"
+  >
     <template v-slot:prepend="{ item, open }">
       <v-icon v-if="!item.file">
         {{ open ? 'mdi-folder-open' : 'mdi-folder' }}
       </v-icon>
       <v-icon v-else>
-        {{ files[item.file] }}
+        {{ item.file | toIcon }}
       </v-icon>
     </template>
   </v-treeview>
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
+import { Component, Vue, Prop } from 'vue-property-decorator';
+import backupsBrowse from './BackupsBrowse.graphql';
+import { BackupsBrowseQuery } from '../generated/graphql';
 
-@Component({})
+interface TreeItem {
+  name: string;
+  type: string;
+  path: string;
+  file?: string;
+  children?: TreeItem[];
+}
+
+function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
+  return backup.files.map(b => {
+    const object: TreeItem = {
+      name: b.name,
+      type: b.type,
+      path: `${path}/${b.name}`,
+    };
+    if (b.type !== 'DIRECTORY') {
+      object.file = b.name.split('.').pop();
+    } else {
+      object.children = [];
+    }
+    return object;
+  });
+}
+
+@Component({
+  apollo: {
+    items: {
+      query: backupsBrowse,
+      variables() {
+        return {
+          hostname: this.hostname,
+          number: parseInt(this.number),
+          path: '/',
+        };
+      },
+      update: (query: BackupsBrowseQuery) => mapToItems('/', query),
+    },
+  },
+})
 export default class BackupBrowse extends Vue {
-  open = ['public'];
-  files = {
-    html: 'mdi-language-html5',
-    js: 'mdi-nodejs',
-    json: 'mdi-json',
-    md: 'mdi-markdown',
-    pdf: 'mdi-file-pdf',
-    png: 'mdi-file-image',
-    txt: 'mdi-file-document-outline',
-    xls: 'mdi-file-excel',
-  };
+  @Prop({
+    required: true,
+  })
+  hostname!: string;
+  @Prop({
+    required: true,
+  })
+  number!: string;
+
+  items = [];
   tree = [];
+  open = [];
+
+  async fetchPaths(item: TreeItem) {
+    if (!item.children) {
+      return;
+    }
+
+    const { data } = await this.$apollo.query<BackupsBrowseQuery>({
+      query: backupsBrowse,
+      variables: {
+        hostname: this.hostname,
+        number: parseInt(this.number),
+        path: item.path,
+      },
+    });
+
+    const items = mapToItems(item.path, data);
+    item.children.push(...items);
+  }
+
+  /*
   items = [
     {
       name: '.git',
@@ -82,5 +150,6 @@ export default class BackupBrowse extends Vue {
       file: 'txt',
     },
   ];
+  */
 }
 </script>

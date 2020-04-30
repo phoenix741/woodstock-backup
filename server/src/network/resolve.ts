@@ -88,9 +88,13 @@ export class ResolveService {
     return this.resolveNetbiosFromHostname(hostname);
   }
 
-  async resolveDNS(hostname: string): Promise<string> {
-    const result = await dnsLookupPromise(hostname);
-    return result.address;
+  async resolveDNS(hostname: string): Promise<string | null> {
+    try {
+      const result = await dnsLookupPromise(hostname);
+      return result.address;
+    } catch (err) {
+      return null;
+    }
   }
 
   async resolveNetbiosFromHostname(hostname: string): Promise<string> {
@@ -128,7 +132,7 @@ export class ResolveService {
           this.logger.debug(`Found IP addresse ${ipAddr} for host ${hostname}`);
           resolve(ipAddr);
         } else {
-          this.logger.error(`Couldn't find IP addresse for host ${hostname}`);
+          this.logger.debug(`Couldn't find IP addresse for host ${hostname}`);
           resolve();
         }
       });

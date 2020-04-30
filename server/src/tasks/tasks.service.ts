@@ -146,11 +146,11 @@ export class TasksService {
                 rsyncd: operation.name === 'RSyncdBackup',
                 ...(operation.name === 'RSyncdBackup'
                   ? pick(operation, 'authentification', 'username', 'password')
-                  : {}),
+                  : { username: 'root' }),
 
-                username: 'root',
                 includes,
                 excludes,
+                checksum: share.checksum,
 
                 backupLogger,
               });

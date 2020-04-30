@@ -1,0 +1,15 @@
+query Backups($hostname: String!) {
+  backups(hostname: $hostname) {
+    number
+    complete
+    startDate
+    endDate
+    fileCount
+    newFileCount
+    existingFileCount
+    fileSize
+    newFileSize
+    existingFileSize
+    speed
+  }
+}
