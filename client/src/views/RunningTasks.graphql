@@ -1,9 +1,0 @@
-#import "./FragmentJob.graphql"
-
-query RunningTasks {
-  queue {
-    all {
-      ...FragmentJob
-    }
-  }
-}

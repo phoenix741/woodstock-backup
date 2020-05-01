@@ -1,6 +1,6 @@
 #import "./FragmentJob.graphql"
 
-subscription RunningTasksSub {
+subscription QueueTasksJobUpdated {
   jobUpdated {
     ...FragmentJob
   }

@@ -1,19 +1,11 @@
 import { DocumentNode } from 'graphql';
-import Vue from 'vue';
-
+import { Component, Vue } from 'vue-property-decorator';
 import { Job } from '../generated/graphql';
 
 export type DeepPartial<T> = T extends Function ? T : T extends object ? { [P in keyof T]?: DeepPartial<T[P]> } : T;
 
 export type Query = {
-  queue: {
-    all?: Array<DeepPartial<Job>>;
-    active?: Array<DeepPartial<Job>>;
-    failed?: Array<DeepPartial<Job>>;
-    delayed?: Array<DeepPartial<Job>>;
-    waiting?: Array<DeepPartial<Job>>;
-    completed?: Array<DeepPartial<Job>>;
-  };
+  queue: Array<DeepPartial<Job>>;
 };
 
 export type Subscription = {
@@ -23,40 +15,33 @@ export type Subscription = {
 export const QueueComponent = <Q extends Query, S extends DeepPartial<Subscription>>(
   query: DocumentNode,
   subscriptionQuery: DocumentNode,
-  selection: keyof Query['queue'],
-) =>
-  Vue.extend({
-    data: () => {
-      return {
-        runningTasks: [] as Q['queue']['all'],
-      };
-    },
+) => {
+  @Component({
     apollo: {
       runningTasks: {
-        query: query,
-        update: ({ queue }: Q) => queue[selection],
+        query,
+        update: ({ queue }: Q) => queue,
+        variables() {
+          return {
+            state: this.queryState,
+          };
+        },
         subscribeToMore: {
           document: subscriptionQuery,
-          updateQuery: (previous: Q, { subscriptionData }: { subscriptionData: { data: S } }) => {
+          updateQuery: function(previous: Q, { subscriptionData }: { subscriptionData: { data: S } }) {
             if (!subscriptionData.data.jobUpdated) return;
 
-            const queue = { ...previous.queue };
-            for (const type in queue) {
-              if (type === '__typename') continue;
-              const key = type as keyof Query['queue'];
-              const tasks = [...(queue[key] || [])];
-              if (tasks.length) {
-                const index = tasks.findIndex(task => task.id === subscriptionData.data.jobUpdated?.id);
-                if (subscriptionData.data?.jobUpdated?.state === type) {
-                  if (index < 0) {
-                    queue[key] = [...tasks, subscriptionData.data.jobUpdated];
-                  }
-                } else {
-                  if (index < 0) {
-                    queue[key] = [...tasks].slice(index, 1);
-                  }
-                }
+            const queue = [...previous.queue];
+            const index = queue.findIndex(task => task.id === subscriptionData.data.jobUpdated?.id);
+            if (
+              this.queryState.includes(subscriptionData.data?.jobUpdated?.state || '') ||
+              this.queryState.length === 0
+            ) {
+              if (index < 0) {
+                queue.push(subscriptionData.data.jobUpdated);
               }
+            } else if (index >= 0) {
+              queue.splice(index, 1);
             }
 
             return {
@@ -67,4 +52,15 @@ export const QueueComponent = <Q extends Query, S extends DeepPartial<Subscripti
         },
       },
     },
-  });
+  })
+  class QueueComponent extends Vue {
+    state?: string | string[];
+    runningTasks: Q['queue'] = [];
+
+    get queryState() {
+      return this.state instanceof Array ? this.state : this.state ? [this.state] : [];
+    }
+  }
+
+  return QueueComponent;
+};

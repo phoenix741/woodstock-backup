@@ -28,14 +28,8 @@
             <v-list-item-title>Hosts</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
-        <v-list-item link to="/tasks">
-          <v-list-item-action>
-            <v-icon>mdi-animation</v-icon>
-          </v-list-item-action>
-          <v-list-item-content>
-            <v-list-item-title>Running Tasks</v-list-item-title>
-          </v-list-item-content>
-        </v-list-item>
+        <NavigationBarTasks></NavigationBarTasks>
+
         <v-list-item link to="/reports">
           <v-list-item-action>
             <v-icon>mdi-file-chart</v-icon>
@@ -62,7 +56,6 @@
       <v-spacer></v-spacer>
 
       <RunningTasksMenu></RunningTasksMenu>
-      
     </v-app-bar>
 
     <v-content>
@@ -74,10 +67,12 @@
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
 import RunningTasksMenu from './components/RunningTasksMenu.vue';
+import NavigationBarTasks from './components/NavigationBarTasks.vue';
 
 @Component({
   components: {
     RunningTasksMenu,
+    NavigationBarTasks,
   },
 })
 export default class App extends Vue {

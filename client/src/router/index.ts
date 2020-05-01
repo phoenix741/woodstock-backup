@@ -15,9 +15,10 @@ const routes: Array<RouteConfig> = [
     component: () => import(/* webpackChunkName: "hosts" */ '../views/Hosts.vue'),
   },
   {
-    name: 'RunningTasks',
-    path: '/tasks',
-    component: () => import(/* webpackChunkName: "tasks" */ '../views/RunningTasks.vue'),
+    name: 'QueueTasks',
+    path: '/tasks/:state',
+    props: true,
+    component: () => import(/* webpackChunkName: "tasks" */ '../views/QueueTasks.vue'),
   },
   {
     name: 'Logs',

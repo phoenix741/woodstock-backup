@@ -1,7 +1,0 @@
-#import "./FragmentActiveJob.graphql"
-
-subscription RunningTasksMenuSub {
-  jobUpdated {
-    ...FragmentActiveJob
-  }
-}
