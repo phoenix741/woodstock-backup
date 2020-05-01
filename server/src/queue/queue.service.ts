@@ -11,16 +11,20 @@ import {
   Processor,
 } from '@nestjs/bull';
 import { Inject, Logger } from '@nestjs/common';
-import { Job } from 'bull';
+import { Job, Queue } from 'bull';
 import { PubSub } from 'graphql-subscriptions';
 
 import { BackupTask } from '../tasks/tasks.dto';
+import { InjectQueue } from '@nestjs/bull';
 
 @Processor('queue')
 export class QueueService {
   private logger = new Logger(QueueService.name);
 
-  constructor(@Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub) {}
+  constructor(
+    @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
+    @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
+  ) {}
 
   @OnQueueError()
   onError(err: Error) {
@@ -28,7 +32,8 @@ export class QueueService {
   }
 
   @OnQueueActive()
-  onActive(job: Job<BackupTask>) {
+  async onActive(job: Job<BackupTask>) {
+    await this.removeHost(job);
     this.pubSub.publish('jobUpdated', { jobUpdated: job });
   }
 
@@ -38,35 +43,52 @@ export class QueueService {
   }
 
   @OnQueueCompleted()
-  onCompleted(job: Job<BackupTask>) {
+  async onCompleted(job: Job<BackupTask>) {
+    await this.removeHost(job);
     this.pubSub.publish('jobUpdated', { jobUpdated: job });
   }
 
   @OnQueueProgress()
-  onProgress(job: Job<BackupTask>) {
+  async onProgress(job: Job<BackupTask>) {
     this.pubSub.publish('jobUpdated', { jobUpdated: job });
   }
 
   @OnQueueStalled()
-  onStalled(job: Job<BackupTask>) {
+  async onStalled(job: Job<BackupTask>) {
     this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
+    await this.removeHost(job);
+    this.pubSub.publish('jobUpdated', { jobUpdated: job });
   }
 
   @OnQueueFailed()
-  onFailed(job: Job<BackupTask>, err: Error) {
+  async onFailed(job: Job<BackupTask>, err: Error) {
     this.logger.error(`Error when processing the job ${job.id} with the error ${err.message}`, err.stack);
+    await this.removeHost(job);
+    this.pubSub.publish('jobUpdated', { jobUpdated: job });
     this.pubSub.publish('jobFailed', { jobFailed: job });
   }
 
   @OnQueueCleaned()
   onCleaned(jobs: Job<BackupTask>[]) {
     for (const job of jobs) {
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
       this.pubSub.publish('jobRemoved', { jobRemoved: job });
     }
   }
 
   @OnQueueRemoved()
   onRemoved(job: Job<BackupTask>) {
+    this.pubSub.publish('jobUpdated', { jobUpdated: job });
     this.pubSub.publish('jobRemoved', { jobRemoved: job });
+  }
+
+  async removeHost(job: Job<BackupTask>) {
+    const backups = await this.backupQueue.getJobs([]);
+    const backupToRemove = backups.filter(
+      j => j.name === 'backup' && j.id !== job.id && j.data.host && j.data.host === job.data.host,
+    );
+    for (const jobToRemove of backupToRemove) {
+      await jobToRemove.remove();
+    }
   }
 }

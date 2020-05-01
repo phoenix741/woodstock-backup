@@ -61,8 +61,6 @@ export class Job {
   name!: string;
   data!: BackupTask;
 
-  progress!: number;
-
   @Field(type => Int)
   delay!: number;
 
@@ -81,6 +79,3 @@ export class Job {
   @Field(type => Int)
   processedOn?: number;
 }
-
-@ObjectType()
-export class BackupQueue {}

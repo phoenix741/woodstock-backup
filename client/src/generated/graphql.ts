@@ -30,15 +30,6 @@ export type BackupFilesArgs = {
   path: Scalars['String'];
 };
 
-export type BackupQueue = {
-  all: Array<Job>;
-  waiting: Array<Job>;
-  active: Array<Job>;
-  failed: Array<Job>;
-  delayed: Array<Job>;
-  completed: Array<Job>;
-};
-
 export enum BackupState {
   Waiting = 'WAITING',
   Running = 'RUNNING',
@@ -138,6 +129,7 @@ export type Host = {
   configuration: HostConfiguration;
   backups: Array<Backup>;
   lastBackup?: Maybe<Backup>;
+  lastBackupState?: Maybe<Scalars['String']>;
 };
 
 export type HostConfigOperation = {
@@ -194,7 +186,7 @@ export type Query = {
   backup: Backup;
   hosts: Array<Host>;
   host: Host;
-  queue: BackupQueue;
+  queue: Array<Job>;
   status: BtrfsCheck;
 };
 
@@ -212,6 +204,11 @@ export type QueryBackupArgs = {
 
 export type QueryHostArgs = {
   hostname: Scalars['String'];
+};
+
+
+export type QueryQueueArgs = {
+  state?: Maybe<Array<Scalars['String']>>;
 };
 
 export type RSyncBackupOperation = {
@@ -264,23 +261,41 @@ export type TaskProgression = {
 };
 
 
-export type FragmentActiveJobFragment = (
-  Pick<Job, 'id' | 'state'>
-  & { data: (
-    Pick<BackupTask, 'host'>
-    & { progression?: Maybe<Pick<TaskProgression, 'fileCount' | 'percent'>> }
-  ) }
-);
-
-export type RunningTasksMenuQueryVariables = {};
+export type NavigationBarTasksQueryVariables = {
+  state?: Maybe<Array<Scalars['String']>>;
+};
 
 
-export type RunningTasksMenuQuery = { queue: { active: Array<FragmentActiveJobFragment> } };
+export type NavigationBarTasksQuery = { queue: Array<Pick<Job, 'id' | 'state'>> };
 
-export type RunningTasksMenuSubSubscriptionVariables = {};
+export type NavigationBarTasksJobUpdatedSubscriptionVariables = {};
 
 
-export type RunningTasksMenuSubSubscription = { jobUpdated: FragmentActiveJobFragment };
+export type NavigationBarTasksJobUpdatedSubscription = { jobUpdated: Pick<Job, 'id' | 'state'> };
+
+export type RunningTasksMenuQueryVariables = {
+  state?: Maybe<Array<Scalars['String']>>;
+};
+
+
+export type RunningTasksMenuQuery = { queue: Array<(
+    Pick<Job, 'id' | 'progress' | 'state'>
+    & { data: (
+      Pick<BackupTask, 'host'>
+      & { progression?: Maybe<Pick<TaskProgression, 'fileCount'>> }
+    ) }
+  )> };
+
+export type RunningTasksMenuJobUpdatedSubscriptionVariables = {};
+
+
+export type RunningTasksMenuJobUpdatedSubscription = { jobUpdated: (
+    Pick<Job, 'id' | 'progress' | 'state'>
+    & { data: (
+      Pick<BackupTask, 'host'>
+      & { progression?: Maybe<Pick<TaskProgression, 'fileCount'>> }
+    ) }
+  ) };
 
 export type BackupsQueryVariables = {
   hostname: Scalars['String'];
@@ -310,16 +325,18 @@ export type HostsQueryVariables = {};
 
 
 export type HostsQuery = { hosts: Array<(
-    Pick<Host, 'name'>
+    Pick<Host, 'name' | 'lastBackupState'>
     & { lastBackup?: Maybe<Pick<Backup, 'number' | 'startDate' | 'fileSize' | 'complete'>> }
   )> };
 
-export type RunningTasksQueryVariables = {};
+export type QueueTasksQueryVariables = {
+  state?: Maybe<Array<Scalars['String']>>;
+};
 
 
-export type RunningTasksQuery = { queue: { all: Array<FragmentJobFragment> } };
+export type QueueTasksQuery = { queue: Array<FragmentJobFragment> };
 
-export type RunningTasksSubSubscriptionVariables = {};
+export type QueueTasksJobUpdatedSubscriptionVariables = {};
 
 
-export type RunningTasksSubSubscription = { jobUpdated: FragmentJobFragment };
+export type QueueTasksJobUpdatedSubscription = { jobUpdated: FragmentJobFragment };

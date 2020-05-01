@@ -4,13 +4,20 @@ import { join } from 'path';
 import { ApplicationConfigService } from '../config/application-config.service';
 import { YamlService } from '../utils/yaml.service';
 import { HostConfiguration } from './host-configuration.dto';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
+import { BackupTask } from '../tasks/tasks.dto';
 
 /**
  * Class used to manage configuration file for hosts.
  */
 @Injectable()
 export class HostsService {
-  constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
+  constructor(
+    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    private configService: ApplicationConfigService,
+    private yamlService: YamlService,
+  ) {}
 
   /**
    * Get the configuration of an host
@@ -62,5 +69,14 @@ export class HostsService {
 
   private getHostFile(host: string): string {
     return join(this.configService.configPath, `${host}.yml`);
+  }
+
+  async lastBackupState(host: string): Promise<string | undefined> {
+    const jobs = await this.hostsQueue.getJobs([]);
+    const backupJobs = jobs.filter(j => j.data.host === host).sort((j1, j2) => j2.timestamp - j1.timestamp);
+    if (backupJobs[0]) {
+      return await backupJobs[0].getState();
+    }
+    return undefined;
   }
 }

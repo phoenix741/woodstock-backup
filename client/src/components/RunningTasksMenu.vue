@@ -15,7 +15,7 @@
             <v-list-item-title>You have {{ runningTasks.length }} tasks running</v-list-item-title>
           </v-list-item-content>
           <v-list-item-action>
-            <v-btn rounded color="primary" dark to="/tasks">View all</v-btn>
+            <v-btn rounded color="primary" dark to="/tasks/active">View all</v-btn>
           </v-list-item-action>
         </v-list-item>
       </v-list>
@@ -25,11 +25,7 @@
       <v-list>
         <v-list-item v-for="task in runningTasks" :key="task.id">
           <v-list-item-avatar>
-            <v-progress-circular
-              :value="(task.data.progression || {}).percent"
-              width="3"
-              color="primary"
-            ></v-progress-circular>
+            <v-progress-circular :value="task.progress" width="3" color="primary"></v-progress-circular>
           </v-list-item-avatar>
 
           <v-list-item-content>
@@ -46,12 +42,14 @@
 import { mixins } from 'vue-class-component';
 import { Component } from 'vue-property-decorator';
 import runningTasks from './RunningTasksMenu.graphql';
-import runningTasksSub from './RunningTasksMenuSubscription.graphql';
+import runningTasksSub from './RunningTasksMenuJobUpdated.graphql';
 import { QueueComponent } from './QueueComponent';
-import { RunningTasksMenuQuery, RunningTasksSubSubscription } from '../generated/graphql';
+import { RunningTasksMenuQuery, RunningTasksMenuJobUpdatedSubscription } from '../generated/graphql';
 
 @Component({})
 export default class RunningTasksMenu extends mixins(
-  QueueComponent<RunningTasksMenuQuery, RunningTasksSubSubscription>(runningTasks, runningTasksSub, 'active'),
-) {}
+  QueueComponent<RunningTasksMenuQuery, RunningTasksMenuJobUpdatedSubscription>(runningTasks, runningTasksSub),
+) {
+  state = ['active'];
+}
 </script>

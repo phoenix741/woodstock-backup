@@ -41,4 +41,9 @@ export class HostsResolver {
   async lastBackup(@Parent() host: Host): Promise<Backup | undefined> {
     return await this.backupsService.getLastBackup(host.name);
   }
+
+  @ResolveField(() => String, { nullable: true })
+  async lastBackupState(@Parent() host: Host): Promise<string | undefined> {
+    return await this.hostsService.lastBackupState(host.name);
+  }
 }

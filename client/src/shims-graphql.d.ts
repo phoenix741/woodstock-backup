@@ -1,8 +1,17 @@
 
-declare module '*/FragmentActiveJob.graphql' {
+declare module '*/NavigationBarTasks.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;
-  export const FragmentActiveJob: DocumentNode;
+  export const NavigationBarTasks: DocumentNode;
+
+  export default defaultDocument;
+}
+    
+
+declare module '*/NavigationBarTasksJobUpdated.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const NavigationBarTasksJobUpdated: DocumentNode;
 
   export default defaultDocument;
 }
@@ -17,10 +26,10 @@ declare module '*/RunningTasksMenu.graphql' {
 }
     
 
-declare module '*/RunningTasksMenuSubscription.graphql' {
+declare module '*/RunningTasksMenuJobUpdated.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;
-  export const RunningTasksMenuSub: DocumentNode;
+  export const RunningTasksMenuJobUpdated: DocumentNode;
 
   export default defaultDocument;
 }
@@ -62,19 +71,19 @@ declare module '*/Hosts.graphql' {
 }
     
 
-declare module '*/RunningTasks.graphql' {
+declare module '*/QueueTasks.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;
-  export const RunningTasks: DocumentNode;
+  export const QueueTasks: DocumentNode;
 
   export default defaultDocument;
 }
     
 
-declare module '*/RunningTasksSubscription.graphql' {
+declare module '*/QueueTasksSubscription.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;
-  export const RunningTasksSub: DocumentNode;
+  export const QueueTasksJobUpdated: DocumentNode;
 
   export default defaultDocument;
 }

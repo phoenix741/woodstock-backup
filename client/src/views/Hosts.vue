@@ -1,16 +1,20 @@
 <template>
   <v-container>
-    <v-data-table :headers="headers" :items="hosts" :items-per-page="15" class="elevation-1">
-      <template slot="item.show" slot-scope="props">
-        <v-btn class="secondary" rounded :to="`/backups/${props.item.name}`">
-          list
-        </v-btn>
-      </template>
+    <v-data-table
+      :headers="headers"
+      :items="hosts"
+      :items-per-page="15"
+      class="elevation-1"
+      @click:row="navigateTo($event.name)"
+    >
       <template slot="item.lastBackupAge" slot-scope="props">
         {{ (props.item.lastBackupAge / (24 * 3600000)).toFixed(2) }}
       </template>
       <template slot="item.lastBackupSize" slot-scope="props">
         {{ props.item.lastBackupSize | filesize }}
+      </template>
+      <template slot="item.state" slot-scope="props">
+        <v-chip v-if="props.item.state" :color="getColor(props.item.state)" dark>{{ props.item.state }}</v-chip>
       </template>
     </v-data-table>
   </v-container>
@@ -20,6 +24,18 @@
 import { Component, Vue } from 'vue-property-decorator';
 import hosts from './Hosts.graphql';
 import { HostsQuery } from '../generated/graphql';
+
+function getState(host: HostsQuery['hosts'][0]) {
+  if (host.lastBackupState) {
+    return host.lastBackupState;
+  } else {
+    if (host.lastBackup) {
+      return 'success';
+    } else {
+      return null;
+    }
+  }
+}
 
 @Component({
   apollo: {
@@ -31,7 +47,7 @@ import { HostsQuery } from '../generated/graphql';
           lastBackupNumber: host.lastBackup?.number,
           lastBackupAge: host.lastBackup && new Date().getTime() - new Date(host.lastBackup?.startDate).getTime(),
           lastBackupSize: host.lastBackup?.fileSize,
-          state: host.lastBackup?.complete ? 'sucess' : 'failed',
+          state: getState(host),
         })),
     },
   },
@@ -48,8 +64,26 @@ export default class Hosts extends Vue {
     { text: 'Last backup age (days)', value: 'lastBackupAge' },
     { text: 'Last backup size (Gb)', value: 'lastBackupSize' },
     { text: 'State', value: 'state' },
-    { text: '', value: 'show', sortable: false },
   ];
   hosts = [];
+
+  getColor(state: string) {
+    switch (state) {
+      case 'waiting':
+      case 'active':
+        return 'blue';
+      case 'failed':
+        return 'red';
+      case 'success':
+      case 'completed':
+        return 'green';
+      case 'delayed':
+        return 'yellow';
+    }
+  }
+
+  navigateTo(hostname: string) {
+    this.$router.push(`/backups/${hostname}`);
+  }
 }
 </script>

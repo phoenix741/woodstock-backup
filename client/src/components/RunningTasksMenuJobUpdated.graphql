@@ -1,5 +1,5 @@
-query RunningTasksMenu($state: [String!]) {
-  queue(state: $state) {
+subscription RunningTasksMenuJobUpdated {
+  jobUpdated {
     id
     progress
     state

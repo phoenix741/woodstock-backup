@@ -1,17 +1,13 @@
 <template>
   <v-container>
     <v-card>
-      <v-data-table show-select :headers="headers" :items="backups" :items-per-page="15">
-        <template slot="item.show" slot-scope="props">
-          <td class="align-center">
-            <v-btn class="secondary" rounded :to="`/backups/${hostname}/${props.item.number}`">
-              Browse
-            </v-btn>
-            <v-btn class="ml-1 secondary" rounded :to="`/backups/${hostname}/${props.item.number}/logs`">
-              Show Log
-            </v-btn>
-          </td>
-        </template>
+      <v-data-table
+        show-select
+        :headers="headers"
+        :items="backups"
+        :items-per-page="15"
+        @click:row="navigateTo($event.number)"
+      >
         <template slot="item.startDate" slot-scope="props">
           {{ props.item.startDate | date }}
         </template>
@@ -39,7 +35,22 @@
       </v-data-table>
       <v-card-actions>
         <v-btn class="primary ml-12" text>Delete</v-btn>
-        <v-btn class="primary" text>Launch backup</v-btn>
+        <v-btn class="primary ml-1" text>Launch backup</v-btn>
+        <v-menu offset-y>
+          <template v-slot:activator="{ on }">
+            <v-btn color="primary ml-1" dark v-on="on">
+              Show Log
+            </v-btn>
+          </template>
+          <v-list>
+            <v-list-item>
+              <v-list-item-title>Transfert Logs</v-list-item-title>
+            </v-list-item>
+            <v-list-item>
+              <v-list-item-title>Error Logs</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </v-card-actions>
     </v-card>
   </v-container>
@@ -87,8 +98,11 @@ export default class Backups extends Vue {
     { text: 'Existing Files Size', value: 'existingFileSize' },
     { text: 'New Files Count', value: 'newFileCount' },
     { text: 'New Files Size', value: 'newFileSize' },
-    { text: '', value: 'show', sortable: false },
   ];
   backups: BackupsQuery['backups'] = [];
+
+  navigateTo(n: number) {
+    this.$router.push(`/backups/${this.hostname}/${n}`);
+  }
 }
 </script>

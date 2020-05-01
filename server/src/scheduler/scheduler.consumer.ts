@@ -15,7 +15,13 @@ export class SchedulerConsumer {
   async schedule(job: Job<object>) {
     this.logger.log(`Scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
-      await this.hostsQueue.add('schedule_host', { host }, { removeOnComplete: true });
+      const hasBackup = (await this.hostsQueue.getJobs(['active', 'delayed', 'waiting'])).find(
+        b => b.data.host === host,
+      );
+
+      if (!hasBackup) {
+        await this.hostsQueue.add('schedule_host', { host }, { removeOnComplete: true });
+      }
     }
   }
 }
