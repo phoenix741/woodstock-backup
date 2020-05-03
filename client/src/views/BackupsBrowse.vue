@@ -1,22 +1,69 @@
 <template>
-  <v-treeview
-    v-model="tree"
-    :items="items"
-    :open="open"
-    activatable
-    item-key="name"
-    open-on-click
-    :load-children="fetchPaths"
-  >
-    <template v-slot:prepend="{ item, open }">
-      <v-icon v-if="!item.file">
-        {{ open ? 'mdi-folder-open' : 'mdi-folder' }}
-      </v-icon>
-      <v-icon v-else>
-        {{ item.file | toIcon }}
-      </v-icon>
-    </template>
-  </v-treeview>
+  <div>
+    <v-treeview
+      :items="items"
+      activatable
+      @update:active="openTreeItem($event)"
+      item-key="path"
+      :load-children="fetchPaths"
+      return-object
+    >
+      <template v-slot:prepend="{ item, open }">
+        <v-icon v-if="!item.file">
+          {{ open ? 'mdi-folder-open' : 'mdi-folder' }}
+        </v-icon>
+        <v-icon v-else>
+          {{ item.file | toIcon }}
+        </v-icon>
+      </template>
+    </v-treeview>
+    <v-bottom-sheet v-model="sheet">
+      <v-sheet class="text-center" v-if="selected">
+        <v-simple-table>
+          <template v-slot:default>
+            <tbody>
+              <tr>
+                <td>Path</td>
+                <td>{{ selected.path }}</td>
+              </tr>
+              <tr>
+                <td>Type</td>
+                <td>{{ selected.type }}</td>
+              </tr>
+              <tr>
+                <td>Owner</td>
+                <td>{{ selected.uid }}</td>
+              </tr>
+              <tr>
+                <td>Group</td>
+                <td>{{ selected.gid }}</td>
+              </tr>
+              <tr>
+                <td>Mode</td>
+                <td>{{ (selected.mode & 0o7777).toString(8) }}</td>
+              </tr>
+              <tr>
+                <td>Size</td>
+                <td>{{ selected.size | filesize }}</td>
+              </tr>
+              <tr>
+                <td>Modification Time</td>
+                <td>{{ selected.mtime | date }}</td>
+              </tr>
+            </tbody>
+          </template>
+        </v-simple-table>
+        <v-btn class="mt-6" text color="red" @click="sheet = !sheet">close</v-btn>
+        <v-btn
+          class="mt-6"
+          text
+          color="primary"
+          :href="'/api/hosts/' + hostname + '/backups/' + number + '/files/download?path=' + selected.path"
+          >download</v-btn
+        >
+      </v-sheet>
+    </v-bottom-sheet>
+  </div>
 </template>
 
 <script lang="ts">
@@ -27,16 +74,21 @@ import { BackupsBrowseQuery } from '../generated/graphql';
 interface TreeItem {
   name: string;
   type: string;
-  path: string;
+  uid: number;
+  gid: number;
+  mode: number;
+  size: number;
+  mtime: number;
+
   file?: string;
+  path: string;
   children?: TreeItem[];
 }
 
 function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
   return backup.files.map(b => {
     const object: TreeItem = {
-      name: b.name,
-      type: b.type,
+      ...b,
       path: `${path}/${b.name}`,
     };
     if (b.type !== 'DIRECTORY') {
@@ -59,7 +111,7 @@ function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
           path: '/',
         };
       },
-      update: (query: BackupsBrowseQuery) => mapToItems('/', query),
+      update: (query: BackupsBrowseQuery) => mapToItems('', query),
     },
   },
 })
@@ -72,10 +124,10 @@ export default class BackupBrowse extends Vue {
     required: true,
   })
   number!: string;
+  selected: TreeItem = {} as TreeItem;
 
-  items = [];
-  tree = [];
-  open = [];
+  items: TreeItem[] = [];
+  sheet = false;
 
   async fetchPaths(item: TreeItem) {
     if (!item.children) {
@@ -95,61 +147,10 @@ export default class BackupBrowse extends Vue {
     item.children.push(...items);
   }
 
-  /*
-  items = [
-    {
-      name: '.git',
-    },
-    {
-      name: 'node_modules',
-    },
-    {
-      name: 'public',
-      children: [
-        {
-          name: 'static',
-          children: [
-            {
-              name: 'logo.png',
-              file: 'png',
-            },
-          ],
-        },
-        {
-          name: 'favicon.ico',
-          file: 'png',
-        },
-        {
-          name: 'index.html',
-          file: 'html',
-        },
-      ],
-    },
-    {
-      name: '.gitignore',
-      file: 'txt',
-    },
-    {
-      name: 'babel.config.js',
-      file: 'js',
-    },
-    {
-      name: 'package.json',
-      file: 'json',
-    },
-    {
-      name: 'README.md',
-      file: 'md',
-    },
-    {
-      name: 'vue.config.js',
-      file: 'js',
-    },
-    {
-      name: 'yarn.lock',
-      file: 'txt',
-    },
-  ];
-  */
+  openTreeItem(item: TreeItem[]) {
+    if (!item?.length) return;
+    this.selected = item[0];
+    this.sheet = true;
+  }
 }
 </script>

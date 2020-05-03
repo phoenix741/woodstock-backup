@@ -3,6 +3,7 @@ import * as logform from 'logform';
 import * as mkdirp from 'mkdirp';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
+import 'winston-daily-rotate-file';
 
 const { combine, timestamp, printf, colorize } = format;
 
@@ -18,15 +19,33 @@ export class ApplicationLogger implements LoggerService {
     const logPath = join(process.env.BACKUP_PATH || '', 'log');
     mkdirp(logPath);
     this.logger = createLogger({
-      level: 'debug',
+      level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.Console({
           format: combine(colorize(), timestamp(), applicationFormat),
         }),
-        new transports.File({ filename: join(logPath, 'application.log') }),
+        new transports.DailyRotateFile({
+          filename: join(logPath, 'application-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD-HH',
+          zippedArchive: true,
+          maxSize: '2m', // Config
+          maxFiles: '31d', // Config
+          createSymlink: true,
+          symlinkName: 'application.log',
+        }),
       ],
-      exceptionHandlers: [new transports.File({ filename: join(logPath, 'exceptions.log') })],
+      exceptionHandlers: [
+        new transports.DailyRotateFile({
+          filename: join(logPath, 'exceptions-%DATE%.log'),
+          datePattern: 'YYYY-MM-DD-HH',
+          zippedArchive: true,
+          maxSize: '2m', // Config
+          maxFiles: '31d', // Config
+          createSymlink: true,
+          symlinkName: 'exceptions.log',
+        }),
+      ],
     });
   }
 

@@ -153,10 +153,10 @@ export type Job = {
   processedOn?: Maybe<Scalars['Int']>;
   name: Scalars['String'];
   data: BackupTask;
-  progress: Scalars['Float'];
   failedReason?: Maybe<Scalars['String']>;
   stacktrace?: Maybe<Array<Scalars['String']>>;
   state?: Maybe<Scalars['String']>;
+  progress?: Maybe<Scalars['Float']>;
 };
 
 export type JobResponse = {
@@ -311,7 +311,7 @@ export type BackupsBrowseQueryVariables = {
 };
 
 
-export type BackupsBrowseQuery = { backup: { files: Array<Pick<FileDescription, 'name' | 'type' | 'mode' | 'size' | 'mtime'>> } };
+export type BackupsBrowseQuery = { backup: { files: Array<Pick<FileDescription, 'name' | 'type' | 'uid' | 'gid' | 'mode' | 'size' | 'mtime'>> } };
 
 export type FragmentJobFragment = (
   Pick<Job, 'id' | 'state' | 'failedReason'>

@@ -38,14 +38,7 @@
             <v-list-item-title>Reports</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
-        <v-list-item link to="/logs">
-          <v-list-item-action>
-            <v-icon>mdi-file-document-outline</v-icon>
-          </v-list-item-action>
-          <v-list-item-content>
-            <v-list-item-title>Logs</v-list-item-title>
-          </v-list-item-content>
-        </v-list-item>
+        <NavigationBarLogs></NavigationBarLogs>
       </v-list>
     </v-navigation-drawer>
 
@@ -68,11 +61,13 @@
 import { Component, Vue } from 'vue-property-decorator';
 import RunningTasksMenu from './components/RunningTasksMenu.vue';
 import NavigationBarTasks from './components/NavigationBarTasks.vue';
+import NavigationBarLogs from './components/NavigationBarLogs.vue';
 
 @Component({
   components: {
     RunningTasksMenu,
     NavigationBarTasks,
+    NavigationBarLogs,
   },
 })
 export default class App extends Vue {

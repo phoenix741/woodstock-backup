@@ -36,4 +36,8 @@ export class ApplicationConfigService {
       port: this.configService.get<number>('REDIS_PORT', 6379),
     };
   }
+
+  get logLevel() {
+    return this.configService.get<string>('LOG_LEVEL', 'info');
+  }
 }

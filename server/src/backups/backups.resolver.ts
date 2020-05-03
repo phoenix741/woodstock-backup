@@ -64,7 +64,7 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const job = await this.hostsQueue.add('backup', { host: hostname }, { removeOnComplete: true });
+    const job = await this.hostsQueue.add('backup', { host: hostname }, { removeOnComplete: false });
     return {
       id: job.id as number,
     };
@@ -76,7 +76,7 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: true });
+    const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: false });
     return {
       id: job.id as number,
     };
