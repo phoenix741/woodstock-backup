@@ -1,10 +1,8 @@
 import { LoggerService } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as logform from 'logform';
 import * as mkdirp from 'mkdirp';
 import { createLogger, format, Logger, transports } from 'winston';
 
-import { ApplicationConfigService } from '../config/application-config.service';
 import { BackupsService } from '../backups/backups.service';
 
 const { combine, timestamp, printf } = format;
@@ -21,7 +19,7 @@ export class BackupLogger implements LoggerService {
 
     mkdirp(destinationDirectory);
     this.logger = createLogger({
-      level: 'debug',
+      level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({

@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import * as filetype from 'file-type';
 import * as fs from 'fs';
 import { isAbsolute, join } from 'path';
 
@@ -30,11 +29,7 @@ export class BackupsFilesService {
     }
   }
 
-  async getFileName(
-    name: string,
-    number: number,
-    path: string,
-  ): Promise<{ filename: string; mimetype?: string; stats: fs.Stats }> {
+  async getFileName(name: string, number: number, path: string): Promise<{ filename: string; stats: fs.Stats }> {
     if (!isAbsolute(path)) {
       throw new BadRequestException('Only absolute path can be used to serach for directory');
     }
@@ -43,12 +38,10 @@ export class BackupsFilesService {
       const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
       const filename = join(destinationDirectory, path);
       const stats = await this.getFileStat(filename);
-      const mimetype = (stats.isFile() && (await filetype.fromFile(filename))?.mime) || undefined;
 
       return {
         filename,
         stats,
-        mimetype,
       };
     } catch (err) {
       throw new NotFoundException(err);

@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query, Res, Headers } from '@nestjs/common';
 import { Response } from 'express';
 import * as archiver from 'archiver';
-import { basename } from 'path';
-import * as filetype from 'file-type';
+import { basename, relative, join } from 'path';
+import * as fs from 'fs';
 
 import { BackupsFilesService } from './backups-files.service';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
@@ -39,10 +39,7 @@ export class BackupsFilesController {
       }
       archive.finalize();
     } else {
-      if (infos.mimetype) {
-        res.contentType(infos.mimetype);
-      }
-      res.download(infos.filename);
+      res.download(infos.filename, basename(infos.filename), { dotfiles: 'allow' });
     }
   }
 }

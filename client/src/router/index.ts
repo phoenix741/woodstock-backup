@@ -22,7 +22,8 @@ const routes: Array<RouteConfig> = [
   },
   {
     name: 'Logs',
-    path: '/logs',
+    path: '/logs/:logfile',
+    props: true,
     component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
   },
   {

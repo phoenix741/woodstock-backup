@@ -3,7 +3,8 @@
     <v-data-table
       :headers="headers"
       :items="hosts"
-      :items-per-page="15"
+      :items-per-page="10"
+      item-key="name"
       class="elevation-1"
       @click:row="navigateTo($event.name)"
     >
@@ -30,7 +31,7 @@ function getState(host: HostsQuery['hosts'][0]) {
     return host.lastBackupState;
   } else {
     if (host.lastBackup) {
-      return 'success';
+      return 'idle';
     } else {
       return null;
     }
@@ -74,7 +75,6 @@ export default class Hosts extends Vue {
         return 'blue';
       case 'failed':
         return 'red';
-      case 'success':
       case 'completed':
         return 'green';
       case 'delayed':

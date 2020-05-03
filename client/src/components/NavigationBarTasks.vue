@@ -1,5 +1,5 @@
 <template>
-  <v-list-group prepend-icon="mdi-animation" value="true" link to="/tasks">
+  <v-list-group prepend-icon="mdi-animation" to="/tasks" v-if="runningTasks.length">
     <template v-slot:activator>
       <v-list-item-title>Running Tasks</v-list-item-title>
     </template>
@@ -15,7 +15,6 @@
 <script lang="ts">
 import { mixins } from 'vue-class-component';
 import { Component } from 'vue-property-decorator';
-import Task from '../components/Task.vue';
 import runningTasks from './NavigationBarTasks.graphql';
 import runningTasksSub from './NavigationBarTasksJobUpdated.graphql';
 import { NavigationBarTasksQuery, NavigationBarTasksJobUpdatedSubscription } from '../generated/graphql';
@@ -26,9 +25,7 @@ type RunningTaskQueue = {
   [key in string]: QueueQuery;
 };
 
-@Component({
-  components: { Task },
-})
+@Component({})
 export default class NavigationBarTasks extends mixins(
   QueueComponent<NavigationBarTasksQuery, NavigationBarTasksJobUpdatedSubscription>(runningTasks, runningTasksSub),
 ) {

@@ -3,6 +3,8 @@ query BackupsBrowse($hostname: String!, $number: Int!, $path: String!) {
     files(path: $path) {
       name
       type
+      uid
+      gid
       mode
       size
       mtime

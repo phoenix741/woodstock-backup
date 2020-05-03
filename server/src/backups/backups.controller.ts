@@ -3,7 +3,6 @@ import { Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Post }
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { Queue } from 'bull';
 
-import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupTask } from '../tasks/tasks.dto';
 import { Backup } from './backup.dto';
@@ -37,7 +36,7 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    await this.hostsQueue.add('backup', { host: name }, { removeOnComplete: true });
+    await this.hostsQueue.add('backup', { host: name }, { removeOnComplete: false });
   }
 
   @Delete(':number')
@@ -49,6 +48,6 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: true });
+    await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: false });
   }
 }
