@@ -1,10 +1,25 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Post } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  NotFoundException,
+  Param,
+  ParseBoolPipe,
+  ParseIntPipe,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { Queue } from 'bull';
+import { Response } from 'express';
+import { join } from 'path';
 
+import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupTask } from '../tasks/tasks.dto';
+import { getLog, tailLog } from '../utils/log-utils.service';
 import { Backup } from './backup.dto';
 import { BackupsService } from './backups.service';
 
@@ -12,6 +27,7 @@ import { BackupsService } from './backups.service';
 export class BackupController {
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    public applicationConfig: ApplicationConfigService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
   ) {}
@@ -49,5 +65,41 @@ export class BackupController {
     }
 
     await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: false });
+  }
+
+  @Get(':number/log/backup.log')
+  @ApiOkResponse({
+    description: 'Get the application log of the server',
+    type: String,
+  })
+  getApplicationLog(
+    @Param('name') name: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Query('tailable', ParseBoolPipe) tailable: boolean,
+    @Res() res: Response,
+  ) {
+    if (tailable) {
+      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+    } else {
+      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+    }
+  }
+
+  @Get(':number/log/backup.error.log')
+  @ApiOkResponse({
+    description: 'Get the exceptions log of the server',
+    type: String,
+  })
+  getExceptionsLog(
+    @Param('name') name: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Query('tailable', ParseBoolPipe) tailable: boolean,
+    @Res() res: Response,
+  ) {
+    if (tailable) {
+      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+    } else {
+      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.error.log`), res);
+    }
   }
 }

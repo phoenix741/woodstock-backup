@@ -1,0 +1,5 @@
+mutation createBackup($hostname: String!) {
+  createBackup(hostname: $hostname) {
+    id
+  }
+}

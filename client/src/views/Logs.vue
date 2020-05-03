@@ -11,6 +11,11 @@ export default class Logs extends Vue {
   @Prop()
   logfile!: string;
 
+  @Prop()
+  hostname?: string;
+  @Prop()
+  number?: number;
+
   content = '';
 
   async mounted() {
@@ -19,7 +24,13 @@ export default class Logs extends Vue {
 
   @Watch('$route')
   async fetchData() {
-    const response = await axios(`/api/server/log/${this.logfile}?tailable=false`);
+    let url;
+    if (this.hostname) {
+      url = `/api/hosts/${this.hostname}/backups/${this.number}/log/${this.logfile}?tailable=false`;
+    } else {
+      url = `/api/server/log/${this.logfile}?tailable=false`;
+    }
+    const response = await axios(url);
     this.content = response.data;
     Vue.nextTick(() => {
       window.scrollTo(0, document.body.scrollHeight);

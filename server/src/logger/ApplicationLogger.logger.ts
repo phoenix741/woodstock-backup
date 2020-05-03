@@ -27,7 +27,7 @@ export class ApplicationLogger implements LoggerService {
         }),
         new transports.DailyRotateFile({
           filename: join(logPath, 'application-%DATE%.log'),
-          datePattern: 'YYYY-MM-DD-HH',
+          datePattern: 'YYYY-MM-DD',
           zippedArchive: true,
           maxSize: '2m', // Config
           maxFiles: '31d', // Config
@@ -38,7 +38,7 @@ export class ApplicationLogger implements LoggerService {
       exceptionHandlers: [
         new transports.DailyRotateFile({
           filename: join(logPath, 'exceptions-%DATE%.log'),
-          datePattern: 'YYYY-MM-DD-HH',
+          datePattern: 'YYYY-MM-DD',
           zippedArchive: true,
           maxSize: '2m', // Config
           maxFiles: '31d', // Config

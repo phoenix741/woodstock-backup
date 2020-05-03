@@ -28,72 +28,15 @@
       </v-col>
 
       <v-col cols="12" sm="3">
-        <v-card class="mx-auto" flat>
-          <v-list-item two-line>
-            <v-list-item-avatar tile size="80">
-              <v-icon x-large color="orange">mdi-cloud-download</v-icon>
-            </v-list-item-avatar>
-
-            <v-list-item-content>
-              <div class="overline mb-4">Running</div>
-              <v-list-item-title class="headline mb-1">2</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-
-          <v-divider></v-divider>
-          <v-card-text>
-            <v-icon class="mr-2" small>
-              mdi-clock-outline
-            </v-icon>
-            <span class="caption grey--text font-weight-light"> Last execution: 21/01/2011 12:00</span>
-          </v-card-text>
-        </v-card>
+        <QueueRunning :value="queueStats.active" :lastExecution="queueStats.lastExecution"></QueueRunning>
       </v-col>
 
       <v-col cols="12" sm="3">
-        <v-card class="mx-auto" flat>
-          <v-list-item two-line>
-            <v-list-item-avatar tile size="80">
-              <v-icon x-large color="green">mdi-animation</v-icon>
-            </v-list-item-avatar>
-
-            <v-list-item-content>
-              <div class="overline mb-4">Queue</div>
-              <v-list-item-title class="headline mb-1">10</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-
-          <v-divider></v-divider>
-          <v-card-text>
-            <v-icon class="mr-2" small>
-              mdi-clock-outline
-            </v-icon>
-            <span class="caption grey--text font-weight-light"> Next wakeup: 21/01/2011 12:00</span>
-          </v-card-text>
-        </v-card>
+        <QueueWaiting :value="queueStats.waiting" :nextWakeup="queueStats.nextWakeup"></QueueWaiting>
       </v-col>
 
       <v-col cols="12" sm="3">
-        <v-card class="mx-auto" flat>
-          <v-list-item two-line>
-            <v-list-item-avatar tile size="80">
-              <v-icon x-large color="red">mdi-alert-circle-outline</v-icon>
-            </v-list-item-avatar>
-
-            <v-list-item-content>
-              <div class="overline mb-4">Failed</div>
-              <v-list-item-title class="headline mb-1">0</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-
-          <v-divider></v-divider>
-          <v-card-text>
-            <v-icon class="mr-2" small>
-              mdi-clock-outline
-            </v-icon>
-            <span class="caption grey--text font-weight-light"> Next wakeup: 21/01/2011 12:00</span>
-          </v-card-text>
-        </v-card>
+        <QueueFailed :value="queueStats.failed" :nextWakeup="queueStats.nextWakeup"></QueueFailed>
       </v-col>
     </v-row>
 
@@ -210,11 +153,22 @@
 import { Component, Vue } from 'vue-property-decorator';
 import StorageChart from '../components/StorageChart.vue';
 import RepartitionChart from '../components/RepartitionChart.vue';
+import QueueRunning from '../components/QueueRunning.vue';
+import QueueWaiting from '../components/QueueWaiting.vue';
+import QueueFailed from '../components/QueueFailed.vue';
+
+import GraphQLDashboardQuery from './Dashboard.graphql';
+import { DashboardQuery } from '../generated/graphql';
 
 @Component({
-  components: { StorageChart, RepartitionChart },
+  components: { StorageChart, RepartitionChart, QueueRunning, QueueWaiting, QueueFailed },
+  apollo: {
+    queueStats: GraphQLDashboardQuery,
+  },
 })
-export default class Dashboard extends Vue {}
+export default class Dashboard extends Vue {
+  queueStats!: DashboardQuery['queueStats'];
+}
 </script>
 
 <style scoped>
