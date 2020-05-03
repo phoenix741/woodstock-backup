@@ -53,10 +53,10 @@
                       </v-btn>
                     </template>
                     <v-list>
-                      <v-list-item>
+                      <v-list-item :to="`/backups/${hostname}/${item.number}/logs/backup.log`">
                         <v-list-item-title>Transfert Logs</v-list-item-title>
                       </v-list-item>
-                      <v-list-item>
+                      <v-list-item :to="`/backups/${hostname}/${item.number}/logs/backup.error.log`">
                         <v-list-item-title>Error Logs</v-list-item-title>
                       </v-list-item>
                     </v-list>
@@ -68,18 +68,43 @@
         </template>
       </v-data-table>
       <v-card-actions>
-        <v-btn class="primary ml-12" text>Delete</v-btn>
-        <v-btn class="primary ml-1" text>Launch backup</v-btn>
+        <v-btn class="primary ml-12" text @click="deleteBackup()">Delete</v-btn>
+        <v-btn class="primary ml-1" text @click="createBackup()">Launch backup</v-btn>
       </v-card-actions>
     </v-card>
+
+    <template v-for="(job, key) in jobCreated">
+      <v-snackbar v-model="jobCreated[key]" color="info" :timeout="5000" :key="key">
+        Launch a backup with job id {{ key }}.
+        <v-btn color="secondary" text @click="jobCreated[key] = false">
+          Close
+        </v-btn>
+      </v-snackbar>
+    </template>
+    <template v-for="(job, key) in jobRemoved">
+      <v-snackbar v-model="jobRemoved[key]" color="error" :timeout="5000" :key="key">
+        Remove the backup with job id {{ key }}.
+        <v-btn color="primary" text @click="jobRemoved[key] = false">
+          Close
+        </v-btn>
+      </v-snackbar>
+    </template>
   </v-container>
 </template>
 
 <script lang="ts">
 import { Component, Vue, Prop } from 'vue-property-decorator';
 import backups from './Backups.graphql';
-import { BackupsQuery } from '../generated/graphql';
+import {
+  BackupsQuery,
+  CreateBackupMutation,
+  CreateBackupMutationVariables,
+  RemoveBackupMutation,
+  RemoveBackupMutationVariables,
+} from '../generated/graphql';
 import BackupChartSize from '../components/BackupChartSize';
+import createBackup from './BackupsCreate.graphql';
+import removeBackup from './BackupsRemove.graphql';
 
 @Component({
   apollo: {
@@ -106,10 +131,13 @@ export default class Backups extends Vue {
     required: true,
   })
   hostname!: string;
-  selection = [];
+  selection: BackupsQuery['backups'] = [];
 
   sortBy = 'number';
   sortDesc = true;
+
+  jobCreated: Record<number, boolean> = {};
+  jobRemoved: Record<number, boolean> = {};
 
   headers = [
     {
@@ -127,6 +155,34 @@ export default class Backups extends Vue {
     { text: 'New Files Size', value: 'newFileSize' },
   ];
   backups: BackupsQuery['backups'] = [];
+
+  async deleteBackup() {
+    for (const backup of this.selection) {
+      const mutation = await this.$apollo.mutate<RemoveBackupMutation, RemoveBackupMutationVariables>({
+        mutation: removeBackup,
+        variables: {
+          hostname: this.hostname,
+          number: backup.number,
+        },
+      });
+
+      if (mutation.data) {
+        Vue.set(this.jobRemoved, mutation.data.removeBackup.id, true);
+      }
+    }
+  }
+
+  async createBackup() {
+    const mutation = await this.$apollo.mutate<CreateBackupMutation, CreateBackupMutationVariables>({
+      mutation: createBackup,
+      variables: {
+        hostname: this.hostname,
+      },
+    });
+    if (mutation.data) {
+      Vue.set(this.jobCreated, mutation.data.createBackup.id, true);
+    }
+  }
 }
 </script>
 

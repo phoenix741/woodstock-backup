@@ -15,23 +15,30 @@ const routes: Array<RouteConfig> = [
     component: () => import(/* webpackChunkName: "hosts" */ '../views/Hosts.vue'),
   },
   {
+    name: 'Backups',
+    path: '/backups/:hostname',
+    props: true,
+    component: () => import(/* webpackChunkName: "hosts" */ '../views/Backups.vue'),
+  },
+  {
     name: 'QueueTasks',
     path: '/tasks/:state',
     props: true,
     component: () => import(/* webpackChunkName: "tasks" */ '../views/QueueTasks.vue'),
   },
   {
-    name: 'Logs',
+    name: 'Log',
     path: '/logs/:logfile',
     props: true,
     component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
   },
   {
-    name: 'Backups',
-    path: '/backups/:hostname',
+    name: 'BackupLog',
+    path: '/backups/:hostname/:number/logs/:logfile',
     props: true,
-    component: () => import(/* webpackChunkName: "backups" */ '../views/Backups.vue'),
+    component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
   },
+
   {
     name: 'BackupsBrowse',
     path: '/backups/:hostname/:number',

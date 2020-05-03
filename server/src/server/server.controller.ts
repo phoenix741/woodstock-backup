@@ -1,12 +1,12 @@
 import { Controller, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { spawn } from 'child_process';
 import { Response } from 'express';
 import { join } from 'path';
 
 import { ApplicationConfigService } from '../config/application-config.service';
 import { BtrfsCheck } from '../storage/btrfs/btrfs.dto';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
+import { tailLog, getLog } from '../utils/log-utils.service';
 
 @Controller('server')
 export class ServerController {
@@ -28,9 +28,9 @@ export class ServerController {
   })
   getApplicationLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response) {
     if (tailable) {
-      this.tailLog('application.log', res);
+      tailLog(join(this.applicationConfig.logPath, 'application.log'), res);
     } else {
-      this.getLog('application.log', res);
+      getLog(join(this.applicationConfig.logPath, 'application.log'), res);
     }
   }
 
@@ -41,22 +41,9 @@ export class ServerController {
   })
   getExceptionsLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response) {
     if (tailable) {
-      this.tailLog('exceptions.log', res);
+      tailLog(join(this.applicationConfig.logPath, 'exceptions.log'), res);
     } else {
-      this.getLog('exceptions.log', res);
+      getLog(join(this.applicationConfig.logPath, 'exceptions.log'), res);
     }
-  }
-
-  tailLog(file: string, res: Response) {
-    res.header('Content-Type', 'text/html;charset=utf-8');
-
-    const tail = spawn('tail', ['-f', '-n', '+1', join(this.applicationConfig.logPath, file)]);
-    tail.stdout.on('data', data => res.write(data, 'utf-8'));
-    tail.stderr.on('data', data => res.write(data, 'utf-8'));
-    tail.on('exit', code => res.end(code));
-  }
-
-  getLog(file: string, res: Response) {
-    res.sendFile(join(this.applicationConfig.logPath, file));
   }
 }

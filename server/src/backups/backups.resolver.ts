@@ -71,7 +71,10 @@ export class BackupsResolver {
   }
 
   @Mutation(() => JobResponse)
-  async removeBackup(@Args('hostname') hostname: string, @Args('number') number: number): Promise<JobResponse> {
+  async removeBackup(
+    @Args('hostname') hostname: string,
+    @Args('number', { type: () => Int }) number: number,
+  ): Promise<JobResponse> {
     if (!(await this.hostsService.getHosts()).includes(hostname)) {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }

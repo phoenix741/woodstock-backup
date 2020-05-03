@@ -53,6 +53,33 @@ declare module '*/BackupsBrowse.graphql' {
 }
     
 
+declare module '*/BackupsCreate.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const createBackup: DocumentNode;
+
+  export default defaultDocument;
+}
+    
+
+declare module '*/BackupsRemove.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const removeBackup: DocumentNode;
+
+  export default defaultDocument;
+}
+    
+
+declare module '*/Dashboard.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const Dashboard: DocumentNode;
+
+  export default defaultDocument;
+}
+    
+
 declare module '*/FragmentJob.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;

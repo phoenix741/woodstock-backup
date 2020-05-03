@@ -175,7 +175,7 @@ export type MutationCreateBackupArgs = {
 
 
 export type MutationRemoveBackupArgs = {
-  number: Scalars['Float'];
+  number: Scalars['Int'];
   hostname: Scalars['String'];
 };
 
@@ -187,6 +187,7 @@ export type Query = {
   hosts: Array<Host>;
   host: Host;
   queue: Array<Job>;
+  queueStats: QueueStats;
   status: BtrfsCheck;
 };
 
@@ -209,6 +210,16 @@ export type QueryHostArgs = {
 
 export type QueryQueueArgs = {
   state?: Maybe<Array<Scalars['String']>>;
+};
+
+export type QueueStats = {
+  waiting: Scalars['Int'];
+  active: Scalars['Int'];
+  failed: Scalars['Int'];
+  delayed: Scalars['Int'];
+  completed: Scalars['Int'];
+  lastExecution: Scalars['Float'];
+  nextWakeup: Scalars['Float'];
 };
 
 export type RSyncBackupOperation = {
@@ -312,6 +323,26 @@ export type BackupsBrowseQueryVariables = {
 
 
 export type BackupsBrowseQuery = { backup: { files: Array<Pick<FileDescription, 'name' | 'type' | 'uid' | 'gid' | 'mode' | 'size' | 'mtime'>> } };
+
+export type CreateBackupMutationVariables = {
+  hostname: Scalars['String'];
+};
+
+
+export type CreateBackupMutation = { createBackup: Pick<JobResponse, 'id'> };
+
+export type RemoveBackupMutationVariables = {
+  hostname: Scalars['String'];
+  number: Scalars['Int'];
+};
+
+
+export type RemoveBackupMutation = { removeBackup: Pick<JobResponse, 'id'> };
+
+export type DashboardQueryVariables = {};
+
+
+export type DashboardQuery = { queueStats: Pick<QueueStats, 'waiting' | 'active' | 'failed' | 'lastExecution' | 'nextWakeup'> };
 
 export type FragmentJobFragment = (
   Pick<Job, 'id' | 'state' | 'failedReason'>
