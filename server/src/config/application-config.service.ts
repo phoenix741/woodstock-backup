@@ -22,6 +22,10 @@ export class ApplicationConfigService {
     return join(this.configPath, 'scheduler.yml');
   }
 
+  get configPathOfTools(): string {
+    return join(this.configPath, 'tools.yml');
+  }
+
   get hostPath(): string {
     return this.configService.get('HOST_PATH', join(this.backupPath, 'hosts'));
   }

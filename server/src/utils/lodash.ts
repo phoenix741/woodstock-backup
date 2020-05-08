@@ -39,3 +39,16 @@ export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
     .map(key => [key, obj[key]])
     .reduce((obj, [key, val]) => Object.assign(obj, { [key as string]: val }), {} as Pick<T, K>);
 }
+
+export function rendering(string: string, context: any, stack = ''): string {
+  return Object.keys(context).reduce(function(accumulator, key) {
+    const newStack = stack ? stack + '.' : '';
+    const find = '\\$\\{\\s*' + newStack + key + '\\s*\\}';
+    const re = new RegExp(find, 'g');
+
+    if (typeof context[key] === 'object') {
+      return rendering(accumulator, context[key], newStack + key);
+    }
+    return accumulator.replace(re, context[key]);
+  }, string);
+}

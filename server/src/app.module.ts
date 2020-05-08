@@ -32,6 +32,7 @@ import { SchedulerConsumer } from './scheduler/scheduler.consumer';
 import { SchedulerService } from './scheduler/scheduler.service';
 import { ServerController } from './server/server.controller';
 import { ServerResolver } from './server/server.resolver';
+import { ToolsService } from './server/tools.service';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
@@ -87,6 +88,7 @@ import { YamlService } from './utils/yaml.service';
     JobResolver,
     QueueResolver,
     QueueService,
+    ToolsService,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

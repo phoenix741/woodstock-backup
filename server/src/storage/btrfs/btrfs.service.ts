@@ -1,40 +1,42 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
-import { join } from 'path';
+import * as mkdirp from 'mkdirp';
 
-import { ExecuteCommandService } from '../../operation/execute-command.service';
-import { BtrfsCheck } from './btrfs.dto';
 import { ApplicationConfigService } from '../../config/application-config.service';
+import { ExecuteCommandService } from '../../operation/execute-command.service';
+import { CommandParameters } from '../../server/tools.model';
+import { BtrfsCheck } from './btrfs.dto';
+import { ToolsService } from '../../server/tools.service';
 
 @Injectable()
 export class BtrfsService {
   private logger = new Logger(BtrfsService.name);
 
-  constructor(private configService: ApplicationConfigService, private executeCommandService: ExecuteCommandService) {}
+  constructor(
+    private configService: ApplicationConfigService,
+    private toolsService: ToolsService,
+    private executeCommandService: ExecuteCommandService,
+  ) {}
 
   async check(): Promise<BtrfsCheck> {
     const checks = new BtrfsCheck();
     // Is btrfs available on the backup directory
     {
-      const { stdout } = await this.executeCommandService.executeCommand(
-        `stat -f --format=%T ${this.configService.hostPath}`,
-      );
+      const { stdout } = await this.executeCommandService.executeTool('getFilesystem', {});
       checks.backupVolume = this.configService.hostPath;
       checks.backupVolumeFileSystem = `${stdout}`.trim();
       checks.isBtrfsVolume = checks.backupVolumeFileSystem === 'btrfs';
     }
 
     {
-      const { stdout } = await this.executeCommandService.executeCommand(`btrfs version`);
+      const { stdout } = await this.executeCommandService.executeTool('btrfsVersion', {});
       checks.toolsAvailable.btrfstools = stdout.startsWith('btrfs-progs');
     }
 
     {
       try {
-        const tmpVolume = join(this.configService.hostPath, '__tmp');
-        await this.createSnapshot(tmpVolume);
-        await this.removeSnapshot(tmpVolume);
+        await this.createSnapshot({ hostname: '__tmp', destBackupNumber: 0 });
+        await this.removeSnapshot({ hostname: '__tmp', destBackupNumber: 0 });
         checks.hasAuthorization = true;
       } catch (err) {
         checks.hasAuthorization = false;
@@ -53,21 +55,22 @@ export class BtrfsService {
     return checks;
   }
 
-  async createSnapshot(nextBackup: string, previousBackup?: string) {
+  async createSnapshot(params: CommandParameters) {
     try {
-      await fs.promises.access(nextBackup);
+      const destBackupNumber = await this.toolsService.getPath('destBackupPath', params);
+      await fs.promises.access(destBackupNumber);
 
-      this.logger.warn(`Directory ${nextBackup} already exists`);
+      this.logger.warn(`Directory ${destBackupNumber} already exists`);
     } catch (err) {
       if (err && err.code === 'ENOENT') {
-        if (previousBackup) {
-          this.logger.debug(`Create snapshot ${nextBackup} from ${previousBackup}`);
-          await this.executeCommandService.executeCommand(
-            `btrfs subvolume snapshot "${previousBackup}" "${nextBackup}"`,
+        if (params.srcBackupNumber !== undefined) {
+          this.logger.debug(
+            `Create snapshot ${params.hostname}/${params.destBackupNumber} from ${params.hostname}/${params.srcBackupNumber}`,
           );
+          await this.executeCommandService.executeTool('btrfsCreateSnapshot', params);
         } else {
-          this.logger.debug(`Create first volume ${nextBackup}`);
-          await this.executeCommandService.executeCommand(`btrfs subvolume create "${nextBackup}"`);
+          this.logger.debug(`Create first volume ${params.hostname}/${params.destBackupNumber}`);
+          await this.executeCommandService.executeTool('btrfsCreateSubvolume', params);
         }
       } else {
         throw err;
@@ -75,17 +78,17 @@ export class BtrfsService {
     }
   }
 
-  async removeSnapshot(path: string) {
-    await this.markReadWrite(path);
-    await this.executeCommandService.executeCommand(`btrfs subvolume delete "${path}"`);
+  async removeSnapshot(params: CommandParameters) {
+    await this.markReadWrite(params);
+    await this.executeCommandService.executeTool('btrfsDeleteSnapshot', params);
   }
 
-  async markReadOnly(path: string) {
-    await this.executeCommandService.executeCommand(`btrfs property set -ts "${path}" ro true`);
+  async markReadOnly(params: CommandParameters) {
+    await this.executeCommandService.executeTool('btrfsMarkROSubvolume', params);
   }
 
-  async markReadWrite(path: string) {
-    await this.executeCommandService.executeCommand(`btrfs property set -ts "${path}" ro false`);
+  async markReadWrite(params: CommandParameters) {
+    await this.executeCommandService.executeTool('btrfsMarkRWSubvolume', params);
   }
 
   async stats() {

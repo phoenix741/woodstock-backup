@@ -38,10 +38,9 @@ export class BackupSubTask {
 export class BackupTask {
   host!: string;
   config?: HostConfiguration;
+  previousNumber?: number;
   number?: number;
   ip?: string;
-  previousDirectory?: string;
-  destinationDirectory?: string;
   startDate?: number;
 
   subtasks?: BackupSubTask[];
