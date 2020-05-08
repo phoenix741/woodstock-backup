@@ -140,21 +140,30 @@ export class TasksService {
                 return Observable.throw(new Error(`Can't backup host ${host.host}, can't find the IP.`));
               }
 
-              return this.rsyncCommandService.backup({ ip: host.ip, destBackupNumber: host.number }, share.name, {
-                context: share.name,
+              return this.rsyncCommandService.backup(
+                {
+                  hostname: host.host,
+                  ip: host.ip,
+                  srcBackupNumber: host.previousNumber,
+                  destBackupNumber: host.number,
+                },
+                share.name,
+                {
+                  context: share.name,
 
-                rsync: operation.name === 'RSyncBackup',
-                rsyncd: operation.name === 'RSyncdBackup',
-                ...(operation.name === 'RSyncdBackup'
-                  ? pick(operation, 'authentification', 'username', 'password')
-                  : { username: 'root' }),
+                  rsync: operation.name === 'RSyncBackup',
+                  rsyncd: operation.name === 'RSyncdBackup',
+                  ...(operation.name === 'RSyncdBackup'
+                    ? pick(operation, 'authentification', 'username', 'password')
+                    : { username: 'root' }),
 
-                includes,
-                excludes,
-                checksum: share.checksum,
+                  includes,
+                  excludes,
+                  checksum: share.checksum,
 
-                backupLogger,
-              });
+                  backupLogger,
+                },
+              );
             },
           );
         });

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
+import { pick } from '../utils/lodash';
 
 @Injectable()
 export class ApplicationConfigService {
@@ -43,5 +44,18 @@ export class ApplicationConfigService {
 
   get logLevel() {
     return this.configService.get<string>('LOG_LEVEL', 'info');
+  }
+
+  toJSON() {
+    return pick(
+      this,
+      'backupPath',
+      'configPath',
+      'configPathOfHosts',
+      'configPathOfScheduler',
+      'configPathOfTools',
+      'hostPath',
+      'logPath',
+    );
   }
 }

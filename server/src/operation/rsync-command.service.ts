@@ -141,7 +141,7 @@ export class RSyncCommandService {
 
         if ((options as RSyncBackupOptions).rsync) {
           rsync.shell(
-            (await this.toolsService.getCommand('rsh', params)) + (options.username ? '-l ' + options.username : ''),
+            (await this.toolsService.getCommand('rsh', params)) + (options.username ? ' -l ' + options.username : ''),
           );
         }
 

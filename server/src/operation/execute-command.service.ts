@@ -61,7 +61,7 @@ export class ExecuteCommandService {
 
   async executeTool(command: string, params: CommandParameters, options: ExecuteCommandOption = {}) {
     const commandString = await this.toolsService.getCommand(command, params);
-    this.logger.debug(`Execute command: ${command}`);
+    this.logger.debug(`Execute command: ${commandString}`);
     return await this.executeCommand(commandString, options);
   }
 }
