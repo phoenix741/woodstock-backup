@@ -12,6 +12,22 @@ export class YamlService {
   /**
    * Load the content of the file in yaml format
    */
+  static loadFileSync<T>(filename: string, defaultValue?: T): T {
+    try {
+      const hostsFromStr = fs.readFileSync(filename, 'utf8');
+      return yaml.safeLoad(hostsFromStr) || defaultValue;
+    } catch (err) {
+      if (defaultValue) {
+        return defaultValue;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Load the content of the file in yaml format
+   */
   async loadFile<T>(filename: string, defaultValue?: T): Promise<T> {
     this.logger.verbose(`Read the file ${filename}`);
 

@@ -1,0 +1,31 @@
+---
+tools:
+  df: /usr/bin/df
+  btrfs: /usr/bin/btrfs
+  compsize: /usr/sbin/compsize
+  ping: /usr/bin/ping
+  nmblookup: /usr/bin/nmblookup
+  ssh: /usr/bin/ssh
+  rsync: /usr/bin/rsync
+  stat: /usr/bin/stat
+
+command:
+  rsh: '${ssh} -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no'
+  ping: '${ping} -c 1 ${ip}'
+  resolveNetbiosFromHostname: '${nmblookup} ${hostname}'
+  resolveNetbiosFromIP: '${nmblookup} -A ${ip}'
+  getFilesystem: '${stat} -f --format=%T ${hostPath}'
+  statsSpaceUsage: '${df} --print-type ${hostPath}'
+  statsDiskUsage: '${btrfs} qgroup show -re ${hostPath}'
+  btrfsQGroupEnable: '${btrfs} quota enable'
+  btrfsVersion: '${btrfs} version'
+  btrfsCreateSubvolume: '${btrfs} subvolume create ${destBackupPath}'
+  btrfsCreateSnapshot: '${btrfs} subvolume snapshot ${srcBackupPath} ${destBackupPath}'
+  btrfsDeleteSnapshot: '${btrfs} subvolume delete ${destBackupPath}'
+  btrfsMarkROSubvolume: '${btrfs} property set -ts ${destBackupPath} ro true'
+  btrfsMarkRWSubvolume: '${btrfs} property set -ts ${destBackupPath} ro false'
+  btrfsGetCompressionSize: '${compsize} ${destBackupPath}'
+
+paths:
+  srcBackupPath: '${hostPath}/${hostname}/${srcBackupNumber}'
+  destBackupPath: '${hostPath}/${hostname}/${destBackupNumber}'

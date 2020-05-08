@@ -1,14 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
+import { join } from 'path';
 import * as mkdirp from 'mkdirp';
 import * as Rsync from 'rsync';
 import { Observable, Subject } from 'rxjs';
 import * as tmp from 'tmp';
 
 import { BackupLogger } from '../logger/BackupLogger.logger';
+import { ToolsService } from '../server/tools.service';
 import { compactObject } from '../utils/lodash';
 import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
+import { CommandParameters } from '../server/tools.model';
 
 tmp.setGracefulCleanup();
 
@@ -33,6 +36,8 @@ export interface RSyncdBackupOptions extends BackupOptions {
 
 @Injectable()
 export class RSyncCommandService {
+  constructor(private toolsService: ToolsService) {}
+
   /**
    * Launch a RSync backup
    *
@@ -43,106 +48,103 @@ export class RSyncCommandService {
    * @returns Is the backup partial
    */
   backup(
-    host: string | null,
+    params: CommandParameters,
     sharePath: string,
-    destination: string,
     options: RSyncBackupOptions | RSyncdBackupOptions,
   ): Observable<BackupProgression> {
     const progression = new Subject<BackupProgression>();
     progression.next(new BackupProgression(0));
-
-    const isRsyncVersionGreaterThan31 = true;
-
-    const rsync = new Rsync();
-
-    if ((options as RSyncBackupOptions).rsync) {
-      rsync.shell(
-        `/usr/bin/ssh ${
-          options.username ? '-l ' + options.username : ''
-        } -o stricthostkeychecking=no -o userknownhostsfile=/dev/null -o batchmode=yes -o passwordauthentication=no`,
-      );
-    }
-
-    rsync
-      .flags('vD')
-      .set('super')
-      .set('recursive')
-      .set('protect-args')
-      .set('numeric-ids')
-      .set('perms')
-      .set('owner')
-      .set('group')
-      .set('devices')
-      .set('specials')
-      .set('times')
-      .set('links')
-      .set('hard-links')
-      .set('delete')
-      .set('delete-excluded')
-      .set('one-file-system')
-      .set('partial')
-      .set('stats')
-      .set('inplace')
-
-      .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L');
-
-    if (options.checksum) {
-      rsync.set('checksum');
-    }
-
-    // If not is root
-    if (!(process.getuid && process.getuid() === 0)) {
-      rsync.set('fake-super');
-    }
-
-    if (isRsyncVersionGreaterThan31) {
-      rsync.set('info', 'progress2');
-    }
-
-    if (options.timeout) {
-      rsync.set('timeout', '' + options.timeout);
-    }
-
-    const includes = new Set<string>();
-    const excludes = new Set<string>(options.excludes || []);
-
-    for (let include of options.includes || []) {
-      include = `/${include.replace(/\/$/, '')}`.replace(/\/\/+/g, '/');
-      if (include === '/') {
-        includes.add(include);
-        continue;
-      }
-
-      const [, ...elts] = include.split('/');
-      let path = '';
-      for (const elt of elts) {
-        excludes.add(`${path}/*`);
-        path = `${path}/${elt}`;
-        includes.add(path);
-      }
-    }
-
-    if (includes.size) {
-      rsync.include(Array.from(includes));
-    }
-    if (excludes.size) {
-      rsync.exclude(Array.from(excludes));
-    }
-
-    if ((options as RSyncBackupOptions).rsync) {
-      rsync.set('rsync-path', '/usr/bin/rsync');
-      if (host) {
-        rsync.source(`${host}:${sharePath}/`);
-      } else {
-        rsync.source(`${sharePath}/`);
-      }
-    }
 
     tmp.file({ detachDescriptor: true }, async (err, path, fd, cleanupCallback) => {
       if (err) {
         return progression.thrownError(err);
       }
       try {
+        const isRsyncVersionGreaterThan31 = true;
+
+        const rsync = new Rsync();
+
+        rsync
+          .flags('vD')
+          .set('super')
+          .set('recursive')
+          .set('protect-args')
+          .set('numeric-ids')
+          .set('perms')
+          .set('owner')
+          .set('group')
+          .set('devices')
+          .set('specials')
+          .set('times')
+          .set('links')
+          .set('hard-links')
+          .set('delete')
+          .set('delete-excluded')
+          .set('one-file-system')
+          .set('partial')
+          .set('stats')
+          .set('inplace')
+
+          .set('log-format', 'log: %o %i %B %8U,%8G %9l %f%L');
+
+        if (options.checksum) {
+          rsync.set('checksum');
+        }
+
+        // If not is root
+        if (!(process.getuid && process.getuid() === 0)) {
+          rsync.set('fake-super');
+        }
+
+        if (isRsyncVersionGreaterThan31) {
+          rsync.set('info', 'progress2');
+        }
+
+        if (options.timeout) {
+          rsync.set('timeout', '' + options.timeout);
+        }
+
+        const includes = new Set<string>();
+        const excludes = new Set<string>(options.excludes || []);
+
+        for (let include of options.includes || []) {
+          include = `/${include.replace(/\/$/, '')}`.replace(/\/\/+/g, '/');
+          if (include === '/') {
+            includes.add(include);
+            continue;
+          }
+
+          const [, ...elts] = include.split('/');
+          let path = '';
+          for (const elt of elts) {
+            excludes.add(`${path}/*`);
+            path = `${path}/${elt}`;
+            includes.add(path);
+          }
+        }
+
+        if (includes.size) {
+          rsync.include(Array.from(includes));
+        }
+        if (excludes.size) {
+          rsync.exclude(Array.from(excludes));
+        }
+
+        if ((options as RSyncBackupOptions).rsync) {
+          rsync.set('rsync-path', await this.toolsService.getTool('rsync'));
+          if (params.ip) {
+            rsync.source(`${params.ip}:${sharePath}/`);
+          } else {
+            rsync.source(`${sharePath}/`);
+          }
+        }
+
+        if ((options as RSyncBackupOptions).rsync) {
+          rsync.shell(
+            (await this.toolsService.getCommand('rsh', params)) + (options.username ? '-l ' + options.username : ''),
+          );
+        }
+
         if ((options as RSyncdBackupOptions).rsyncd) {
           let authentification = '';
           if ((options as RSyncdBackupOptions).authentification) {
@@ -150,9 +152,10 @@ export class RSyncCommandService {
             await fs.promises.writeFile(path, (options as RSyncdBackupOptions).password, { encoding: 'utf-8' });
             rsync.set('password-file', path);
           }
-          rsync.source(`${authentification}${host}::${sharePath}`);
+          rsync.source(`${authentification}${params.ip}::${sharePath}`);
         }
 
+        const destination = join(await this.toolsService.getPath('destBackupPath', params), sharePath);
         rsync.destination(destination);
 
         options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);

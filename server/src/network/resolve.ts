@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as dns from 'dns';
-import * as shell from 'shelljs';
 import * as util from 'util';
 
 import { HostConfiguration } from '../hosts/host-configuration.dto';
+import { ExecuteCommandService } from '../operation/execute-command.service';
+import { CommandParameters } from '../server/tools.model';
 
 const dnsLookupPromise = util.promisify(dns.lookup);
 
@@ -13,6 +14,8 @@ const NMBLOOKUP_ACTIVE_ENTRY = /^\s*([\w\s-]+?)\s*<(\w{2})\> - .*<ACTIVE>/i;
 @Injectable()
 export class ResolveService {
   private logger = new Logger(ResolveService.name);
+
+  constructor(private executeCommandService: ExecuteCommandService) {}
 
   /**
    * Resolve a host from name to IP.
@@ -72,7 +75,7 @@ export class ResolveService {
   async searchIpFromRange(host: string, network: string, start: number, end: number): Promise<string> {
     for (let n = start; n <= end; n++) {
       const ip = network + '.' + n;
-      const { hostname } = await this.resolveNetbiosFromIP(ip);
+      const { hostname } = await this.resolveNetbiosFromIP({ ip });
       if (hostname === host.toLowerCase()) {
         return ip;
       }
@@ -80,12 +83,12 @@ export class ResolveService {
     return '';
   }
 
-  async findIP(hostname: string): Promise<string> {
+  async findIP(hostname: string): Promise<string | undefined> {
     const ipFromDNS = await this.resolveDNS(hostname);
     if (ipFromDNS) {
       return ipFromDNS;
     }
-    return this.resolveNetbiosFromHostname(hostname);
+    return this.resolveNetbiosFromHostname({ hostname });
   }
 
   async resolveDNS(hostname: string): Promise<string | null> {
@@ -97,73 +100,72 @@ export class ResolveService {
     }
   }
 
-  async resolveNetbiosFromHostname(hostname: string): Promise<string> {
-    return new Promise(resolve => {
-      shell.exec(`nmblookup ${hostname}`, { silent: true }, (code, stdout, stderr) => {
-        const result = stdout + '\n' + stderr;
-
-        let subnet = null;
-        let firstIpAddr = null;
-        let ipAddr = null;
-
-        for (const line of result.split(/[\n\r]/)) {
-          const subnetResult = new RegExp(`querying\\s+${hostname}\\s+on\\s+((\\d+\.\\d+\.\\d+)\.(\\d+))`, 'i').exec(
-            line,
-          );
-          const regexIPResult = new RegExp(`^\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+${hostname}`).exec(line);
-          if (subnetResult && subnetResult.length) {
-            subnet = subnetResult[1];
-            if (subnetResult[3] === '255') {
-              subnet = subnetResult[2];
-            }
-          } else if (regexIPResult && regexIPResult.length) {
-            const ip = regexIPResult[1];
-            if (!firstIpAddr) {
-              firstIpAddr = ip;
-            }
-            if (!ipAddr && subnet && ip.startsWith(subnet)) {
-              ipAddr = ip;
-            }
-          }
-        }
-        ipAddr = ipAddr || firstIpAddr;
-
-        if (ipAddr) {
-          this.logger.debug(`Found IP addresse ${ipAddr} for host ${hostname}`);
-          resolve(ipAddr);
-        } else {
-          this.logger.debug(`Couldn't find IP addresse for host ${hostname}`);
-          resolve();
-        }
-      });
+  async resolveNetbiosFromHostname(params: CommandParameters): Promise<string | undefined> {
+    const { stdout, stderr } = await this.executeCommandService.executeTool('resolveNetbiosFromHostname', params, {
+      returnCode: true,
     });
+    const result = stdout + '\n' + stderr;
+
+    let subnet = null;
+    let firstIpAddr = null;
+    let ipAddr = null;
+
+    for (const line of result.split(/[\n\r]/)) {
+      const subnetResult = new RegExp(`querying\\s+${params.hostname}\\s+on\\s+((\\d+\.\\d+\.\\d+)\.(\\d+))`, 'i').exec(
+        line,
+      );
+      const regexIPResult = new RegExp(`^\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)\\s+${params.hostname}`).exec(line);
+      if (subnetResult && subnetResult.length) {
+        subnet = subnetResult[1];
+        if (subnetResult[3] === '255') {
+          subnet = subnetResult[2];
+        }
+      } else if (regexIPResult && regexIPResult.length) {
+        const ip = regexIPResult[1];
+        if (!firstIpAddr) {
+          firstIpAddr = ip;
+        }
+        if (!ipAddr && subnet && ip.startsWith(subnet)) {
+          ipAddr = ip;
+        }
+      }
+    }
+    ipAddr = ipAddr || firstIpAddr;
+
+    if (ipAddr) {
+      this.logger.debug(`Found IP addresse ${ipAddr} for host ${params.hostname}`);
+      return ipAddr;
+    } else {
+      this.logger.debug(`Couldn't find IP addresse for host ${params.hostname}`);
+      return;
+    }
   }
 
-  async resolveNetbiosFromIP(ip: string): Promise<{ hostname?: string; username?: string }> {
-    return new Promise(resolve => {
-      shell.exec(`nmblookup -A ${ip}`, { silent: true }, (code, stdout, stderr) => {
-        const result = stdout + '\n' + stderr;
-
-        let netBiosHostName;
-        let netBiosUserName;
-        for (const line of result.split(/[\n\r]/)) {
-          const activeEntryResult = NMBLOOKUP_ACTIVE_ENTRY.exec(line);
-          if (!line.match(NMBLOOKUP_GROUP_ENTRY) && activeEntryResult && activeEntryResult.length) {
-            if (!netBiosHostName) {
-              activeEntryResult[2] === '00' && (netBiosHostName = activeEntryResult[1]);
-            }
-            activeEntryResult[2] === '03' && (netBiosUserName = activeEntryResult[1]);
-          }
-        }
-
-        if (netBiosHostName) {
-          this.logger.log(`Returning host ${netBiosHostName}, user ${netBiosUserName} for ip ${ip}`);
-          resolve({ hostname: netBiosHostName.toLowerCase(), username: (netBiosUserName || '').toLowerCase() });
-        } else {
-          this.logger.error(`Can't find a netbios name for the ip ${ip}`);
-          resolve({});
-        }
-      });
+  async resolveNetbiosFromIP(params: CommandParameters): Promise<{ hostname?: string; username?: string }> {
+    const { stdout, stderr } = await this.executeCommandService.executeTool('resolveNetbiosFromIP', params, {
+      returnCode: true,
     });
+
+    const result = stdout + '\n' + stderr;
+
+    let netBiosHostName;
+    let netBiosUserName;
+    for (const line of result.split(/[\n\r]/)) {
+      const activeEntryResult = NMBLOOKUP_ACTIVE_ENTRY.exec(line);
+      if (!line.match(NMBLOOKUP_GROUP_ENTRY) && activeEntryResult && activeEntryResult.length) {
+        if (!netBiosHostName) {
+          activeEntryResult[2] === '00' && (netBiosHostName = activeEntryResult[1]);
+        }
+        activeEntryResult[2] === '03' && (netBiosUserName = activeEntryResult[1]);
+      }
+    }
+
+    if (netBiosHostName) {
+      this.logger.log(`Returning host ${netBiosHostName}, user ${netBiosUserName} for ip ${params.ip}`);
+      return { hostname: netBiosHostName.toLowerCase(), username: (netBiosUserName || '').toLowerCase() };
+    } else {
+      this.logger.error(`Can't find a netbios name for the ip ${params.ip}`);
+      return {};
+    }
   }
 }

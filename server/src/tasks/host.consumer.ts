@@ -42,15 +42,14 @@ export class HostConsumer {
 
     try {
       const backupTask = job.data;
-      if (backupTask.number === undefined || !backupTask.destinationDirectory) {
+      if (backupTask.number === undefined) {
         const lastBackup = await this.backupsService.getLastBackup(job.data.host);
         if (lastBackup?.complete) {
           backupTask.number = lastBackup.number + 1;
-          backupTask.previousDirectory = this.backupsService.getDestinationDirectory(job.data.host, lastBackup.number);
+          backupTask.previousNumber = lastBackup.number;
         } else {
           backupTask.number = lastBackup?.number || 0;
         }
-        backupTask.destinationDirectory = this.backupsService.getDestinationDirectory(job.data.host, backupTask.number);
         job.update(backupTask);
       }
 
@@ -147,9 +146,7 @@ export class HostConsumer {
     await this.lock(job);
     try {
       await this.backupsService.removeBackup(job.data.host, job.data.number);
-      await this.btrfsService.removeSnapshot(
-        await this.backupsService.getDestinationDirectory(job.data.host, job.data.number),
-      );
+      await this.btrfsService.removeSnapshot({ hostname: job.data.host, destBackupNumber: job.data.number });
     } finally {
       await this.unlock(job);
     }

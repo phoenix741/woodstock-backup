@@ -1,12 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import * as shell from 'shelljs';
 import { ExecuteCommandOperation } from 'src/hosts/host-configuration.dto';
 
 import { BackupProgression, Options } from './interfaces/options';
+import { ToolsService } from '../server/tools.service';
+import { CommandParameters } from '../server/tools.model';
+
+export interface ExecuteCommandOption {
+  returnCode?: boolean;
+}
 
 @Injectable()
 export class ExecuteCommandService {
+  private logger = new Logger(ExecuteCommandService.name);
+
+  constructor(private toolsService: ToolsService) {}
+
   /**
    * Execute a script on the backup host
    *
@@ -34,15 +44,24 @@ export class ExecuteCommandService {
     return progression.asObservable();
   }
 
-  async executeCommand(command: string): Promise<{ stdout: string; stderr: string }> {
+  async executeCommand(
+    command: string,
+    options: ExecuteCommandOption = {},
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
       shell.exec(command, { silent: true }, (code, stdout, stderr) => {
-        if (code === 0) {
-          return resolve({ stdout, stderr });
+        if (code === 0 || options?.returnCode) {
+          return resolve({ code, stdout, stderr });
         }
 
         return reject(new Error(stderr || `Can't execute the command ${command}`));
       });
     });
+  }
+
+  async executeTool(command: string, params: CommandParameters, options: ExecuteCommandOption = {}) {
+    const commandString = await this.toolsService.getCommand(command, params);
+    this.logger.debug(`Execute command: ${command}`);
+    return await this.executeCommand(commandString, options);
   }
 }

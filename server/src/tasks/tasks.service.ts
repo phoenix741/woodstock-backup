@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { join } from 'path';
 import { from, Observable, of } from 'rxjs';
-import { catchError, concatMap, map, tap, startWith } from 'rxjs/operators';
+import { catchError, concatMap, map, tap, startWith, takeLast } from 'rxjs/operators';
 
 import { HostConfiguration, Operation } from '../hosts/host-configuration.dto';
 import { BackupLogger } from '../logger/BackupLogger.logger';
@@ -26,10 +26,13 @@ export class TasksService {
     // Step 1: Clone previous backup
     task.addSubtask(
       new InternalBackupSubTask('storage', 'Create the destination directory', true, false, task => {
-        if (task.destinationDirectory) {
-          return from(this.btrfsService.createSnapshot(task.destinationDirectory, task.previousDirectory));
-        }
-        return of();
+        return from(
+          this.btrfsService.createSnapshot({
+            hostname: task.host,
+            destBackupNumber: task.number,
+            srcBackupNumber: task.previousNumber,
+          }),
+        );
       }),
     );
 
@@ -46,10 +49,13 @@ export class TasksService {
     // Step 4: Mark storage as readonly if complete
     task.addSubtask(
       new InternalBackupSubTask('storage', 'Mark as readonly', true, false, task => {
-        if (task.destinationDirectory) {
-          return from(this.btrfsService.markReadOnly(task.destinationDirectory));
-        }
-        return of();
+        return from(
+          this.btrfsService.markReadOnly({
+            hostname: task.host,
+            destBackupNumber: task.number,
+            srcBackupNumber: task.previousNumber,
+          }),
+        );
       }),
     );
   }
@@ -133,13 +139,8 @@ export class TasksService {
               if (!host.ip) {
                 return Observable.throw(new Error(`Can't backup host ${host.host}, can't find the IP.`));
               }
-              if (!host.destinationDirectory) {
-                return Observable.throw(
-                  new Error(`Can't backup host ${host.host}, can't find where to put the backup.`),
-                );
-              }
 
-              return this.rsyncCommandService.backup(host.ip, share.name, join(host.destinationDirectory, share.name), {
+              return this.rsyncCommandService.backup({ ip: host.ip, destBackupNumber: host.number }, share.name, {
                 context: share.name,
 
                 rsync: operation.name === 'RSyncBackup',

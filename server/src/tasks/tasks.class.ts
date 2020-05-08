@@ -29,24 +29,22 @@ export class InternalBackupTask implements BackupTask {
   public readonly host: string;
   public readonly config: HostConfiguration;
   public readonly number: number;
+  public readonly previousNumber?: number;
   public readonly ip: string;
-  public readonly destinationDirectory: string;
-  public readonly previousDirectory?: string;
 
   public startDate: number = new Date().getTime();
   public subtasks: InternalBackupSubTask[] = [];
 
   constructor(original: BackupTask) {
-    if (!original.config || original.number === undefined || !original.ip || !original.destinationDirectory) {
+    if (!original.config || original.number === undefined || !original.ip) {
       throw new InternalServerErrorException(`Initialisation of backup failed.`);
     }
 
     this.host = original.host;
     this.config = original.config;
+    this.previousNumber = original.previousNumber;
     this.number = original.number;
     this.ip = original.ip;
-    this.destinationDirectory = original.destinationDirectory;
-    this.previousDirectory = original.previousDirectory;
   }
 
   addSubtask(...subtasks: InternalBackupSubTask[]) {
@@ -106,8 +104,8 @@ export class InternalBackupTask implements BackupTask {
       'host',
       'config',
       'number',
+      'previousNumber',
       'ip',
-      'destinationDirectory',
       'startDate',
       'subtasks',
       'state',
