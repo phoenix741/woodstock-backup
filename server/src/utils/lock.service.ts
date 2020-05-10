@@ -6,8 +6,6 @@ import { dirname } from 'path';
 
 @Injectable()
 export class LockService {
-  constructor() {}
-
   async lock(lockfile: string, jobId: JobId, force = false): Promise<JobId | null> {
     try {
       await mkdirp(dirname(lockfile));

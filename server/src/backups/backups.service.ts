@@ -54,6 +54,11 @@ export class BackupsService {
     });
   }
 
+  async getBackup(hostname: string, number: number): Promise<Backup | undefined> {
+    const backups = await this.getBackups(hostname);
+    return backups.find(b => b.number === number);
+  }
+
   async getLastBackup(hostname: string): Promise<Backup | undefined> {
     const backups = await this.getBackups(hostname);
     return backups.length ? backups[backups.length - 1] : undefined;
