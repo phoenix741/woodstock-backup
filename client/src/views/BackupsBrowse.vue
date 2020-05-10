@@ -1,6 +1,14 @@
 <template>
-  <div>
+  <div class="fill-height">
+    <v-container class="fill-height" fluid v-if="$apollo.queries.items.loading">
+      <v-row align="center" justify="center">
+        <v-col class="text-center">
+          <v-progress-circular :size="50" color="primary" indeterminate></v-progress-circular>
+        </v-col>
+      </v-row>
+    </v-container>
     <v-treeview
+      v-if="!$apollo.queries.items.loading"
       :items="items"
       activatable
       @update:active="openTreeItem($event)"
@@ -112,6 +120,7 @@ function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
         };
       },
       update: (query: BackupsBrowseQuery) => mapToItems('', query),
+      fetchPolicy: 'network-only',
     },
   },
 })

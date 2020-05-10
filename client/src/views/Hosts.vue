@@ -6,6 +6,8 @@
       :items-per-page="10"
       item-key="name"
       class="elevation-1"
+      :loading="$apollo.queries.hosts.loading"
+      loading-text="Loading... Please wait"
       @click:row="navigateTo($event.name)"
     >
       <template slot="item.lastBackupAge" slot-scope="props">
@@ -31,6 +33,9 @@ function getState(host: HostsQuery['hosts'][0]) {
     return host.lastBackupState;
   } else {
     if (host.lastBackup) {
+      if (!host.lastBackup.complete) {
+        return 'failed';
+      }
       return 'idle';
     } else {
       return null;
@@ -50,6 +55,7 @@ function getState(host: HostsQuery['hosts'][0]) {
           lastBackupSize: host.lastBackup?.fileSize,
           state: getState(host),
         })),
+      fetchPolicy: 'network-only',
     },
   },
 })

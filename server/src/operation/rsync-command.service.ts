@@ -16,7 +16,7 @@ import { CommandParameters } from '../server/tools.model';
 tmp.setGracefulCleanup();
 
 const PROGRESS_XFR = /.*\(xfr#(\d+),\s+\w+-chk=(\d+)\/(\d+)\).*/;
-const PROGRESS_INFO = /\s+([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/;
+const PROGRESS_INFO = /\s*([\d,]+)\s+(\d+)%\s+([\d.]+)(\wB)\/s\s+(\d+:\d{1,2}:\d{1,2})\s*/;
 
 const sizes = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
 

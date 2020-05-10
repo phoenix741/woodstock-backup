@@ -12,6 +12,8 @@
         :single-expand="true"
         :sort-by.sync="sortBy"
         :sort-desc.sync="sortDesc"
+        :loading="$apollo.queries.backups.loading"
+        loading-text="Loading... Please wait"
       >
         <template slot="item.startDate" slot-scope="props">
           {{ props.item.startDate | date }}
@@ -36,6 +38,9 @@
         </template>
         <template slot="item.newFileCount" slot-scope="props">
           {{ props.item.newFileCount | formatNumber }}
+        </template>
+        <template slot="item.complete" slot-scope="props">
+          <v-simple-checkbox v-model="props.item.complete" disabled></v-simple-checkbox>
         </template>
         <template v-slot:expanded-item="{ headers, item }">
           <td :colspan="headers.length">
@@ -120,6 +125,7 @@ import removeBackup from './BackupsRemove.graphql';
           ...backup,
           duration: backup?.endDate ? backup.endDate - backup.startDate : null,
         })),
+      fetchPolicy: 'network-only',
     },
   },
   components: {
@@ -153,6 +159,7 @@ export default class Backups extends Vue {
     { text: 'Existing Files Size', value: 'existingFileSize' },
     { text: 'New Files Count', value: 'newFileCount' },
     { text: 'New Files Size', value: 'newFileSize' },
+    { text: 'Complete', value: 'complete' },
   ];
   backups: BackupsQuery['backups'] = [];
 

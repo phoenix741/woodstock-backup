@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import * as mkdirp from 'mkdirp';
 
 import { ApplicationConfigService } from '../../config/application-config.service';
 import { ExecuteCommandService } from '../../operation/execute-command.service';
