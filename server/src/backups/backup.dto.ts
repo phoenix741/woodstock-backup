@@ -1,6 +1,21 @@
 import { ObjectType } from '@nestjs/graphql';
 
 @ObjectType()
+export class DiskUsageStatisticsRecord {
+  diskUsage!: number;
+  uncompressed!: number;
+}
+
+@ObjectType()
+export class DiskUsageStatistics {
+  total?: DiskUsageStatisticsRecord;
+  none?: DiskUsageStatisticsRecord;
+  zlib?: DiskUsageStatisticsRecord;
+  lzo?: DiskUsageStatisticsRecord;
+  zstd?: DiskUsageStatisticsRecord;
+}
+
+@ObjectType()
 export class Backup {
   number!: number;
   complete!: boolean;
@@ -17,4 +32,6 @@ export class Backup {
   newFileSize!: number;
 
   speed!: number;
+
+  diskUsageStatistics?: DiskUsageStatistics;
 }

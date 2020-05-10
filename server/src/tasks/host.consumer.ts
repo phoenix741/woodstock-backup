@@ -1,15 +1,15 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
-import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Logger } from '@nestjs/common';
 import { Job, Queue } from 'bull';
 import { auditTime, map } from 'rxjs/operators';
 
 import { BackupsService } from '../backups/backups.service';
-import { HostsService } from '../hosts/hosts.service';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { PingService } from '../network/ping';
 import { ResolveService } from '../network/resolve';
 import { SchedulerConfigService } from '../scheduler/scheduler-config.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
+import { HostConsumerUtilService } from '../utils/host-consumer-util.service';
 import { InternalBackupTask } from './tasks.class';
 import { BackupTask } from './tasks.dto';
 import { TasksService } from './tasks.service';
@@ -22,7 +22,7 @@ export class HostConsumer {
 
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
-    private hostsService: HostsService,
+    private hostConsumerUtilService: HostConsumerUtilService,
     private resolveService: ResolveService,
     private pingService: PingService,
     private tasksService: TasksService,
@@ -38,9 +38,9 @@ export class HostConsumer {
   async launchBackup(job: Job<BackupTask>) {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
 
-    const config = await this.updateBackupTaskConfig(job);
+    const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
 
-    await this.lock(job);
+    await this.hostConsumerUtilService.lock(job);
 
     try {
       const backupTask = job.data;
@@ -85,6 +85,8 @@ export class HostConsumer {
       job.progress(task.progression?.percent);
 
       this.backupsService.addBackup(job.data.host, task.toBackup());
+
+      this.hostsQueue.add('stats', { host: job.data.host, number: job.data.number }, { removeOnComplete: true });
     } catch (err) {
       this.logger.error(
         `END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`,
@@ -92,7 +94,7 @@ export class HostConsumer {
       );
       throw err;
     } finally {
-      await this.unlock(job);
+      await this.hostConsumerUtilService.unlock(job);
     }
     this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
   }
@@ -104,7 +106,7 @@ export class HostConsumer {
   async schedule(job: Job<BackupTask>) {
     this.logger.log(`START: Test ${job.data.host} for backup - JOB ID = ${job.id}`);
 
-    const config = await this.updateBackupTaskConfig(job);
+    const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
     const schedulerConfig = await this.schedulerConfigService.getScheduler();
     const schedule = Object.assign({}, config.schedule, schedulerConfig.defaultSchedule);
 
@@ -145,46 +147,12 @@ export class HostConsumer {
       throw new BadRequestException(`Host and backup number should be defined`);
     }
 
-    await this.lock(job);
+    await this.hostConsumerUtilService.lock(job);
     try {
       await this.backupsService.removeBackup(job.data.host, job.data.number);
       await this.btrfsService.removeSnapshot({ hostname: job.data.host, destBackupNumber: job.data.number });
     } finally {
-      await this.unlock(job);
+      await this.hostConsumerUtilService.unlock(job);
     }
-  }
-
-  private async lock(job: Job<BackupTask>) {
-    /* *********** LOCK ************ */
-    const previousLock = await this.backupsService.lock(job.data.host, job.id);
-    if (previousLock) {
-      const previousJob = await this.hostsQueue.getJob(previousLock);
-      if (!previousJob || !(await previousJob.isActive())) {
-        await this.backupsService.lock(job.data.host, job.id, true);
-      } else {
-        throw new Error(`Host ${job.data.host} already locked by ${previousLock}`);
-      }
-    }
-    /* *********** END LOCK ************ */
-  }
-
-  private async unlock(job: Job<BackupTask>) {
-    /* ************** UNLOCK ************ */
-    await this.backupsService.unlock(job.data.host, job.id);
-    /* ************** END UNLOCK ************ */
-  }
-
-  private async updateBackupTaskConfig(job: Job<BackupTask>) {
-    const backupTask = job.data;
-
-    if (!backupTask.config) {
-      backupTask.config = await this.hostsService.getHostConfiguration(backupTask.host);
-      if (!backupTask.config) {
-        throw new NotFoundException(`Can't found ${backupTask.host}.`);
-      }
-      job.update(backupTask);
-    }
-
-    return backupTask.config;
   }
 }

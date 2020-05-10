@@ -36,8 +36,11 @@ import { ToolsService } from './server/tools.service';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
+import { HostConsumerUtilService } from './utils/host-consumer-util.service';
 import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
+import { StatsConsumer } from './stats/stats.consumer';
+import { StatsService } from './stats/stats.service';
 
 @Module({
   imports: [
@@ -89,6 +92,9 @@ import { YamlService } from './utils/yaml.service';
     QueueResolver,
     QueueService,
     ToolsService,
+    HostConsumerUtilService,
+    StatsConsumer,
+    StatsService,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

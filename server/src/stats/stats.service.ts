@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
+import { DiskUsageStatistics } from '../backups/backup.dto';
 
 export interface BackupQuota {
   host: string;
@@ -49,10 +50,16 @@ export class StatsService {
 
     return lines.reduce((acc, line) => {
       const [type, , diskUsage, uncompressed] = line.split(/\s+/).filter(n => !!n);
+      if (!type) {
+        return acc;
+      }
 
-      acc[type] = { diskUsage: parseInt(diskUsage), uncompressed: parseInt(uncompressed) };
+      acc[type.toLowerCase() as keyof DiskUsageStatistics] = {
+        diskUsage: parseInt(diskUsage),
+        uncompressed: parseInt(uncompressed),
+      };
       return acc;
-    }, {} as Record<string, { diskUsage: number; uncompressed: number }>);
+    }, {} as DiskUsageStatistics);
   }
 
   private async listQuota(params: CommandParameters) {
@@ -61,6 +68,10 @@ export class StatsService {
 
     return lines.reduce((acc, line) => {
       const [id, refr, excl] = line.split(/\s+/).filter(n => !!n);
+      if (!id) {
+        return acc;
+      }
+
       const volumeId = parseInt(id.replace('0/', ''));
 
       acc[volumeId] = { refr: parseInt(refr), excl: parseInt(excl) };
@@ -74,6 +85,10 @@ export class StatsService {
 
     return lines.reduce((acc, line) => {
       const [id, , , path] = line.split(/\s+/).filter(n => !!n);
+      if (!id) {
+        return acc;
+      }
+
       const pathArray = path.slice(-2).split('/');
       const host = pathArray[0];
       const number = parseInt(pathArray[1]);
