@@ -4,6 +4,10 @@ import * as yaml from 'js-yaml';
 import * as mkdirp from 'mkdirp';
 import { Injectable, Logger } from '@nestjs/common';
 import { compact } from './lodash';
+import * as tmp from 'tmp';
+import * as util from 'util';
+
+const tmpNameAsync = util.promisify((options: tmp.TmpNameOptions, cb: tmp.TmpNameCallback) => tmp.tmpName(options, cb));
 
 @Injectable()
 export class YamlService {
@@ -54,6 +58,10 @@ export class YamlService {
     await mkdirp(path.dirname(filename));
 
     const hostsFromStr = yaml.safeDump(compact(obj));
-    await fs.promises.writeFile(filename, hostsFromStr, 'utf-8');
+    const tmpFilename = await tmpNameAsync({
+      tmpdir: path.dirname(filename),
+    } as tmp.TmpNameOptions);
+    await fs.promises.writeFile(tmpFilename, hostsFromStr, 'utf-8');
+    await fs.promises.rename(tmpFilename, filename);
   }
 }

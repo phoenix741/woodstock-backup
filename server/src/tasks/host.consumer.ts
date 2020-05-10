@@ -14,6 +14,8 @@ import { InternalBackupTask } from './tasks.class';
 import { BackupTask } from './tasks.dto';
 import { TasksService } from './tasks.service';
 
+const maxBackupTask = parseInt(process.env.MAX_BACKUP_TASK || '') || 1;
+
 @Processor('queue')
 export class HostConsumer {
   private logger = new Logger(HostConsumer.name);
@@ -31,7 +33,7 @@ export class HostConsumer {
 
   @Process({
     name: 'backup',
-    concurrency: 1,
+    concurrency: maxBackupTask,
   })
   async launchBackup(job: Job<BackupTask>) {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
