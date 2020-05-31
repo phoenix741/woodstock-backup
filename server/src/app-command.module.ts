@@ -21,11 +21,18 @@ import { ToolsService } from './server/tools.service';
   imports: [
     ConfigModule.forRoot(),
     ApplicationConfigModule,
-    BullModule.registerQueueAsync({
-      name: 'queue',
-      imports: [ApplicationConfigModule],
-      useClass: BullConfigService,
-    }),
+    BullModule.registerQueueAsync(
+      {
+        name: 'queue',
+        imports: [ApplicationConfigModule],
+        useClass: BullConfigService,
+      },
+      {
+        name: 'schedule',
+        imports: [ApplicationConfigModule],
+        useClass: BullConfigService,
+      },
+    ),
     ConsoleModule,
   ],
   providers: [

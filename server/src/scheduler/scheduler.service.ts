@@ -12,14 +12,28 @@ export class SchedulerService implements OnModuleInit {
   ) {}
 
   async startScheduler() {
-    const schedule = (await this.schedulerConfigService.getScheduler()).wakeupSchedule;
+    const wakeupSchedule = (await this.schedulerConfigService.getScheduler()).wakeupSchedule;
+    const nightlySchedule = (await this.schedulerConfigService.getScheduler()).nightlySchedule;
+
     await this.removeAll();
 
     await this.scheduleQueue.add(
+      'wakeup',
       {},
       {
         repeat: {
-          cron: schedule,
+          cron: wakeupSchedule,
+        },
+        removeOnComplete: true,
+      },
+    );
+
+    await this.scheduleQueue.add(
+      'nightly',
+      {},
+      {
+        repeat: {
+          cron: nightlySchedule,
         },
         removeOnComplete: true,
       },

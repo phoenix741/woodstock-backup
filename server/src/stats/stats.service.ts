@@ -1,14 +1,9 @@
 import { Injectable } from '@nestjs/common';
+
+import { DiskUsageStatistics } from '../backups/backup.dto';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
-import { DiskUsageStatistics } from '../backups/backup.dto';
-
-export interface BackupQuota {
-  host: string;
-  number: number;
-  refr: number;
-  excl: number;
-}
+import { BackupQuota } from './stats.model';
 
 @Injectable()
 export class StatsService {
@@ -89,7 +84,7 @@ export class StatsService {
         return acc;
       }
 
-      const pathArray = path.slice(-2).split('/');
+      const pathArray = path.split('/').slice(-2);
       const host = pathArray[0];
       const number = parseInt(pathArray[1]);
 

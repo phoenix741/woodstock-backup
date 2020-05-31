@@ -15,6 +15,10 @@ export class ApplicationConfigService {
     return this.configService.get('CONFIG_PATH', join(this.backupPath, 'config'));
   }
 
+  get statisticsPath(): string {
+    return join(this.hostPath, 'statistics.yml');
+  }
+
   get configPathOfHosts(): string {
     return join(this.configPath, 'hosts.yml');
   }

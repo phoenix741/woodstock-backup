@@ -31,12 +31,6 @@ export class QueueService {
     this.logger.error(`Error while processing the queue: ${err.message}`, err.stack);
   }
 
-  @OnQueueActive()
-  async onActive(job: Job<BackupTask>) {
-    await this.removeHost(job);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
-  }
-
   @OnQueueWaiting()
   onWaiting(jobId: number | string) {
     this.pubSub.publish('jobWaiting', { jobWaiting: jobId });
@@ -85,10 +79,12 @@ export class QueueService {
   async removeHost(job: Job<BackupTask>) {
     const backups = await this.backupQueue.getJobs([]);
     const backupToRemove = backups.filter(
-      j => j.name === 'backup' && j.id !== job.id && j.data.host && j.data.host === job.data.host,
+      j => ['backup', 'stats'].includes(j.name) && j.id !== job.id && j.data.host && j.data.host === job.data.host,
     );
     for (const jobToRemove of backupToRemove) {
-      await jobToRemove.remove();
+      if (!(await jobToRemove.isActive())) {
+        await jobToRemove.remove();
+      }
     }
   }
 }

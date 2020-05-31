@@ -129,7 +129,8 @@ export class HostConsumer {
       // Add a more complexe logic, to backup only if not in a blackout period.
       if (await this.pingService.pingFromConfig(job.data.host, config)) {
         // Yes we can, so we backup
-        this.hostsQueue.add('backup', job.data, { removeOnComplete: true });
+        const backupJob = await this.hostsQueue.add('backup', job.data, { removeOnComplete: true });
+        this.logger.debug(`END: Host ${job.data.host} Launch backup job ${backupJob.id} - JOB ID = ${job.id}`);
       } else {
         this.logger.debug(`END: Host ${job.data.host} not available on network - JOB ID = ${job.id}`);
       }

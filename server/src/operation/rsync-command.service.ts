@@ -165,7 +165,7 @@ export class RSyncCommandService {
 
         rsync.execute(
           (error, code) => {
-            if (error && code !== 24) {
+            if (error && code !== 24 ) {
               return progression.error(error);
             }
             progression.next(context);
