@@ -59,6 +59,9 @@ export class BtrfsService {
       const destBackupNumber = await this.toolsService.getPath('destBackupPath', params);
       await fs.promises.access(destBackupNumber);
 
+      // Crash when previous backup, mark the the backup readable
+      await this.markReadWrite(params);
+
       this.logger.warn(`Directory ${destBackupNumber} already exists`);
     } catch (err) {
       if (err && err.code === 'ENOENT') {

@@ -19,5 +19,6 @@ export class Schedule {
 
 export class ApplicationScheduler {
   wakeupSchedule = '0 * * * *';
+  nightlySchedule = '0 0 * * *';
   defaultSchedule = new Schedule();
 }

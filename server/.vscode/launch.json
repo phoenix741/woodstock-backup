@@ -17,15 +17,6 @@
     },
     {
       "type": "node",
-      "request": "launch",
-      "name": "Lancer le programme",
-      "skipFiles": ["<node_internals>/**"],
-      "program": "${workspaceFolder}/start",
-      "preLaunchTask": "tsc: build - tsconfig.json",
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
-    },
-    {
-      "type": "node",
       "request": "attach",
       "name": "Attach to Remote",
       "address": "localhost",

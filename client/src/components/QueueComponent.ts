@@ -31,7 +31,7 @@ export const QueueComponent = <Q extends Query, S extends DeepPartial<Subscripti
           updateQuery: function(previous: Q, { subscriptionData }: { subscriptionData: { data: S } }) {
             if (!subscriptionData.data.jobUpdated) return;
 
-            const queue = [...previous.queue];
+            const queue = [...(previous?.queue || [])];
             const index = queue.findIndex(task => task.id === subscriptionData.data.jobUpdated?.id);
             if (
               this.queryState.includes(subscriptionData.data?.jobUpdated?.state || '') ||

@@ -14,7 +14,10 @@ export class StatsCommand {
   private spinner?: ora.Ora;
   private jobId?: JobId;
 
-  constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>) {}
+  constructor(
+    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('schedule') private scheduleQueue: Queue<{}>,
+  ) {}
 
   @Command({
     command: 'host <hostname>',
@@ -29,19 +32,34 @@ export class StatsCommand {
   async create(host: string, cmd: Cmd) {
     const { number } = cmd.opts();
     this.spinner = createSpinner();
-    this.spinner.start(`${host}/${number || 'NA'}: Progress 0%`);
+    this.spinner.start(`[Stats] ${host}/${number || 'NA'}: Progress 0%`);
 
     const job = await this.hostsQueue.add('stats', { host, number: parseInt(number) }, { removeOnComplete: true });
     this.jobId = job.id;
     await job.finished();
 
-    this.spinner.succeed(`${host}/${job.data.number || 'NA'}: Progress 100%`);
+    this.spinner.succeed(`[Stats] ${host}/${job.data.number || 'NA'}: Progress 100%`);
+  }
+
+  @Command({
+    command: 'calc',
+    description: 'Calculate daily statistics',
+  })
+  async statistics() {
+    this.spinner = createSpinner();
+    this.spinner.start('[Stats] Start');
+
+    const job = await this.scheduleQueue.add('nightly', {}, { removeOnComplete: true });
+    this.jobId = job.id;
+    await job.finished();
+
+    this.spinner.succeed('[Stats] Finished');
   }
 
   @OnQueueProgress()
   handler(job: Job<BackupTask>, progress: number) {
     if (job.id === this.jobId && this.spinner) {
-      this.spinner.text = `${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
+      this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
     }
   }
 }

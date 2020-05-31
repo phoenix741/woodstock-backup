@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { join } from 'path';
 import { from, Observable, of } from 'rxjs';
-import { catchError, concatMap, map, tap, startWith, takeLast } from 'rxjs/operators';
+import { catchError, concatMap, map, startWith, tap } from 'rxjs/operators';
 
 import { HostConfiguration, Operation } from '../hosts/host-configuration.dto';
 import { BackupLogger } from '../logger/BackupLogger.logger';
