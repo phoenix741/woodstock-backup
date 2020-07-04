@@ -2,26 +2,24 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import * as fs from 'fs';
 import { isAbsolute, join } from 'path';
 
+import { SharePathService } from '../utils/share-path.service';
 import { EnumFileType, FileDescription } from './backups-files.dto';
 import { BackupsService } from './backups.service';
 
 @Injectable()
 export class BackupsFilesService {
-  constructor(private backupsService: BackupsService) {}
+  constructor(private backupsService: BackupsService, private sharePathService: SharePathService) {}
 
-  async list(name: string, number: number, path = '/'): Promise<FileDescription[]> {
-    if (!isAbsolute(path)) {
-      throw new BadRequestException('Only absolute path can be used to serach for directory');
-    }
-
+  async listShare(name: string, number: number): Promise<FileDescription[]> {
     try {
       const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
-      const files = await fs.promises.readdir(join(destinationDirectory, path), { withFileTypes: true });
+
+      const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true });
       return Promise.all(
         files.map(async file => ({
-          name: file.name,
+          name: this.sharePathService.unmangle(file.name),
           type: this.getFileType(file),
-          ...(await this.getFileStat(join(destinationDirectory, path, file.name))),
+          ...(await this.getFileStat(join(destinationDirectory, file.name))),
         })),
       );
     } catch (err) {
@@ -29,14 +27,47 @@ export class BackupsFilesService {
     }
   }
 
-  async getFileName(name: string, number: number, path: string): Promise<{ filename: string; stats: fs.Stats }> {
-    if (!isAbsolute(path)) {
+  async list(name: string, number: number, sharePath: string, path = '/'): Promise<FileDescription[]> {
+    if (!isAbsolute(sharePath) || !isAbsolute(path)) {
       throw new BadRequestException('Only absolute path can be used to serach for directory');
     }
 
     try {
-      const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
-      const filename = join(destinationDirectory, path);
+      const destinationDirectory = join(
+        this.backupsService.getDestinationDirectory(name, number),
+        this.sharePathService.mangle(sharePath),
+        path,
+      );
+
+      const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true });
+      return Promise.all(
+        files.map(async file => ({
+          name: file.name,
+          type: this.getFileType(file),
+          ...(await this.getFileStat(join(destinationDirectory, file.name))),
+        })),
+      );
+    } catch (err) {
+      throw new NotFoundException(err);
+    }
+  }
+
+  async getFileName(
+    name: string,
+    number: number,
+    sharePath: string,
+    path: string,
+  ): Promise<{ filename: string; stats: fs.Stats }> {
+    if (!isAbsolute(sharePath) || !isAbsolute(path)) {
+      throw new BadRequestException('Only absolute path can be used to serach for directory');
+    }
+
+    try {
+      const filename = join(
+        this.backupsService.getDestinationDirectory(name, number),
+        this.sharePathService.mangle(sharePath),
+        path,
+      );
       const stats = await this.getFileStat(filename);
 
       return {

@@ -41,6 +41,7 @@ import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
 import { StatsConsumer } from './stats/stats.consumer';
 import { StatsService } from './stats/stats.service';
+import { SharePathService } from './utils/share-path.service';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { StatsService } from './stats/stats.service';
     BackupsFilesService,
     YamlService,
     LockService,
+    SharePathService,
     JobResolver,
     QueueResolver,
     QueueService,

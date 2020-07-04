@@ -1,19 +1,28 @@
-import { Controller, Get, Param, Query, Res, Headers } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Get, Headers, Param, Query, Res } from '@nestjs/common';
+import { ApiHeader, ApiProduces } from '@nestjs/swagger';
 import * as archiver from 'archiver';
-import { basename, relative, join } from 'path';
-import * as fs from 'fs';
+import { Response } from 'express';
+import { basename } from 'path';
 
 import { BackupsFilesService } from './backups-files.service';
-import { ApiHeader, ApiProduces } from '@nestjs/swagger';
 
 @Controller('hosts/:name/backups/:number/files')
 export class BackupsFilesController {
   constructor(private service: BackupsFilesService) {}
 
   @Get()
-  async list(@Param('name') name: string, @Param('number') number: number, @Query('path') path: string) {
-    return this.service.list(name, number, path);
+  async share(@Param('name') name: string, @Param('number') number: number) {
+    return this.service.listShare(name, number);
+  }
+
+  @Get()
+  async list(
+    @Param('name') name: string,
+    @Param('number') number: number,
+    @Query('sharePath') sharePath: string,
+    @Query('path') path: string,
+  ) {
+    return this.service.list(name, number, sharePath, path);
   }
 
   @Get('download')
@@ -22,11 +31,12 @@ export class BackupsFilesController {
   async download(
     @Param('name') name: string,
     @Param('number') number: number,
+    @Query('sharePath') sharePath: string,
     @Query('path') path: string,
     @Res() res: Response,
     @Headers('content-type') type?: string,
   ) {
-    const infos = await this.service.getFileName(name, number, path);
+    const infos = await this.service.getFileName(name, number, sharePath, path);
 
     if (type === 'application/zip' || infos.stats.isDirectory()) {
       const archive = archiver('zip');
