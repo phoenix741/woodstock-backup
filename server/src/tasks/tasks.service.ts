@@ -62,8 +62,10 @@ export class TasksService {
   launchBackup(logger: BackupLogger, task: InternalBackupTask) {
     task.start();
 
+    logger.log(`[${task.host}] - Start Backup with state ${task.state}`);
     return from(task.subtasks).pipe(
       concatMap(subtask => {
+        logger.log(`[${task.host}] - Launch subtask if ${task.state} is not failed or ${subtask.failable} is true`);
         if (![BackupState.FAILED, BackupState.ABORTED].includes(task.state) || !subtask.failable) {
           return this.launchTask(logger, task, subtask);
         } else {
@@ -72,6 +74,7 @@ export class TasksService {
         }
       }),
       tap(undefined, undefined, () => {
+        logger.log(`[${task.host}] - End Backup with state ${task.state}`);
         if ([BackupState.FAILED, BackupState.ABORTED].includes(task.state)) {
           throw new Error(`Backup of ${task.host} have been failed`);
         }
@@ -80,6 +83,7 @@ export class TasksService {
   }
 
   private launchTask(logger: BackupLogger, task: InternalBackupTask, subtask: InternalBackupSubTask) {
+    logger.log(`[${task.host}][${subtask.context}] - Start Subtask`, subtask.context);
     subtask.progression = subtask.progression || new TaskProgression();
     subtask.state = BackupState.RUNNING;
     return subtask.command(task, subtask, logger).pipe(
@@ -89,15 +93,17 @@ export class TasksService {
         return task;
       }),
       catchError(err => {
-        logger.error(err.message, err.stack, subtask.context);
+        logger.error(`[${task.host}][${subtask.context}] - ${err.message}`, err.stack, subtask.context);
         subtask.state = BackupState.FAILED;
         return of(task);
       }),
       tap(undefined, undefined, () => {
         if (![BackupState.ABORTED, BackupState.FAILED].includes(subtask.state)) {
-          subtask.progression!.percent = 100;
+          subtask.progression = subtask.progression || new TaskProgression();
+          subtask.progression.percent = 100;
           subtask.state = BackupState.SUCCESS;
         }
+        logger.log(`[${task.host}][${subtask.context}] - End Subtask with state ${subtask.state}`, subtask.context);
         return task;
       }),
     );

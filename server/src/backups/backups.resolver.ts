@@ -1,14 +1,14 @@
+import { InjectQueue } from '@nestjs/bull';
 import { NotFoundException } from '@nestjs/common';
-import { Args, Parent, Query, ResolveField, Resolver, Mutation, Int } from '@nestjs/graphql';
+import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import { Queue } from 'bull';
 
 import { Backup } from '../backups/backup.dto';
 import { BackupsService } from '../backups/backups.service';
+import { HostsService } from '../hosts/hosts.service';
+import { BackupTask } from '../tasks/tasks.dto';
 import { FileDescription } from './backups-files.dto';
 import { BackupsFilesService } from './backups-files.service';
-import { HostsService } from '../hosts/hosts.service';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
-import { BackupTask } from '../tasks/tasks.dto';
 import { JobResponse } from './backups.model';
 
 interface ExtendedBackup extends Backup {
@@ -54,8 +54,17 @@ export class BackupsResolver {
   }
 
   @ResolveField(() => [FileDescription])
-  async files(@Parent() parent: ExtendedBackup, @Args('path') path: string): Promise<FileDescription[]> {
-    return this.service.list(parent.hostname, parent.number, path);
+  async shares(@Parent() parent: ExtendedBackup): Promise<FileDescription[]> {
+    return this.service.listShare(parent.hostname, parent.number);
+  }
+
+  @ResolveField(() => [FileDescription])
+  async files(
+    @Parent() parent: ExtendedBackup,
+    @Args('sharePath') sharePath: string,
+    @Args('path') path: string,
+  ): Promise<FileDescription[]> {
+    return this.service.list(parent.hostname, parent.number, sharePath, path);
   }
 
   @Mutation(() => JobResponse)

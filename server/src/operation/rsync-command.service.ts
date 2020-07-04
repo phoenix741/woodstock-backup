@@ -12,6 +12,7 @@ import { compactObject } from '../utils/lodash';
 import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
 import { CommandParameters } from '../server/tools.model';
+import { SharePathService } from '../utils/share-path.service';
 
 tmp.setGracefulCleanup();
 
@@ -36,7 +37,7 @@ export interface RSyncdBackupOptions extends BackupOptions {
 
 @Injectable()
 export class RSyncCommandService {
-  constructor(private toolsService: ToolsService) {}
+  constructor(private toolsService: ToolsService, private sharePathService: SharePathService) {}
 
   /**
    * Launch a RSync backup
@@ -155,7 +156,10 @@ export class RSyncCommandService {
           rsync.source(`${authentification}${params.ip}::${sharePath}`);
         }
 
-        const destination = join(await this.toolsService.getPath('destBackupPath', params), sharePath);
+        const destination = join(
+          await this.toolsService.getPath('destBackupPath', params),
+          this.sharePathService.mangle(sharePath),
+        );
         rsync.destination(destination);
 
         options.backupLogger.log(`Execute command ${rsync.command()}`, sharePath);
@@ -165,7 +169,7 @@ export class RSyncCommandService {
 
         rsync.execute(
           (error, code) => {
-            if (error && code !== 24 ) {
+            if (error && code !== 24) {
               return progression.error(error);
             }
             progression.next(context);

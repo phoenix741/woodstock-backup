@@ -16,11 +16,7 @@ const DEFAULT_TOOLS = YamlService.loadFileSync<Tools>(resolve('config', 'tools.y
 
 @Injectable()
 export class ToolsService {
-  constructor(
-    private applicationConfigService: ApplicationConfigService,
-    private configService: ApplicationConfigService,
-    private yamlService: YamlService,
-  ) {}
+  constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
 
   private customTools?: Tools;
 
@@ -50,7 +46,7 @@ export class ToolsService {
     const replacementParams = Object.assign(
       {},
       params,
-      this.applicationConfigService.toJSON(),
+      this.configService.toJSON(),
       tools.tools,
       await this.getPaths(params),
     );
@@ -59,7 +55,7 @@ export class ToolsService {
 
   async getPaths(params: CommandParameters): Promise<Record<string, string>> {
     const tools = await this.loadToolsOnlyOneTime();
-    const replacementParams = Object.assign({}, params, this.applicationConfigService.toJSON(), tools.tools);
+    const replacementParams = Object.assign({}, params, this.configService.toJSON(), tools.tools);
 
     return Object.entries(tools.paths).reduce((acc, [key, value]) => {
       acc[key] = rendering(value, replacementParams);

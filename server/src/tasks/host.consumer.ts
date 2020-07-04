@@ -84,7 +84,12 @@ export class HostConsumer {
       job.update(task);
       job.progress(task.progression?.percent);
 
-      this.backupsService.addBackup(job.data.host, task.toBackup());
+      this.logger.verbose(
+        `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
+          task.toBackup(),
+        )} because of ${JSON.stringify(task.subtasks)}  - JOB ID = ${job.id}`,
+      );
+      await this.backupsService.addBackup(job.data.host, task.toBackup());
 
       this.hostsQueue.add('stats', { host: job.data.host, number: job.data.number }, { removeOnComplete: true });
     } catch (err) {
@@ -108,7 +113,7 @@ export class HostConsumer {
 
     const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
     const schedulerConfig = await this.schedulerConfigService.getScheduler();
-    const schedule = Object.assign({}, config.schedule, schedulerConfig.defaultSchedule);
+    const schedule = Object.assign({}, schedulerConfig.defaultSchedule, config.schedule);
 
     const lockedJobId = await this.backupsService.isLocked(job.data.host);
     if (lockedJobId && (await (await this.hostsQueue.getJob(lockedJobId))?.isActive())) {
