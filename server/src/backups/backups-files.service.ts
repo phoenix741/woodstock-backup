@@ -15,6 +15,7 @@ export class BackupsFilesService {
       const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
 
       const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true });
+
       return Promise.all(
         files.map(async file => ({
           name: this.sharePathService.unmangle(file.name),

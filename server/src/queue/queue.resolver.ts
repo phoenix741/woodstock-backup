@@ -32,8 +32,14 @@ export class QueueResolver {
       delayed: await this.backupQueue.getDelayedCount(),
       completed: await this.backupQueue.getCompletedCount(),
 
-      lastExecution: interval.prev().toDate().getTime(),
-      nextWakeup: interval.next().toDate().getTime(),
+      lastExecution: interval
+        .prev()
+        .toDate()
+        .getTime(),
+      nextWakeup: interval
+        .next()
+        .toDate()
+        .getTime(),
     };
   }
 
