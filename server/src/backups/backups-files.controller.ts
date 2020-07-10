@@ -39,7 +39,7 @@ export class BackupsFilesController {
     const infos = await this.service.getFileName(name, number, sharePath, path);
 
     if (type === 'application/zip' || infos.stats.isDirectory()) {
-      const archive = archiver('zip');
+      const archive = archiver.create('zip');
       res.attachment(`${basename(infos.filename)}.zip`);
       archive.pipe(res);
       if (infos.stats.isDirectory()) {
