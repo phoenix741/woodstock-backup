@@ -48,7 +48,7 @@ function getState(host: HostsQuery['hosts'][0]) {
     hosts: {
       query: hosts,
       update: ({ hosts }: HostsQuery) =>
-        hosts.map(host => ({
+        hosts.map((host) => ({
           name: host.name,
           lastBackupNumber: host.lastBackup?.number,
           lastBackupAge: host.lastBackup && new Date().getTime() - new Date(host.lastBackup?.startDate).getTime(),
