@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import { ObjectType, registerEnumType } from '@nestjs/graphql';
 
 export enum EnumFileType {

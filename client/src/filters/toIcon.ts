@@ -1,6 +1,6 @@
 import Vue from 'vue';
 
-Vue.filter('toIcon', function(value: string) {
+Vue.filter('toIcon', function (value: string) {
   if (value === null || value === undefined) return '';
   switch (value) {
     case 'html':

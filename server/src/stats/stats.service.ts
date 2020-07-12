@@ -1,13 +1,49 @@
 import { Injectable } from '@nestjs/common';
 
 import { DiskUsageStatistics } from '../backups/backup.dto';
+import { ApplicationConfigService } from '../config/application-config.service';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
-import { BackupQuota } from './stats.model';
+import { YamlService } from '../utils/yaml.service';
+import { BackupQuota, Statistics } from './stats.model';
+
+const DEFAULT_STATISTICS: Statistics = {
+  spaces: [],
+  quotas: [],
+};
 
 @Injectable()
 export class StatsService {
-  constructor(private executeCommandService: ExecuteCommandService) {}
+  private stats: Statistics | null = null;
+  private statsLoaded = false;
+
+  constructor(
+    private executeCommandService: ExecuteCommandService,
+    private configService: ApplicationConfigService,
+    private yamlService: YamlService,
+  ) {}
+
+  async getStatistics() {
+    if (this.statsLoaded === false) {
+      this.stats = await this.yamlService.loadFile(this.configService.statisticsPath, DEFAULT_STATISTICS);
+      this.statsLoaded = true;
+    }
+
+    return this.stats || DEFAULT_STATISTICS;
+  }
+
+  async refreshStatistics() {
+    const params: CommandParameters = {};
+    const space = await this.getSpace(params);
+    const volumes = await this.getBackupQuota(params);
+
+    const statistics = await this.yamlService.loadFile(this.configService.statisticsPath, DEFAULT_STATISTICS);
+    statistics.spaces.push({ timestamp: new Date().getTime(), ...space });
+    statistics.quotas.push({ timestamp: new Date().getTime(), volumes });
+
+    await this.yamlService.writeFile(this.configService.statisticsPath, statistics);
+    this.statsLoaded = false;
+  }
 
   async getSpace(params: CommandParameters) {
     const { stdout } = await this.executeCommandService.executeTool('statsSpaceUsage', params);

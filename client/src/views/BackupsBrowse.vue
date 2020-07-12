@@ -94,7 +94,7 @@ interface TreeItem {
 }
 
 function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
-  return backup.files.map(b => {
+  return backup.files.map((b) => {
     const object: TreeItem = {
       ...b,
       path: `${path}/${b.name}`,

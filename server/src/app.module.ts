@@ -42,6 +42,7 @@ import { YamlService } from './utils/yaml.service';
 import { StatsConsumer } from './stats/stats.consumer';
 import { StatsService } from './stats/stats.service';
 import { SharePathService } from './utils/share-path.service';
+import { StatsResolver } from './stats/stats.resolver';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { SharePathService } from './utils/share-path.service';
     HostConsumerUtilService,
     StatsConsumer,
     StatsService,
+    StatsResolver,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

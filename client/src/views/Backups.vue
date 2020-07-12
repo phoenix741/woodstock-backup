@@ -46,7 +46,7 @@
           <td :colspan="headers.length">
             <v-card class="mx-auto transparent" flat>
               <v-card-title>Size repartition</v-card-title>
-              <BackupChartSize class="mx-auto" :backup="item" style="width: 250px"></BackupChartSize>
+              <BackupChartSize class="mx-auto" :backup="item" style="width: 250px;"></BackupChartSize>
 
               <v-card-actions>
                 <v-btn text :to="`/backups/${hostname}/${item.number}`">Browse</v-btn>
@@ -121,7 +121,7 @@ import removeBackup from './BackupsRemove.graphql';
         };
       },
       update: ({ backups }: BackupsQuery) =>
-        backups.map(backup => ({
+        backups.map((backup) => ({
           ...backup,
           duration: backup?.endDate ? backup.endDate - backup.startDate : null,
         })),
