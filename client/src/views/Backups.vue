@@ -46,7 +46,7 @@
           <td :colspan="headers.length">
             <v-card class="mx-auto transparent" flat>
               <v-card-title>Size repartition</v-card-title>
-              <BackupChartSize class="mx-auto" :backup="item" style="width: 250px;"></BackupChartSize>
+              <BackupChartSize class="mx-auto chart" :backup="item"></BackupChartSize>
 
               <v-card-actions>
                 <v-btn text :to="`/backups/${hostname}/${item.number}`">Browse</v-btn>
@@ -197,5 +197,9 @@ export default class Backups extends Vue {
 .transparent {
   background-color: transparent;
   border-color: transparent !important;
+}
+
+.chart {
+  height: 250px;
 }
 </style>

@@ -12,7 +12,7 @@
       :items="items"
       activatable
       @update:active="openTreeItem($event)"
-      item-key="path"
+      item-key="fullPath"
       :load-children="fetchPaths"
       return-object
     >
@@ -32,7 +32,7 @@
             <tbody>
               <tr>
                 <td>Path</td>
-                <td>{{ selected.path }}</td>
+                <td>{{ selected.fullPath }}</td>
               </tr>
               <tr>
                 <td>Type</td>
@@ -77,7 +77,8 @@
 <script lang="ts">
 import { Component, Vue, Prop } from 'vue-property-decorator';
 import backupsBrowse from './BackupsBrowse.graphql';
-import { BackupsBrowseQuery } from '../generated/graphql';
+import shareBrowse from './ShareBrowse.graphql';
+import { BackupsBrowseQuery, SharesBrowseQuery } from '../generated/graphql';
 
 interface TreeItem {
   name: string;
@@ -90,14 +91,23 @@ interface TreeItem {
 
   file?: string;
   path: string;
+  sharePath: string;
+  fullPath: string;
   children?: TreeItem[];
 }
 
-function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
-  return backup.files.map((b) => {
+function isShares(query: BackupsBrowseQuery | SharesBrowseQuery): query is SharesBrowseQuery {
+  return !!(query as SharesBrowseQuery).backup.shares;
+}
+
+function mapToItems(path: string, query: BackupsBrowseQuery | SharesBrowseQuery, sharePath?: string): TreeItem[] {
+  const files = isShares(query) ? query.backup.shares : query.backup.files;
+  return files.map((b) => {
     const object: TreeItem = {
       ...b,
-      path: `${path}/${b.name}`,
+      path: sharePath ? `${path}/${b.name}` : '',
+      sharePath: sharePath || b.name,
+      fullPath: `${path}/${b.name}`,
     };
     if (b.type !== 'DIRECTORY') {
       object.file = b.name.split('.').pop();
@@ -111,15 +121,14 @@ function mapToItems(path: string, { backup }: BackupsBrowseQuery): TreeItem[] {
 @Component({
   apollo: {
     items: {
-      query: backupsBrowse,
+      query: shareBrowse,
       variables() {
         return {
           hostname: this.hostname,
           number: parseInt(this.number),
-          path: '/',
         };
       },
-      update: (query: BackupsBrowseQuery) => mapToItems('', query),
+      update: (query: SharesBrowseQuery) => mapToItems('', query),
       fetchPolicy: 'network-only',
     },
   },
@@ -148,11 +157,12 @@ export default class BackupBrowse extends Vue {
       variables: {
         hostname: this.hostname,
         number: parseInt(this.number),
-        path: item.path,
+        sharePath: item.sharePath,
+        path: item.path || '/',
       },
     });
 
-    const items = mapToItems(item.path, data);
+    const items = mapToItems(item.path, data, item.sharePath);
     item.children.push(...items);
   }
 

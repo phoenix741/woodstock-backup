@@ -1,6 +1,6 @@
-query BackupsBrowse($hostname: String!, $number: Int!, $path: String!) {
+query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {
   backup(hostname: $hostname, number: $number) {
-    files(path: $path) {
+    files(sharePath: $sharePath, path: $path) {
       name
       type
       uid
