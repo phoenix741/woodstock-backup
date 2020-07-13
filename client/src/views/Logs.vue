@@ -1,10 +1,9 @@
 <template>
-  <pre>{{ content }}</pre>
+  <iframe ref="logframe" :src="url"></iframe>
 </template>
 
 <script lang="ts">
-import { Component, Vue, Prop, Watch } from 'vue-property-decorator';
-import axios from 'axios';
+import { Component, Vue, Prop, Ref } from 'vue-property-decorator';
 
 @Component({})
 export default class Logs extends Vue {
@@ -16,33 +15,23 @@ export default class Logs extends Vue {
   @Prop()
   number?: number;
 
-  content = '';
+  @Ref('logframe')
+  iframe!: HTMLIFrameElement;
 
-  async mounted() {
-    await this.fetchData();
-  }
-
-  @Watch('$route')
-  async fetchData() {
-    let url;
+  get url() {
     if (this.hostname) {
-      url = `/api/hosts/${this.hostname}/backups/${this.number}/log/${this.logfile}?tailable=false`;
+      return `/api/hosts/${this.hostname}/backups/${this.number}/log/${this.logfile}?tailable=false`;
     } else {
-      url = `/api/server/log/${this.logfile}?tailable=false`;
+      return `/api/server/log/${this.logfile}?tailable=false`;
     }
-    const response = await axios(url);
-    this.content = response.data;
-    Vue.nextTick(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-    });
   }
 }
 </script>
 
 <style scoped>
-pre {
+iframe {
+  border: 0;
   height: 100%;
-  overflow-x: auto;
-  font-size: 8pt;
+  width: 100%;
 }
 </style>

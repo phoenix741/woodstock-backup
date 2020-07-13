@@ -1,0 +1,13 @@
+query SharesBrowse($hostname: String!, $number: Int!) {
+  backup(hostname: $hostname, number: $number) {
+    shares {
+      name
+      type
+      uid
+      gid
+      mode
+      size
+      mtime
+    }
+  }
+}

@@ -1,27 +1,47 @@
 import { Injectable } from '@nestjs/common';
 
 import { DiskUsageStatistics } from '../backups/backup.dto';
+import { BackupsService } from '../backups/backups.service';
 import { ApplicationConfigService } from '../config/application-config.service';
+import { HostsService } from '../hosts/hosts.service';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
 import { YamlService } from '../utils/yaml.service';
-import { BackupQuota, Statistics } from './stats.model';
+import { BackupQuota, DiskUsageStats, CompressionStatistics } from './stats.model';
 
-const DEFAULT_STATISTICS: Statistics = {
+const DEFAULT_STATISTICS: DiskUsageStats = {
   spaces: [],
   quotas: [],
 };
 
 @Injectable()
 export class StatsService {
-  private stats: Statistics | null = null;
+  private stats: DiskUsageStats | null = null;
   private statsLoaded = false;
 
   constructor(
     private executeCommandService: ExecuteCommandService,
     private configService: ApplicationConfigService,
     private yamlService: YamlService,
+    private hostsService: HostsService,
+    private backupsService: BackupsService,
   ) {}
+
+  async getCompressionStatistics() {
+    const hosts = await this.hostsService.getHosts();
+    const backups = (await Promise.all(hosts.map(async hostname => await this.backupsService.getBackups(hostname))))
+      .flat()
+      .sort((b1, b2) => b2.startDate - b1.startDate);
+
+    const total = { timestamp: 0, diskUsage: 0, uncompressed: 0 };
+    return backups.reduce((acc, v) => {
+      total.timestamp = v.startDate;
+      total.diskUsage += v.diskUsageStatistics?.total?.diskUsage || 0;
+      total.uncompressed += v.diskUsageStatistics?.total?.uncompressed || 0;
+      acc.push(Object.assign({}, total));
+      return acc;
+    }, [] as CompressionStatistics[]);
+  }
 
   async getStatistics() {
     if (this.statsLoaded === false) {

@@ -33,16 +33,18 @@ import { SchedulerService } from './scheduler/scheduler.service';
 import { ServerController } from './server/server.controller';
 import { ServerResolver } from './server/server.resolver';
 import { ToolsService } from './server/tools.service';
+import { BackupQuotaResolver } from './stats/backup-quota.resolver';
+import { StatsConsumer } from './stats/stats.consumer';
+import { StatsResolver } from './stats/stats.resolver';
+import { StatsService } from './stats/stats.service';
+import { TimestampBackupQuotaResolver } from './stats/timestamp-backup-quota.resolver';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service';
 import { LockService } from './utils/lock.service';
-import { YamlService } from './utils/yaml.service';
-import { StatsConsumer } from './stats/stats.consumer';
-import { StatsService } from './stats/stats.service';
 import { SharePathService } from './utils/share-path.service';
-import { StatsResolver } from './stats/stats.resolver';
+import { YamlService } from './utils/yaml.service';
 
 @Module({
   imports: [
@@ -99,6 +101,8 @@ import { StatsResolver } from './stats/stats.resolver';
     StatsConsumer,
     StatsService,
     StatsResolver,
+    TimestampBackupQuotaResolver,
+    BackupQuotaResolver,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

@@ -29,7 +29,7 @@
           </v-list-item-content>
         </v-list-item>
         <NavigationBarTasks></NavigationBarTasks>
-
+        <!--
         <v-list-item link to="/reports">
           <v-list-item-action>
             <v-icon>mdi-file-chart</v-icon>
@@ -38,6 +38,7 @@
             <v-list-item-title>Reports</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
+        -->
         <NavigationBarLogs></NavigationBarLogs>
       </v-list>
     </v-navigation-drawer>
@@ -51,9 +52,9 @@
       <RunningTasksMenu></RunningTasksMenu>
     </v-app-bar>
 
-    <v-content>
+    <v-main>
       <router-view></router-view>
-    </v-content>
+    </v-main>
   </v-app>
 </template>
 
@@ -80,7 +81,7 @@ export default class App extends Vue {
   background: linear-gradient(88deg, #318be3, #04befe);
 }
 
-.v-content {
+.v-main {
   background: rgb(246, 248, 250);
 }
 </style>

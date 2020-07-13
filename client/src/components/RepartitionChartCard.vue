@@ -1,0 +1,54 @@
+<template>
+  <v-card class="mx-auto" flat>
+    <v-card-title class="overline mb-4">Répartition</v-card-title>
+    <v-card-text>
+      <v-sheet class="mx-auto" max-width="calc(100% - 32px)">
+        <!-- CHART JS -->
+        <RepartitionChart :lastQuota="lastQuota" class="chart"></RepartitionChart>
+      </v-sheet>
+    </v-card-text>
+
+    <v-simple-table>
+      <template v-slot:default>
+        <thead>
+          <tr>
+            <th class="text-left">Name</th>
+            <th class="text-left">Size</th>
+          </tr>
+        </thead>
+        <tbody v-if="lastQuota">
+          <tr v-for="host in lastQuota.host" :key="host.host">
+            <td>{{ host.host }}</td>
+            <td>{{ host.total | filesize }}</td>
+          </tr>
+        </tbody>
+      </template>
+    </v-simple-table>
+  </v-card>
+</template>
+
+<script lang="ts">
+import { Vue, Component, Prop } from 'vue-property-decorator';
+import { DashboardQuery } from '../generated/graphql';
+import RepartitionChart from './RepartitionChart.vue';
+
+@Component({
+  components: {
+    RepartitionChart,
+  },
+})
+export default class RepartitionChartCard extends Vue {
+  @Prop()
+  quotas?: DashboardQuery['diskUsageStats']['quotas'];
+
+  get lastQuota() {
+    return this.quotas?.length && this.quotas[this.quotas.length - 1];
+  }
+}
+</script>
+
+<style scoped>
+.chart {
+  height: 250px;
+}
+</style>
