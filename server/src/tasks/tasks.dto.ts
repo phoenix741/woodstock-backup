@@ -54,27 +54,27 @@ export class BackupTask {
 
 @ObjectType()
 export class Job {
-  @Field(type => Int)
+  @Field(() => Int)
   id!: number;
 
   name!: string;
   data!: BackupTask;
 
-  @Field(type => Int)
+  @Field(() => Int)
   delay!: number;
 
-  @Field(type => Int)
+  @Field(() => Int)
   timestamp!: number;
 
-  @Field(type => Int)
+  @Field(() => Int)
   attemptsMade!: number;
 
   failedReason?: string;
   stacktrace?: string[];
 
-  @Field(type => Int)
+  @Field(() => Int)
   finishedOn?: number;
 
-  @Field(type => Int)
+  @Field(() => Int)
   processedOn?: number;
 }

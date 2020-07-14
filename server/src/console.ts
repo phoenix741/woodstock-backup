@@ -1,7 +1,6 @@
 import { BootstrapConsole } from 'nestjs-console';
 
 import { AppCommandModule } from './app-command.module';
-import { ApplicationLogger } from './logger/ApplicationLogger.logger';
 
 const bootstrap = new BootstrapConsole({
   module: AppCommandModule,

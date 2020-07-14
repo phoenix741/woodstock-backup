@@ -1,5 +1,5 @@
 import {
-  OnQueueActive,
+  InjectQueue,
   OnQueueCleaned,
   OnQueueCompleted,
   OnQueueError,
@@ -15,7 +15,6 @@ import { Job, Queue } from 'bull';
 import { PubSub } from 'graphql-subscriptions';
 
 import { BackupTask } from '../tasks/tasks.dto';
-import { InjectQueue } from '@nestjs/bull';
 
 @Processor('queue')
 export class QueueService {

@@ -120,4 +120,3 @@ describe('Backups File Controller', () => {
     expect(mockedArchiverInstance.finalize).toHaveBeenCalledWith();
   });
 });
-
