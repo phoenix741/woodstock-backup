@@ -51,12 +51,14 @@ describe('Server Controller', () => {
     // GIVEN
     const res: Response = ({
       sendFile: jest.fn(),
+      header: jest.fn(),
     } as unknown) as Response;
 
     // WHEN
     await controller.getApplicationLog(false, res);
 
     // THEN
+    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/plain;charset=utf-8');
     expect(res.sendFile).toHaveBeenCalledWith('__fixtures__/application.log');
   });
 
@@ -87,7 +89,7 @@ describe('Server Controller', () => {
     stderr.emit('data', 'write error data');
     spawnEe.emit('exit', 10);
 
-    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/html;charset=utf-8');
+    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/plain;charset=utf-8');
     expect(res.write).toHaveBeenCalledWith('write data', 'utf-8');
     expect(res.write).toHaveBeenCalledWith('write error data', 'utf-8');
     expect(res.end).toHaveBeenCalledWith(10);
@@ -97,12 +99,14 @@ describe('Server Controller', () => {
     // GIVEN
     const res: Response = ({
       sendFile: jest.fn(),
+      header: jest.fn(),
     } as unknown) as Response;
 
     // WHEN
     await controller.getExceptionsLog(false, res);
 
     // THEN
+    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/plain;charset=utf-8');
     expect(res.sendFile).toHaveBeenCalledWith('__fixtures__/exceptions.log');
   });
 
@@ -133,7 +137,7 @@ describe('Server Controller', () => {
     stderr.emit('data', 'write error data');
     spawnEe.emit('exit', 10);
 
-    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/html;charset=utf-8');
+    expect(res.header).toHaveBeenCalledWith('Content-Type', 'text/plain;charset=utf-8');
     expect(res.write).toHaveBeenCalledWith('write data', 'utf-8');
     expect(res.write).toHaveBeenCalledWith('write error data', 'utf-8');
     expect(res.end).toHaveBeenCalledWith(10);
