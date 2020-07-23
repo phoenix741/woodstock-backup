@@ -8,5 +8,10 @@ query Hosts {
       complete
     }
     lastBackupState
+    configuration {
+      schedule {
+        activated
+      }
+    }
   }
 }

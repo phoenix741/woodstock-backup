@@ -3,6 +3,7 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { Queue } from 'bull';
 import { setQueues, UI } from 'bull-board';
 import { PubSub } from 'graphql-subscriptions';
@@ -30,6 +31,7 @@ import { QueueService } from './queue/queue.service';
 import { SchedulerConfigService } from './scheduler/scheduler-config.service';
 import { SchedulerConsumer } from './scheduler/scheduler.consumer';
 import { SchedulerService } from './scheduler/scheduler.service';
+import { ServeStaticService } from './server/serve-static.service';
 import { ServerController } from './server/server.controller';
 import { ServerResolver } from './server/server.resolver';
 import { ToolsService } from './server/tools.service';
@@ -68,6 +70,10 @@ import { YamlService } from './utils/yaml.service';
       buildSchemaOptions: {
         dateScalarMode: 'timestamp',
       },
+    }),
+    ServeStaticModule.forRootAsync({
+      imports: [ApplicationConfigModule],
+      useClass: ServeStaticService,
     }),
   ],
   controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],

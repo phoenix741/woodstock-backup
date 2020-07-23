@@ -18,6 +18,9 @@
       </template>
       <template slot="item.state" slot-scope="props">
         <v-chip v-if="props.item.state" :color="getColor(props.item.state)" dark>{{ props.item.state }}</v-chip>
+        <v-chip v-if="props.item.configuration && props.item.configuration.activated" dark>{{
+          props.configuration.activated
+        }}</v-chip>
       </template>
     </v-data-table>
   </v-container>

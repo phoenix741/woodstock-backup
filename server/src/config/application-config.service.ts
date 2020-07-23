@@ -7,6 +7,10 @@ import { pick } from '../utils/lodash';
 export class ApplicationConfigService {
   constructor(private configService: ConfigService) {}
 
+  get staticPath(): string {
+    return this.configService.get('STATIC_PATH', join(__dirname, '..', '..', '..', 'client', 'dist'));
+  }
+
   get backupPath(): string {
     return this.configService.get('BACKUP_PATH', '/var/lib/woodstock');
   }

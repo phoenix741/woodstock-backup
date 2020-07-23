@@ -33,7 +33,7 @@
 
     <v-row>
       <v-col cols="12" sm="12" v-if="diskUsageStats && diskUsageStats.quotas">
-        <RepartitionChartCard :quotas="diskUsageStats.quotas"></RepartitionChartCard>
+        <RepartitionChartCard :currentRepartition="diskUsageStats.currentRepartition"></RepartitionChartCard>
       </v-col>
     </v-row>
   </v-container>

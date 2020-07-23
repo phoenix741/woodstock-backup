@@ -241,7 +241,6 @@ export type CompressionStatistics = {
 };
 
 export type SpaceStatistics = {
-  timestamp: Scalars['Float'];
   size: Scalars['Float'];
   used: Scalars['Float'];
   free: Scalars['Float'];
@@ -271,6 +270,7 @@ export type TotalQuota = {
 export type TimestampBackupQuota = {
   timestamp: Scalars['Float'];
   volumes: Array<BackupQuota>;
+  space: SpaceStatistics;
   host: Array<HostQuota>;
   total: TotalQuota;
 };
@@ -286,9 +286,9 @@ export type TimestampBackupQuotaHostArgs = {
 };
 
 export type DiskUsageStats = {
-  spaces: Array<SpaceStatistics>;
   quotas: Array<TimestampBackupQuota>;
   currentSpace: SpaceStatistics;
+  currentRepartition?: Maybe<Array<HostQuota>>;
   compressionStats: Array<CompressionStatistics>;
 };
 
@@ -418,9 +418,9 @@ export type RemoveBackupMutation = { removeBackup: Pick<JobResponse, 'id'> };
 export type DashboardQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type DashboardQuery = { queueStats: Pick<QueueStats, 'waiting' | 'active' | 'failed' | 'lastExecution' | 'nextWakeup'>, diskUsageStats: { compressionStats: Array<Pick<CompressionStatistics, 'timestamp' | 'diskUsage' | 'uncompressed'>>, currentSpace: Pick<SpaceStatistics, 'size' | 'used'>, quotas: Array<(
+export type DashboardQuery = { queueStats: Pick<QueueStats, 'waiting' | 'active' | 'failed' | 'lastExecution' | 'nextWakeup'>, diskUsageStats: { currentRepartition?: Maybe<Array<Pick<HostQuota, 'host' | 'total'>>>, compressionStats: Array<Pick<CompressionStatistics, 'timestamp' | 'diskUsage' | 'uncompressed'>>, currentSpace: Pick<SpaceStatistics, 'size' | 'used'>, quotas: Array<(
       Pick<TimestampBackupQuota, 'timestamp'>
-      & { total: Pick<TotalQuota, 'refr' | 'excl' | 'total'>, host: Array<Pick<HostQuota, 'host' | 'total'>> }
+      & { total: Pick<TotalQuota, 'refr' | 'excl' | 'total'> }
     )> } };
 
 export type FragmentJobFragment = (
@@ -436,7 +436,7 @@ export type HostsQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type HostsQuery = { hosts: Array<(
     Pick<Host, 'name' | 'lastBackupState'>
-    & { lastBackup?: Maybe<Pick<Backup, 'number' | 'startDate' | 'fileSize' | 'complete'>> }
+    & { lastBackup?: Maybe<Pick<Backup, 'number' | 'startDate' | 'fileSize' | 'complete'>>, configuration: { schedule?: Maybe<Pick<Schedule, 'activated'>> } }
   )> };
 
 export type QueueTasksQueryVariables = Exact<{
