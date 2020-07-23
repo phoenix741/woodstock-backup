@@ -7,6 +7,10 @@ query Dashboard {
     nextWakeup
   }
   diskUsageStats {
+    currentRepartition {
+      host
+      total
+    }
     compressionStats {
       timestamp
       diskUsage
@@ -21,10 +25,6 @@ query Dashboard {
       total {
         refr
         excl
-        total
-      }
-      host {
-        host
         total
       }
     }

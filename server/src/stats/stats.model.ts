@@ -9,7 +9,6 @@ export class CompressionStatistics {
 
 @ObjectType()
 export class SpaceStatistics {
-  timestamp!: number;
   size!: number;
   used!: number;
   free!: number;
@@ -42,10 +41,10 @@ export class TotalQuota {
 export class TimestampBackupQuota {
   timestamp!: number;
   volumes!: BackupQuota[];
+  space!: SpaceStatistics;
 }
 
 @ObjectType()
 export class DiskUsageStats {
-  spaces!: SpaceStatistics[];
   quotas!: TimestampBackupQuota[];
 }

@@ -9,38 +9,19 @@ export class TimestampBackupQuotaResolver {
 
   @ResolveField(() => [BackupQuota])
   volumes(@Parent() parent: TimestampBackupQuota, @Args('host', { type: () => String, nullable: true }) host?: string) {
-    return (parent.volumes || []).filter(v => v.host === host || !host);
+    return (parent.volumes || []).filter(v => (v.host === host || !host) && v.number !== -1);
   }
 
   @ResolveField(() => [HostQuota])
   host(@Parent() parent: TimestampBackupQuota, @Args('host', { type: () => String, nullable: true }) host?: string) {
     return (parent.volumes || [])
-      .filter(v => v.host === host || !host)
-      .reduce((acc, v) => {
-        let find = acc.find(a => a.host === v.host);
-        if (!find) {
-          find = { host: v.host, excl: v.excl, refr: v.refr, total: v.excl + v.refr };
-          acc.push(find);
-        } else {
-          find.excl += v.excl;
-          find.refr += v.refr;
-          find.total += v.excl + v.refr;
-        }
-
-        return acc;
-      }, [] as HostQuota[]);
+      .filter(v => (v.host === host || !host) && v.number === -1)
+      .map(v => ({ ...v, total: v.refr }));
   }
 
   @ResolveField(() => TotalQuota)
   async total(@Parent() parent: TimestampBackupQuota) {
-    const stats = await this.statsService.getStatistics();
-    let spaceStatistics: Partial<SpaceStatistics> | undefined = stats.spaces.find(
-      s => s.timestamp === parent.timestamp,
-    );
-    if (!spaceStatistics) {
-      spaceStatistics = await await this.statsService.getSpace({});
-    }
-    const used = spaceStatistics.used;
+    const { used } = parent.space;
 
     return (parent.volumes || []).reduce(
       (acc, v) => {

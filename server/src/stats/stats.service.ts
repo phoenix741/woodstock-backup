@@ -8,9 +8,10 @@ import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
 import { YamlService } from '../utils/yaml.service';
 import { BackupQuota, DiskUsageStats, CompressionStatistics } from './stats.model';
+import { BtrfsService } from '../storage/btrfs/btrfs.service';
+import { ConsoleTransportOptions } from 'winston/lib/winston/transports';
 
 const DEFAULT_STATISTICS: DiskUsageStats = {
-  spaces: [],
   quotas: [],
 };
 
@@ -25,13 +26,14 @@ export class StatsService {
     private yamlService: YamlService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
+    private btrfsService: BtrfsService,
   ) {}
 
   async getCompressionStatistics() {
     const hosts = await this.hostsService.getHosts();
     const backups = (await Promise.all(hosts.map(async hostname => await this.backupsService.getBackups(hostname))))
       .flat()
-      .sort((b1, b2) => b2.startDate - b1.startDate);
+      .sort((b1, b2) => b1.startDate - b2.startDate);
 
     const total = { timestamp: 0, diskUsage: 0, uncompressed: 0 };
     return backups.reduce((acc, v) => {
@@ -58,8 +60,7 @@ export class StatsService {
     const volumes = await this.getBackupQuota(params);
 
     const statistics = await this.yamlService.loadFile(this.configService.statisticsPath, DEFAULT_STATISTICS);
-    statistics.spaces.push({ timestamp: new Date().getTime(), ...space });
-    statistics.quotas.push({ timestamp: new Date().getTime(), volumes });
+    statistics.quotas.push({ timestamp: new Date().getTime(), volumes, space });
 
     await this.yamlService.writeFile(this.configService.statisticsPath, statistics);
     this.statsLoaded = false;
@@ -78,7 +79,7 @@ export class StatsService {
   }
 
   async getBackupQuota(params: CommandParameters) {
-    const volumes = await this.listSubvolume(params);
+    const volumes = { ...(await this.listSubvolume(params)), ...(await this.listHost(params)) };
     const quotas = await this.listQuota(params);
 
     const result: BackupQuota[] = [];
@@ -123,11 +124,9 @@ export class StatsService {
         return acc;
       }
 
-      const volumeId = parseInt(id.replace('0/', ''));
-
-      acc[volumeId] = { refr: parseInt(refr), excl: parseInt(excl) };
+      acc[id] = { refr: parseInt(refr), excl: parseInt(excl) };
       return acc;
-    }, {} as Record<number, { refr: number; excl: number }>);
+    }, {} as Record<string, { refr: number; excl: number }>);
   }
 
   private async listSubvolume(params: CommandParameters) {
@@ -144,8 +143,20 @@ export class StatsService {
       const host = pathArray[0];
       const number = parseInt(pathArray[1]);
 
-      acc[parseInt(id)] = { host, number };
+      acc[`0/${id}`] = { host, number };
       return acc;
-    }, {} as Record<number, { host: string; number: number }>);
+    }, {} as Record<string, { host: string; number: number }>);
+  }
+
+  private async listHost(params: CommandParameters) {
+    const hosts = await this.hostsService.getHosts();
+    return await hosts.reduce(async (accP, host) => {
+      const acc = await accP;
+      const qGroupId = await this.btrfsService.getHostGroupId({ ...params, hostname: host });
+      if (qGroupId >= 0) {
+        acc[`1/${qGroupId}`] = { host, number: -1 };
+      }
+      return acc;
+    }, Promise.resolve({} as Record<string, { host: string; number: number }>));
   }
 }

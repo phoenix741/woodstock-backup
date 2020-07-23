@@ -49,11 +49,8 @@ export class StatsCommand {
     this.spinner = createSpinner();
     this.spinner.start('[Stats] Start');
 
-    const job = await this.scheduleQueue.add('nightly', {}, { removeOnComplete: true });
-    this.jobId = job.id;
-    await job.finished();
-
-    this.spinner.succeed('[Stats] Finished');
+    await this.scheduleQueue.add('nightly', {}, { removeOnComplete: true });
+    this.spinner.succeed('[Stats] In progress');
   }
 
   @OnQueueProgress()

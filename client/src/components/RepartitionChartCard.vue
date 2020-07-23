@@ -4,7 +4,7 @@
     <v-card-text>
       <v-sheet class="mx-auto" max-width="calc(100% - 32px)">
         <!-- CHART JS -->
-        <RepartitionChart :lastQuota="lastQuota" class="chart"></RepartitionChart>
+        <RepartitionChart :currentRepartition="currentRepartition" class="chart"></RepartitionChart>
       </v-sheet>
     </v-card-text>
 
@@ -16,8 +16,8 @@
             <th class="text-left">Size</th>
           </tr>
         </thead>
-        <tbody v-if="lastQuota">
-          <tr v-for="host in lastQuota.host" :key="host.host">
+        <tbody v-if="currentRepartition">
+          <tr v-for="host in currentRepartition" :key="host.host">
             <td>{{ host.host }}</td>
             <td>{{ host.total | filesize }}</td>
           </tr>
@@ -39,11 +39,7 @@ import RepartitionChart from './RepartitionChart.vue';
 })
 export default class RepartitionChartCard extends Vue {
   @Prop()
-  quotas?: DashboardQuery['diskUsageStats']['quotas'];
-
-  get lastQuota() {
-    return this.quotas?.length && this.quotas[this.quotas.length - 1];
-  }
+  currentRepartition?: DashboardQuery['diskUsageStats']['currentRepartition'];
 }
 </script>
 

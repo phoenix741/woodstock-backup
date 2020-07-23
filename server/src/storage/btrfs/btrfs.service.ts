@@ -4,8 +4,10 @@ import * as fs from 'fs';
 import { ApplicationConfigService } from '../../config/application-config.service';
 import { ExecuteCommandService } from '../../operation/execute-command.service';
 import { CommandParameters } from '../../server/tools.model';
-import { BtrfsCheck } from './btrfs.dto';
 import { ToolsService } from '../../server/tools.service';
+import { YamlService } from '../../utils/yaml.service';
+import { BtrfsCheck } from './btrfs.dto';
+import { cp } from 'shelljs';
 
 @Injectable()
 export class BtrfsService {
@@ -15,6 +17,7 @@ export class BtrfsService {
     private configService: ApplicationConfigService,
     private toolsService: ToolsService,
     private executeCommandService: ExecuteCommandService,
+    private yamlService: YamlService,
   ) {}
 
   async check(): Promise<BtrfsCheck> {
@@ -54,25 +57,76 @@ export class BtrfsService {
     return checks;
   }
 
-  async createSnapshot(params: CommandParameters) {
+  /**
+   * Create a qgroup for the host.
+   * @param params All know parameters
+   */
+  private async createQGroupForHost(params: CommandParameters): Promise<number> {
+    const qGroupHostPath = await this.toolsService.getPath('qgroupHostPath', params);
+    const qGroupId = (Math.random() * 4294967296) >>> 0;
+
     try {
-      const destBackupNumber = await this.toolsService.getPath('destBackupPath', params);
+      await this.executeCommandService.executeTool('btrfsBackupQGroupCreate', { qGroupId, ...params });
+
+      await this.yamlService.writeFile(qGroupHostPath, qGroupId);
+
+      return qGroupId;
+    } catch (err) {
+      // Try to replay one time
+      if (!params.qGroupId) {
+        return await this.createQGroupForHost({ qGroupId, ...params });
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  async getHostGroupId(params: CommandParameters) {
+    try {
+      const qGroupHostPath = await this.toolsService.getPath('qgroupHostPath', params);
+      this.logger.debug(`Get the qGroup for host ${params.hostname} at ${qGroupHostPath}`);
+
+      await fs.promises.access(qGroupHostPath);
+
+      // The qgroup file exist, we can get the qgroup content
+      return await this.yamlService.loadFile<number>(qGroupHostPath, -1);
+    } catch (err) {
+      if (err && err.code === 'ENOENT') {
+        return -1;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  private async getQGroupOfHost(params: CommandParameters) {
+    const value = await this.getHostGroupId(params);
+    if (value < 0) {
+      return await this.createQGroupForHost(params);
+    }
+  }
+
+  async createSnapshot(params: CommandParameters) {
+    const qGroupId = await this.getQGroupOfHost(params);
+
+    try {
+      const destBackupNumber = await this.toolsService.getPath('destBackupPath', { qGroupId, ...params });
       await fs.promises.access(destBackupNumber);
 
       // Crash when previous backup, mark the the backup readable
-      await this.markReadWrite(params);
+      await this.markReadWrite({ qGroupId, ...params });
 
       this.logger.warn(`Directory ${destBackupNumber} already exists`);
     } catch (err) {
       if (err && err.code === 'ENOENT') {
         if (params.srcBackupNumber !== undefined) {
           this.logger.debug(
-            `Create snapshot ${params.hostname}/${params.destBackupNumber} from ${params.hostname}/${params.srcBackupNumber}`,
+            `Create snapshot ${params.hostname}/${params.destBackupNumber} from ${params.hostname}/${params.srcBackupNumber} (assigned to qGroup ${qGroupId})`,
           );
-          await this.executeCommandService.executeTool('btrfsCreateSnapshot', params);
+          await this.executeCommandService.executeTool('btrfsCreateSnapshot', { qGroupId, ...params });
         } else {
           this.logger.debug(`Create first volume ${params.hostname}/${params.destBackupNumber}`);
-          await this.executeCommandService.executeTool('btrfsCreateSubvolume', params);
+          await this.executeCommandService.executeTool('btrfsCreateSubvolume', { qGroupId, ...params });
         }
       } else {
         throw err;
@@ -91,22 +145,5 @@ export class BtrfsService {
 
   async markReadWrite(params: CommandParameters) {
     await this.executeCommandService.executeTool('btrfsMarkRWSubvolume', params);
-  }
-
-  async stats() {
-    const { stdout } = await this.executeCommandService.executeCommand(
-      `btrfs filesystem du --raw -s "${this.configService.hostPath}"`,
-    );
-    const [, line] = stdout.toString().split(/[\n\r]/);
-    const [total, exclusive, shared] = line
-      .split(/\s+/)
-      .filter(n => !!n)
-      .map(v => parseInt(v));
-
-    return {
-      total,
-      exclusive,
-      shared,
-    };
   }
 }

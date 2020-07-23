@@ -7,7 +7,7 @@ const { reactiveData } = mixins;
 @Component({})
 export default class RepartitionChart extends Mixins(Pie, reactiveData) {
   @Prop()
-  lastQuota?: DashboardQuery['diskUsageStats']['quotas'][0];
+  currentRepartition?: DashboardQuery['diskUsageStats']['currentRepartition'];
 
   options = {
     responsive: true,
@@ -15,7 +15,7 @@ export default class RepartitionChart extends Mixins(Pie, reactiveData) {
   };
   mounted() {
     const data = {
-      labels: this.lastQuota?.host?.map((h) => h.host) || [],
+      labels: this.currentRepartition?.map((h) => h.host) || [],
       datasets: [
         {
           backgroundColor: [
@@ -39,7 +39,7 @@ export default class RepartitionChart extends Mixins(Pie, reactiveData) {
             '#607D8B',
             '#9E9E9E',
           ],
-          data: this.lastQuota?.host?.map((h) => h.total),
+          data: this.currentRepartition?.map((h) => h.total),
         },
       ],
     };

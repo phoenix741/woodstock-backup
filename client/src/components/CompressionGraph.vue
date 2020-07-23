@@ -2,18 +2,31 @@
 import { Line } from 'vue-chartjs';
 import { Component, Mixins, Prop } from 'vue-property-decorator';
 import { DashboardQuery } from '../generated/graphql';
-import { format } from 'date-fns';
 import filesize from 'filesize.js';
+import { ChartOptions } from 'chart.js';
 
 @Component({})
 export default class CompressionGraph extends Mixins(Line) {
   @Prop()
   compressionStats?: DashboardQuery['diskUsageStats']['compressionStats'];
 
-  options = {
+  options: ChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
+      xAxes: [
+        {
+          type: 'time',
+          distribution: 'linear',
+          offset: true,
+          ticks: {
+            source: 'data',
+            maxRotation: 0,
+            autoSkip: true,
+            autoSkipPadding: 75,
+          },
+        },
+      ],
       yAxes: [
         {
           ticks: {
@@ -43,7 +56,7 @@ export default class CompressionGraph extends Mixins(Line) {
 
   mounted() {
     const data = {
-      labels: this.compressionStats?.map((stat) => stat.timestamp).map((value) => format(value, 'MM/dd/yyyy')) || [],
+      labels: this.compressionStats?.map((stat) => stat.timestamp) || [],
       datasets: [
         {
           label: 'Disk Usage',

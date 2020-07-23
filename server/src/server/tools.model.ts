@@ -3,4 +3,5 @@ export class CommandParameters {
   hostname?: string;
   destBackupNumber?: number;
   srcBackupNumber?: number;
+  qGroupId?: number;
 }
