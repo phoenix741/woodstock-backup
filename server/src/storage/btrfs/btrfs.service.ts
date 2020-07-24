@@ -104,6 +104,7 @@ export class BtrfsService {
     if (value < 0) {
       return await this.createQGroupForHost(params);
     }
+    return value;
   }
 
   async createSnapshot(params: CommandParameters) {
