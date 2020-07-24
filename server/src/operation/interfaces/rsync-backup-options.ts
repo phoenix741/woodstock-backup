@@ -9,5 +9,6 @@ export class BackupContext extends BackupProgression {
 export interface BackupOptions extends Options {
   includes: Array<string>;
   excludes: Array<string>;
+  pathPrefix?: string;
   timeout?: number;
 }

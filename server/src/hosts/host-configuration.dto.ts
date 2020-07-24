@@ -23,6 +23,10 @@ export class BackupTaskShare {
   @ApiProperty({ type: Boolean })
   @Field(() => Boolean)
   checksum?: boolean;
+
+  @ApiProperty({ example: '/import/localhost/1' })
+  @Field(() => String)
+  pathPrefix?: string;
 }
 
 /**
@@ -153,6 +157,10 @@ export class HostConfigOperation {
  */
 @ObjectType()
 export class HostConfiguration {
+  @ApiProperty({ type: Boolean })
+  @Field(() => Boolean)
+  isLocal?: boolean;
+
   @ApiProperty({ example: [] })
   addresses?: string[];
 

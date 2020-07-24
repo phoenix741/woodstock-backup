@@ -54,13 +54,15 @@ describe('Tools Service', () => {
         hostname: 'pc-test',
         srcBackupNumber: 17,
         destBackupNumber: 20,
+        qGroupId: 2,
       }),
-    ).toBe('/usr/bin/btrfs subvolume snapshot hostPath/pc-test/17 hostPath/pc-test/20');
+    ).toBe('/usr/bin/btrfs subvolume snapshot -i 1/2 hostPath/pc-test/17 hostPath/pc-test/20');
   });
 
   it(`should get all path`, async () => {
     expect(await service.getPaths({ hostname: 'pc-test', srcBackupNumber: 14, destBackupNumber: 33 })).toEqual({
       destBackupPath: 'hostPath/pc-test/33',
+      qgroupHostPath: 'hostPath/pc-test/qgroup',
       srcBackupPath: 'hostPath/pc-test/14',
     });
   });

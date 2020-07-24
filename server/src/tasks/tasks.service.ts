@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { from, Observable, of } from 'rxjs';
+import { from, of, throwError } from 'rxjs';
 import { catchError, concatMap, map, startWith, tap } from 'rxjs/operators';
 
 import { HostConfiguration, Operation } from '../hosts/host-configuration.dto';
@@ -141,8 +141,8 @@ export class TasksService {
               const includes = [...(share.includes || []), ...(operation.includes || [])];
               const excludes = [...(share.excludes || []), ...(operation.excludes || [])];
 
-              if (!host.ip) {
-                return Observable.throw(new Error(`Can't backup host ${host.host}, can't find the IP.`));
+              if (!host.ip && !host.config?.isLocal) {
+                return throwError(new Error(`Can't backup host ${host.host}, can't find the IP.`));
               }
 
               return this.rsyncCommandService.backup(
@@ -165,6 +165,8 @@ export class TasksService {
                   includes,
                   excludes,
                   checksum: share.checksum,
+
+                  pathPrefix: share.pathPrefix,
 
                   backupLogger,
                 },
