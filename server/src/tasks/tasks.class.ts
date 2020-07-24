@@ -30,13 +30,13 @@ export class InternalBackupTask implements BackupTask {
   public readonly config: HostConfiguration;
   public readonly number: number;
   public readonly previousNumber?: number;
-  public readonly ip: string;
+  public readonly ip?: string;
 
   public startDate: number = new Date().getTime();
   public subtasks: InternalBackupSubTask[] = [];
 
   constructor(original: BackupTask) {
-    if (!original.config || original.number === undefined || !original.ip) {
+    if (!original.config || original.number === undefined || (!original.ip && !original.config.isLocal)) {
       throw new InternalServerErrorException(`Initialisation of backup failed.`);
     }
 

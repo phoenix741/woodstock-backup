@@ -134,9 +134,9 @@ export class RSyncCommandService {
         if ((options as RSyncBackupOptions).rsync) {
           rsync.set('rsync-path', await this.toolsService.getTool('rsync'));
           if (params.ip) {
-            rsync.source(`${params.ip}:${sharePath}/`);
+            rsync.source(`${params.ip}:${join(options.pathPrefix || '', sharePath)}/`);
           } else {
-            rsync.source(`${sharePath}/`);
+            rsync.source(`${join(options.pathPrefix || '', sharePath)}/`);
           }
         }
 

@@ -55,7 +55,7 @@ export class HostConsumer {
         job.update(backupTask);
       }
 
-      if (!backupTask.ip) {
+      if (!backupTask.ip && !backupTask.config?.isLocal) {
         backupTask.ip = await this.resolveService.resolveFromConfig(backupTask.host, config);
         if (!backupTask.ip) {
           throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);

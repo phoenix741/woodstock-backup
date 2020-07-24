@@ -22,7 +22,7 @@ command:
   btrfsVersion: "${btrfs} version"
   btrfsListSubvolume: "${btrfs} subvolume list -t ${hostPath}"
   btrfsCreateSubvolume: "${btrfs} subvolume create -i 1/${qGroupId} ${destBackupPath}"
-  btrfsCreateSnapshot: "${btrfs} subvolume snapshot -i 1/${qGroupId}  ${srcBackupPath} ${destBackupPath}"
+  btrfsCreateSnapshot: "${btrfs} subvolume snapshot -i 1/${qGroupId} ${srcBackupPath} ${destBackupPath}"
   btrfsDeleteSnapshot: "${btrfs} subvolume delete ${destBackupPath}"
   btrfsMarkROSubvolume: "${btrfs} property set -ts ${destBackupPath} ro true"
   btrfsMarkRWSubvolume: "${btrfs} property set -ts ${destBackupPath} ro false"

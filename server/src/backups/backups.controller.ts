@@ -64,7 +64,7 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: false });
+    await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: true });
   }
 
   @Get(':number/log/backup.log')

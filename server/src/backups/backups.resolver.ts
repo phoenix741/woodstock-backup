@@ -88,7 +88,7 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: false });
+    const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: true });
     return {
       id: job.id as number,
     };

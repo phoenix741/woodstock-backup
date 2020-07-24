@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ConsoleModule } from 'nestjs-console';
 
+import { BackupsCommand } from './backups/backups.command';
 import { BackupsService } from './backups/backups.service';
 import { ApplicationConfigModule } from './config/application-config.module';
 import { ApplicationConfigService } from './config/application-config.service';
@@ -38,6 +39,7 @@ import { YamlService } from './utils/yaml.service';
   ],
   providers: [
     ApplicationConfigService,
+    BackupsCommand,
     BackupsService,
     BtrfsService,
     ExecuteCommandService,
