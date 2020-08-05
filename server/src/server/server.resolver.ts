@@ -1,14 +1,14 @@
 import { Query, Resolver } from '@nestjs/graphql';
 
-import { BtrfsCheck } from '../storage/btrfs/btrfs.dto';
-import { BtrfsService } from '../storage/btrfs/btrfs.service';
+import { ServerChecks } from './server.dto';
+import { ServerService } from './server.service';
 
 @Resolver()
 export class ServerResolver {
-  constructor(public btrfsService: BtrfsService) {}
+  constructor(private server: ServerService) {}
 
-  @Query(() => BtrfsCheck)
+  @Query(() => ServerChecks)
   async status() {
-    return this.btrfsService.check();
+    return this.server.check();
   }
 }

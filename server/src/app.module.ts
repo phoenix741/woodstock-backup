@@ -1,5 +1,5 @@
 import { BullModule, InjectQueue } from '@nestjs/bull';
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -34,6 +34,7 @@ import { SchedulerService } from './scheduler/scheduler.service';
 import { ServeStaticService } from './server/serve-static.service';
 import { ServerController } from './server/server.controller';
 import { ServerResolver } from './server/server.resolver';
+import { ServerService } from './server/server.service';
 import { ToolsService } from './server/tools.service';
 import { BackupQuotaResolver } from './stats/backup-quota.resolver';
 import { StatsConsumer } from './stats/stats.consumer';
@@ -90,6 +91,7 @@ import { YamlService } from './utils/yaml.service';
     SchedulerService,
     SchedulerConfigService,
     SchedulerConsumer,
+    ServerService,
     ServerResolver,
     PingService,
     ApplicationLogger,
@@ -116,13 +118,25 @@ import { YamlService } from './utils/yaml.service';
   ],
 })
 export class AppModule implements OnModuleInit {
+  private logger = new Logger(AppModule.name);
+
   constructor(
     private adapterHost: HttpAdapterHost,
     @InjectQueue('queue') private queue: Queue,
     @InjectQueue('schedule') private schedule: Queue,
+    private serverService: ServerService,
   ) {}
 
-  onModuleInit() {
+  async onModuleInit() {
+    const checks = await this.serverService.check();
+    for (const check of checks.commands) {
+      if (check.isValid) {
+        this.logger.debug(`${check.command} : OK`);
+      } else {
+        this.logger.error(`${check.command} : KO - ${check.error}`);
+      }
+    }
+
     setQueues([this.queue, this.schedule]);
     this.adapterHost.httpAdapter.getInstance().use('/admin', UI);
   }

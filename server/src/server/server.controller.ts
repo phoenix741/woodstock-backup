@@ -4,21 +4,21 @@ import { Response } from 'express';
 import { join } from 'path';
 
 import { ApplicationConfigService } from '../config/application-config.service';
-import { BtrfsCheck } from '../storage/btrfs/btrfs.dto';
-import { BtrfsService } from '../storage/btrfs/btrfs.service';
-import { tailLog, getLog } from '../utils/log-utils.service';
+import { getLog, tailLog } from '../utils/log-utils.service';
+import { ServerChecks } from './server.dto';
+import { ServerService } from './server.service';
 
 @Controller('server')
 export class ServerController {
-  constructor(public applicationConfig: ApplicationConfigService, public btrfsService: BtrfsService) {}
+  constructor(public applicationConfig: ApplicationConfigService, public serverService: ServerService) {}
 
   @Get('status')
   @ApiOkResponse({
     description: 'Get the status of the server',
-    type: BtrfsCheck,
+    type: ServerChecks,
   })
   async getStatus() {
-    return this.btrfsService.check();
+    return this.serverService.check();
   }
 
   @Get('log/application.log')

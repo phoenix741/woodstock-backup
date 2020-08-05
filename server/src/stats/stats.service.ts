@@ -6,10 +6,9 @@ import { ApplicationConfigService } from '../config/application-config.service';
 import { HostsService } from '../hosts/hosts.service';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { CommandParameters } from '../server/tools.model';
-import { YamlService } from '../utils/yaml.service';
-import { BackupQuota, DiskUsageStats, CompressionStatistics } from './stats.model';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
-import { ConsoleTransportOptions } from 'winston/lib/winston/transports';
+import { YamlService } from '../utils/yaml.service';
+import { BackupQuota, CompressionStatistics, DiskUsageStats } from './stats.model';
 
 const DEFAULT_STATISTICS: DiskUsageStats = {
   quotas: [],
@@ -130,18 +129,9 @@ export class StatsService {
   }
 
   private async listSubvolume(params: CommandParameters) {
-    const { stdout } = await this.executeCommandService.executeTool('btrfsListSubvolume', params);
-    const [, , ...lines] = stdout.toString().split(/[\n\r]/);
-
+    const lines = await this.btrfsService.listSubvolume(params);
     return lines.reduce((acc, line) => {
-      const [id, , , path] = line.split(/\s+/).filter(n => !!n);
-      if (!id) {
-        return acc;
-      }
-
-      const pathArray = path.split('/').slice(-2);
-      const host = pathArray[0];
-      const number = parseInt(pathArray[1]);
+      const { id, host, number } = line;
 
       acc[`0/${id}`] = { host, number };
       return acc;

@@ -46,6 +46,51 @@ Theorically if the btrfs storage is shared, it's possible to run multiple instan
 
 **Install with docker.**
 
+- `Docker` need redis to store bull queue.
+- The backup storage should be a btrfs volume.
+- The docker image need `SYS_ADMIN` capability.
+
+```yaml
+version: "2"
+
+services:
+  woodstock:
+    image: phoenix741/woodstock-backup:develop
+    ports:
+      - 3000:3000
+    links:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MAX_BACKUP_TASK=2
+      - NODE_ENV=production
+    volumes:
+      - "backups_storage:/backups"
+    cap_add:
+      - SYS_ADMIN
+  redis:
+    image: "bitnami/redis:5.0"
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - "6379:6379"
+    volumes:
+      - "redis_data:/bitnami/redis/data"
+
+volumes:
+  redis_data:
+    driver: local
+  backups_storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: /var/lib/woodstock/
+      o: bind
+```
+
 **Install with a deb package.**
 
 **Install manually.**
