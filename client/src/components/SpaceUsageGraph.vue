@@ -67,6 +67,7 @@ export default class SpaceUsageGraph extends Mixins(Line) {
             ticks: {
               beginAtZero: true,
               fontSize: 10,
+              min: 0,
               max: maxValue,
               callback: (value: number) => filesize(value),
             },
@@ -78,6 +79,7 @@ export default class SpaceUsageGraph extends Mixins(Line) {
             ticks: {
               beginAtZero: true,
               fontSize: 10,
+              min: 0,
               max: maxValue,
               callback: (value: number) => filesize(value),
             },

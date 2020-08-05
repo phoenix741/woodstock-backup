@@ -78,7 +78,7 @@ export class QueueService {
   async removeHost(job: Job<BackupTask>) {
     const backups = await this.backupQueue.getJobs([]);
     const backupToRemove = backups.filter(
-      j => ['backup', 'stats'].includes(j.name) && j.id !== job.id && j.data.host && j.data.host === job.data.host,
+      j => j && ['backup', 'stats'].includes(j.name) && j.id !== job.id && j.data.host && j.data.host === job.data.host,
     );
     for (const jobToRemove of backupToRemove) {
       if (!(await jobToRemove.isActive())) {

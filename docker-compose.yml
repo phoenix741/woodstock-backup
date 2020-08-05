@@ -19,6 +19,8 @@ services:
       - NODE_ENV=development
     volumes:
       - "backups_storage:/backups"
+    cap_add:
+      - SYS_ADMIN
   redis:
     image: "bitnami/redis:5.0"
     environment:

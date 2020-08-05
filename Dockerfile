@@ -1,4 +1,4 @@
-FROM node:10 as dependencies
+FROM node:12-buster as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/server
@@ -18,7 +18,8 @@ RUN npm install
 WORKDIR /src/server
 RUN npm install
 
-COPY . /src/
+COPY client/ /src/client/
+COPY server/ /src/server/
 
 WORKDIR /src/client
 
@@ -31,14 +32,20 @@ RUN npm run build
 
 #
 # -------- Dist -----------
-FROM node:10 AS dist
+FROM node:12-buster AS dist
 
-RUN apt update && apt install -y btrfs-compsize btrfs-prog && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y btrfs-compsize btrfs-progs coreutils samba-common-bin rsync && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /server
 COPY --from=build /src/server/dist/ /server/
+COPY --from=build /src/server/config/ /server/config/
 COPY --from=build /src/client/dist /server/client/
 COPY --from=dependencies /src/server/node_modules /server/node_modules
+
+RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh 
+RUN echo "IdentityFile /backups/.ssh/id_rsa" >> /root/.ssh/config
+RUN echo "StrictHostKeyChecking=no" >> /root/.ssh/config
+RUN mkdir -p /backups/.ssh && chmod 700 /backups/.ssh
 
 ENV STATIC_PATH=/server/client/
 ENV NODE_ENV=production
@@ -49,4 +56,6 @@ ENV REDIS_PORT=6379
 
 ENV VUE_APP_GRAPHQL_HTTP=/graphql
 
+ENTRYPOINT [ "node" ]
+CMD [ "/server/main.js" ]
 EXPOSE 3000

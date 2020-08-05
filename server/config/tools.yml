@@ -1,9 +1,9 @@
 ---
 tools:
-  df: /usr/bin/df
-  btrfs: /usr/bin/btrfs
+  df: /bin/df
+  btrfs: /bin/btrfs
   compsize: /usr/sbin/compsize
-  ping: /usr/bin/ping
+  ping: /bin/ping
   nmblookup: /usr/bin/nmblookup
   ssh: /usr/bin/ssh
   rsync: /usr/bin/rsync
@@ -17,9 +17,9 @@ command:
   getFilesystem: "${stat} -f --format=%T ${hostPath}"
   statsSpaceUsage: "${df} -k --print-type ${hostPath}"
   statsDiskUsage: "${btrfs} qgroup show --raw ${hostPath}"
-  btrfsQGroupEnable: "${btrfs} quota enable"
+  btrfsQGroupEnable: "${btrfs} quota enable ${hostPath}"
   btrfsBackupQGroupCreate: "${btrfs} qgroup create 1/${qGroupId} ${hostPath}"
-  btrfsVersion: "${btrfs} version"
+  btrfsBackupQGroupDestroy: "${btrfs} qgroup destroy 0/${qGroupId} ${hostPath}"
   btrfsListSubvolume: "${btrfs} subvolume list -t ${hostPath}"
   btrfsCreateSubvolume: "${btrfs} subvolume create -i 1/${qGroupId} ${destBackupPath}"
   btrfsCreateSnapshot: "${btrfs} subvolume snapshot -i 1/${qGroupId} ${srcBackupPath} ${destBackupPath}"
@@ -29,6 +29,7 @@ command:
   btrfsGetCompressionSize: "${compsize} -b ${destBackupPath}"
 
 paths:
+  hostnamePath: "${hostPath}/${hostname}"
   qgroupHostPath: "${hostPath}/${hostname}/qgroup"
   srcBackupPath: "${hostPath}/${hostname}/${srcBackupNumber}"
   destBackupPath: "${hostPath}/${hostname}/${destBackupNumber}"

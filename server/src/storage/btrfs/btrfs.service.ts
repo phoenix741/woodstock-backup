@@ -1,61 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 
-import { ApplicationConfigService } from '../../config/application-config.service';
 import { ExecuteCommandService } from '../../operation/execute-command.service';
 import { CommandParameters } from '../../server/tools.model';
 import { ToolsService } from '../../server/tools.service';
 import { YamlService } from '../../utils/yaml.service';
-import { BtrfsCheck } from './btrfs.dto';
-import { cp } from 'shelljs';
 
 @Injectable()
 export class BtrfsService {
   private logger = new Logger(BtrfsService.name);
 
   constructor(
-    private configService: ApplicationConfigService,
     private toolsService: ToolsService,
     private executeCommandService: ExecuteCommandService,
     private yamlService: YamlService,
   ) {}
-
-  async check(): Promise<BtrfsCheck> {
-    const checks = new BtrfsCheck();
-    // Is btrfs available on the backup directory
-    {
-      const { stdout } = await this.executeCommandService.executeTool('getFilesystem', {});
-      checks.backupVolume = this.configService.hostPath;
-      checks.backupVolumeFileSystem = `${stdout}`.trim();
-      checks.isBtrfsVolume = checks.backupVolumeFileSystem === 'btrfs';
-    }
-
-    {
-      const { stdout } = await this.executeCommandService.executeTool('btrfsVersion', {});
-      checks.toolsAvailable.btrfstools = stdout.startsWith('btrfs-progs');
-    }
-
-    {
-      try {
-        await this.createSnapshot({ hostname: '__tmp', destBackupNumber: 0 });
-        await this.removeSnapshot({ hostname: '__tmp', destBackupNumber: 0 });
-        checks.hasAuthorization = true;
-      } catch (err) {
-        checks.hasAuthorization = false;
-      }
-    }
-
-    {
-      try {
-        await this.executeCommandService.executeCommand(`which compsize`);
-        checks.toolsAvailable.compsize = true;
-      } catch (err) {
-        checks.toolsAvailable.compsize = false;
-      }
-    }
-
-    return checks;
-  }
 
   /**
    * Create a qgroup for the host.
@@ -136,8 +95,28 @@ export class BtrfsService {
   }
 
   async removeSnapshot(params: CommandParameters) {
+    const lines = await this.listSubvolume(params);
     await this.markReadWrite(params);
     await this.executeCommandService.executeTool('btrfsDeleteSnapshot', params);
+    await this.removeQGroup(lines, params);
+  }
+
+  private async removeQGroup(
+    lines: {
+      id: number;
+      host: string;
+      number: number;
+    }[],
+    params: CommandParameters,
+  ) {
+    const line = lines.find(line => params.hostname === line.host && params.destBackupNumber === line.number);
+    const qGroupId = line?.id;
+    if (qGroupId) {
+      await this.executeCommandService.executeTool('btrfsBackupQGroupDestroy', {
+        ...params,
+        qGroupId,
+      });
+    }
   }
 
   async markReadOnly(params: CommandParameters) {
@@ -146,5 +125,25 @@ export class BtrfsService {
 
   async markReadWrite(params: CommandParameters) {
     await this.executeCommandService.executeTool('btrfsMarkRWSubvolume', params);
+  }
+
+  async listSubvolume(params: CommandParameters) {
+    const { stdout } = await this.executeCommandService.executeTool('btrfsListSubvolume', params);
+    const [, , ...lines] = stdout.toString().split(/[\n\r]/);
+
+    return lines
+      .map(line => {
+        if (line) {
+          const [id, , , path] = line.split(/\s+/).filter(n => !!n);
+
+          const pathArray = path.split('/').slice(-2);
+          const host = pathArray[0];
+          const number = parseInt(pathArray[1]);
+
+          return { id: parseInt(id), host, number };
+        }
+        return { id: -1, host: '', number: -1 };
+      })
+      .filter(l => l.id >= 0);
   }
 }
