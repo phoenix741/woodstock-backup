@@ -129,12 +129,18 @@ export class AppModule implements OnModuleInit {
 
   async onModuleInit() {
     const checks = await this.serverService.check();
+    let checksCmd = true;
     for (const check of checks.commands) {
       if (check.isValid) {
         this.logger.debug(`${check.command} : OK`);
       } else {
+        checksCmd = false;
         this.logger.error(`${check.command} : KO - ${check.error}`);
       }
+    }
+
+    if (!checksCmd) {
+      process.exit(255);
     }
 
     setQueues([this.queue, this.schedule]);

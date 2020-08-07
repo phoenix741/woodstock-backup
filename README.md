@@ -93,6 +93,18 @@ volumes:
 
 **Install with a deb package.**
 
+To install woodstock-backup on a debian system, download the deb package.
+
+- The `/var/lib/woodstock` directory need to be a btrfs volume.
+- Woodstock have a dependencie on redis to store bull queue.
+
+```bash
+sudo dpkg -i woodstock-backup_1.0.0_all.deb
+sudo nano /etc/woodstock-backup/default
+```
+
+You can edit environment variable necessary to launch woodstock.
+
 **Install manually.**
 
 First install the linux distribution of your choice that satisfy the previous criteria. On this distribution install redis, and nodejs.

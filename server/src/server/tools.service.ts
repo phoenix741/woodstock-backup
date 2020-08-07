@@ -12,7 +12,11 @@ class Tools {
   paths!: Record<string, string>;
 }
 
-const DEFAULT_TOOLS = YamlService.loadFileSync<Tools>(resolve('config', 'tools.yml'));
+const DEFAULT_TOOLS = YamlService.loadFileSync<Tools>(resolve('config', 'tools.yml'), {
+  tools: {},
+  command: {},
+  paths: {},
+});
 
 @Injectable()
 export class ToolsService {

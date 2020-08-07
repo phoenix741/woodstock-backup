@@ -16,10 +16,11 @@ export class YamlService {
   /**
    * Load the content of the file in yaml format
    */
-  static loadFileSync<T>(filename: string, defaultValue?: T): T {
+  static loadFileSync<T>(filename: string, defaultValue: T): T {
     try {
       const hostsFromStr = fs.readFileSync(filename, 'utf8');
-      return yaml.safeLoad(hostsFromStr) || defaultValue;
+      const value = (yaml.safeLoad(hostsFromStr) as never) as T | undefined;
+      return value || defaultValue;
     } catch (err) {
       if (defaultValue) {
         return defaultValue;
@@ -32,14 +33,15 @@ export class YamlService {
   /**
    * Load the content of the file in yaml format
    */
-  async loadFile<T>(filename: string, defaultValue?: T): Promise<T> {
+  async loadFile<T>(filename: string, defaultValue: T): Promise<T> {
     this.logger.verbose(`Read the file ${filename}`);
 
     try {
       await mkdirp(path.dirname(filename));
 
       const hostsFromStr = await fs.promises.readFile(filename, 'utf8');
-      return yaml.safeLoad(hostsFromStr) || defaultValue;
+      const value = (yaml.safeLoad(hostsFromStr) as never) as T | undefined;
+      return value || defaultValue;
     } catch (err) {
       this.logger.debug(`Can't read the file ${filename}: ${err.message}`);
       if (defaultValue) {
