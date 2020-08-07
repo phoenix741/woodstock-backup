@@ -1,6 +1,6 @@
 import { Args, Parent, ResolveField, Resolver } from '@nestjs/graphql';
 
-import { BackupQuota, HostQuota, TimestampBackupQuota, TotalQuota, SpaceStatistics } from './stats.model';
+import { BackupQuota, HostQuota, TimestampBackupQuota, TotalQuota } from './stats.model';
 import { StatsService } from './stats.service';
 
 @Resolver(() => TimestampBackupQuota)
@@ -23,15 +23,17 @@ export class TimestampBackupQuotaResolver {
   async total(@Parent() parent: TimestampBackupQuota) {
     const { used } = parent.space;
 
-    return (parent.volumes || []).reduce(
-      (acc, v) => {
-        acc.excl += v.excl;
-        acc.refr -= v.excl;
-        acc.total += v.excl + v.refr;
+    return (parent.volumes || [])
+      .filter(v => v.number !== -1)
+      .reduce(
+        (acc, v) => {
+          acc.excl += v.excl;
+          acc.refr -= v.excl;
+          acc.total += v.excl + v.refr;
 
-        return acc;
-      },
-      { total: 0, refr: used, excl: 0 } as TotalQuota,
-    );
+          return acc;
+        },
+        { total: 0, refr: used, excl: 0 } as TotalQuota,
+      );
   }
 }
