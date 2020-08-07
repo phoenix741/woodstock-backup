@@ -13,6 +13,7 @@ import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
 import { CommandParameters } from '../server/tools.model';
 import { SharePathService } from '../utils/share-path.service';
+import { option } from 'commander';
 
 tmp.setGracefulCleanup();
 
@@ -140,17 +141,17 @@ export class RSyncCommandService {
           }
         }
 
-        if ((options as RSyncBackupOptions).rsync) {
+        if (isRSyncBackupOptions(options)) {
           rsync.shell(
             (await this.toolsService.getCommand('rsh', params)) + (options.username ? ' -l ' + options.username : ''),
           );
         }
 
-        if ((options as RSyncdBackupOptions).rsyncd) {
+        if (isRSyncdBackupOptions(options)) {
           let authentification = '';
-          if ((options as RSyncdBackupOptions).authentification) {
+          if (options.authentification && options.username && options.password) {
             authentification = `${options.username}@`;
-            await fs.promises.writeFile(path, (options as RSyncdBackupOptions).password, { encoding: 'utf-8' });
+            await fs.promises.writeFile(path, options.password, { encoding: 'utf-8' });
             rsync.set('password-file', path);
           }
           rsync.source(`${authentification}${params.ip}::${sharePath}`);
@@ -276,4 +277,12 @@ export class RSyncCommandService {
     }
     return undefined;
   }
+}
+
+function isRSyncdBackupOptions(options: RSyncBackupOptions | RSyncdBackupOptions): options is RSyncdBackupOptions {
+  return !!(options as RSyncdBackupOptions).rsyncd;
+}
+
+function isRSyncBackupOptions(options: RSyncBackupOptions | RSyncdBackupOptions): options is RSyncBackupOptions {
+  return !!(options as RSyncBackupOptions).rsync;
 }
