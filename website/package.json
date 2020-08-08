@@ -1,0 +1,15 @@
+{
+  "name": "website",
+  "version": "1.0.0",
+  "description": "Woodstock backup documentation",
+  "scripts": {
+    "dev": "vuepress dev",
+    "build": "vuepress build"
+  },
+  "author": "Ulrich Vandenhekke",
+  "license": "ISC",
+  "dependencies": {
+    "markdown-it-imsize": "^2.0.1",
+    "vuepress": "^1.5.3"
+  }
+}
