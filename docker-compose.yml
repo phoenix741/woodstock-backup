@@ -1,6 +1,13 @@
 version: "2"
 
 services:
+  website:
+    build:
+      context: ./website
+      dockerfile: Dockerfile
+    image: phoenix741/woodstock-backup-website:develop
+    ports:
+      - 8080:80
   woodstock:
     build:
       context: ./
