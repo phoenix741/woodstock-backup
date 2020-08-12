@@ -57,12 +57,12 @@ Each DHCP Addresses will have the form:
 
 ### Operations
 
-In the list of operations we have two part:
+In the list of operations we have two parts:
 
 | Field         | Default value | Description                                                                               |
 | ------------- | ------------- | ----------------------------------------------------------------------------------------- |
-| tasks         |               | Array of operation executed, if one operation failed, all next operation will failed too. |
-| finalizeTasks |               | Array of operation executed at the end, even if list of tasks have been failed            |
+| tasks         |               | Array of operation executed, if one operation failed, all next operation will fail too. |
+| finalizeTasks |               | Array of operation executed at the end, even if list of tasks has  failed            |
 
 The operation can be of three type:
 
@@ -100,7 +100,7 @@ For `RSyncdBackup`:
 | timeout          | 120           | Timeout of rsync after an inactive period       |
 | share            |               | List of backup share                            |
 
-Each share have the following property:
+Each share has the following property:
 
 | Field      | Default value | Description                                                          |
 | ---------- | ------------- | -------------------------------------------------------------------- |

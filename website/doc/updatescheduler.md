@@ -1,6 +1,6 @@
 # Update the scheduler
 
-You can update the default scheduler instead of host scheduler.
+You can update the default scheduler instead of the host scheduler.
 
 ```yaml
 ---
@@ -35,4 +35,4 @@ Inside the field `scheduler`:
 | ------------ | -------------------------------------------------------------- | -------------------------------------------- |
 | activated    | true                                                           | Active / Desactive the automatic backup      |
 | backupPeriod | 8340                                                           | Period between two backup: 24H - 5 minutes   |
-| backupToKeep | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1 }` | Number of backup to keep (not used actually) |
+| backupToKeep | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1 }` | Number of backups to keep (not used currently) |

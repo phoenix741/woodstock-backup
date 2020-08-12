@@ -21,7 +21,7 @@ The lastest version is [1.0.0](https://gogs.shadoware.org/ShadowareOrg/woodstock
 ## Features
 
 - **Modern Web interface** can be used to easily launch backup, view running task, restore file, see some statistics...
-- **API** can be used to create other interface or automatize backup,
+- **API** can be used to create other interface or automate backup,
 - **Centralized backup** allows backup to be made automatically on a computer, and view in a single interface which computer missing backups.
 - **Btrfs** storage for data deduplication (and compression)
 - **Open-source**: Woodstock Backup is distributed under the MIT License.

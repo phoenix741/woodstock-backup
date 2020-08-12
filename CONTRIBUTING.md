@@ -1,10 +1,10 @@
 # Contribution
 
-- I accept contribution :)
-- The rules is simple: i can accept it, or refuse it depending on
-  - Is the feature is in the goal of this backup application ? (i don't accept contribution to make coffee when backup is made)
-  - Is the feature is write as i think it should be write (very very subjective, but i will comment your pull request to tell you how i think it should be written)
+- I accept contributions :)
+- The rules are simple: I can accept or refuse depending on
+  - Is the feature in line with the goal of this backup application ? (I don't accept contributions to make coffee when backup is made)
+  - Is the feature written the way I think it should be written (very very subjective, but I will comment your pull request to tell you how I think it should be written)
 
-If you want to add a new feature, the better way is to ask me if i'm not already made it and if i accept pull request on it before starting.
+If you want to add a new feature, the best way is to ask me first if I haven't already made it and if I would accept pull request on it before starting.
 
-PS: I know that this make me a Benevolent Dictor for Life, but if i have many perfect contribution, maybe that can be changed :)
+PS: I know that this make me a Benevolent Dictor for Life, but if I receive a lot of great contributions, maybe that can be changed :)
