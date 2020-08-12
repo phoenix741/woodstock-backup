@@ -1,19 +1,19 @@
 # Installation
 
-## What are pre-request ?
+## What are the prerequisites?
 
-**Woodstock backup** need the following software to work :
+**Woodstock backup** needs the following softwares to work :
 
 - Redis: To manage the queue of backup
 - Btrfs: To manage the storage of backup (ideally the mount point should be dedicated to the backup storage)
 - NodeJS 10: To run the application
 - The transpiled application: without it, it can't work
 
-Theorically if the btrfs storage is shared, it's possible to run multiple instance of the same application on the same server.
+Theorically if the btrfs storage is shared, it's possible to run multiple instances of the same application on the same server.
 
 ## Install with docker
 
-- `Docker` need redis to store bull queue.
+-`Docker` needs redis to store bull queue.
 - The backup storage should be a btrfs volume.
 - The docker image need `SYS_ADMIN` capability.
 
@@ -62,8 +62,8 @@ volumes:
 
 To install woodstock-backup on a debian system, download the deb package.
 
-- The `/var/lib/woodstock` directory need to be a btrfs volume.
-- Woodstock have a dependencie on redis to store bull queue.
+- The `/var/lib/woodstock` directory needs to be a btrfs volume.
+- Woodstock has a dependencie on redis to store bull queue.
 
 ```bash
 sudo dpkg -i woodstock-backup_1.0.0_all.deb
@@ -87,7 +87,7 @@ apt install redis nodejs
 Ensure you have a mount point that use btrfs, ideally the mount point should be dedicated to the backup.
 
 If you want the woodstock backup not be executed as root, you must add attribute **user_subvol_rm_allowed**.
-You can active the compression of btrfs depending or not.
+You can activate the compression of btrfs depending or not.
 
 ```bash
 mkfs.btrfs /dev/sdXYY
@@ -117,7 +117,7 @@ sudo systemctl enable woodstock-backup
 sudo systemctl start woodstock-backup
 ```
 
-The available environment variable are :
+The available environment variables are :
 
 - **STATIC_PATH**: should be the path of the file in the client directory (example: `/opt/woodstock/client/dist`)
 - **BACKUP_PATH**: should be the path of the storage (on a btrfs drive, example ̀`var/lib/woodstock/woodstock`
