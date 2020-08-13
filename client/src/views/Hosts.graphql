@@ -1,0 +1,17 @@
+query Hosts {
+  hosts {
+    name
+    lastBackup {
+      number
+      startDate
+      fileSize
+      complete
+    }
+    lastBackupState
+    configuration {
+      schedule {
+        activated
+      }
+    }
+  }
+}

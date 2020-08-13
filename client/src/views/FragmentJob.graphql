@@ -1,0 +1,22 @@
+fragment FragmentJob on Job {
+  id
+  state
+  failedReason
+  data {
+    host
+    number
+    startDate
+    state
+    progression {
+      percent
+      speed
+      newFileCount
+      fileCount
+    }
+    subtasks {
+      context
+      description
+      state
+    }
+  }
+}
