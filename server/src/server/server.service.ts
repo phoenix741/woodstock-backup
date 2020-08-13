@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
-import { ServerChecks } from './server.dto';
+import { ServerChecks, CommandCheck } from './server.dto';
 import { ToolsService } from './tools.service';
 
 @Injectable()
@@ -37,7 +37,7 @@ export class ServerService {
     return checks;
   }
 
-  async checkGetFilesystem() {
+  async checkGetFilesystem(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('getFilesystem', {});
     const { stdout, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -51,7 +51,7 @@ export class ServerService {
     ];
   }
 
-  async checkPing() {
+  async checkPing(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('ping', {
       ip: '127.0.0.1',
     });
@@ -61,7 +61,7 @@ export class ServerService {
     return [{ command, isValid: !code, error: stderr }];
   }
 
-  async checkResolveNetbiosFromHostname() {
+  async checkResolveNetbiosFromHostname(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('resolveNetbiosFromHostname', { hostname: 'localhost' });
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -69,7 +69,7 @@ export class ServerService {
     return [{ command, isValid: code !== 127, error: stderr }];
   }
 
-  async checkResolveNetbiosFromIP() {
+  async checkResolveNetbiosFromIP(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('resolveNetbiosFromIP', {
       ip: '127.0.0.1',
     });
@@ -79,7 +79,7 @@ export class ServerService {
     return [{ command, isValid: code !== 127, error: stderr }];
   }
 
-  async checkStatsSpaceUsage() {
+  async checkStatsSpaceUsage(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('statsSpaceUsage', {});
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -87,7 +87,7 @@ export class ServerService {
     return [{ command, isValid: !code, error: stderr }];
   }
 
-  async checkBtrfsQGroupEnable() {
+  async checkBtrfsQGroupEnable(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('btrfsQGroupEnable', {});
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -95,7 +95,7 @@ export class ServerService {
     return [{ command, isValid: !code, error: stderr }];
   }
 
-  async checkStatsDiskUsage() {
+  async checkStatsDiskUsage(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('statsDiskUsage', {});
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -103,7 +103,7 @@ export class ServerService {
     return [{ command, isValid: !code, error: stderr }];
   }
 
-  async checkBtrfsCreateSubvolume() {
+  async checkBtrfsCreateSubvolume(): Promise<CommandCheck[]> {
     try {
       const path = await this.toolsService.getPath('destBackupPath', { hostname: '__tmp', destBackupNumber: 99 });
       await this.btrfsService.createSnapshot({ hostname: '__tmp', destBackupNumber: 99 });
@@ -116,7 +116,7 @@ export class ServerService {
     }
   }
 
-  async checkBtrfsCreateSnapshot() {
+  async checkBtrfsCreateSnapshot(): Promise<CommandCheck[]> {
     try {
       await this.btrfsService.createSnapshot({ hostname: '__tmp', destBackupNumber: 98, srcBackupNumber: 99 });
 
@@ -126,7 +126,7 @@ export class ServerService {
     }
   }
 
-  async checkBtrfsMarkROSubvolume() {
+  async checkBtrfsMarkROSubvolume(): Promise<CommandCheck[]> {
     try {
       await this.btrfsService.markReadOnly({ hostname: '__tmp', destBackupNumber: 99 });
 
@@ -136,7 +136,7 @@ export class ServerService {
     }
   }
 
-  async checkBtrfsMarkRWSubvolume() {
+  async checkBtrfsMarkRWSubvolume(): Promise<CommandCheck[]> {
     try {
       await this.btrfsService.markReadWrite({ hostname: '__tmp', destBackupNumber: 99 });
 
@@ -146,7 +146,7 @@ export class ServerService {
     }
   }
 
-  async checkBtrfsDeleteSnapshot(destBackupNumber: number) {
+  async checkBtrfsDeleteSnapshot(destBackupNumber: number): Promise<CommandCheck[]> {
     try {
       await this.btrfsService.removeSnapshot({ hostname: '__tmp', destBackupNumber });
 
@@ -156,7 +156,7 @@ export class ServerService {
     }
   }
 
-  async checkBtrfsListSubvolume() {
+  async checkBtrfsListSubvolume(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('btrfsListSubvolume', {});
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
@@ -164,7 +164,7 @@ export class ServerService {
     return [{ command, isValid: !code, error: stderr }];
   }
 
-  async checkBtrfsGetCompressionSize() {
+  async checkBtrfsGetCompressionSize(): Promise<CommandCheck[]> {
     const command = await this.toolsService.getCommand('btrfsGetCompressionSize', {
       hostname: '__tmp',
       destBackupNumber: 99,

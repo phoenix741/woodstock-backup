@@ -11,7 +11,7 @@ export class CommandCheck {
 export class ServerChecks {
   commands: CommandCheck[] = [];
 
-  push(...cmd: CommandCheck[]) {
+  push(...cmd: CommandCheck[]): void {
     this.commands.push(...cmd);
   }
 }

@@ -5,13 +5,14 @@ import { Response } from 'express';
 import { basename } from 'path';
 
 import { BackupsFilesService } from './backups-files.service';
+import { FileDescription } from './backups-files.dto';
 
 @Controller('hosts/:name/backups/:number/files')
 export class BackupsFilesController {
   constructor(private service: BackupsFilesService) {}
 
   @Get()
-  async share(@Param('name') name: string, @Param('number') number: number) {
+  async share(@Param('name') name: string, @Param('number') number: number): Promise<FileDescription[]> {
     return this.service.listShare(name, number);
   }
 
@@ -21,7 +22,7 @@ export class BackupsFilesController {
     @Param('number') number: number,
     @Query('sharePath') sharePath: string,
     @Query('path') path: string,
-  ) {
+  ): Promise<FileDescription[]> {
     return this.service.list(name, number, sharePath, path);
   }
 
@@ -35,7 +36,7 @@ export class BackupsFilesController {
     @Query('path') path: string,
     @Res() res: Response,
     @Headers('content-type') type?: string,
-  ) {
+  ): Promise<void> {
     const infos = await this.service.getFileName(name, number, sharePath, path);
 
     if (type === 'application/zip' || infos.stats.isDirectory()) {

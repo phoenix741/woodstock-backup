@@ -1,19 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
-import { join } from 'path';
 import * as mkdirp from 'mkdirp';
+import { join } from 'path';
 import * as Rsync from 'rsync';
 import { Observable, Subject } from 'rxjs';
 import * as tmp from 'tmp';
 
 import { BackupLogger } from '../logger/BackupLogger.logger';
+import { CommandParameters } from '../server/tools.model';
 import { ToolsService } from '../server/tools.service';
 import { compactObject } from '../utils/lodash';
+import { SharePathService } from '../utils/share-path.service';
 import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';
-import { CommandParameters } from '../server/tools.model';
-import { SharePathService } from '../utils/share-path.service';
-import { option } from 'commander';
 
 tmp.setGracefulCleanup();
 
@@ -196,7 +195,7 @@ export class RSyncCommandService {
     progression: Subject<BackupProgression>,
     data: Buffer,
     error = false,
-  ) {
+  ): void {
     data
       .toString()
       .split(/[\n\r]/)

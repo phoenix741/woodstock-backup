@@ -5,6 +5,7 @@ import { Job, Queue } from 'bull';
 import { BackupsService } from '../backups/backups.service';
 import { HostsService } from '../hosts/hosts.service';
 import { BackupTask } from '../tasks/tasks.dto';
+import { HostConfiguration } from 'src/hosts/host-configuration.dto';
 
 @Injectable()
 export class HostConsumerUtilService {
@@ -14,7 +15,7 @@ export class HostConsumerUtilService {
     private backupsService: BackupsService,
   ) {}
 
-  async lock(job: Job<BackupTask>) {
+  async lock(job: Job<BackupTask>): Promise<void> {
     /* *********** LOCK ************ */
     const previousLock = await this.backupsService.lock(job.data.host, job.id);
     if (previousLock) {
@@ -28,13 +29,13 @@ export class HostConsumerUtilService {
     /* *********** END LOCK ************ */
   }
 
-  async unlock(job: Job<BackupTask>) {
+  async unlock(job: Job<BackupTask>): Promise<void> {
     /* ************** UNLOCK ************ */
     await this.backupsService.unlock(job.data.host, job.id);
     /* ************** END UNLOCK ************ */
   }
 
-  async updateBackupTaskConfig(job: Job<BackupTask>) {
+  async updateBackupTaskConfig(job: Job<BackupTask>): Promise<HostConfiguration> {
     const backupTask = job.data;
 
     if (!backupTask.config) {

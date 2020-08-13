@@ -45,7 +45,7 @@ describe('Tools Service', () => {
   });
 
   it(`should get tool for command df`, async () => {
-    expect(await service.getTool('df')).toBe('/usr/bin/df');
+    expect(await service.getTool('df')).toBe('/bin/df');
   });
 
   it(`should get command for command btrfsCreateSnapshot`, async () => {
@@ -56,12 +56,13 @@ describe('Tools Service', () => {
         destBackupNumber: 20,
         qGroupId: 2,
       }),
-    ).toBe('/usr/bin/btrfs subvolume snapshot -i 1/2 hostPath/pc-test/17 hostPath/pc-test/20');
+    ).toBe('/bin/btrfs subvolume snapshot -i 1/2 hostPath/pc-test/17 hostPath/pc-test/20');
   });
 
   it(`should get all path`, async () => {
     expect(await service.getPaths({ hostname: 'pc-test', srcBackupNumber: 14, destBackupNumber: 33 })).toEqual({
       destBackupPath: 'hostPath/pc-test/33',
+      hostnamePath: 'hostPath/pc-test',
       qgroupHostPath: 'hostPath/pc-test/qgroup',
       srcBackupPath: 'hostPath/pc-test/14',
     });

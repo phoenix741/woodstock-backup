@@ -47,25 +47,25 @@ export class InternalBackupTask implements BackupTask {
     this.ip = original.ip;
   }
 
-  addSubtask(...subtasks: InternalBackupSubTask[]) {
+  addSubtask(...subtasks: InternalBackupSubTask[]): void {
     for (const subtask of subtasks) {
       this.subtasks.push(subtask);
     }
   }
 
-  start() {
+  start(): void {
     this.startDate = new Date().getTime();
   }
 
-  get state() {
-    const running = this.subtasks.some(subtask => [BackupState.RUNNING, BackupState.WAITING].includes(subtask.state));
-    const failed = this.subtasks.some(subtask => [BackupState.FAILED, BackupState.ABORTED].includes(subtask.state));
+  get state(): BackupState {
+    const running = this.subtasks.some((subtask) => [BackupState.RUNNING, BackupState.WAITING].includes(subtask.state));
+    const failed = this.subtasks.some((subtask) => [BackupState.FAILED, BackupState.ABORTED].includes(subtask.state));
     if (running) {
       if (failed) {
         return BackupState.ABORTED;
       }
 
-      const started = this.subtasks.some(subtask => [BackupState.RUNNING].includes(subtask.state));
+      const started = this.subtasks.some((subtask) => [BackupState.RUNNING].includes(subtask.state));
       if (started) {
         return BackupState.RUNNING;
       }
@@ -78,12 +78,12 @@ export class InternalBackupTask implements BackupTask {
     }
   }
 
-  get complete() {
+  get complete(): boolean {
     return this.state === BackupState.SUCCESS;
   }
 
-  get progression() {
-    const subtasks = this.subtasks.filter(subtask => !!subtask.progress);
+  get progression(): TaskProgression {
+    const subtasks = this.subtasks.filter((subtask) => !!subtask.progress);
 
     const progression = subtasks.reduce((acc, subtask) => {
       acc.fileCount += subtask.progression?.fileCount || 0;
@@ -98,7 +98,19 @@ export class InternalBackupTask implements BackupTask {
     return progression;
   }
 
-  toJSON() {
+  toJSON(): Pick<
+    this,
+    | 'number'
+    | 'host'
+    | 'config'
+    | 'previousNumber'
+    | 'ip'
+    | 'startDate'
+    | 'subtasks'
+    | 'state'
+    | 'progression'
+    | 'complete'
+  > {
     return pick(
       this,
       'host',

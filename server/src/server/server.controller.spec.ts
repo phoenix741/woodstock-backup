@@ -5,8 +5,8 @@ import { Response } from 'express';
 import { join } from 'path';
 
 import { ApplicationConfigService } from '../config/application-config.service';
-import { BtrfsService } from '../storage/btrfs/btrfs.service';
 import { ServerController } from './server.controller';
+import { ServerService } from './server.service';
 
 jest.mock('child_process');
 
@@ -19,7 +19,7 @@ describe('Server Controller', () => {
     logPath: join('__fixtures__'),
   };
 
-  const btrfsServiceMock = {
+  const serverServiceMock = {
     check: jest.fn(),
   };
 
@@ -27,7 +27,7 @@ describe('Server Controller', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         { provide: ApplicationConfigService, useValue: applicationConfigMock },
-        { provide: BtrfsService, useValue: btrfsServiceMock },
+        { provide: ServerService, useValue: serverServiceMock },
       ],
       controllers: [ServerController],
     }).compile();
@@ -41,7 +41,7 @@ describe('Server Controller', () => {
 
   it('/server/status should retrieve the btrfs status', async () => {
     // GIVEN
-    btrfsServiceMock.check.mockResolvedValueOnce({ isBtrfsVolume: true });
+    serverServiceMock.check.mockResolvedValueOnce({ isBtrfsVolume: true });
 
     // THEN
     expect(await controller.getStatus()).toEqual({ isBtrfsVolume: true });
