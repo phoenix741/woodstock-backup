@@ -18,7 +18,7 @@ export class StatsConsumer {
   ) {}
 
   @Process({ name: 'stats' })
-  async calculateStats(job: Job<BackupTask>) {
+  async calculateStats(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Calculate for backup ${job.data.host}/${job.data.number} - JOB ID = ${job.id}`);
 
     await this.hostConsumerUtilService.lock(job);
@@ -26,7 +26,7 @@ export class StatsConsumer {
       if (job.data.number !== undefined && job.data.number !== null) {
         await this.calculateStatsForHost(job, job.data.number);
       } else {
-        const backupNumbers = (await this.backupsService.getBackups(job.data.host)).map(b => b.number);
+        const backupNumbers = (await this.backupsService.getBackups(job.data.host)).map((b) => b.number);
         for (let i = 0; i < backupNumbers.length; i++) {
           await this.calculateStatsForHost(job, backupNumbers[i]);
           job.progress((i + 1) / backupNumbers.length);
@@ -45,7 +45,7 @@ export class StatsConsumer {
     this.logger.debug(`END: Of calculate of the host ${job.data.host}/${job.data.number} - JOB ID = ${job.id}`);
   }
 
-  private async calculateStatsForHost(job: Job<BackupTask>, number: number) {
+  private async calculateStatsForHost(job: Job<BackupTask>, number: number): Promise<void> {
     const backup = await this.backupsService.getBackup(job.data.host, number);
     if (!backup) {
       throw new NotFoundException(`Can't find a backup for ${job.data.host}`);

@@ -42,12 +42,16 @@ describe('Backups File Service', () => {
           ctime: new Date(1),
           mtime: new Date(1),
           birthtime: new Date(1),
+          uid: 0,
+          gid: 0,
         }),
         dir1: mock.directory({
           atime: new Date(1),
           ctime: new Date(1),
           mtime: new Date(1),
           birthtime: new Date(1),
+          uid: 0,
+          gid: 0,
           items: {
             /** empty directory */
           },
@@ -59,54 +63,65 @@ describe('Backups File Service', () => {
     const listShare = await service.listShare('name', 10);
 
     // THEN
-    expect(listShare).toMatchInlineSnapshot(`
-      Array [
-        Object {
-          "atime": 1970-01-01T00:00:00.001Z,
-          "atimeMs": 1,
-          "birthtime": 1970-01-01T00:00:00.001Z,
-          "birthtimeMs": 1,
-          "blksize": 4096,
-          "blocks": 1,
-          "ctime": 1970-01-01T00:00:00.001Z,
-          "ctimeMs": 1,
-          "dev": 8675309,
-          "gid": 1000,
-          "ino": 14,
-          "mode": 16895,
-          "mtime": 1970-01-01T00:00:00.001Z,
-          "mtimeMs": 1,
-          "name": "dir1",
-          "nlink": 2,
-          "rdev": 0,
-          "size": 1,
-          "type": "DIRECTORY",
-          "uid": 1000,
-        },
-        Object {
-          "atime": 1970-01-01T00:00:00.001Z,
-          "atimeMs": 1,
-          "birthtime": 1970-01-01T00:00:00.001Z,
-          "birthtimeMs": 1,
-          "blksize": 4096,
-          "blocks": 1,
-          "ctime": 1970-01-01T00:00:00.001Z,
-          "ctimeMs": 1,
-          "dev": 8675309,
-          "gid": 1000,
-          "ino": 13,
-          "mode": 33206,
-          "mtime": 1970-01-01T00:00:00.001Z,
-          "mtimeMs": 1,
-          "name": "file1",
-          "nlink": 1,
-          "rdev": 0,
-          "size": 17,
-          "type": "REGULAR_FILE",
-          "uid": 1000,
-        },
-      ]
-    `);
+    expect(listShare[0]).toMatchInlineSnapshot(
+      {
+        ino: expect.any(Number),
+      },
+      `
+      Object {
+        "atime": 1970-01-01T00:00:00.001Z,
+        "atimeMs": 1,
+        "birthtime": 1970-01-01T00:00:00.001Z,
+        "birthtimeMs": 1,
+        "blksize": 4096,
+        "blocks": 1,
+        "ctime": 1970-01-01T00:00:00.001Z,
+        "ctimeMs": 1,
+        "dev": 8675309,
+        "gid": 0,
+        "ino": Any<Number>,
+        "mode": 16895,
+        "mtime": 1970-01-01T00:00:00.001Z,
+        "mtimeMs": 1,
+        "name": "dir1",
+        "nlink": 2,
+        "rdev": 0,
+        "size": 1,
+        "type": "DIRECTORY",
+        "uid": 0,
+      }
+    `,
+    );
+
+    expect(listShare[1]).toMatchInlineSnapshot(
+      {
+        ino: expect.any(Number),
+      },
+      `
+      Object {
+        "atime": 1970-01-01T00:00:00.001Z,
+        "atimeMs": 1,
+        "birthtime": 1970-01-01T00:00:00.001Z,
+        "birthtimeMs": 1,
+        "blksize": 4096,
+        "blocks": 1,
+        "ctime": 1970-01-01T00:00:00.001Z,
+        "ctimeMs": 1,
+        "dev": 8675309,
+        "gid": 0,
+        "ino": Any<Number>,
+        "mode": 33206,
+        "mtime": 1970-01-01T00:00:00.001Z,
+        "mtimeMs": 1,
+        "name": "file1",
+        "nlink": 1,
+        "rdev": 0,
+        "size": 17,
+        "type": "REGULAR_FILE",
+        "uid": 0,
+      }
+    `,
+    );
   });
 
   it('should list all files of a directory', async () => {
@@ -119,12 +134,16 @@ describe('Backups File Service', () => {
           ctime: new Date(1),
           mtime: new Date(1),
           birthtime: new Date(1),
+          uid: 0,
+          gid: 0,
         }),
         dir1: mock.directory({
           atime: new Date(1),
           ctime: new Date(1),
           mtime: new Date(1),
           birthtime: new Date(1),
+          uid: 0,
+          gid: 0,
           items: {
             /** empty directory */
           },
@@ -136,54 +155,65 @@ describe('Backups File Service', () => {
     const listFiles = await service.list('name', 10, '/share', '/toto');
 
     // THEN
-    expect(listFiles).toMatchInlineSnapshot(`
-      Array [
-        Object {
-          "atime": 1970-01-01T00:00:00.001Z,
-          "atimeMs": 1,
-          "birthtime": 1970-01-01T00:00:00.001Z,
-          "birthtimeMs": 1,
-          "blksize": 4096,
-          "blocks": 1,
-          "ctime": 1970-01-01T00:00:00.001Z,
-          "ctimeMs": 1,
-          "dev": 8675309,
-          "gid": 1000,
-          "ino": 30,
-          "mode": 16895,
-          "mtime": 1970-01-01T00:00:00.001Z,
-          "mtimeMs": 1,
-          "name": "dir1",
-          "nlink": 2,
-          "rdev": 0,
-          "size": 1,
-          "type": "DIRECTORY",
-          "uid": 1000,
-        },
-        Object {
-          "atime": 1970-01-01T00:00:00.001Z,
-          "atimeMs": 1,
-          "birthtime": 1970-01-01T00:00:00.001Z,
-          "birthtimeMs": 1,
-          "blksize": 4096,
-          "blocks": 1,
-          "ctime": 1970-01-01T00:00:00.001Z,
-          "ctimeMs": 1,
-          "dev": 8675309,
-          "gid": 1000,
-          "ino": 29,
-          "mode": 33206,
-          "mtime": 1970-01-01T00:00:00.001Z,
-          "mtimeMs": 1,
-          "name": "file1",
-          "nlink": 1,
-          "rdev": 0,
-          "size": 17,
-          "type": "REGULAR_FILE",
-          "uid": 1000,
-        },
-      ]
-    `);
+    expect(listFiles[0]).toMatchInlineSnapshot(
+      {
+        ino: expect.any(Number),
+      },
+      `
+      Object {
+        "atime": 1970-01-01T00:00:00.001Z,
+        "atimeMs": 1,
+        "birthtime": 1970-01-01T00:00:00.001Z,
+        "birthtimeMs": 1,
+        "blksize": 4096,
+        "blocks": 1,
+        "ctime": 1970-01-01T00:00:00.001Z,
+        "ctimeMs": 1,
+        "dev": 8675309,
+        "gid": 0,
+        "ino": Any<Number>,
+        "mode": 16895,
+        "mtime": 1970-01-01T00:00:00.001Z,
+        "mtimeMs": 1,
+        "name": "dir1",
+        "nlink": 2,
+        "rdev": 0,
+        "size": 1,
+        "type": "DIRECTORY",
+        "uid": 0,
+      }
+    `,
+    );
+
+    expect(listFiles[1]).toMatchInlineSnapshot(
+      {
+        ino: expect.any(Number),
+      },
+      `
+      Object {
+        "atime": 1970-01-01T00:00:00.001Z,
+        "atimeMs": 1,
+        "birthtime": 1970-01-01T00:00:00.001Z,
+        "birthtimeMs": 1,
+        "blksize": 4096,
+        "blocks": 1,
+        "ctime": 1970-01-01T00:00:00.001Z,
+        "ctimeMs": 1,
+        "dev": 8675309,
+        "gid": 0,
+        "ino": Any<Number>,
+        "mode": 33206,
+        "mtime": 1970-01-01T00:00:00.001Z,
+        "mtimeMs": 1,
+        "name": "file1",
+        "nlink": 1,
+        "rdev": 0,
+        "size": 17,
+        "type": "REGULAR_FILE",
+        "uid": 0,
+      }
+    `,
+    );
   });
 
   it('should throw exception when list of file is not absolute ', async () => {
@@ -210,6 +240,8 @@ describe('Backups File Service', () => {
           ctime: new Date(1),
           mtime: new Date(1),
           birthtime: new Date(1),
+          uid: 0,
+          gid: 0,
         }),
       },
     });
@@ -218,10 +250,16 @@ describe('Backups File Service', () => {
     const infos = await service.getFileName('name', 10, '/share', '/toto/file1');
 
     // THEN
-    expect(infos).toMatchInlineSnapshot(`
+    expect(infos).toMatchInlineSnapshot(
+      {
+        stats: {
+          ino: expect.any(Number),
+        },
+      },
+      `
       Object {
         "filename": "destinationDirectory/name/10/share/toto/file1",
-        "stats": Stats {
+        "stats": Object {
           "atime": 1970-01-01T00:00:00.001Z,
           "atimeMs": 1,
           "birthtime": 1970-01-01T00:00:00.001Z,
@@ -231,18 +269,19 @@ describe('Backups File Service', () => {
           "ctime": 1970-01-01T00:00:00.001Z,
           "ctimeMs": 1,
           "dev": 8675309,
-          "gid": 1000,
-          "ino": 45,
+          "gid": 0,
+          "ino": Any<Number>,
           "mode": 33206,
           "mtime": 1970-01-01T00:00:00.001Z,
           "mtimeMs": 1,
           "nlink": 1,
           "rdev": 0,
           "size": 17,
-          "uid": 1000,
+          "uid": 0,
         },
       }
-    `);
+    `,
+    );
   });
 
   it('should throw exception when list of file is not absolute ', async () => {

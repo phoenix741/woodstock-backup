@@ -20,7 +20,7 @@ export class BackupsCommand {
     command: 'import <hostname> <date> <path>',
     description: 'Import backup from filesystem',
   })
-  async import(host: string, date: number, pathPrefix: string) {
+  async import(host: string, date: number, pathPrefix: string): Promise<void> {
     this.spinner = createSpinner();
     this.spinner.start(`[Stats] ${host}/NA: Progress 0%`);
 
@@ -29,18 +29,18 @@ export class BackupsCommand {
     config.operations = config.operations || {};
     config.operations.finalizeTasks = [];
     config.operations.tasks = config.operations.tasks
-      ?.filter(operation => operation.name !== 'ExecuteCommand')
-      .map(operation => {
+      ?.filter((operation) => operation.name !== 'ExecuteCommand')
+      .map((operation) => {
         switch (operation.name) {
           case 'RSyncBackup':
             return {
               ...operation,
-              share: operation.share.map(s => ({ ...s, pathPrefix })),
+              share: operation.share.map((s) => ({ ...s, pathPrefix })),
             };
           case 'RSyncdBackup':
             return {
               name: 'RSyncBackup',
-              share: operation.share.map(s => ({ ...s, pathPrefix })),
+              share: operation.share.map((s) => ({ ...s, pathPrefix })),
               includes: operation.includes,
               excludes: operation.excludes,
               timeout: operation.timeout,
@@ -65,7 +65,7 @@ export class BackupsCommand {
   }
 
   @OnQueueProgress()
-  handler(job: Job<BackupTask>, progress: number) {
+  handler(job: Job<BackupTask>, progress: number): void {
     if (job.id === this.jobId && this.spinner) {
       this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
     }

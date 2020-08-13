@@ -2,19 +2,18 @@ import { Query, ResolveField, Resolver } from '@nestjs/graphql';
 
 import { CompressionStatistics, DiskUsageStats, SpaceStatistics, HostQuota } from './stats.model';
 import { StatsService } from './stats.service';
-import { last } from 'rxjs/operators';
 
 @Resolver(() => DiskUsageStats)
 export class StatsResolver {
   constructor(private statsService: StatsService) {}
 
   @Query(() => DiskUsageStats)
-  async diskUsageStats() {
+  async diskUsageStats(): Promise<DiskUsageStats> {
     return this.statsService.getStatistics();
   }
 
   @ResolveField(() => SpaceStatistics)
-  async currentSpace() {
+  async currentSpace(): Promise<{ timestamp: number; fstype: string; size: number; used: number; free: number }> {
     const currentSpace = await this.statsService.getSpace({});
     return {
       timestamp: new Date().getTime(),
@@ -23,17 +22,26 @@ export class StatsResolver {
   }
 
   @ResolveField(() => [HostQuota], { nullable: true })
-  async currentRepartition() {
+  async currentRepartition(): Promise<
+    | {
+        total: number;
+        host: string;
+        number: number;
+        refr: number;
+        excl: number;
+      }[]
+    | null
+  > {
     const currentStatistics = await this.statsService.getStatistics();
     const lastQuotas = currentStatistics.quotas.length && currentStatistics.quotas[currentStatistics.quotas.length - 1];
     if (lastQuotas) {
-      return lastQuotas.volumes.filter(v => v.number === -1).map(v => ({ ...v, total: v.refr }));
+      return lastQuotas.volumes.filter((v) => v.number === -1).map((v) => ({ ...v, total: v.refr }));
     }
     return null;
   }
 
   @ResolveField(() => [CompressionStatistics])
-  compressionStats() {
+  compressionStats(): Promise<CompressionStatistics[]> {
     return this.statsService.getCompressionStatistics();
   }
 }

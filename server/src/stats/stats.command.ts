@@ -16,7 +16,7 @@ export class StatsCommand {
 
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
-    @InjectQueue('schedule') private scheduleQueue: Queue<{}>,
+    @InjectQueue('schedule') private scheduleQueue: Queue<unknown>,
   ) {}
 
   @Command({
@@ -29,7 +29,7 @@ export class StatsCommand {
       },
     ],
   })
-  async create(host: string, cmd: Cmd) {
+  async create(host: string, cmd: Cmd): Promise<void> {
     const { number } = cmd.opts();
     this.spinner = createSpinner();
     this.spinner.start(`[Stats] ${host}/${number || 'NA'}: Progress 0%`);
@@ -45,7 +45,7 @@ export class StatsCommand {
     command: 'calc',
     description: 'Calculate daily statistics',
   })
-  async statistics() {
+  async statistics(): Promise<void> {
     this.spinner = createSpinner();
     this.spinner.start('[Stats] Start');
 
@@ -54,7 +54,7 @@ export class StatsCommand {
   }
 
   @OnQueueProgress()
-  handler(job: Job<BackupTask>, progress: number) {
+  handler(job: Job<BackupTask>, progress: number): void {
     if (job.id === this.jobId && this.spinner) {
       this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
     }

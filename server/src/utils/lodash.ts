@@ -4,7 +4,7 @@ interface CompactableObject {
 
 export function compactArray<T>(obj: Array<T>): Array<T> {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  return obj.filter(v => !(v === undefined || v === null)).map(v => compact(v as any));
+  return obj.filter((v) => !(v === undefined || v === null)).map((v) => compact(v as any));
 }
 
 export function compactObject<T extends CompactableObject>(obj: T): T {
@@ -37,12 +37,12 @@ export function compact<T>(obj: T | Array<T>): T | Array<T> {
  */
 export function pick<T, K extends keyof T>(obj: T, ...keys: K[]): Pick<T, K> {
   return keys
-    .map(key => [key, obj[key]])
+    .map((key) => [key, obj[key]])
     .reduce((obj, [key, val]) => Object.assign(obj, { [key as string]: val }), {} as Pick<T, K>);
 }
 
-export function rendering(string: string, context: any, stack = ''): string {
-  return Object.keys(context).reduce(function(accumulator, key) {
+export function rendering(string: string, context: Record<string, any>, stack = ''): string {
+  return Object.keys(context).reduce(function (accumulator, key) {
     const newStack = stack ? stack + '.' : '';
     const find = '\\$\\{\\s*' + newStack + key + '\\s*\\}';
     const re = new RegExp(find, 'g');

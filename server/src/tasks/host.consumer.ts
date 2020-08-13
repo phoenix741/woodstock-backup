@@ -35,7 +35,7 @@ export class HostConsumer {
     name: 'backup',
     concurrency: maxBackupTask,
   })
-  async launchBackup(job: Job<BackupTask>) {
+  async launchBackup(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
 
     const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
@@ -72,7 +72,7 @@ export class HostConsumer {
         .launchBackup(backupLogger, task)
         .pipe(
           auditTime(5000), // FIXME: Conf
-          map(async task => {
+          map(async (task) => {
             job.update(task);
             job.progress(task.progression?.percent);
             await this.backupsService.addBackup(job.data.host, task.toBackup());
@@ -108,7 +108,7 @@ export class HostConsumer {
     name: 'schedule_host',
     concurrency: 0,
   })
-  async schedule(job: Job<BackupTask>) {
+  async schedule(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Test ${job.data.host} for backup - JOB ID = ${job.id}`);
 
     const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
@@ -126,8 +126,9 @@ export class HostConsumer {
     // If backup is activated, and the last backup is old, we crete a new backup
     const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate || 0)) / 1000;
     this.logger.debug(
-      `Last backup for the host ${job.data.host} have been made at ${timeSinceLastBackup /
-        3600} hours past (should be made after ${schedule.backupPerdiod / 3600} hour)  - JOB ID = ${job.id}`,
+      `Last backup for the host ${job.data.host} have been made at ${
+        timeSinceLastBackup / 3600
+      } hours past (should be made after ${schedule.backupPerdiod / 3600} hour)  - JOB ID = ${job.id}`,
     );
     if (schedule.activated && (!lastBackup?.complete || timeSinceLastBackup > schedule.backupPerdiod)) {
       // Check if we can ping
@@ -147,7 +148,7 @@ export class HostConsumer {
   }
 
   @Process('remove_backup')
-  async remove(job: Job<BackupTask>) {
+  async remove(job: Job<BackupTask>): Promise<void> {
     this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number} - JOB ID = ${job.id}`);
     if (!job.data.host || job.data.number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);

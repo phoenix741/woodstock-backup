@@ -28,9 +28,9 @@ export class StatsService {
     private btrfsService: BtrfsService,
   ) {}
 
-  async getCompressionStatistics() {
+  async getCompressionStatistics(): Promise<CompressionStatistics[]> {
     const hosts = await this.hostsService.getHosts();
-    const backups = (await Promise.all(hosts.map(async hostname => await this.backupsService.getBackups(hostname))))
+    const backups = (await Promise.all(hosts.map(async (hostname) => await this.backupsService.getBackups(hostname))))
       .flat()
       .sort((b1, b2) => b1.startDate - b2.startDate);
 
@@ -44,7 +44,7 @@ export class StatsService {
     }, [] as CompressionStatistics[]);
   }
 
-  async getStatistics() {
+  async getStatistics(): Promise<DiskUsageStats> {
     if (this.statsLoaded === false) {
       this.stats = await this.yamlService.loadFile(this.configService.statisticsPath, DEFAULT_STATISTICS);
       this.statsLoaded = true;
@@ -53,7 +53,7 @@ export class StatsService {
     return this.stats || DEFAULT_STATISTICS;
   }
 
-  async refreshStatistics() {
+  async refreshStatistics(): Promise<void> {
     const params: CommandParameters = {};
     const space = await this.getSpace(params);
     const volumes = await this.getBackupQuota(params);
@@ -65,10 +65,10 @@ export class StatsService {
     this.statsLoaded = false;
   }
 
-  async getSpace(params: CommandParameters) {
+  async getSpace(params: CommandParameters): Promise<{ fstype: string; size: number; used: number; free: number }> {
     const { stdout } = await this.executeCommandService.executeTool('statsSpaceUsage', params);
     const [, line] = stdout.toString().split(/[\n\r]/);
-    const [, fstype, nbBlock1K, nbUsedBlock, nbFreeBlock] = line.split(/\s+/).filter(n => !!n);
+    const [, fstype, nbBlock1K, nbUsedBlock, nbFreeBlock] = line.split(/\s+/).filter((n) => !!n);
     return {
       fstype,
       size: parseInt(nbBlock1K) * 1024,
@@ -77,7 +77,7 @@ export class StatsService {
     };
   }
 
-  async getBackupQuota(params: CommandParameters) {
+  async getBackupQuota(params: CommandParameters): Promise<BackupQuota[]> {
     const volumes = { ...(await this.listSubvolume(params)), ...(await this.listHost(params)) };
     const quotas = await this.listQuota(params);
 
@@ -95,12 +95,12 @@ export class StatsService {
     return result;
   }
 
-  async calculateCompressionSize(params: CommandParameters) {
+  async calculateCompressionSize(params: CommandParameters): Promise<DiskUsageStatistics> {
     const { stdout } = await this.executeCommandService.executeTool('btrfsGetCompressionSize', params);
     const [, , ...lines] = stdout.toString().split(/[\n\r]/);
 
     return lines.reduce((acc, line) => {
-      const [type, , diskUsage, uncompressed] = line.split(/\s+/).filter(n => !!n);
+      const [type, , diskUsage, uncompressed] = line.split(/\s+/).filter((n) => !!n);
       if (!type) {
         return acc;
       }
@@ -113,12 +113,12 @@ export class StatsService {
     }, {} as DiskUsageStatistics);
   }
 
-  private async listQuota(params: CommandParameters) {
+  private async listQuota(params: CommandParameters): Promise<Record<string, { refr: number; excl: number }>> {
     const { stdout } = await this.executeCommandService.executeTool('statsDiskUsage', params);
     const [, , ...lines] = stdout.toString().split(/[\n\r]/);
 
     return lines.reduce((acc, line) => {
-      const [id, refr, excl] = line.split(/\s+/).filter(n => !!n);
+      const [id, refr, excl] = line.split(/\s+/).filter((n) => !!n);
       if (!id) {
         return acc;
       }
@@ -128,7 +128,7 @@ export class StatsService {
     }, {} as Record<string, { refr: number; excl: number }>);
   }
 
-  private async listSubvolume(params: CommandParameters) {
+  private async listSubvolume(params: CommandParameters): Promise<Record<string, { host: string; number: number }>> {
     const lines = await this.btrfsService.listSubvolume(params);
     return lines.reduce((acc, line) => {
       const { id, host, number } = line;
@@ -138,7 +138,7 @@ export class StatsService {
     }, {} as Record<string, { host: string; number: number }>);
   }
 
-  private async listHost(params: CommandParameters) {
+  private async listHost(params: CommandParameters): Promise<Record<string, { host: string; number: number }>> {
     const hosts = await this.hostsService.getHosts();
     return await hosts.reduce(async (accP, host) => {
       const acc = await accP;

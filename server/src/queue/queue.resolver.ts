@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
-import { JobStatus, Queue } from 'bull';
+import Bull, { JobStatus, Queue, Job as BullJob } from 'bull';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 
@@ -18,7 +18,9 @@ export class QueueResolver {
   ) {}
 
   @Query(() => [Job])
-  async queue(@Args('state', { type: () => [String], defaultValue: [] }) states: JobStatus[]) {
+  async queue(
+    @Args('state', { type: () => [String], defaultValue: [] }) states: JobStatus[],
+  ): Promise<Bull.Job<BackupTask>[]> {
     return await this.backupQueue.getJobs(states);
   }
 
@@ -32,34 +34,28 @@ export class QueueResolver {
       delayed: await this.backupQueue.getDelayedCount(),
       completed: await this.backupQueue.getCompletedCount(),
 
-      lastExecution: interval
-        .prev()
-        .toDate()
-        .getTime(),
-      nextWakeup: interval
-        .next()
-        .toDate()
-        .getTime(),
+      lastExecution: interval.prev().toDate().getTime(),
+      nextWakeup: interval.next().toDate().getTime(),
     };
   }
 
   @Subscription(() => Job)
-  jobUpdated() {
+  jobUpdated(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
     return this.pubSub.asyncIterator('jobUpdated');
   }
 
   @Subscription(() => Int)
-  jobWaiting() {
+  jobWaiting(): AsyncIterator<{ jobWaiting: number }> {
     return this.pubSub.asyncIterator('jobWaiting');
   }
 
   @Subscription(() => Job)
-  jobFailed() {
+  jobFailed(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
     return this.pubSub.asyncIterator('jobFailed');
   }
 
   @Subscription(() => Job)
-  jobRemoved() {
+  jobRemoved(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
     return this.pubSub.asyncIterator('jobRemoved');
   }
 }
