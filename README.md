@@ -1,5 +1,7 @@
 # Woodstock Backup
 
+[![Build Status](https://ci.shadoware.org/api/badges/ShadowareOrg/woodstock-backup/status.svg)](https://ci.shadoware.org/ShadowareOrg/woodstock-backup)
+
 _Woodstock backup_ is a backup software. The purpose is to backup software from a central point.
 
 Instead of launching the backup from the client, it's the server that contacts the client to launch the backup.

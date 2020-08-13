@@ -1,0 +1,57 @@
+kind: pipeline
+type: docker
+name: default
+
+steps:
+  - name: client:unit
+    image: node:12
+    commands:
+      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
+      - apt update && apt install -y google-chrome-stable
+      - cd client
+      - npm install
+      - npm run lint
+      - npm run test:unit
+
+  - name: server:unit
+    image: node:12
+    commands:
+      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
+      - apt update && apt install -y google-chrome-stable
+      - cd server
+      - npm install
+      - npm run lint
+      - npm run test
+
+  - name: website:build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup-website:develop
+      dockerfile: Dockerfile
+      context: ./website
+      auto_tag: true
+
+  - name: app:build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup:develop
+      auto_tag: true
+
+  - name: notify
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: webhook
+      channel: ci
+    when:
+      status: [success, failure]
