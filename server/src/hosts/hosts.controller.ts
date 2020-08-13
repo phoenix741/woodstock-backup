@@ -15,9 +15,9 @@ export class HostController {
     description: 'Return the list of host',
     type: [HostInformation],
   })
-  async list() {
+  async list(): Promise<HostInformation[]> {
     return Promise.all(
-      (await this.hostsService.getHosts()).map(async host => {
+      (await this.hostsService.getHosts()).map(async (host) => {
         return new HostInformation(host, await this.backupsService.getLastBackup(host));
       }),
     );
@@ -28,7 +28,7 @@ export class HostController {
     description: 'Return the configuration of an host',
     type: HostConfiguration,
   })
-  async get(@Param('name') name: string) {
+  async get(@Param('name') name: string): Promise<HostConfiguration> {
     const host = await this.hostsService.getHostConfiguration(name);
     if (!host) {
       throw new NotFoundException(`Can't find the host with name ${name}`);

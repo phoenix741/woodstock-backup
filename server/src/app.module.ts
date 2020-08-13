@@ -127,7 +127,7 @@ export class AppModule implements OnModuleInit {
     private serverService: ServerService,
   ) {}
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     const checks = await this.serverService.check();
     let checksCmd = true;
     for (const check of checks.commands) {

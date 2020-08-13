@@ -13,7 +13,7 @@ export class QueueController {
     description: 'Return the list of task',
     type: [BackupTask],
   })
-  async list() {
-    return (await this.queue.getJobs(['waiting', 'active', 'failed', 'delayed'])).map(job => job.data);
+  async list(): Promise<BackupTask[]> {
+    return (await this.queue.getJobs(['waiting', 'active', 'failed', 'delayed'])).map((job) => job.data);
   }
 }

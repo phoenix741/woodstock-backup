@@ -6,7 +6,7 @@ export class SharePathService {
     return encodeURIComponent(path || '');
   }
 
-  unmangle(path: string) {
+  unmangle(path: string): string {
     return decodeURIComponent(path);
   }
 }

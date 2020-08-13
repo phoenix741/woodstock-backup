@@ -17,11 +17,11 @@ export class SchedulerConsumer {
   ) {}
 
   @Process('wakeup')
-  async wakeupJob(job: Job<{}>) {
+  async wakeupJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Wakeup scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
       const hasBackup = (await this.hostsQueue.getJobs(['active', 'delayed', 'waiting'])).find(
-        b => b.data.host === host,
+        (b) => b.data.host === host,
       );
 
       if (!hasBackup) {
@@ -31,7 +31,7 @@ export class SchedulerConsumer {
   }
 
   @Process('nightly')
-  async nightlyJob(job: Job<{}>) {
+  async nightlyJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Nightly scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     this.statsService.refreshStatistics();
   }

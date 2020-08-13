@@ -35,7 +35,7 @@ export class HostsService {
   /**
    * Create/Update the configuration of an host
    */
-  async updateHostConfiguration(host: string, config: HostConfiguration) {
+  async updateHostConfiguration(host: string, config: HostConfiguration): Promise<void> {
     const hosts = await this.getHosts();
     if (!hosts.includes(host)) {
       throw new NotFoundException(`Can't find configuration for the host with name ${host}`);
@@ -56,7 +56,7 @@ export class HostsService {
    *
    * @param host the hostname
    */
-  async addHost(host: string) {
+  async addHost(host: string): Promise<void> {
     if (host === 'hosts') {
       throw new BadRequestException(`Host ${host} is an invalid name`);
     }
@@ -73,7 +73,7 @@ export class HostsService {
 
   async lastBackupState(host: string): Promise<string | undefined> {
     const jobs = await this.hostsQueue.getJobs([]);
-    const backupJobs = jobs.filter(j => j.data.host === host).sort((j1, j2) => j2.timestamp - j1.timestamp);
+    const backupJobs = jobs.filter((j) => j.data.host === host).sort((j1, j2) => j2.timestamp - j1.timestamp);
     if (backupJobs[0]) {
       return await backupJobs[0].getState();
     }

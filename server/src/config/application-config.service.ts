@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Redis from 'ioredis';
 import { join } from 'path';
+
 import { pick } from '../utils/lodash';
 
 @Injectable()
@@ -43,18 +45,27 @@ export class ApplicationConfigService {
     return this.configService.get('LOG_PATH', join(this.backupPath, 'log'));
   }
 
-  get redis() {
+  get redis(): Redis.RedisOptions {
     return {
       host: this.configService.get<string>('REDIS_HOST', 'localhost'),
       port: this.configService.get<number>('REDIS_PORT', 6379),
     };
   }
 
-  get logLevel() {
+  get logLevel(): string {
     return this.configService.get<string>('LOG_LEVEL', 'info');
   }
 
-  toJSON() {
+  toJSON(): Pick<
+    this,
+    | 'backupPath'
+    | 'configPath'
+    | 'configPathOfHosts'
+    | 'configPathOfScheduler'
+    | 'configPathOfTools'
+    | 'hostPath'
+    | 'logPath'
+  > {
     return pick(
       this,
       'backupPath',
