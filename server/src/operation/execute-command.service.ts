@@ -36,7 +36,7 @@ export class ExecuteCommandService {
         progression.next(new BackupProgression(100));
         progression.complete();
       })
-      .catch(err => {
+      .catch((err) => {
         options.backupLogger.error(err.message, err.stack, options.context);
         progression.error(err);
       });
@@ -59,7 +59,11 @@ export class ExecuteCommandService {
     });
   }
 
-  async executeTool(command: string, params: CommandParameters, options: ExecuteCommandOption = {}) {
+  async executeTool(
+    command: string,
+    params: CommandParameters,
+    options: ExecuteCommandOption = {},
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
     const commandString = await this.toolsService.getCommand(command, params);
     this.logger.debug(`Execute command: ${commandString}`);
     return await this.executeCommand(commandString, options);

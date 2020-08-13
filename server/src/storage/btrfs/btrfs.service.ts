@@ -40,7 +40,7 @@ export class BtrfsService {
     }
   }
 
-  async getHostGroupId(params: CommandParameters) {
+  async getHostGroupId(params: CommandParameters): Promise<number> {
     try {
       const qGroupHostPath = await this.toolsService.getPath('qgroupHostPath', params);
       this.logger.debug(`Get the qGroup for host ${params.hostname} at ${qGroupHostPath}`);
@@ -58,7 +58,7 @@ export class BtrfsService {
     }
   }
 
-  private async getQGroupOfHost(params: CommandParameters) {
+  private async getQGroupOfHost(params: CommandParameters): Promise<number> {
     const value = await this.getHostGroupId(params);
     if (value < 0) {
       return await this.createQGroupForHost(params);
@@ -66,7 +66,7 @@ export class BtrfsService {
     return value;
   }
 
-  async createSnapshot(params: CommandParameters) {
+  async createSnapshot(params: CommandParameters): Promise<void> {
     const qGroupId = await this.getQGroupOfHost(params);
 
     try {
@@ -94,7 +94,7 @@ export class BtrfsService {
     }
   }
 
-  async removeSnapshot(params: CommandParameters) {
+  async removeSnapshot(params: CommandParameters): Promise<void> {
     const lines = await this.listSubvolume(params);
     await this.markReadWrite(params);
     await this.executeCommandService.executeTool('btrfsDeleteSnapshot', params);
@@ -108,8 +108,8 @@ export class BtrfsService {
       number: number;
     }[],
     params: CommandParameters,
-  ) {
-    const line = lines.find(line => params.hostname === line.host && params.destBackupNumber === line.number);
+  ): Promise<void> {
+    const line = lines.find((line) => params.hostname === line.host && params.destBackupNumber === line.number);
     const qGroupId = line?.id;
     if (qGroupId) {
       await this.executeCommandService.executeTool('btrfsBackupQGroupDestroy', {
@@ -119,22 +119,22 @@ export class BtrfsService {
     }
   }
 
-  async markReadOnly(params: CommandParameters) {
+  async markReadOnly(params: CommandParameters): Promise<void> {
     await this.executeCommandService.executeTool('btrfsMarkROSubvolume', params);
   }
 
-  async markReadWrite(params: CommandParameters) {
+  async markReadWrite(params: CommandParameters): Promise<void> {
     await this.executeCommandService.executeTool('btrfsMarkRWSubvolume', params);
   }
 
-  async listSubvolume(params: CommandParameters) {
+  async listSubvolume(params: CommandParameters): Promise<{ id: number; host: string; number: number }[]> {
     const { stdout } = await this.executeCommandService.executeTool('btrfsListSubvolume', params);
     const [, , ...lines] = stdout.toString().split(/[\n\r]/);
 
     return lines
-      .map(line => {
+      .map((line) => {
         if (line) {
-          const [id, , , path] = line.split(/\s+/).filter(n => !!n);
+          const [id, , , path] = line.split(/\s+/).filter((n) => !!n);
 
           const pathArray = path.split('/').slice(-2);
           const host = pathArray[0];
@@ -144,6 +144,6 @@ export class BtrfsService {
         }
         return { id: -1, host: '', number: -1 };
       })
-      .filter(l => l.id >= 0);
+      .filter((l) => l.id >= 0);
   }
 }

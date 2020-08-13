@@ -8,7 +8,7 @@ export class ServerResolver {
   constructor(private server: ServerService) {}
 
   @Query(() => ServerChecks)
-  async status() {
+  async status(): Promise<ServerChecks> {
     return this.server.check();
   }
 }

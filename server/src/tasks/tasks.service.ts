@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { from, of, throwError } from 'rxjs';
+import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, concatMap, map, startWith, tap } from 'rxjs/operators';
 
-import { HostConfiguration, Operation } from '../hosts/host-configuration.dto';
+import { Operation } from '../hosts/host-configuration.dto';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { ResolveService } from '../network/resolve';
 import { ExecuteCommandService } from '../operation/execute-command.service';
@@ -21,10 +21,10 @@ export class TasksService {
     public rsyncCommandService: RSyncCommandService,
   ) {}
 
-  addSubTasks(task: InternalBackupTask) {
+  addSubTasks(task: InternalBackupTask): void {
     // Step 1: Clone previous backup
     task.addSubtask(
-      new InternalBackupSubTask('storage', 'Create the destination directory', true, false, task => {
+      new InternalBackupSubTask('storage', 'Create the destination directory', true, false, (task) => {
         return from(
           this.btrfsService.createSnapshot({
             hostname: task.host,
@@ -37,17 +37,17 @@ export class TasksService {
 
     // Step 2: Launch all operation
     for (const operation of task.config.operations?.tasks || []) {
-      task.addSubtask(...this.createTaskFromOperation(task.config, operation));
+      task.addSubtask(...this.createTaskFromOperation(operation));
     }
 
     // Step 3: Même chose mais avec les posts tasks (but always run)
     for (const operation of task.config.operations?.finalizeTasks || []) {
-      task.addSubtask(...this.createTaskFromOperation(task.config, operation, false));
+      task.addSubtask(...this.createTaskFromOperation(operation, false));
     }
 
     // Step 4: Mark storage as readonly if complete
     task.addSubtask(
-      new InternalBackupSubTask('storage', 'Mark as readonly', true, false, task => {
+      new InternalBackupSubTask('storage', 'Mark as readonly', true, false, (task) => {
         return from(
           this.btrfsService.markReadOnly({
             hostname: task.host,
@@ -59,12 +59,12 @@ export class TasksService {
     );
   }
 
-  launchBackup(logger: BackupLogger, task: InternalBackupTask) {
+  launchBackup(logger: BackupLogger, task: InternalBackupTask): Observable<InternalBackupTask> {
     task.start();
 
     logger.log(`[${task.host}] - Start Backup with state ${task.state}`);
     return from(task.subtasks).pipe(
-      concatMap(subtask => {
+      concatMap((subtask) => {
         logger.log(`[${task.host}] - Launch subtask if ${task.state} is not failed or ${subtask.failable} is true`);
         if (![BackupState.FAILED, BackupState.ABORTED].includes(task.state) || !subtask.failable) {
           return this.launchTask(logger, task, subtask);
@@ -82,17 +82,21 @@ export class TasksService {
     );
   }
 
-  private launchTask(logger: BackupLogger, task: InternalBackupTask, subtask: InternalBackupSubTask) {
+  private launchTask(
+    logger: BackupLogger,
+    task: InternalBackupTask,
+    subtask: InternalBackupSubTask,
+  ): Observable<InternalBackupTask> {
     logger.log(`[${task.host}][${subtask.context}] - Start Subtask`, subtask.context);
     subtask.progression = subtask.progression || new TaskProgression();
     subtask.state = BackupState.RUNNING;
     return subtask.command(task, subtask, logger).pipe(
       startWith(subtask.progression),
-      map(progression => {
+      map((progression) => {
         subtask.progression = progression || subtask.progression;
         return task;
       }),
-      catchError(err => {
+      catchError((err) => {
         logger.error(`[${task.host}][${subtask.context}] - ${err.message}`, err.stack, subtask.context);
         subtask.state = BackupState.FAILED;
         return of(task);
@@ -109,11 +113,7 @@ export class TasksService {
     );
   }
 
-  private createTaskFromOperation(
-    config: HostConfiguration,
-    operation: Operation,
-    failable = true,
-  ): InternalBackupSubTask[] {
+  private createTaskFromOperation(operation: Operation, failable = true): InternalBackupSubTask[] {
     switch (operation.name) {
       case 'ExecuteCommand':
         return [
@@ -131,7 +131,7 @@ export class TasksService {
         ];
       case 'RSyncBackup':
       case 'RSyncdBackup':
-        return operation.share.map(share => {
+        return operation.share.map((share) => {
           return new InternalBackupSubTask(
             share.name,
             `Execute backup for share ${share.name}`,

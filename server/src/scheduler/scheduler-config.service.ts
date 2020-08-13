@@ -20,7 +20,7 @@ export class SchedulerConfigService {
     return await this.yamlService.loadFile(this.configService.configPathOfScheduler, DEFAULT_SCHEDULER);
   }
 
-  async setScheduler(config: ApplicationScheduler) {
+  async setScheduler(config: ApplicationScheduler): Promise<void> {
     await this.yamlService.writeFile(this.configService.configPathOfScheduler, config);
   }
 }

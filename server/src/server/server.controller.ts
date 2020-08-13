@@ -17,7 +17,7 @@ export class ServerController {
     description: 'Get the status of the server',
     type: ServerChecks,
   })
-  async getStatus() {
+  async getStatus(): Promise<ServerChecks> {
     return this.serverService.check();
   }
 
@@ -26,7 +26,7 @@ export class ServerController {
     description: 'Get the application log of the server',
     type: String,
   })
-  getApplicationLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response) {
+  getApplicationLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response): void {
     if (tailable) {
       tailLog(join(this.applicationConfig.logPath, 'application.log'), res);
     } else {
@@ -39,7 +39,7 @@ export class ServerController {
     description: 'Get the exceptions log of the server',
     type: String,
   })
-  getExceptionsLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response) {
+  getExceptionsLog(@Query('tailable', ParseBoolPipe) tailable: boolean, @Res() res: Response): void {
     if (tailable) {
       tailLog(join(this.applicationConfig.logPath, 'exceptions.log'), res);
     } else {

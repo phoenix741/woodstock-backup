@@ -15,23 +15,23 @@ export class BackupsService {
     private lockService: LockService,
   ) {}
 
-  private getBackupFile(hostname: string) {
+  private getBackupFile(hostname: string): string {
     return join(this.configService.hostPath, hostname, 'backup.yml');
   }
 
-  private getLockFile(hostname: string) {
+  private getLockFile(hostname: string): string {
     return join(this.configService.hostPath, hostname, 'LOCK');
   }
 
-  getDestinationDirectory(hostname: string, backupNumber: number) {
+  getDestinationDirectory(hostname: string, backupNumber: number): string {
     return join(this.configService.hostPath, hostname, '' + backupNumber);
   }
 
-  getLogDirectory(hostname: string) {
+  getLogDirectory(hostname: string): string {
     return join(this.configService.hostPath, hostname, 'logs');
   }
 
-  getLogFile(hostname: string, backupNumber?: number, type?: string) {
+  getLogFile(hostname: string, backupNumber?: number, type?: string): string {
     return join(
       this.configService.hostPath,
       hostname,
@@ -43,7 +43,7 @@ export class BackupsService {
   async getBackups(hostname: string): Promise<Backup[]> {
     const backups = await this.yamlService.loadFile<Backup[]>(this.getBackupFile(hostname), []);
 
-    return backups.map(backup => {
+    return backups.map((backup) => {
       if ((backup.startDate as any) instanceof Date) {
         backup.startDate = ((backup.startDate as any) as Date).getTime();
       }
@@ -56,7 +56,7 @@ export class BackupsService {
 
   async getBackup(hostname: string, number: number): Promise<Backup | undefined> {
     const backups = await this.getBackups(hostname);
-    return backups.find(b => b.number === number);
+    return backups.find((b) => b.number === number);
   }
 
   async getLastBackup(hostname: string): Promise<Backup | undefined> {
@@ -67,7 +67,7 @@ export class BackupsService {
   async addBackup(hostname: string, backup: Backup): Promise<void> {
     const backups = await this.getBackups(hostname);
 
-    const foundIndex = backups.findIndex(element => element.number === backup.number);
+    const foundIndex = backups.findIndex((element) => element.number === backup.number);
 
     if (foundIndex >= 0) {
       backups.splice(foundIndex, 1, backup);
@@ -78,10 +78,10 @@ export class BackupsService {
     await this.yamlService.writeFile(this.getBackupFile(hostname), backups);
   }
 
-  async removeBackup(hostname: string, number: number) {
+  async removeBackup(hostname: string, number: number): Promise<void> {
     const backups = await this.getBackups(hostname);
 
-    const foundIndex = backups.findIndex(element => element.number === number);
+    const foundIndex = backups.findIndex((element) => element.number === number);
 
     if (foundIndex >= 0) {
       backups.splice(foundIndex, 1);

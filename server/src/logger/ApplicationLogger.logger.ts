@@ -49,23 +49,23 @@ export class ApplicationLogger implements LoggerService {
     });
   }
 
-  log(message: string | object, context?: string) {
+  log(message: string | Record<string, unknown>, context?: string): void {
     this.logger.info(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
-  error(message: string | object, trace?: string, context?: string) {
+  error(message: string | Record<string, unknown>, trace?: string, context?: string): void {
     this.logger.error(typeof message === 'string' ? { context, trace, message } : { context, trace, ...message });
   }
 
-  warn(message: string | object, context?: string) {
+  warn(message: string | Record<string, unknown>, context?: string): void {
     this.logger.warn(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
-  debug(message: string | object, context?: string) {
+  debug(message: string | Record<string, unknown>, context?: string): void {
     this.logger.debug(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
-  verbose(message: string | object, context?: string) {
+  verbose(message: string | Record<string, unknown>, context?: string): void {
     this.logger.verbose(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 }

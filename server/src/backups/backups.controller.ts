@@ -37,7 +37,7 @@ export class BackupController {
     description: 'List all backup available',
     type: [Backup],
   })
-  async listBackup(@Param('name') name: string) {
+  async listBackup(@Param('name') name: string): Promise<Backup[]> {
     if (!(await this.hostsService.getHosts()).includes(name)) {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
@@ -47,7 +47,7 @@ export class BackupController {
 
   @Post()
   @ApiCreatedResponse({ description: 'Ask to add a new backup' })
-  async createBackup(@Param('name') name: string) {
+  async createBackup(@Param('name') name: string): Promise<void> {
     if (!(await this.hostsService.getHosts()).includes(name)) {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
@@ -59,7 +59,7 @@ export class BackupController {
   @ApiOkResponse({
     description: 'Delete a backup',
   })
-  async removeBackup(@Param('name') name: string, @Param('number', ParseIntPipe) number: number) {
+  async removeBackup(@Param('name') name: string, @Param('number', ParseIntPipe) number: number): Promise<void> {
     if (!(await this.hostsService.getHosts()).includes(name)) {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
@@ -77,7 +77,7 @@ export class BackupController {
     @Param('number', ParseIntPipe) number: number,
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
-  ) {
+  ): void {
     if (tailable) {
       tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
     } else {
@@ -95,7 +95,7 @@ export class BackupController {
     @Param('number', ParseIntPipe) number: number,
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
-  ) {
+  ): void {
     if (tailable) {
       tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
     } else {
