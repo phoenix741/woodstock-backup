@@ -1,0 +1,13 @@
+subscription RunningTasksMenuJobUpdated {
+  jobUpdated {
+    id
+    progress
+    state
+    data {
+      host
+      progression {
+        fileCount
+      }
+    }
+  }
+}

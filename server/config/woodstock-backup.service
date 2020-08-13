@@ -1,0 +1,19 @@
+[Unit]
+Description=Woodstock Backup
+Documentation=https://shadoware.org
+After=network.target
+
+[Service]
+Environment=STATIC_PATH=/opt/woodstock/client/dist
+Environment=BACKUP_PATH=/var/lib/woodstock
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=LOG_LEVEL=info
+Type=simple
+User=root
+ExecStart=/usr/bin/node /opt/woodstock/server/dist/main.js
+WorkingDirectory=/opt/woodstock/server/
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
