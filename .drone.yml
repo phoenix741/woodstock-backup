@@ -32,8 +32,8 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
-      repo: phoenix741/woodstock-backup-website:develop
-      dockerfile: Dockerfile
+      repo: phoenix741/woodstock-backup-website
+      dockerfile: ./website/Dockerfile
       context: ./website
       auto_tag: true
 
@@ -44,7 +44,7 @@ steps:
         from_secret: docker_username
       password:
         from_secret: docker_password
-      repo: phoenix741/woodstock-backup:develop
+      repo: phoenix741/woodstock-backup
       auto_tag: true
 
   - name: notify
