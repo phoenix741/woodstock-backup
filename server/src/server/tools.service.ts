@@ -61,10 +61,13 @@ export class ToolsService {
     const tools = await this.loadToolsOnlyOneTime();
     const replacementParams = Object.assign({}, params, this.configService.toJSON(), tools.tools);
 
-    return Object.entries(tools.paths).reduce((acc, [key, value]) => {
-      acc[key] = rendering(value, replacementParams);
-      return acc;
-    }, {} as Record<string, string>);
+    return {
+      ...this.configService.toJSON(),
+      ...Object.entries(tools.paths).reduce((acc, [key, value]) => {
+        acc[key] = rendering(value, replacementParams);
+        return acc;
+      }, {} as Record<string, string>),
+    };
   }
 
   async getPath(path: string, params: CommandParameters): Promise<string> {
