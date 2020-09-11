@@ -1,5 +1,5 @@
-import { InjectQueue, OnQueueProgress, Processor } from '@nestjs/bull';
-import { Job, JobId, Queue } from 'bull';
+import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
+import { JobId, Queue } from 'bull';
 import { Command, Console, createSpinner } from 'nestjs-console';
 import * as ora from 'ora';
 
@@ -22,7 +22,7 @@ export class BackupsCommand {
   })
   async import(host: string, date: number, pathPrefix: string): Promise<void> {
     this.spinner = createSpinner();
-    this.spinner.start(`[Stats] ${host}/NA: Progress 0%`);
+    this.spinner.start(`[Backups/Import] ${host}/NA: Progress 0%`);
 
     const config = await this.hostsService.getHostConfiguration(host);
     config.isLocal = true;
@@ -50,24 +50,29 @@ export class BackupsCommand {
         }
       });
 
-    const job = await this.hostsQueue.add(
+    let job = await this.hostsQueue.add(
       'backup',
       {
         config,
         host,
+        originalStartDate: date,
       },
       { removeOnComplete: true },
     );
     this.jobId = job.id;
     await job.finished();
+    job = (await this.hostsQueue.getJob(job.id)) || job;
 
-    this.spinner.succeed(`[Stats] ${host}/${job.data.number || 'NA'}: Progress 100%`);
+    this.spinner.succeed(`[Backups/Import] ${host}/${job.data.number || 'NA'}: Progress 100%`);
   }
 
-  @OnQueueProgress()
-  handler(job: Job<BackupTask>, progress: number): void {
-    if (job.id === this.jobId && this.spinner) {
-      this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
+  @OnGlobalQueueProgress()
+  async handler(jobId: number, progress: number): Promise<void> {
+    const job = await this.hostsQueue.getJob(jobId);
+    if (job && job.id === this.jobId && this.spinner) {
+      this.spinner.text = `[Backups/Import] ${job.data.host}/${job.data.number}: Progress ${Math.round(
+        progress / 100,
+      )}%`;
     }
   }
 }

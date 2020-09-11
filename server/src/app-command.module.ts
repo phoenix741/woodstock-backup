@@ -46,7 +46,6 @@ import { YamlService } from './utils/yaml.service';
     HostConsumerUtilService,
     HostsService,
     LockService,
-    StatsConsumer,
     StatsService,
     StatsCommand,
     ToolsService,
