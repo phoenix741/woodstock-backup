@@ -65,6 +65,20 @@ describe('Tools Service', () => {
       hostnamePath: 'hostPath/pc-test',
       qgroupHostPath: 'hostPath/pc-test/qgroup',
       srcBackupPath: 'hostPath/pc-test/14',
+      backupPath: 'backupPath',
+      configPath: 'configPath',
+      configPathOfHosts: 'configPathOfHosts',
+      configPathOfScheduler: 'configPathOfScheduler',
+      configPathOfTools: 'config',
+      hostPath: 'hostPath',
+      logLevel: 'debug',
+      logPath: 'logPath',
+      redis: {
+        host: 'hostRedis',
+        port: 6300,
+      },
+      statisticsPath: 'statisticsPath',
+      toJSON: expect.any(Function),
     });
   });
 
