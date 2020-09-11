@@ -14,6 +14,7 @@ Theorically if the btrfs storage is shared, it's possible to run multiple instan
 ## Install with docker
 
 -`Docker` needs redis to store bull queue.
+
 - The backup storage should be a btrfs volume.
 - The docker image need `SYS_ADMIN` capability.
 
@@ -22,7 +23,7 @@ version: "2"
 
 services:
   woodstock:
-    image: phoenix741/woodstock-backup:develop
+    image: phoenix741/woodstock-backup:1
     ports:
       - 3000:3000
     links:
