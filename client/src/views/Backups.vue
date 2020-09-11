@@ -19,7 +19,7 @@
           {{ props.item.startDate | date }}
         </template>
         <template slot="item.duration" slot-scope="props">
-          {{ (props.item.duration / 3600) | formatNumber }}
+          {{ (props.item.duration / (1000 * 60)) | formatNumber }}
         </template>
         <template slot="item.fileSize" slot-scope="props">
           {{ props.item.fileSize | filesize }}

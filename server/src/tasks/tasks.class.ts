@@ -33,6 +33,7 @@ export class InternalBackupTask implements BackupTask {
   public readonly ip?: string;
 
   public startDate: number = new Date().getTime();
+  public originalStartDate?: number;
   public subtasks: InternalBackupSubTask[] = [];
 
   constructor(original: BackupTask) {
@@ -45,6 +46,7 @@ export class InternalBackupTask implements BackupTask {
     this.previousNumber = original.previousNumber;
     this.number = original.number;
     this.ip = original.ip;
+    this.originalStartDate = original.originalStartDate;
   }
 
   addSubtask(...subtasks: InternalBackupSubTask[]): void {
@@ -106,6 +108,7 @@ export class InternalBackupTask implements BackupTask {
     | 'previousNumber'
     | 'ip'
     | 'startDate'
+    | 'originalStartDate'
     | 'subtasks'
     | 'state'
     | 'progression'
@@ -119,6 +122,7 @@ export class InternalBackupTask implements BackupTask {
       'previousNumber',
       'ip',
       'startDate',
+      'originalStartDate',
       'subtasks',
       'state',
       'progression',
@@ -127,12 +131,12 @@ export class InternalBackupTask implements BackupTask {
   }
 
   toBackup(): Backup {
-    const endDate = new Date().getTime();
+    const endDate = this.originalStartDate ? this.originalStartDate + (new Date().getTime() - this.startDate) : new Date().getTime();
     return {
       number: this.number,
       complete: this.complete,
 
-      startDate: this.startDate,
+      startDate: this.originalStartDate || this.startDate,
       endDate: this.complete ? endDate : undefined,
 
       fileCount: this.progression.fileCount,
