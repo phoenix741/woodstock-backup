@@ -50,7 +50,6 @@ services:
 
 volumes:
   redis_data:
-    driver: local
   backups_storage:
     driver: local
     driver_opts:

@@ -131,13 +131,14 @@ export class InternalBackupTask implements BackupTask {
   }
 
   toBackup(): Backup {
-    const endDate = this.originalStartDate ? this.originalStartDate + (new Date().getTime() - this.startDate) : new Date().getTime();
+    const endDate = new Date().getTime();
+    const calculateEndDate = this.originalStartDate ? this.originalStartDate + (endDate - this.startDate) : endDate;
     return {
       number: this.number,
       complete: this.complete,
 
-      startDate: this.originalStartDate || this.startDate,
-      endDate: this.complete ? endDate : undefined,
+      startDate: this.originalStartDate || this.startDate,
+      endDate: this.complete ? calculateEndDate : undefined,
 
       fileCount: this.progression.fileCount,
       newFileCount: this.progression.newFileCount,

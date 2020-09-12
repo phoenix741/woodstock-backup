@@ -45,7 +45,7 @@ export class StatsConsumer {
     this.logger.debug(`END: Of calculate of the host ${job.data.host}/${job.data.number} - JOB ID = ${job.id}`);
   }
 
-  private async calculateStatsForHost(job: Job<BackupTask>, number: number): Promise<void> {
+  public async calculateStatsForHost(job: Job<BackupTask>, number: number): Promise<void> {
     const backup = await this.backupsService.getBackup(job.data.host, number);
     if (!backup) {
       throw new NotFoundException(`Can't find a backup for ${job.data.host}`);
