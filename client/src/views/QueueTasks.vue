@@ -17,11 +17,6 @@ import runningTasksSub from './QueueTasksSubscription.graphql';
 import { QueueTasksQuery, QueueTasksJobUpdatedSubscription } from '../generated/graphql';
 import { QueueComponent } from '../components/QueueComponent';
 
-type QueueQuery = QueueTasksQuery['queue'];
-type RunningTaskQueue = {
-  [key in string]: QueueQuery;
-};
-
 @Component({
   components: { Task },
 })
