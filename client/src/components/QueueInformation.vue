@@ -13,9 +13,7 @@
 
     <v-divider></v-divider>
     <v-card-text>
-      <v-icon class="mr-2" small>
-        mdi-clock-outline
-      </v-icon>
+      <v-icon class="mr-2" small> mdi-clock-outline </v-icon>
       <span class="caption grey--text font-weight-light"><slot></slot></span>
     </v-card-text>
   </v-card>

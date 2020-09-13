@@ -1,4 +1,4 @@
-FROM node:12-buster as dependencies
+FROM node:14-buster as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/server
@@ -32,20 +32,21 @@ RUN npm run build
 
 #
 # -------- Dist -----------
-FROM node:12-buster AS dist
+FROM node:14-buster AS dist
 
 RUN apt update && apt install -y btrfs-compsize btrfs-progs coreutils samba-common-bin rsync && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /server
-COPY --from=build /src/server/dist/ /server/
-COPY --from=build /src/server/config/ /server/config/
-COPY --from=build /src/client/dist /server/client/
-COPY --from=dependencies /src/server/node_modules /server/node_modules
 
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh 
 RUN echo "IdentityFile /backups/.ssh/id_rsa" >> /root/.ssh/config
 RUN echo "StrictHostKeyChecking=no" >> /root/.ssh/config
 RUN mkdir -p /backups/.ssh && chmod 700 /backups/.ssh
+
+COPY --from=dependencies /src/server/node_modules /server/node_modules
+COPY --from=build /src/server/config/ /server/config/
+COPY --from=build /src/server/dist/ /server/
+COPY --from=build /src/client/dist /server/client/
 
 ENV STATIC_PATH=/server/client/
 ENV NODE_ENV=production

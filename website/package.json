@@ -10,6 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "markdown-it-imsize": "^2.0.1",
-    "vuepress": "^1.5.3"
+    "vuepress": "^1.5.4"
   }
 }

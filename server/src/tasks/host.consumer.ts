@@ -8,6 +8,7 @@ import { BackupLogger } from '../logger/BackupLogger.logger';
 import { PingService } from '../network/ping';
 import { ResolveService } from '../network/resolve';
 import { SchedulerConfigService } from '../scheduler/scheduler-config.service';
+import { StatsConsumer } from '../stats/stats.consumer';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
 import { HostConsumerUtilService } from '../utils/host-consumer-util.service';
 import { InternalBackupTask } from './tasks.class';
@@ -29,6 +30,7 @@ export class HostConsumer {
     private btrfsService: BtrfsService,
     private schedulerConfigService: SchedulerConfigService,
     private backupsService: BackupsService,
+    private statsConsumer: StatsConsumer,
   ) {}
 
   @Process({
@@ -91,7 +93,8 @@ export class HostConsumer {
       );
       await this.backupsService.addBackup(job.data.host, task.toBackup());
 
-      this.hostsQueue.add('stats', { host: job.data.host, number: job.data.number }, { removeOnComplete: true });
+      // Calculate compression size
+      await this.statsConsumer.calculateStatsForHost(job, backupTask.number);
     } catch (err) {
       this.logger.error(
         `END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`,

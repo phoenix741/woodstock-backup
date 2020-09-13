@@ -23,16 +23,20 @@
     </v-row>
 
     <v-row>
-      <v-col cols="12" sm="6" v-if="diskUsageStats && diskUsageStats.quotas">
+      <v-col cols="12" sm="6" v-if="diskUsageStats && diskUsageStats.quotas && diskUsageStats.quotas.length">
         <SpaceUsageGraphCard :quotas="diskUsageStats.quotas"></SpaceUsageGraphCard>
       </v-col>
-      <v-col cols="12" sm="6" v-if="diskUsageStats && diskUsageStats.compressionStats">
+      <v-col
+        cols="12"
+        sm="6"
+        v-if="diskUsageStats && diskUsageStats.compressionStats && diskUsageStats.compressionStats.length"
+      >
         <CompressionGraphCard :compressionStats="diskUsageStats.compressionStats"></CompressionGraphCard>
       </v-col>
     </v-row>
 
     <v-row>
-      <v-col cols="12" sm="12" v-if="diskUsageStats && diskUsageStats.quotas">
+      <v-col cols="12" sm="12" v-if="diskUsageStats && diskUsageStats.quotas && diskUsageStats.quotas.length">
         <RepartitionChartCard :currentRepartition="diskUsageStats.currentRepartition"></RepartitionChartCard>
       </v-col>
     </v-row>

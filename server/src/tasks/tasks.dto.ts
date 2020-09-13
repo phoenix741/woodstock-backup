@@ -42,6 +42,7 @@ export class BackupTask {
   number?: number;
   ip?: string;
   startDate?: number;
+  originalStartDate?: number;
 
   subtasks?: BackupSubTask[];
   state?: BackupState;
