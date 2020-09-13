@@ -53,9 +53,7 @@
                 <v-btn-toggle borderless multiple>
                   <v-menu offset-y>
                     <template v-slot:activator="{ on }">
-                      <v-btn text v-on="on">
-                        Show Log
-                      </v-btn>
+                      <v-btn text v-on="on"> Show Log </v-btn>
                     </template>
                     <v-list>
                       <v-list-item :to="`/backups/${hostname}/${item.number}/logs/backup.log`">
@@ -81,17 +79,13 @@
     <template v-for="(job, key) in jobCreated">
       <v-snackbar v-model="jobCreated[key]" color="info" :timeout="5000" :key="key">
         Launch a backup with job id {{ key }}.
-        <v-btn color="secondary" text @click="jobCreated[key] = false">
-          Close
-        </v-btn>
+        <v-btn color="secondary" text @click="jobCreated[key] = false"> Close </v-btn>
       </v-snackbar>
     </template>
     <template v-for="(job, key) in jobRemoved">
       <v-snackbar v-model="jobRemoved[key]" color="error" :timeout="5000" :key="key">
         Remove the backup with job id {{ key }}.
-        <v-btn color="primary" text @click="jobRemoved[key] = false">
-          Close
-        </v-btn>
+        <v-btn color="primary" text @click="jobRemoved[key] = false"> Close </v-btn>
       </v-snackbar>
     </template>
   </v-container>

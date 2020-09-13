@@ -16,9 +16,7 @@
 
     <v-divider></v-divider>
     <v-card-text>
-      <v-icon class="mr-2" small>
-        mdi-folder-outline
-      </v-icon>
+      <v-icon class="mr-2" small> mdi-folder-outline </v-icon>
       <span class="caption grey--text font-weight-light"> Shared space: {{ shared | filesize }}</span>
     </v-card-text>
   </v-card>
