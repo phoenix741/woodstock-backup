@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import { join } from 'path';
+import * as mkdirp from 'mkdirp';
 
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
-import { ServerChecks, CommandCheck } from './server.dto';
+import { CommandCheck, ServerChecks } from './server.dto';
 import { ToolsService } from './tools.service';
 
 @Injectable()
@@ -17,7 +18,9 @@ export class ServerService {
 
   async check(): Promise<ServerChecks> {
     const checks = new ServerChecks();
-    // Is btrfs available on the backup directory
+
+    const path = await this.toolsService.getPath('hostPath', {});
+    await mkdirp(path);
 
     checks.push(...(await this.checkGetFilesystem()));
     checks.push(...(await this.checkPing()));
