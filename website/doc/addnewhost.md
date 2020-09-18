@@ -119,3 +119,12 @@ After the creation of the file with the configuration we need to add it to the f
 - server-ovh-2
 - server-ovh-3
 ```
+
+## Check you can connect to the host without password.
+
+Using the same user of `Woodstock Backup`, try to connect to the host with the command:
+
+```bash
+ssh-copy-id root@host
+ssh root@host
+```
