@@ -16,7 +16,7 @@ footer: MIT Licensed | Copyright © 2020
 
 ## Last version
 
-The lastest version is [1.0.0](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases/tag/1.0.0), released on August 08, 2020.
+The lastest version is [1.0.2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases/tag/1.0.2), released on August 08, 2020.
 
 ## Features
 
