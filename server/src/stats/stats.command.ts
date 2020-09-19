@@ -26,6 +26,7 @@ export class StatsCommand {
       {
         flags: '-n, --number <number>',
         description: 'Backup number',
+        fn: parseInt,
       },
     ],
   })
@@ -34,7 +35,7 @@ export class StatsCommand {
     this.spinner = createSpinner();
     this.spinner.start(`[Stats] ${host}/${number || 'NA'}: Progress 0%`);
 
-    let job = await this.hostsQueue.add('stats', { host, number: parseInt(number) }, { removeOnComplete: true });
+    let job = await this.hostsQueue.add('stats', { host, number }, { removeOnComplete: true });
     this.jobId = job.id;
     await job.finished();
     job = (await this.hostsQueue.getJob(job.id)) || job;

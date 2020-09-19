@@ -2,6 +2,7 @@ import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
 import { JobId, Queue } from 'bull';
 import { promises as fs } from 'fs';
 import { Command, Console, createSpinner } from 'nestjs-console';
+import { Command as Cmd } from 'commander';
 import * as ora from 'ora';
 import { join } from 'path';
 
@@ -88,13 +89,34 @@ export class BackupsCommand {
     command: 'backuppc <path>',
     description:
       'Import backup from backuppc fuse directory. The fuse driver will present file in a flat view with a link for each backup that target the real backup. (See https://sourceforge.net/p/backuppc/mailman/message/35899426/)',
+    options: [
+      {
+        flags: '-h, --host <host>',
+        required: false,
+        description: 'Host to select for the backup (to limit the backup)',
+      },
+      {
+        flags: '-s, --start-date <date>',
+        required: false,
+        description: 'The minimum date to take to import of backup',
+        fn: parseInt,
+      },
+      {
+        flags: '-e, --end-date <date>',
+        required: false,
+        description: 'The maximum date to take to import of backup',
+        fn: parseInt,
+      },
+    ],
   })
-  async importFromBackuppc(path: string): Promise<void> {
+  async importFromBackuppc(path: string, cmd: Cmd): Promise<void> {
+    const { host, startDate, endDate } = cmd.opts();
     const hosts = await this.hostsService.getHosts();
     const originalBackup: Record<string, BackupPCSlot[]> = {};
     const files = await fs.readdir(path);
     for (const file of files) {
       if (!hosts.includes(file)) continue;
+      if (!!host && file !== host) continue;
 
       const backups: BackupPCSlot[] = [];
 
@@ -102,6 +124,9 @@ export class BackupsCommand {
       for (const dirEntry of backupDirEnts) {
         if (DATEISO8601.test(dirEntry.name)) {
           const date = Date.parse(dirEntry.name);
+          if (startDate && date < startDate) continue;
+          if (endDate && date > endDate) continue;
+
           let name = dirEntry.name;
           if (dirEntry.isSymbolicLink()) {
             name = await fs.readlink(join(path, file, dirEntry.name));
