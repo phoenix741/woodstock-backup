@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "markdown-it-imsize": "^2.0.1",
-    "vuepress": "^1.5.4"
+    "vuepress": "^1.5.4",
+    "vuepress-plugin-matomo": "^1.0.2"
   }
 }
