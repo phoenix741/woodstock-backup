@@ -33,4 +33,13 @@ module.exports = {
       "/about/",
     ],
   },
+  plugins: [
+    [
+      "vuepress-plugin-matomo",
+      {
+        siteId: 37,
+        trackerUrl: "https://stats.shadoware.org/",
+      },
+    ],
+  ],
 };
