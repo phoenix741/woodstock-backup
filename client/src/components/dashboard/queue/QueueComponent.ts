@@ -1,6 +1,6 @@
 import { DocumentNode } from 'graphql';
 import { Component, Vue } from 'vue-property-decorator';
-import { Job } from '../generated/graphql';
+import { Job } from '@/generated/graphql';
 
 export type Query = {
   queue: Array<Pick<Job, 'id' | 'state'>>;

@@ -1,6 +1,6 @@
 import { Pie, mixins } from 'vue-chartjs';
 import { Component, Mixins, Prop } from 'vue-property-decorator';
-import { Backup } from '../generated/graphql';
+import { Backup } from '@/generated/graphql';
 const { reactiveData } = mixins;
 
 @Component({})

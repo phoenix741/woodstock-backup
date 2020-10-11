@@ -1,9 +1,9 @@
 <script lang="ts">
 import { Line } from 'vue-chartjs';
 import { Component, Mixins, Prop } from 'vue-property-decorator';
-import { DashboardQuery } from '../generated/graphql';
-import filesize from 'filesize.js';
+import { DashboardQuery } from '@/generated/graphql';
 import { ChartOptions } from 'chart.js';
+import numeral from 'numeral';
 
 @Component({})
 export default class CompressionGraph extends Mixins(Line) {
@@ -30,8 +30,9 @@ export default class CompressionGraph extends Mixins(Line) {
       yAxes: [
         {
           ticks: {
+            beginAtZero: true,
             fontSize: 10,
-            callback: (value: number) => filesize(value),
+            callback: (value: number) => numeral(value).format('0.00 %'),
           },
         },
       ],
@@ -47,7 +48,7 @@ export default class CompressionGraph extends Mixins(Line) {
           if (label) {
             label += ': ';
           }
-          label += filesize(tooltipItem.yLabel);
+          label += numeral(tooltipItem.yLabel).format('0.00 %');
           return label;
         },
       },
@@ -59,15 +60,10 @@ export default class CompressionGraph extends Mixins(Line) {
       labels: this.compressionStats?.map((stat) => stat.timestamp) || [],
       datasets: [
         {
-          label: 'Disk Usage',
-          backgroundColor: '#3F51B5',
-          data: this.compressionStats?.map((stat) => stat.diskUsage),
-        },
-        {
-          label: 'Uncompressed',
-          borderColor: '#F44336',
+          label: 'Compression',
+          borderColor: '#3F51B5',
           fill: false,
-          data: this.compressionStats?.map((stat) => stat.uncompressed),
+          data: this.compressionStats?.map((stat) => stat.diskUsage / stat.uncompressed),
         },
       ],
     };

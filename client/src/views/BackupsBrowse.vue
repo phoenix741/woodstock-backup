@@ -78,7 +78,7 @@
 import { Component, Vue, Prop } from 'vue-property-decorator';
 import backupsBrowse from './BackupsBrowse.graphql';
 import shareBrowse from './ShareBrowse.graphql';
-import { BackupsBrowseQuery, SharesBrowseQuery } from '../generated/graphql';
+import { BackupsBrowseQuery, SharesBrowseQuery } from '@/generated/graphql';
 
 interface TreeItem {
   name: string;

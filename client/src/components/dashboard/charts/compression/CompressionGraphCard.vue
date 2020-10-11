@@ -18,12 +18,8 @@
         </thead>
         <tbody>
           <tr>
-            <td>Disk Usage</td>
-            <td>{{ lastCompressionStat.diskUsage | filesize }}</td>
-          </tr>
-          <tr>
-            <td>Uncompresssed</td>
-            <td>{{ lastCompressionStat.uncompressed | filesize }}</td>
+            <td>Compression ratio</td>
+            <td>{{ (100 * (lastCompressionStat.diskUsage / lastCompressionStat.uncompressed)) | formatPercent }}</td>
           </tr>
         </tbody>
       </template>
@@ -33,8 +29,8 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from 'vue-property-decorator';
-import { DashboardQuery } from '../generated/graphql';
-import CompressionGraph from '../components/CompressionGraph.vue';
+import { DashboardQuery } from '@/generated/graphql';
+import CompressionGraph from './CompressionGraph.vue';
 
 @Component({
   components: {
