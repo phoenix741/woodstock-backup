@@ -1,10 +1,10 @@
 <template>
   <v-card class="mx-auto" flat>
-    <v-card-title class="overline mb-4">Usage</v-card-title>
+    <v-card-title class="overline mb-4">Cumulated Usage</v-card-title>
     <v-card-text>
       <v-sheet class="mx-auto" max-width="calc(100% - 32px)">
         <!-- CHART JS -->
-        <SpaceUsageGraph :quotas="quotas" class="chart"></SpaceUsageGraph>
+        <CumulatedSpaceUsageGraph :quotas="quotas" class="chart"></CumulatedSpaceUsageGraph>
       </v-sheet>
     </v-card-text>
 
@@ -21,14 +21,6 @@
             <td>Cumulated Size</td>
             <td>{{ lastQuota.total.total | filesize }}</td>
           </tr>
-          <tr>
-            <td>Shared</td>
-            <td>{{ lastQuota.total.refr | filesize }}</td>
-          </tr>
-          <tr>
-            <td>Exclusive</td>
-            <td>{{ lastQuota.total.excl | filesize }}</td>
-          </tr>
         </tbody>
       </template>
     </v-simple-table>
@@ -37,15 +29,15 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from 'vue-property-decorator';
-import { DashboardQuery } from '../generated/graphql';
-import SpaceUsageGraph from '../components/SpaceUsageGraph.vue';
+import { DashboardQuery } from '@/generated/graphql';
+import CumulatedSpaceUsageGraph from './CumulatedSpaceUsageGraph.vue';
 
 @Component({
   components: {
-    SpaceUsageGraph,
+    CumulatedSpaceUsageGraph,
   },
 })
-export default class SpaceUsageGraphCard extends Vue {
+export default class CumulatedSpaceUsageGraphCard extends Vue {
   @Prop()
   quotas?: DashboardQuery['diskUsageStats']['quotas'];
 

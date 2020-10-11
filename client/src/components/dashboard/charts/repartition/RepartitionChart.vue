@@ -1,7 +1,7 @@
 <script lang="ts">
 import { Pie, mixins } from 'vue-chartjs';
 import { Component, Mixins, Prop } from 'vue-property-decorator';
-import { DashboardQuery } from '../generated/graphql';
+import { DashboardQuery } from '@/generated/graphql';
 const { reactiveData } = mixins;
 
 @Component({})

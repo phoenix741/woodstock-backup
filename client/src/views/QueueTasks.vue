@@ -11,11 +11,11 @@
 <script lang="ts">
 import { mixins } from 'vue-class-component';
 import { Component, Prop } from 'vue-property-decorator';
-import Task from '../components/Task.vue';
+import Task from '@/components/tasks/Task.vue';
 import runningTasks from './QueueTasks.graphql';
 import runningTasksSub from './QueueTasksSubscription.graphql';
-import { QueueTasksQuery, QueueTasksJobUpdatedSubscription } from '../generated/graphql';
-import { QueueComponent } from '../components/QueueComponent';
+import { QueueTasksQuery, QueueTasksJobUpdatedSubscription } from '@/generated/graphql';
+import { QueueComponent } from '@/components/dashboard/queue/QueueComponent.ts';
 
 @Component({
   components: { Task },
