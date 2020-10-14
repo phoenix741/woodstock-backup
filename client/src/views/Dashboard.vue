@@ -36,7 +36,10 @@
     </v-row>
 
     <v-row>
-      <v-col cols="12" sm="12" v-if="diskUsageStats && diskUsageStats.quotas && diskUsageStats.quotas.length">
+      <v-col cols="12" sm="6" v-if="diskUsageStats && diskUsageStats.quotas && diskUsageStats.quotas.length">
+        <CumulatedSpaceUsageGraphCard :quotas="diskUsageStats.quotas"></CumulatedSpaceUsageGraphCard>
+      </v-col>
+      <v-col cols="12" sm="6" v-if="diskUsageStats && diskUsageStats.quotas && diskUsageStats.quotas.length">
         <RepartitionChartCard :currentRepartition="diskUsageStats.currentRepartition"></RepartitionChartCard>
       </v-col>
     </v-row>
@@ -45,26 +48,26 @@
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
-import RepartitionChart from '../components/RepartitionChart.vue';
-import QueueRunning from '../components/QueueRunning.vue';
-import QueueWaiting from '../components/QueueWaiting.vue';
-import QueueFailed from '../components/QueueFailed.vue';
-import SpaceUsageCard from '../components/SpaceUsageCard.vue';
-import SpaceUsageGraphCard from '../components/SpaceUsageGraphCard.vue';
-import CompressionGraphCard from '../components/CompressionGraphCard.vue';
-import RepartitionChartCard from '../components/RepartitionChartCard.vue';
+import QueueRunning from '@/components/dashboard/queue/QueueRunning.vue';
+import QueueWaiting from '@/components/dashboard/queue/QueueWaiting.vue';
+import QueueFailed from '@/components/dashboard/queue/QueueFailed.vue';
+import SpaceUsageCard from '@/components/dashboard/cards/SpaceUsageCard.vue';
+import CumulatedSpaceUsageGraphCard from '@/components/dashboard/charts/cumulated-space-usage/CumulatedSpaceUsageGraphCard.vue';
+import SpaceUsageGraphCard from '@/components/dashboard/charts/space-usage/SpaceUsageGraphCard.vue';
+import CompressionGraphCard from '@/components/dashboard/charts/compression/CompressionGraphCard.vue';
+import RepartitionChartCard from '@/components/dashboard/charts/repartition/RepartitionChartCard.vue';
 
 import GraphQLDashboardQuery from './Dashboard.graphql';
-import { DashboardQuery } from '../generated/graphql';
+import { DashboardQuery } from '@/generated/graphql';
 
 @Component({
   components: {
-    RepartitionChart,
     QueueRunning,
     QueueWaiting,
     QueueFailed,
     SpaceUsageCard,
     SpaceUsageGraphCard,
+    CumulatedSpaceUsageGraphCard,
     CompressionGraphCard,
     RepartitionChartCard,
   },

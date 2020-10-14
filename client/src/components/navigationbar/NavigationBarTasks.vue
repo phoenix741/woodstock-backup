@@ -17,8 +17,8 @@ import { mixins } from 'vue-class-component';
 import { Component } from 'vue-property-decorator';
 import runningTasks from './NavigationBarTasks.graphql';
 import runningTasksSub from './NavigationBarTasksJobUpdated.graphql';
-import { NavigationBarTasksQuery, NavigationBarTasksJobUpdatedSubscription } from '../generated/graphql';
-import { QueueComponent } from '../components/QueueComponent';
+import { NavigationBarTasksQuery, NavigationBarTasksJobUpdatedSubscription } from '@/generated/graphql';
+import { QueueComponent } from '@/components/dashboard/queue/QueueComponent';
 
 type QueueQuery = NavigationBarTasksQuery['queue'];
 type RunningTaskQueue = {
