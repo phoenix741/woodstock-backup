@@ -74,7 +74,7 @@
 
 <script lang="ts">
 import { Vue, Component, Prop } from 'vue-property-decorator';
-import { Job } from '../generated/graphql';
+import { Job } from '@/generated/graphql';
 
 @Component({})
 export default class Task extends Vue {

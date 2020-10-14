@@ -29,7 +29,7 @@
 
 <script lang="ts">
 import { Vue, Component, Prop } from 'vue-property-decorator';
-import { DashboardQuery } from '../generated/graphql';
+import { DashboardQuery } from '@/generated/graphql';
 import RepartitionChart from './RepartitionChart.vue';
 
 @Component({

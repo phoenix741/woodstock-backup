@@ -43,8 +43,8 @@ import { mixins } from 'vue-class-component';
 import { Component } from 'vue-property-decorator';
 import runningTasks from './RunningTasksMenu.graphql';
 import runningTasksSub from './RunningTasksMenuJobUpdated.graphql';
-import { QueueComponent } from './QueueComponent';
-import { RunningTasksMenuQuery, RunningTasksMenuJobUpdatedSubscription } from '../generated/graphql';
+import { QueueComponent } from '@/components/dashboard/queue/QueueComponent';
+import { RunningTasksMenuQuery, RunningTasksMenuJobUpdatedSubscription } from '@/generated/graphql';
 
 @Component({})
 export default class RunningTasksMenu extends mixins(

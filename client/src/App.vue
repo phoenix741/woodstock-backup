@@ -60,9 +60,9 @@
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
-import RunningTasksMenu from './components/RunningTasksMenu.vue';
-import NavigationBarTasks from './components/NavigationBarTasks.vue';
-import NavigationBarLogs from './components/NavigationBarLogs.vue';
+import RunningTasksMenu from '@/components/toolbar/RunningTasksMenu.vue';
+import NavigationBarTasks from '@/components/navigationbar/NavigationBarTasks.vue';
+import NavigationBarLogs from '@/components/navigationbar/NavigationBarLogs.vue';
 
 @Component({
   components: {

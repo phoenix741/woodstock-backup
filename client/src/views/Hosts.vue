@@ -29,7 +29,7 @@
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
 import hosts from './Hosts.graphql';
-import { HostsQuery } from '../generated/graphql';
+import { HostsQuery } from '@/generated/graphql';
 
 function getState(host: HostsQuery['hosts'][0]) {
   if (host.lastBackupState) {

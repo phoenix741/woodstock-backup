@@ -93,15 +93,15 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from 'vue-property-decorator';
-import backups from './Backups.graphql';
 import {
   BackupsQuery,
   CreateBackupMutation,
   CreateBackupMutationVariables,
   RemoveBackupMutation,
   RemoveBackupMutationVariables,
-} from '../generated/graphql';
-import BackupChartSize from '../components/BackupChartSize';
+} from '@/generated/graphql';
+import BackupChartSize from '@/components/backups/BackupChartSize.ts';
+import backups from './Backups.graphql';
 import createBackup from './BackupsCreate.graphql';
 import removeBackup from './BackupsRemove.graphql';
 
