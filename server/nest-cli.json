@@ -2,6 +2,8 @@
   "collection": "@nestjs/schematics",
   "sourceRoot": "src",
   "compilerOptions": {
+    "assets": ["**/*.proto"],
+    "watchAssets": true,
     "plugins": [
       {
         "name": "@nestjs/graphql/plugin",

@@ -67,6 +67,12 @@ export class RSyncBackupOperation {
   @Field(() => String)
   name!: 'RSyncBackup';
 
+  username?: string;
+
+  rsyncPath?: string;
+
+  options?: string[];
+
   @ValidateNested()
   share!: Array<BackupTaskShare>;
 
@@ -94,6 +100,8 @@ export class RSyncdBackupOperation {
   username?: string;
 
   password?: string;
+
+  options?: string[];
 
   @ValidateNested()
   share!: Array<BackupTaskShare>;

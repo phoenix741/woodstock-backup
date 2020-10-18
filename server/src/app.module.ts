@@ -1,13 +1,12 @@
-import { BullModule, InjectQueue } from '@nestjs/bull';
-import { Module, OnModuleInit, Logger } from '@nestjs/common';
+import { BullModule } from '@nestjs/bull';
+import { HttpModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { HttpAdapterHost } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { Queue } from 'bull';
-import { setQueues, UI } from 'bull-board';
 import { PubSub } from 'graphql-subscriptions';
 
+import { BackupConsumer } from './backups/backup/backup.consumer';
+import { BackupService } from './backups/backup/backup.service';
 import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
 import { BackupController } from './backups/backups.controller';
@@ -33,7 +32,6 @@ import { SchedulerConsumer } from './scheduler/scheduler.consumer';
 import { SchedulerService } from './scheduler/scheduler.service';
 import { ServeStaticService } from './server/serve-static.service';
 import { ServerController } from './server/server.controller';
-import { ServerResolver } from './server/server.resolver';
 import { ServerService } from './server/server.service';
 import { ToolsService } from './server/tools.service';
 import { BackupQuotaResolver } from './stats/backup-quota.resolver';
@@ -42,6 +40,7 @@ import { StatsResolver } from './stats/stats.resolver';
 import { StatsService } from './stats/stats.service';
 import { TimestampBackupQuotaResolver } from './stats/timestamp-backup-quota.resolver';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
+import { PoolService } from './storage/pool/pool.service';
 import { HostConsumer } from './tasks/host.consumer';
 import { TasksService } from './tasks/tasks.service';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service';
@@ -80,70 +79,43 @@ import { YamlService } from './utils/yaml.service';
   controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],
   providers: [
     ApplicationConfigService,
-    TasksService,
-    ResolveService,
-    ExecuteCommandService,
-    RSyncCommandService,
-    HostsService,
-    HostsResolver,
-    HostConsumer,
-    BtrfsService,
-    SchedulerService,
-    SchedulerConfigService,
-    SchedulerConsumer,
-    ServerService,
-    ServerResolver,
-    PingService,
     ApplicationLogger,
+    BackupConsumer,
+    BackupQuotaResolver,
+    BackupService,
+    BackupsFilesService,
     BackupsResolver,
     BackupsService,
-    BackupsFilesService,
-    YamlService,
-    LockService,
-    SharePathService,
+    BtrfsService,
+    ExecuteCommandService,
+    HostConsumer,
+    HostConsumerUtilService,
+    HostsResolver,
+    HostsService,
     JobResolver,
+    LockService,
+    PingService,
     QueueResolver,
     QueueService,
-    ToolsService,
-    HostConsumerUtilService,
+    ResolveService,
+    RSyncCommandService,
+    SchedulerConfigService,
+    SchedulerConsumer,
+    SchedulerService,
+    ServerService,
+    SharePathService,
     StatsConsumer,
-    StatsService,
     StatsResolver,
+    StatsService,
+    TasksService,
     TimestampBackupQuotaResolver,
-    BackupQuotaResolver,
+    ToolsService,
+    YamlService,
+    PoolService,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),
     },
   ],
 })
-export class AppModule implements OnModuleInit {
-  private logger = new Logger(AppModule.name);
-
-  constructor(
-    private adapterHost: HttpAdapterHost,
-    @InjectQueue('queue') private queue: Queue,
-    @InjectQueue('schedule') private schedule: Queue,
-    private serverService: ServerService,
-  ) {}
-
-  async onModuleInit(): Promise<void> {
-    const checks = await this.serverService.check();
-    let checksCmd = true;
-    for (const check of checks.commands) {
-      if (check.isValid) {
-        this.logger.debug(`${check.command} : OK`);
-      } else {
-        checksCmd = false;
-        this.logger.error(`${check.command} : KO - ${check.error}`);
-      }
-    }
-
-    if (!checksCmd) {
-      process.exit(255);
-    }
-
-    setQueues([this.queue, this.schedule]);
-    this.adapterHost.httpAdapter.getInstance().use('/admin', UI);
-  }
-}
+export class AppModule {}
