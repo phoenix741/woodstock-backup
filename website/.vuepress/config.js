@@ -28,6 +28,7 @@ module.exports = {
           "/doc/updatescheduler.md",
           "/doc/faq.md",
           "/doc/roadmap.md",
+          "/doc/internal.md",
         ],
       },
       "/about/",

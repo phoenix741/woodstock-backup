@@ -157,10 +157,14 @@ export class TasksService {
                   context: share.name,
 
                   rsync: operation.name === 'RSyncBackup',
+                  ...(operation.name === 'RSyncBackup' ? pick(operation, 'rsyncPath', 'username') : {}),
+
                   rsyncd: operation.name === 'RSyncdBackup',
                   ...(operation.name === 'RSyncdBackup'
                     ? pick(operation, 'authentification', 'username', 'password')
-                    : { username: 'root' }),
+                    : {}),
+
+                  options: operation.options,
 
                   includes,
                   excludes,

@@ -5,6 +5,7 @@ import { join } from 'path';
 
 import { pick } from '../utils/lodash';
 
+export const CHUNK_SIZE = 1 << 22;
 @Injectable()
 export class ApplicationConfigService {
   constructor(private configService: ConfigService) {}
@@ -45,6 +46,10 @@ export class ApplicationConfigService {
     return this.configService.get('LOG_PATH', join(this.backupPath, 'log'));
   }
 
+  get poolPath(): string {
+    return this.configService.get('POOL_PATH', join(this.backupPath, 'pool'));
+  }
+
   get redis(): Redis.RedisOptions {
     return {
       host: this.configService.get<string>('REDIS_HOST', 'localhost'),
@@ -65,6 +70,7 @@ export class ApplicationConfigService {
     | 'configPathOfTools'
     | 'hostPath'
     | 'logPath'
+    | 'poolPath'
   > {
     return pick(
       this,
@@ -75,6 +81,7 @@ export class ApplicationConfigService {
       'configPathOfTools',
       'hostPath',
       'logPath',
+      'poolPath',
     );
   }
 }

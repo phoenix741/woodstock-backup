@@ -27,6 +27,39 @@ export class BackupsCommand {
   constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService) {}
 
   @Command({
+    command: 'manifest <hostname> [number] [directory]',
+    description: 'Create the manifest file',
+  })
+  async createManifest(host: string, number?: number, directory?: string): Promise<void> {
+    this.spinner = createSpinner();
+    this.spinner.start(`[Backups/Manifest] ${host}/NA: Progress 0%`);
+
+    let job = await this.hostsQueue.add(
+      'manifest',
+      {
+        host,
+        number,
+        ip: directory,
+      },
+      { removeOnComplete: true },
+    );
+    try {
+      this.jobId = job.id;
+      await job.finished();
+      job = (await this.hostsQueue.getJob(job.id)) || job;
+
+      if (await job.isFailed()) {
+        throw new Error(job.failedReason);
+      }
+
+      this.spinner.succeed(`[Backups/Manifest] ${host}/${job.data.number || 'NA'}: Progress 100%`);
+    } catch (err) {
+      job = (await this.hostsQueue.getJob(job.id)) || job;
+      this.spinner.fail(`[Backups/Manifest] ${host}/${job.data.number || 'NA'}: ${err.message}`);
+    }
+  }
+
+  @Command({
     command: 'import <hostname> <date> <path>',
     description: 'Import backup from filesystem',
   })

@@ -1,17 +1,14 @@
-import { ObjectType } from '@nestjs/graphql';
-
-@ObjectType()
 export class CommandCheck {
   command!: string;
   isValid!: boolean;
   error?: string;
 }
 
-@ObjectType()
+export type CommandCheckFn = () => Promise<CommandCheck>;
 export class ServerChecks {
-  commands: CommandCheck[] = [];
+  commands: CommandCheckFn[] = [];
 
-  push(...cmd: CommandCheck[]): void {
+  push(...cmd: CommandCheckFn[]): void {
     this.commands.push(...cmd);
   }
 }

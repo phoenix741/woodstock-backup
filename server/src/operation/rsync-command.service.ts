@@ -23,8 +23,10 @@ const sizes = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
 
 export interface RSyncBackupOptions extends BackupOptions {
   rsync: boolean;
+  rsyncPath?: string;
   username?: string;
   checksum?: boolean;
+  options?: string[];
 }
 
 export interface RSyncdBackupOptions extends BackupOptions {
@@ -33,6 +35,7 @@ export interface RSyncdBackupOptions extends BackupOptions {
   username?: string;
   password?: string;
   checksum?: boolean;
+  options?: string[];
 }
 
 @Injectable()
@@ -105,6 +108,10 @@ export class RSyncCommandService {
           rsync.set('timeout', '' + options.timeout);
         }
 
+        for (const option of options.options || []) {
+          rsync.set(option);
+        }
+
         const includes = new Set<string>();
         const excludes = new Set<string>(options.excludes || []);
 
@@ -131,19 +138,15 @@ export class RSyncCommandService {
           rsync.exclude(Array.from(excludes));
         }
 
-        if ((options as RSyncBackupOptions).rsync) {
-          rsync.set('rsync-path', await this.toolsService.getTool('rsync'));
+        if (isRSyncBackupOptions(options)) {
           if (params.ip) {
             rsync.source(`${params.ip}:${join(options.pathPrefix || '', sharePath)}/`);
           } else {
             rsync.source(`${join(options.pathPrefix || '', sharePath)}/`);
           }
-        }
 
-        if (isRSyncBackupOptions(options)) {
-          rsync.shell(
-            (await this.toolsService.getCommand('rsh', params)) + (options.username ? ' -l ' + options.username : ''),
-          );
+          rsync.set('rsync-path', options.rsyncPath || (await this.toolsService.getTool('rsync')));
+          rsync.shell((await this.toolsService.getCommand('rsh', params)) + ` -l ${options.username || 'root'}`);
         }
 
         if (isRSyncdBackupOptions(options)) {

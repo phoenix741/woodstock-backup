@@ -17,6 +17,7 @@ The actual version is based on
 - [Update the scheduler](/doc/updatescheduler/)
 - [FAQ](/doc/faq/)
 - [Roadmap](/doc/roadmap/)
+- [Internal](/doc/internal/)
 
 ## Contribution
 

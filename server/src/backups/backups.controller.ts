@@ -27,7 +27,7 @@ import { BackupsService } from './backups.service';
 export class BackupController {
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
-    public applicationConfig: ApplicationConfigService,
+    private applicationConfig: ApplicationConfigService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
   ) {}

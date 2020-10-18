@@ -47,6 +47,18 @@ steps:
       repo: phoenix741/woodstock-backup
       auto_tag: true
 
+  - name: client:build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup-client
+      dockerfile: ./client-sync/Dockerfile
+      context: ./client-sync
+      auto_tag: true
+
   - name: notify
     image: plugins/slack
     settings:
