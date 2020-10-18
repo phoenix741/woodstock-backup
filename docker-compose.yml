@@ -1,9 +1,16 @@
 version: "2"
 
 services:
+  client:
+    build:
+      context: ./client/client-sync
+      dockerfile: Dockerfile
+    image: phoenix741/woodstock-backup-client:latest
+    ports:
+      - 3657:3657
   website:
     build:
-      context: ./website
+      context: ./docs/website
       dockerfile: Dockerfile
     image: phoenix741/woodstock-backup-website:develop
     ports:
