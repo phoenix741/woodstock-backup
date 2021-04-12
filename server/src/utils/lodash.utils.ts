@@ -1,5 +1,6 @@
+import * as Long from 'long';
 import { sep } from 'path';
-import { UnaryFunction, Observable, OperatorFunction, pipe } from 'rxjs';
+import { Observable, OperatorFunction, pipe, UnaryFunction } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 interface CompactableObject {
@@ -94,4 +95,28 @@ export function hashBuffer(buffer: Buffer): string {
 
 export function notUndefined<T>(): UnaryFunction<Observable<T | null | undefined>, Observable<T>> {
   return pipe(filter((x) => x != null) as OperatorFunction<T | null | undefined, T>);
+}
+
+export function bigIntMax(...args: bigint[]): bigint {
+  return args.reduce((m, e) => (e > m ? e : m));
+}
+
+export function bigIntMin(...args: bigint[]): bigint {
+  return args.reduce((m, e) => (e < m ? e : m));
+}
+
+export function longMax(...args: Long[]): Long {
+  return args.reduce((m, e) => (e.greaterThan(m) ? e : m));
+}
+
+export function longMin(...args: Long[]): Long {
+  return args.reduce((m, e) => (e.lessThan(m) ? e : m));
+}
+
+export function bigIntToLong(n: bigint): Long {
+  return Long.fromString(n.toString());
+}
+
+export function getTemporaryFileName(): string {
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }

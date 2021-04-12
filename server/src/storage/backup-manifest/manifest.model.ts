@@ -1,50 +1,114 @@
-export enum EntryType {
-  ADD = 0,
-  MODIFY = 1,
-  REMOVE = 2,
-  CLOSE = 255,
-}
-export interface FileManifestStat {
-  ownerId?: number;
-  groupId?: number;
-  size?: number;
-  lastRead?: number;
-  lastModified?: number;
-  created?: number;
-  mode?: number;
-}
+import { Logger } from '@nestjs/common';
+import { promises } from 'fs';
+import { join } from 'path';
+import { concat, EMPTY, Observable } from 'rxjs';
+import { catchError, finalize, map, mergeMap, reduce } from 'rxjs/operators';
 
-export interface FileManifestAcl {
-  user?: string;
-  group?: string;
-  mask?: number;
-  other?: number;
-}
+import { notUndefined } from '../../utils/lodash.utils';
+import { IndexManifest } from './index-manifest.model';
+import { readAllMessages, writeAllMessages } from './manifest-wrapper.utils';
+import {
+  EntryType,
+  FileManifest,
+  FileManifestJournalEntry,
+  ProtoFileManifest,
+  ProtoFileManifestJournalEntry,
+} from './object-proto.model';
 
-export interface FileManifest {
-  path: Buffer;
-  stats?: FileManifestStat;
-  xattr?: Record<string, Buffer>;
-  acl?: FileManifestAcl[];
-  chunks?: Buffer[];
-  sha256?: Buffer;
-}
+export class Manifest {
+  private logger = new Logger(Manifest.name);
 
-export interface FileManifestJournalEntryRemove {
-  type: EntryType.REMOVE;
-  path: Buffer;
-}
+  private journalPath: string;
+  private manifestPath: string;
+  private newPath: string;
+  private lockPath: string;
 
-export interface FileManifestJournalEntryAddOrModify {
-  type: EntryType.ADD | EntryType.MODIFY;
-  manifest: FileManifest;
-}
+  constructor(manifestName: string, private path: string) {
+    this.journalPath = join(path, `${manifestName}.journal`);
+    this.manifestPath = join(path, `${manifestName}.manifest`);
+    this.newPath = join(path, `${manifestName}.new`);
+    this.lockPath = join(path, `${manifestName}.lock`);
+  }
 
-export interface FileManifestJournalEntryClose {
-  type: EntryType.CLOSE;
-}
+  static toRemoveJournalEntry(path: Buffer): FileManifestJournalEntry {
+    return {
+      type: EntryType.REMOVE,
+      path,
+    };
+  }
 
-export type FileManifestJournalEntry =
-  | FileManifestJournalEntryRemove
-  | FileManifestJournalEntryAddOrModify
-  | FileManifestJournalEntryClose;
+  static toAddJournalEntry(manifest: FileManifest, add: boolean): FileManifestJournalEntry {
+    return {
+      type: add ? EntryType.ADD : EntryType.MODIFY,
+      manifest,
+    };
+  }
+
+  loadIndex(): Observable<IndexManifest> {
+    const manifestWrapper = readAllMessages<FileManifest>(this.manifestPath, ProtoFileManifest).pipe(
+      map(
+        (frame) =>
+          ({
+            type: EntryType.ADD,
+            manifest: frame.message,
+          } as FileManifestJournalEntry),
+      ),
+      catchError((err) => {
+        this.logger.warn(`Can't read the file ${this.manifestPath}: ${err.message}`);
+        return EMPTY;
+      }),
+    );
+
+    const journalWrapper = readAllMessages<FileManifestJournalEntry>(
+      this.journalPath,
+      ProtoFileManifestJournalEntry,
+    ).pipe(
+      map((frame) => frame.message),
+      catchError((err) => {
+        this.logger.warn(`Can't read the file ${this.journalPath}: ${err.message}`);
+        return EMPTY;
+      }),
+    );
+
+    const indexWrapper = concat(manifestWrapper, journalWrapper).pipe(
+      reduce<FileManifestJournalEntry, IndexManifest>((index, journalEntry) => {
+        if (journalEntry.type === EntryType.CLOSE) {
+          return index;
+        }
+
+        index.process(journalEntry);
+
+        return index;
+      }, new IndexManifest()),
+    );
+
+    return indexWrapper;
+  }
+
+  writeJournalEntry(): (source: Observable<FileManifestJournalEntry>) => Observable<FileManifestJournalEntry> {
+    return writeAllMessages<FileManifestJournalEntry>(this.journalPath, ProtoFileManifestJournalEntry);
+  }
+
+  async deleteManifest(): Promise<void> {
+    await promises.rm(this.newPath, { force: true });
+    await promises.rm(this.journalPath, { force: true });
+    await promises.rm(this.manifestPath, { force: true });
+    await promises.rm(this.lockPath, { force: true });
+  }
+
+  compact(): Observable<FileManifest> {
+    return this.loadIndex().pipe(
+      mergeMap((index) => index.walk()),
+      map((entry) => entry.manifest),
+      notUndefined(),
+      writeAllMessages(this.newPath, ProtoFileManifest),
+      finalize(async () => {
+        await Promise.all([
+          promises.rm(this.journalPath, { force: true }),
+          promises.rm(this.manifestPath, { force: true }),
+        ]);
+        await promises.rename(this.newPath, this.manifestPath);
+      }),
+    );
+  }
+}

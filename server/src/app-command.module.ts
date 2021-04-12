@@ -1,11 +1,12 @@
 import { BullModule } from '@nestjs/bull';
-import { Module, HttpModule } from '@nestjs/common';
+import { HttpModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ConsoleModule } from 'nestjs-console';
 
 import { BackupService } from './backups/backup/backup.service';
 import { BackupsCommand } from './backups/backups.command';
 import { BackupsService } from './backups/backups.service';
+import { BinaryBackupsCommand } from './binary-backups/binary-backups.command';
 import { ApplicationConfigModule } from './config/application-config.module';
 import { ApplicationConfigService } from './config/application-config.service';
 import { HostsService } from './hosts/hosts.service';
@@ -15,12 +16,10 @@ import { ToolsService } from './server/tools.service';
 import { StatsCommand } from './stats/stats.command';
 import { StatsService } from './stats/stats.service';
 import { BtrfsService } from './storage/btrfs/btrfs.service';
-import { StorageModule } from './storage/storage.module';
+import { PoolService } from './storage/pool/pool.service';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service';
 import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
-import { BinaryBackupsCommand } from './binary-backups/binary-backups.command';
-import { PoolService } from './storage/pool/pool.service';
 
 @Module({
   imports: [
@@ -39,7 +38,6 @@ import { PoolService } from './storage/pool/pool.service';
       },
     ),
     ConsoleModule,
-    StorageModule,
     HttpModule,
   ],
   providers: [

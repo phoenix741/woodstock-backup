@@ -9,13 +9,13 @@ enum StatusCode {
 
 message FileManifest {
   message FileManifestStat {
-    int32 ownerId = 1;
-    int32 groupId = 2;
+    int64 ownerId = 1;
+    int64 groupId = 2;
     int64 size = 3;
     int64 lastRead = 4;
     int64 lastModified = 5;
     int64 created = 6;
-    int32 mode = 7;
+    int64 mode = 7;
   }
 
   message FileManifestAcl {

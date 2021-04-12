@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Redis from 'ioredis';
+import * as Long from 'long';
 import { join } from 'path';
 
-import { pick } from '../utils/lodash';
+import { pick } from '../utils/lodash.utils';
 
-export const CHUNK_SIZE = 1 << 22;
+export const CHUNK_SIZE = Long.ONE.shiftLeft(22);
 @Injectable()
 export class ApplicationConfigService {
   constructor(private configService: ConfigService) {}

@@ -1,8 +1,11 @@
 import { createReadStream, createWriteStream } from 'fs';
+import * as mkdirp from 'mkdirp';
+import { dirname } from 'path';
 import { Type, Writer } from 'protobufjs';
 import { Observable } from 'rxjs';
+import { Writable } from 'stream';
 
-import { ProtobufMessageReader, ProtobufMessageWithPosition } from './proto.utils';
+import { ProtobufMessageReader, ProtobufMessageWithPosition } from './protobuf-message-reader.utils';
 
 const WRITE_BUFFER_SIZE = Math.pow(2, 16);
 
@@ -24,10 +27,14 @@ export function writeAllMessages<T>(path: string, type: Type) {
   return function (source: Observable<T>): Observable<T> {
     return new Observable((subscriber) => {
       const grpcWriter = new Writer();
-      const stream = createWriteStream(path, { flags: 'a' });
       let waiting = false;
-      stream.on('finish', () => subscriber.complete());
-      stream.on('error', (err) => subscriber.error(err));
+      let stream: Writable;
+
+      mkdirp(dirname(path)).then(() => {
+        stream = createWriteStream(path, { flags: 'a' });
+        stream.on('finish', () => subscriber.complete());
+        stream.on('error', (err) => subscriber.error(err));
+      });
 
       function write() {
         const chunk = grpcWriter.finish();
@@ -41,7 +48,6 @@ export function writeAllMessages<T>(path: string, type: Type) {
           });
         }
       }
-
       const subscription = source.subscribe({
         next(message) {
           try {

@@ -2,20 +2,22 @@ import { HttpService, Logger } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
 import { promises } from 'fs';
 import { credentials } from 'grpc';
+import * as Long from 'long';
 import { join } from 'path';
 import { concat, from, Observable, of } from 'rxjs';
-import { filter, map, mergeMap, reduce, switchMap, concatMap } from 'rxjs/operators';
+import { concatMap, filter, map, reduce, switchMap } from 'rxjs/operators';
 import { ApplicationConfigService, CHUNK_SIZE } from 'src/config/application-config.service';
-import { EntryType } from 'src/storage/backup-manifest/manifest.model';
+import { EntryType } from 'src/storage/backup-manifest/object-proto.model';
+import { Readable } from 'stream';
 
-import { Manifest } from '../storage/backup-manifest/manifest';
-import { FileManifest } from '../storage/backup-manifest/manifest.model';
+import { Manifest } from '../storage/backup-manifest/manifest.model';
+import { FileManifest } from '../storage/backup-manifest/object-proto.model';
+import { GetChunkRequest, WoodstockClientService, FileChunk } from '../storage/backup-manifest/query-proto.model';
 import { PoolService } from '../storage/pool/pool.service';
+import { longMin } from '../utils/lodash.utils';
 import wrapObservable from '../utils/wrap-observable';
 import { BackupConfiguration } from './models/backups-configuration.model';
 import { BackupsStats } from './models/backups-stats.model';
-import { FileChunk, GetChunkRequest, WoodstockClientService } from './models/woodstock-client.service';
-import { Readable } from 'stream';
 
 /**
  * The goal of this class is to contact the client to backup it.
@@ -215,11 +217,11 @@ export class BinaryBackupsService {
     const sha256 = fileManifest.chunks[chunkNumber];
     const wrapper = this.poolService.getChunk(sha256);
 
-    const position = chunkNumber * CHUNK_SIZE;
+    const position = CHUNK_SIZE.mul(chunkNumber);
     const chunk: GetChunkRequest = {
       filename: fileManifest.path,
       position,
-      size: Math.min(CHUNK_SIZE, (fileManifest.stats?.size || 0) - CHUNK_SIZE * chunkNumber),
+      size: longMin(CHUNK_SIZE, (fileManifest.stats?.size || Long.ZERO).sub(CHUNK_SIZE).mul(chunkNumber)),
       sha256,
     };
 

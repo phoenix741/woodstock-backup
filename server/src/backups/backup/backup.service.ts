@@ -3,24 +3,25 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 
 import { CHUNK_SIZE } from '../../config/application-config.service';
-import { FileManifest } from '../../storage/backup-manifest/manifest.model';
+import { FileManifest } from '../../storage/backup-manifest/object-proto.model';
+import { bigIntToLong } from '../../utils/lodash.utils';
 
 @Injectable()
 export class BackupService {
   private logger = new Logger(BackupService.name);
 
   async createManifestFromLocalFile(backupPath: Buffer): Promise<FileManifest> {
-    const fileStat = await fs.promises.lstat(backupPath);
+    const fileStat = await fs.promises.lstat(backupPath, { bigint: true });
     return {
       path: backupPath,
       stats: {
-        ownerId: fileStat.uid,
-        groupId: fileStat.gid,
-        size: fileStat.size,
-        mode: fileStat.mode,
-        lastModified: fileStat.mtimeMs,
-        lastRead: fileStat.atimeMs,
-        created: fileStat.birthtimeMs,
+        ownerId: bigIntToLong(fileStat.uid),
+        groupId: bigIntToLong(fileStat.gid),
+        size: bigIntToLong(fileStat.size),
+        mode: bigIntToLong(fileStat.mode),
+        lastModified: bigIntToLong(fileStat.mtimeMs),
+        lastRead: bigIntToLong(fileStat.atimeMs),
+        created: bigIntToLong(fileStat.birthtimeMs),
       },
     };
   }
@@ -37,10 +38,11 @@ export class BackupService {
       try {
         const s = fs.createReadStream(manifest.path);
         s.on('data', (data) => {
+          const chunkSizeRest = CHUNK_SIZE.sub(bufferLength).toNumber();
           let shaData, shaDataRest;
-          if (data.length >= CHUNK_SIZE - bufferLength) {
-            shaData = data.slice(0, CHUNK_SIZE - bufferLength);
-            shaDataRest = data.slice(CHUNK_SIZE - bufferLength);
+          if (data.length >= chunkSizeRest) {
+            shaData = data.slice(0, chunkSizeRest);
+            shaDataRest = data.slice(chunkSizeRest);
           } else {
             shaData = data;
             shaDataRest = Buffer.alloc(0);
@@ -48,7 +50,7 @@ export class BackupService {
           chunkShasum.update(shaData);
           bufferLength += data.length;
 
-          if (bufferLength >= CHUNK_SIZE) {
+          if (bufferLength >= CHUNK_SIZE.toNumber()) {
             chunks.push(chunkShasum.digest());
             chunkShasum = crypto.createHash('sha3-256');
             chunkShasum.update(shaDataRest);

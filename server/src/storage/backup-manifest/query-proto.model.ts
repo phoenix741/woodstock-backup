@@ -1,7 +1,19 @@
-import { BackupConfiguration } from './backups-configuration.model';
+import * as Long from 'long';
+import { join } from 'path';
+import { loadSync } from 'protobufjs';
 import { Observable } from 'rxjs';
-import { FileManifestJournalEntry } from '../../storage/backup-manifest/manifest.model';
-import { Readable } from 'stream';
+
+import { BackupConfiguration } from '../../binary-backups/models/backups-configuration.model';
+import { FileManifestJournalEntry } from './object-proto.model';
+
+const root = loadSync(join(__dirname, 'woodstock.proto'));
+
+export const ProtoPrepareBackupRequest = root.lookupType('woodstock.PrepareBackupRequest');
+export const ProtoPrepareBackupReply = root.lookupType('woodstock.PrepareBackupReply');
+
+export const ProtoLaunchBackupRequest = root.lookupType('woodstock.LaunchBackupRequest');
+export const ProtoGetChunkRequest = root.lookupType('woodstock.GetChunkRequest');
+export const ProtoFileChunk = root.lookupType('woodstock.FileChunk');
 
 export enum StatusCode {
   Ok = 0,
@@ -25,8 +37,8 @@ export interface LaunchBackupRequest {
 
 export interface GetChunkRequest {
   filename: Buffer;
-  position: number;
-  size: number;
+  position: Long;
+  size: Long;
   sha256: Buffer;
 }
 

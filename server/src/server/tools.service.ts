@@ -4,7 +4,7 @@ import { resolve } from 'path';
 import { ApplicationConfigService } from '../config/application-config.service';
 import { YamlService } from '../utils/yaml.service';
 import { CommandParameters } from './tools.model';
-import { rendering } from '../utils/lodash';
+import { rendering } from '../utils/lodash.utils';
 
 class Tools {
   tools!: Record<string, string>;

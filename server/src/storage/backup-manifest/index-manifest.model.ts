@@ -1,19 +1,40 @@
 import { from, Observable } from 'rxjs';
 
-import { hashBuffer } from '../../utils/lodash';
-import { IndexFileEntry } from './index-entry.model';
+import { hashBuffer } from '../../utils/lodash.utils';
+import { IndexFileEntry } from './index-file-entry.model';
+import {
+  EntryType,
+  FileManifest,
+  FileManifestJournalEntryAddOrModify,
+  FileManifestJournalEntryRemove,
+} from './object-proto.model';
 
+/**
+ * List of manifest of a manifest file (and the journal).
+ */
 export class IndexManifest {
-  public files = new Map<string, IndexFileEntry>();
+  private files = new Map<string, IndexFileEntry>();
 
-  add(filePath: Buffer): IndexFileEntry {
-    const key = hashBuffer(filePath);
-    let entry = this.files.get(key);
-    if (!entry) {
-      entry = new IndexFileEntry(filePath);
-      this.files.set(key, entry);
+  /**
+   * Number of element in the index manifest.
+   */
+  get indexSize(): number {
+    return this.files.size;
+  }
+
+  process(journalEntry: FileManifestJournalEntryAddOrModify | FileManifestJournalEntryRemove): void {
+    if (journalEntry.type === EntryType.REMOVE) {
+      this.remove(journalEntry.path);
+    } else {
+      this.add(journalEntry.manifest);
     }
-    return entry;
+  }
+
+  add(manifest: FileManifest): void {
+    const key = hashBuffer(manifest.path);
+    if (!this.files.has(key)) {
+      this.files.set(key, new IndexFileEntry(manifest));
+    }
   }
 
   remove(filePath: Buffer): void {
@@ -39,9 +60,5 @@ export class IndexManifest {
   getEntry(filePath: Buffer): IndexFileEntry | undefined {
     const key = hashBuffer(filePath);
     return this.files.get(key);
-  }
-
-  get indexSize(): number {
-    return this.files.size;
   }
 }

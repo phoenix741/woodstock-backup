@@ -1,20 +1,21 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
-import * as fs from 'fs';
-import { concat, Observable, from } from 'rxjs';
-import { filter, map, reduce, switchMap, mergeMap, distinct } from 'rxjs/operators';
-import { BackupTask } from 'src/tasks/tasks.dto';
+import { constants as constantsFs, createReadStream } from 'fs';
+import { readdir } from 'fs/promises';
+import * as Long from 'long';
+import { concat, from, Observable } from 'rxjs';
+import { distinct, filter, map, mergeMap, reduce, switchMap } from 'rxjs/operators';
 
 import { ApplicationConfigService, CHUNK_SIZE } from '../../config/application-config.service';
 import { HostsService } from '../../hosts/hosts.service';
-import { Manifest } from '../../storage/backup-manifest/manifest';
-import { EntryType, FileManifest } from '../../storage/backup-manifest/manifest.model';
-import { joinBuffer } from '../../utils/lodash';
+import { Manifest } from '../../storage/backup-manifest/manifest.model';
+import { EntryType, FileManifest } from '../../storage/backup-manifest/object-proto.model';
+import { PoolService } from '../../storage/pool/pool.service';
+import { BackupTask } from '../../tasks/tasks.dto';
+import { joinBuffer } from '../../utils/lodash.utils';
 import { BackupsService } from '../backups.service';
 import { BackupService } from './backup.service';
-import { PoolService } from '../../storage/pool/pool.service';
-import { createReadStream } from 'fs';
 
 @Processor('queue')
 export class BackupConsumer {
@@ -130,10 +131,10 @@ export class BackupConsumer {
     const chunk = fileManifest.chunks[chunkNumber];
     const wrapper = this.poolService.getChunk(chunk);
     if (!(await wrapper.exists())) {
-      const start = chunkNumber * CHUNK_SIZE;
+      const start = CHUNK_SIZE.mul(chunkNumber);
       const file = createReadStream(fileManifest.path, {
-        start,
-        end: start + CHUNK_SIZE - 1,
+        start: start.toNumber(),
+        end: start.add(CHUNK_SIZE).sub(1).toNumber(),
       });
 
       const newChunk = await wrapper.write(file);
@@ -150,7 +151,7 @@ export class BackupConsumer {
       const go = async () => {
         try {
           await this.walk(backupPath, async (manifest) => {
-            if (((manifest?.stats?.mode || 0) & fs.constants.S_IFMT) === fs.constants.S_IFREG) {
+            if (((manifest?.stats?.mode || Long.ZERO).toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFREG) {
               manifest = await this.backupService.readLocalFile(manifest);
             }
             subscribe.next(manifest);
@@ -167,12 +168,12 @@ export class BackupConsumer {
 
   private async walk(backupPath: Buffer, progress: (manifest: FileManifest) => Promise<void>) {
     //this.logger.debug(`Read the directory ${backupPath}/${path}`);
-    const list = await fs.promises.readdir(backupPath, { encoding: 'buffer' });
+    const list = await readdir(backupPath, { encoding: 'buffer' });
     for (const file of list) {
       try {
         const manifestFile = await this.backupService.createManifestFromLocalFile(joinBuffer(backupPath, file));
         await progress(manifestFile);
-        if (((manifestFile?.stats?.mode || 0) & fs.constants.S_IFMT) === fs.constants.S_IFDIR) {
+        if (((manifestFile?.stats?.mode || Long.ZERO).toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFDIR) {
           await this.walk(joinBuffer(backupPath, file), progress);
         }
       } catch (err) {

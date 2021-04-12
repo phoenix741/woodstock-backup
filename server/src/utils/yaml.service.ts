@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import * as mkdirp from 'mkdirp';
 import { Injectable, Logger } from '@nestjs/common';
-import { compact } from './lodash';
+import { compact } from './lodash.utils';
 import * as tmp from 'tmp';
 import * as util from 'util';
 
