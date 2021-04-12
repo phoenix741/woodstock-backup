@@ -30,7 +30,6 @@ export class BinaryBackupsService {
   private statistics?: BackupsStats;
 
   constructor(
-    private httpService: HttpService,
     private configService: ApplicationConfigService,
     private poolService: PoolService,
     private hostToBackup: string,
@@ -111,7 +110,7 @@ export class BinaryBackupsService {
       transport: Transport.GRPC,
       options: {
         package: 'woodstock',
-        protoPath: join(__dirname, '..', 'storage', 'backup-manifest', 'woodstock.proto'),
+        protoPath: join(__dirname, '..', 'woodstock.proto'),
         url: this.hostToBackup + ':3657',
         credentials: channel_creds,
       },
@@ -121,8 +120,6 @@ export class BinaryBackupsService {
 
     // Create the connection with the client
     const woodstockClientService = client.getService<WoodstockClientService>('WoodstockClientService');
-
-    //const woodstockClientService = new Http2WoodstockClientService(this.httpService, this.hostToBackup);
 
     this.logger.log('Prepare the backup and send configuration');
     const prepareResult = await woodstockClientService

@@ -52,29 +52,6 @@ message FileManifestJournalEntry {
   EntryType type = 3;
 }
 
-message BackupConfiguration {
-    message Share {
-        string name = 1;
-        repeated string includes = 2;
-        repeated string excludes = 3;
-        string pathPrefix = 4;
-    }
-
-    message Task {
-        string command = 1;
-        repeated Share shares = 2;
-        repeated string includes = 3;
-        repeated string excludes = 4;
-    }
-
-    message Operations {
-        repeated Task tasks = 1;
-        repeated Task finalizedTasks = 2;
-    }
-
-    Operations operations = 1;
-}
-
 message LogEntry {
   enum LogLevel {
     DEBUG = 0;
@@ -92,8 +69,14 @@ message FileChunk {
   bytes data = 1;
 }
 
+message BackupShare {
+  bytes sharePath = 1;
+  repeated bytes includes = 2;
+  repeated bytes excludes = 3;
+}
+
 message PrepareBackupRequest {
-  BackupConfiguration configuration = 1;
+  BackupShare share = 1;
   uint32 lastBackupNumber = 2;
   uint32 newBackupNumber = 3;
 }
@@ -108,7 +91,9 @@ message RefreshCacheReply {
 }
 
 message LaunchBackupRequest {
-  uint32 backupNumber = 1;
+  BackupShare share = 1;
+  uint32 lastBackupNumber = 2;
+  uint32 newBackupNumber = 3;
 }
 
 message GetChunkRequest {
@@ -126,7 +111,20 @@ message UpdateManifestReply {
   StatusCode code = 1;
 }
 
+message ExecuteCommandRequest {
+  string command = 1;
+}
+
+message ExecuteCommandReply {
+  int32 code = 1;
+  string stdout = 2;
+  string stderr = 3;
+}
+
 service WoodstockClientService {
+  // 0. Execute a command directly on the client
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
+
   // 1. Server want to start a backup session and send the configuration and last backup number.
   //    If the client has no previous cache, the client ask for more information.
   rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupReply) {}
