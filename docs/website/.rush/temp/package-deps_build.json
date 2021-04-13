@@ -1,0 +1,32 @@
+{
+  "files": {
+    "website/.devcontainer/Dockerfile": "0b7409cf988ffda6a02659098815c7e493168be1",
+    "website/.devcontainer/devcontainer.json": "8ea9050a1b8a3f5b61833696891dd7a499a6131e",
+    "website/.gitignore": "c902cd1bc36d450c089dc6a83c6bd8ed7a3bc617",
+    "website/.vuepress/config.js": "a91e90026ad407bd3c1177289644c502427ce098",
+    "website/Dockerfile": "911e6ea56dfb32124d36a77e0c59a1cc6c7326ba",
+    "website/README.md": "d787af1803f9094ab006eb2c57e015efdc5c6ba6",
+    "website/about/README.md": "6c47df2d2a4985de592c9e06b323652634662245",
+    "website/doc/README.md": "4072af114a27cb55557eec9e3f0d039c0d53598c",
+    "website/doc/addnewhost.md": "1ff7bb8dfc99dae65d86e56f3ec9ad0e565836ce",
+    "website/doc/faq.md": "e1c25e651b3990c17dcb6b248366b3e1aa0b5c61",
+    "website/doc/installation.md": "8060d666ffbf0a40dddb1a110abbe4b22804df64",
+    "website/doc/internal.md": "8bcd8243dcb82b010b29b05d3ef2752e29f2139f",
+    "website/doc/roadmap.md": "c8814402e99a980b0ffdd95f7a1f18ebdc194003",
+    "website/doc/updatescheduler.md": "d5e3c66817a5b4b5860637daa8985630084f9cb7",
+    "website/doc/updatetools.md": "ec6754fd5aeb0c604ac5281c27930654154ba037",
+    "website/images/dashboard.png": "55e209f77eccf15e63f60feac0adc05b503db900",
+    "website/images/dashboard_running.png": "c8a25b15aee2ac0eaba50195701a4fdc69ad3723",
+    "website/images/host_backups.png": "57a66348c9e53295f78dd3eaba85423ebd40699a",
+    "website/images/hosts.png": "82a5bb5939b1762f4e1e0e4abed038525c7bc40a",
+    "website/images/running_tasks_0.png": "f6c1fc98a66c8053ac4f69e105d37dc525ae64c4",
+    "website/images/running_tasks_1.png": "2e07a4ed7ff71e39b2d4c72bfb8f426d67d0aede",
+    "website/package-lock.json": "9100762ad6a82ce23bc5e57c5abeeef3056fa4df",
+    "website/package.json": "abf6c4c3a78f799698f7b6371d8dd061beaef567",
+    "website/storage/README.md": "6a633fa1713f2e80df2bf103a9a76d3ef0669c5e",
+    "website/storage/speed.ods": "d0709424b6149eaacd0691abddfde3fecc9c9fb6",
+    "website/storage/statistics.ods": "25fc816aca4582f4a2fbfe77ab16099322bc00b1",
+    "website/.rush/temp/shrinkwrap-deps.json": "81165554ec64f8c52d8e4b4ac96d1d3bfa5f4ef1"
+  },
+  "arguments": "vuepress build "
+}
