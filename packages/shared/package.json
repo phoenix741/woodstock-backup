@@ -1,0 +1,30 @@
+{
+  "name": "@woodstock/shared",
+  "version": "1.0.0",
+  "description": "Code shared between the client and the server",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rimraf dist && tsc",
+    "prepublish": "npm run build"
+  },
+  "author": "Ulrich Vandenhekke",
+  "license": "MIT",
+  "devDependencies": {
+    "@nestjs/common": "^7.6.15",
+    "@types/node": "^14.14.37",
+    "reflect-metadata": "^0.1.13",
+    "rimraf": "^3.0.2",
+    "rxjs": "^6.6.7",
+    "typescript": "^4.2.4"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^7.6.15",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^6.6.7"
+  },
+  "dependencies": {
+    "long": "^4.0.0"
+  }
+}
