@@ -3,8 +3,8 @@ import { FileManifest } from '../app.model';
 import { readdir, lstat } from 'fs/promises';
 
 @Injectable()
-export class FileBrowser {
-  private logger = new Logger(FileBrowser.name);
+export class FileBrowserService {
+  private logger = new Logger(FileBrowserService.name);
   /*
   private walkObservable(backupPath: Buffer) {
     return new Observable<FileManifest>((subscribe) => {

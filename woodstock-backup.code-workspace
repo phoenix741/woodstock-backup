@@ -1,22 +1,22 @@
 {
   "folders": [
     {
-      "path": "client"
+      "path": "packages/shared"
     },
     {
-      "path": "server"
+      "path": "docs/website"
     },
     {
-      "path": "website"
+      "path": "client/client-application"
     },
     {
-      "path": "client-sync"
+      "path": "backoffice/server"
     },
     {
-      "path": "client-application"
+      "path": "backoffice/front"
     },
     {
-      "path": "common"
+      "path": "client/client-sync"
     }
   ],
   "settings": {
