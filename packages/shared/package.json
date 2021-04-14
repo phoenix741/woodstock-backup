@@ -5,26 +5,50 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rimraf dist && tsc",
+    "test": "jest",
+    "build": "rimraf dist && tsc --build tsconfig.build.json",
     "prepublish": "npm run build"
   },
   "author": "Ulrich Vandenhekke",
   "license": "MIT",
   "devDependencies": {
     "@nestjs/common": "^7.6.15",
+    "@types/jest": "^26.0.22",
     "@types/long": "^4.0.1",
+    "@types/mkdirp": "^1.0.1",
     "@types/node": "^14.14.37",
+    "dummy": "^0.1.5",
+    "jest": "^26.6.3",
     "long": "^4.0.0",
+    "mkdirp": "^1.0.4",
+    "protobufjs": "^6.10.2",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^6.6.7",
+    "ts-jest": "^26.5.4",
     "typescript": "^4.2.4"
   },
   "peerDependencies": {
+    "@types/jest": "^26.0.22",
     "@nestjs/common": "^7.6.15",
     "long": "^4.0.0",
+    "mkdirp": "^1.0.4",
+    "protobufjs": "^6.10.2",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^6.6.7"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".spec.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
   }
 }

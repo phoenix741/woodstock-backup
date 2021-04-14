@@ -13,32 +13,35 @@ import { joinBuffer } from '../utils/path.utils';
 export class FileBrowserService {
   private logger = new Logger(FileBrowserService.name);
 
-  public getFiles(backupPath: Buffer, includes: RegExp[], excludes: RegExp[]): Observable<FileManifest> {
-    const files$ = from(readdir(backupPath, { encoding: 'buffer' })).pipe(
-      catchError(() => {
-        this.logger.warn(`Can't read the directory ${backupPath.toString()}`);
-        return EMPTY;
-      }),
-      mergeMap((files) => from(files)),
-      filter((file) => FileBrowserService.isFileAuthorized(file, includes, excludes)),
-      mergeMap((file) =>
-        from(this.createManifestFromLocalFile(joinBuffer(backupPath, file))).pipe(
-          catchError((err) => {
-            this.logger.warn(`Can't read the file ${backupPath.toString()}`);
-            return EMPTY;
-          }),
+  public getFiles(sharePath: Buffer) {
+    const forShare = (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]): Observable<FileManifest> => {
+      const files$ = from(readdir(joinBuffer(sharePath, backupPath), { encoding: 'buffer' })).pipe(
+        catchError(() => {
+          this.logger.warn(`Can't read the directory ${sharePath.toString()}/${backupPath.toString()}`);
+          return EMPTY;
+        }),
+        mergeMap((files) => from(files)),
+        filter((file) => FileBrowserService.isFileAuthorized(joinBuffer(backupPath, file), includes, excludes)),
+        mergeMap((file) =>
+          from(this.createManifestFromLocalFile(sharePath, joinBuffer(backupPath, file))).pipe(
+            catchError((err) => {
+              this.logger.warn(`Can't read the file ${sharePath.toString()}/${backupPath.toString()}`);
+              return EMPTY;
+            }),
+          ),
         ),
-      ),
-    );
-    const folders$ = files$.pipe(
-      filter((folder) => FileBrowserService.isDirectory(folder.stats.mode)),
-      mergeMap((folder) => this.getFiles(folder.path, includes, excludes)),
-    );
-    return merge(files$, folders$);
+      );
+      const folders$ = files$.pipe(
+        filter((folder) => FileBrowserService.isDirectory(folder.stats?.mode || Long.ZERO)),
+        mergeMap((folder) => forShare(folder.path, includes, excludes)),
+      );
+      return merge(files$, folders$);
+    };
+    return forShare;
   }
 
-  private async createManifestFromLocalFile(path: Buffer): Promise<FileManifest> {
-    const fileStat = await lstat(path, { bigint: true });
+  private async createManifestFromLocalFile(sharePath: Buffer, path: Buffer): Promise<FileManifest> {
+    const fileStat = await lstat(joinBuffer(sharePath, path), { bigint: true });
     return {
       path,
       stats: {

@@ -1,13 +1,13 @@
 import { from, Observable } from 'rxjs';
 
-import { hashBuffer } from '../../utils/lodash.utils';
-import { IndexFileEntry } from './index-file-entry.model';
 import {
   EntryType,
   FileManifest,
   FileManifestJournalEntryAddOrModify,
   FileManifestJournalEntryRemove,
-} from './object-proto.model';
+} from '../models/manifest.model';
+import { hashBuffer } from '../utils/path.utils';
+import { IndexFileEntry } from './index-file-entry.model';
 
 /**
  * List of manifest of a manifest file (and the journal).

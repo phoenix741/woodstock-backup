@@ -1,19 +1,14 @@
 import { Logger } from '@nestjs/common';
-import { promises } from 'fs';
+import { rm, rename } from 'fs/promises';
 import { join } from 'path';
-import { concat, EMPTY, Observable } from 'rxjs';
+import { concat, defer, EMPTY, Observable, from } from 'rxjs';
 import { catchError, finalize, map, mergeMap, reduce } from 'rxjs/operators';
 
-import { notUndefined } from '../../utils/lodash.utils';
+import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../manifest/object-proto.model';
+import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
+import { notUndefined, silence } from '../utils/observable.utils';
 import { IndexManifest } from './index-manifest.model';
 import { readAllMessages, writeAllMessages } from './manifest-wrapper.utils';
-import {
-  EntryType,
-  FileManifest,
-  FileManifestJournalEntry,
-  ProtoFileManifest,
-  ProtoFileManifestJournalEntry,
-} from './object-proto.model';
 
 export class Manifest {
   private logger = new Logger(Manifest.name);
@@ -90,25 +85,25 @@ export class Manifest {
   }
 
   async deleteManifest(): Promise<void> {
-    await promises.rm(this.newPath, { force: true });
-    await promises.rm(this.journalPath, { force: true });
-    await promises.rm(this.manifestPath, { force: true });
-    await promises.rm(this.lockPath, { force: true });
+    await rm(this.newPath, { force: true });
+    await rm(this.journalPath, { force: true });
+    await rm(this.manifestPath, { force: true });
+    await rm(this.lockPath, { force: true });
   }
 
   compact(): Observable<FileManifest> {
-    return this.loadIndex().pipe(
+    const writeToManifest$ = this.loadIndex().pipe(
       mergeMap((index) => index.walk()),
       map((entry) => entry.manifest),
       notUndefined(),
       writeAllMessages(this.newPath, ProtoFileManifest),
-      finalize(async () => {
-        await Promise.all([
-          promises.rm(this.journalPath, { force: true }),
-          promises.rm(this.manifestPath, { force: true }),
-        ]);
-        await promises.rename(this.newPath, this.manifestPath);
-      }),
     );
+
+    const cleanupManifest$ = defer(async () => {
+      await Promise.all([rm(this.journalPath, { force: true }), rm(this.manifestPath, { force: true })]);
+      await rename(this.newPath, this.manifestPath);
+    }).pipe(silence);
+
+    return concat(writeToManifest$, cleanupManifest$);
   }
 }

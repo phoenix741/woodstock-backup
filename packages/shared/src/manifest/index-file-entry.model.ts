@@ -1,4 +1,4 @@
-import { FileManifest } from './object-proto.model';
+import { FileManifest } from '../models';
 
 /**
  * Used to represent a manifest in the index manifest.
