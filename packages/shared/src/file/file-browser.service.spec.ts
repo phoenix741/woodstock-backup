@@ -10,5 +10,5 @@ test('Search file in all directories', async () => {
     .getFiles(Buffer.from(__dirname))(Buffer.alloc(0), [], [globStringToRegex('*.spec.ts')])
     .pipe(count())
     .toPromise();
-  expect(value).toBe(1);
+  expect(value).toBe(4);
 });

@@ -1,16 +1,14 @@
-import { createHash, Hash } from 'crypto';
+import { createHash } from 'crypto';
 import { Transform, TransformCallback, TransformOptions } from 'stream';
 
-export interface HashReaderOptions {
-  intermediateHash?: boolean;
-}
-
-export class HashReader extends Transform {
-  private digester = createHash('sha3-256');
+export const HASH_ALGO = 'sha3-256';
+export const CHUNK_SIZE = 1 << 22;
+export class FileHashReader extends Transform {
+  private digester = createHash(HASH_ALGO);
   public hash?: Buffer;
   public length = 0;
 
-  constructor(opts?: TransformOptions & HashReaderOptions) {
+  constructor(opts?: TransformOptions) {
     super(opts);
   }
 
@@ -26,6 +24,51 @@ export class HashReader extends Transform {
 
   _flush(cb: TransformCallback): void {
     this.hash = this.digester.digest();
+    cb();
+  }
+}
+
+export class ChunkHashReader extends Transform {
+  private digester = createHash(HASH_ALGO);
+  public hashs: Buffer[] = [];
+  public bufferLength = 0;
+
+  constructor(opts?: TransformOptions) {
+    super(opts);
+  }
+
+  _transform(chunk: Buffer | string, enc: BufferEncoding, cb: TransformCallback): void {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, enc);
+
+    const chunkSizeRest = CHUNK_SIZE - this.bufferLength;
+    let shaData, shaDataRest;
+    if (buffer.length >= chunkSizeRest) {
+      shaData = buffer.slice(0, chunkSizeRest);
+      shaDataRest = buffer.slice(chunkSizeRest);
+    } else {
+      shaData = buffer;
+      shaDataRest = Buffer.alloc(0);
+    }
+
+    this.digester.update(shaData);
+    this.bufferLength += shaData.length;
+
+    if (this.bufferLength >= CHUNK_SIZE) {
+      this.hashs.push(this.digester.digest());
+      this.digester = createHash(HASH_ALGO);
+      this.digester.update(shaDataRest);
+      this.bufferLength = shaDataRest.length;
+    }
+
+    this.push(buffer);
+    cb();
+  }
+
+  _flush(cb: TransformCallback): void {
+    if (this.bufferLength) {
+      this.hashs.push(this.digester.digest());
+    }
+
     cb();
   }
 }

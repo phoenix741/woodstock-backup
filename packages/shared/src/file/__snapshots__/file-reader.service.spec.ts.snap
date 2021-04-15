@@ -1,0 +1,49 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Calculate hash of the files 1`] = `"0c07e26476eb9ee5a0a43a17b68df156b8f6c67bfa0e0d1e22bf02ee705ae40c"`;
+
+exports[`Calculate hash of the files 2`] = `
+Array [
+  "0c07e26476eb9ee5a0a43a17b68df156b8f6c67bfa0e0d1e22bf02ee705ae40c",
+]
+`;
+
+exports[`Calculate hash of the files 3`] = `"5ae697696c1554054230fa0f7cee1ceee1e00ca78e1a054339a752d48f041385"`;
+
+exports[`Calculate hash of the files 4`] = `
+Array [
+  "5ae697696c1554054230fa0f7cee1ceee1e00ca78e1a054339a752d48f041385",
+]
+`;
+
+exports[`Calculate hash of the files 5`] = `"12fa4f32e4d0f490befcae3fdad74cc282ba40eb3cb1d2cf17bd7cd6f8d2b11b"`;
+
+exports[`Calculate hash of the files 6`] = `
+Array [
+  "12fa4f32e4d0f490befcae3fdad74cc282ba40eb3cb1d2cf17bd7cd6f8d2b11b",
+]
+`;
+
+exports[`Calculate hash of the files 7`] = `"0c07e26476eb9ee5a0a43a17b68df156b8f6c67bfa0e0d1e22bf02ee705ae40c"`;
+
+exports[`Calculate hash of the files 8`] = `
+Array [
+  "0c07e26476eb9ee5a0a43a17b68df156b8f6c67bfa0e0d1e22bf02ee705ae40c",
+]
+`;
+
+exports[`Calculate hash of the files 9`] = `"5c20ff95e52a1ce2a9af01eb7f53d6393f7b5fa90272aee7285fc2a6c567a814"`;
+
+exports[`Calculate hash of the files 10`] = `
+Array [
+  "5c20ff95e52a1ce2a9af01eb7f53d6393f7b5fa90272aee7285fc2a6c567a814",
+]
+`;
+
+exports[`Calculate hash of the files 11`] = `"12fa4f32e4d0f490befcae3fdad74cc282ba40eb3cb1d2cf17bd7cd6f8d2b11b"`;
+
+exports[`Calculate hash of the files 12`] = `
+Array [
+  "12fa4f32e4d0f490befcae3fdad74cc282ba40eb3cb1d2cf17bd7cd6f8d2b11b",
+]
+`;

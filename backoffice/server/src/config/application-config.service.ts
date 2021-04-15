@@ -6,7 +6,6 @@ import { join } from 'path';
 
 import { pick } from '../utils/lodash.utils';
 
-export const CHUNK_SIZE = Long.ONE.shiftLeft(22);
 @Injectable()
 export class ApplicationConfigService {
   constructor(private configService: ConfigService) {}

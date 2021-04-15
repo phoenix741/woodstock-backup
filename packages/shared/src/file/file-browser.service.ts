@@ -13,7 +13,9 @@ import { joinBuffer } from '../utils/path.utils';
 export class FileBrowserService {
   private logger = new Logger(FileBrowserService.name);
 
-  public getFiles(sharePath: Buffer) {
+  public getFiles(
+    sharePath: Buffer,
+  ): (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]) => Observable<FileManifest> {
     const forShare = (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]): Observable<FileManifest> => {
       const files$ = from(readdir(joinBuffer(sharePath, backupPath), { encoding: 'buffer' })).pipe(
         catchError(() => {
@@ -73,7 +75,11 @@ export class FileBrowserService {
     return true;
   }
 
-  private static isDirectory(mode: Long = Long.ZERO): boolean {
+  public static isRegularFile(mode: Long = Long.ZERO): boolean {
+    return (mode.toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFREG;
+  }
+
+  public static isDirectory(mode: Long = Long.ZERO): boolean {
     return (mode.toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
   }
 }
