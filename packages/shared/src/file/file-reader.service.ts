@@ -44,7 +44,9 @@ export class FileReader {
   private static async calculateChunkHash(sharePath: Buffer, file: FileManifest): Promise<FileManifest> {
     const hashCalculator = new FileHashReader();
     const chunksCalculator = new ChunkHashReader();
+    console.log(sharePath.toString(), file.path.toString());
     await pipeline(createReadStream(joinBuffer(sharePath, file.path)), hashCalculator, chunksCalculator);
+    console.log('end');
     file.sha256 = hashCalculator.hash;
     file.chunks = chunksCalculator.hashs;
     return file;
