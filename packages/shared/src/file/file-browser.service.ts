@@ -3,7 +3,7 @@ import { constants as constantsFs } from 'fs';
 import { lstat, readdir } from 'fs/promises';
 import * as Long from 'long';
 import { EMPTY, from, merge, Observable } from 'rxjs';
-import { catchError, mergeMap, switchMap, tap, filter } from 'rxjs/operators';
+import { catchError, mergeMap, switchMap, tap, filter, concatMap } from 'rxjs/operators';
 
 import { FileManifest } from '../models/manifest.model';
 import { bigIntToLong } from '../utils/number.utils';
@@ -22,12 +22,12 @@ export class FileBrowserService {
           this.logger.warn(`Can't read the directory ${sharePath.toString()}/${backupPath.toString()}`);
           return EMPTY;
         }),
-        mergeMap((files) => from(files)),
+        concatMap((files) => from(files)),
         filter((file) => FileBrowserService.isFileAuthorized(joinBuffer(backupPath, file), includes, excludes)),
-        mergeMap((file) =>
+        concatMap((file) =>
           from(this.createManifestFromLocalFile(sharePath, joinBuffer(backupPath, file))).pipe(
             catchError((err) => {
-              this.logger.warn(`Can't read the file ${sharePath.toString()}/${backupPath.toString()}`);
+              this.logger.warn(`Can't read information of the file ${sharePath.toString()}/${backupPath.toString()}`);
               return EMPTY;
             }),
           ),
@@ -35,7 +35,7 @@ export class FileBrowserService {
       );
       const folders$ = files$.pipe(
         filter((folder) => FileBrowserService.isDirectory(folder.stats?.mode || Long.ZERO)),
-        mergeMap((folder) => forShare(folder.path, includes, excludes)),
+        concatMap((folder) => forShare(folder.path, includes, excludes)),
       );
       return merge(files$, folders$);
     };

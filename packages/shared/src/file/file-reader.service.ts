@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import { Observable } from 'rxjs';
-import { filter, mergeMap, concatMap } from 'rxjs/operators';
+import { concatMap, filter } from 'rxjs/operators';
 import { FileManifest } from 'src/models';
-import { pipeline as streamPipeline } from 'stream';
+import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
 
 import { IndexManifest } from '../manifest/index-manifest.model';
@@ -15,6 +15,8 @@ const pipeline = promisify(streamPipeline);
 
 Injectable();
 export class FileReader {
+  private logger = new Logger(FileReader.name);
+
   constructor(private browser: FileBrowserService) {}
 
   public getFiles(
@@ -28,7 +30,7 @@ export class FileReader {
       .pipe(
         filter((file) => FileBrowserService.isRegularFile(file.stats?.mode)),
         filter((file) => FileReader.isModified(index, file)),
-        concatMap((file) => FileReader.calculateChunkHash(sharePath, file)),
+        concatMap((file) => this.calculateChunkHash(sharePath, file)), // FIXME: Don't parse file if not modified
       );
   }
 
@@ -41,14 +43,26 @@ export class FileReader {
     );
   }
 
-  private static async calculateChunkHash(sharePath: Buffer, file: FileManifest): Promise<FileManifest> {
-    const hashCalculator = new FileHashReader();
-    const chunksCalculator = new ChunkHashReader();
-    console.log(sharePath.toString(), file.path.toString());
-    await pipeline(createReadStream(joinBuffer(sharePath, file.path)), hashCalculator, chunksCalculator);
-    console.log('end');
-    file.sha256 = hashCalculator.hash;
-    file.chunks = chunksCalculator.hashs;
-    return file;
+  private async calculateChunkHash(sharePath: Buffer, file: FileManifest): Promise<FileManifest> {
+    try {
+      const hashCalculator = new FileHashReader();
+      const chunksCalculator = new ChunkHashReader();
+      await pipeline(
+        createReadStream(joinBuffer(sharePath, file.path)),
+        hashCalculator,
+        chunksCalculator,
+        new Writable({
+          write(_, _2, cb) {
+            setImmediate(cb);
+          },
+        }),
+      );
+      file.sha256 = hashCalculator.hash;
+      file.chunks = chunksCalculator.hashs;
+      return file;
+    } catch (err) {
+      this.logger.warn(`Can't read hash of the file ${sharePath.toString()}/${file.path.toString()}`);
+      return file;
+    }
   }
 }
