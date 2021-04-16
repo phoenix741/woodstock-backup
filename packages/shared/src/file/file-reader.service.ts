@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import { Observable } from 'rxjs';
-import { concatMap, filter } from 'rxjs/operators';
+import { concatMap, filter, share, tap } from 'rxjs/operators';
 import { FileManifest } from 'src/models';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
@@ -13,7 +13,7 @@ import { ChunkHashReader, FileHashReader } from './hash-reader.transform';
 
 const pipeline = promisify(streamPipeline);
 
-Injectable();
+@Injectable()
 export class FileReader {
   private logger = new Logger(FileReader.name);
 
