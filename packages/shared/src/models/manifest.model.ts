@@ -30,7 +30,6 @@ export enum EntryType {
   ADD = 0,
   MODIFY = 1,
   REMOVE = 2,
-  CLOSE = 255,
 }
 
 export interface FileManifestJournalEntryRemove {
@@ -43,11 +42,4 @@ export interface FileManifestJournalEntryAddOrModify {
   manifest: FileManifest;
 }
 
-export interface FileManifestJournalEntryClose {
-  type: EntryType.CLOSE;
-}
-
-export type FileManifestJournalEntry =
-  | FileManifestJournalEntryRemove
-  | FileManifestJournalEntryAddOrModify
-  | FileManifestJournalEntryClose;
+export type FileManifestJournalEntry = FileManifestJournalEntryRemove | FileManifestJournalEntryAddOrModify;

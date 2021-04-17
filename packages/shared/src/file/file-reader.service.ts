@@ -1,15 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream } from 'fs';
-import { iif, Observable, of, defer } from 'rxjs';
-import { concatMap, filter, share, tap } from 'rxjs/operators';
-import { FileManifest } from 'src/models';
+import { defer, iif, Observable, of } from 'rxjs';
+import { concatMap, filter } from 'rxjs/operators';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
 
 import { IndexManifest } from '../manifest/index-manifest.model';
+import { FileManifest } from '../models';
 import { joinBuffer } from '../utils/path.utils';
 import { FileBrowserService } from './file-browser.service';
 import { ChunkHashReader, FileHashReader } from './hash-reader.transform';
+import { Manifest } from '../manifest/manifest.model';
 
 const pipeline = promisify(streamPipeline);
 

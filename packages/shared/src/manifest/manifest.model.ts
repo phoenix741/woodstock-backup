@@ -1,14 +1,16 @@
 import { Logger } from '@nestjs/common';
-import { rm, rename } from 'fs/promises';
+import { rename, rm, access } from 'fs/promises';
+import { constants as constantsFs } from 'fs';
 import { join } from 'path';
-import { concat, defer, EMPTY, Observable, from } from 'rxjs';
-import { catchError, finalize, map, mergeMap, reduce } from 'rxjs/operators';
+import { concat, defer, EMPTY, Observable } from 'rxjs';
+import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
 
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../manifest/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
 import { notUndefined, silence } from '../utils/observable.utils';
 import { IndexManifest } from './index-manifest.model';
 import { readAllMessages, writeAllMessages } from './manifest-wrapper.utils';
+import { constants } from 'fs';
 
 export class Manifest {
   private logger = new Logger(Manifest.name);
@@ -67,10 +69,6 @@ export class Manifest {
 
     const indexWrapper = concat(manifestWrapper, journalWrapper).pipe(
       reduce<FileManifestJournalEntry, IndexManifest>((index, journalEntry) => {
-        if (journalEntry.type === EntryType.CLOSE) {
-          return index;
-        }
-
         index.process(journalEntry);
 
         return index;
@@ -82,6 +80,14 @@ export class Manifest {
 
   writeJournalEntry(): (source: Observable<FileManifestJournalEntry>) => Observable<FileManifestJournalEntry> {
     return writeAllMessages<FileManifestJournalEntry>(this.journalPath, ProtoFileManifestJournalEntry);
+  }
+
+  async exists() {
+    const isExists = async (path: string) =>
+      access(path, constantsFs.F_OK)
+        .then(() => true)
+        .catch(() => false);
+    return isExists(this.manifestPath) && !isExists(this.journalPath);
   }
 
   async deleteManifest(): Promise<void> {

@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
+import { SharedModule } from '@woodstock/shared';
+
 import { AppController } from './app.controller';
+import { LogService } from './log.service';
 
 @Module({
-  imports: [],
+  imports: [SharedModule],
   controllers: [AppController],
-  providers: [],
+  providers: [LogService],
 })
 export class AppModule {}

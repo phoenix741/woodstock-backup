@@ -15,7 +15,7 @@ import {
   UpdateManifestReply,
 } from '../models/query.model';
 
-const root = loadSync(join(__dirname, 'woodstock.proto'));
+const root = loadSync(join(__dirname, '..', '..', 'woodstock.proto'));
 
 export const ProtoPrepareBackupRequest = root.lookupType('woodstock.PrepareBackupRequest');
 export const ProtoPrepareBackupReply = root.lookupType('woodstock.PrepareBackupReply');

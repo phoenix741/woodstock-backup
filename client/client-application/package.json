@@ -1,6 +1,6 @@
 {
   "name": "woodstock-client",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "description": "",
   "author": "",
   "private": true,
@@ -29,7 +29,8 @@
     "grpc": "^1.24.6",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
-    "rxjs": "^6.6.6"
+    "rxjs": "^6.6.6",
+    "@woodstock/shared": "^2.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^7.6.0",

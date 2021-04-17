@@ -19,3 +19,7 @@ export function longMin(...args: Long[]): Long {
 export function bigIntToLong(n: bigint): Long {
   return Long.fromString(n.toString());
 }
+
+export function longToBigInt(n: Long): bigint {
+  return BigInt(n.toString());
+}
