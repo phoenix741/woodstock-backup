@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream } from 'fs';
-import { Observable } from 'rxjs';
+import { iif, Observable, of, defer } from 'rxjs';
 import { concatMap, filter, share, tap } from 'rxjs/operators';
 import { FileManifest } from 'src/models';
 import { pipeline as streamPipeline, Writable } from 'stream';
@@ -30,7 +30,13 @@ export class FileReader {
       .pipe(
         filter((file) => FileBrowserService.isRegularFile(file.stats?.mode)),
         filter((file) => FileReader.isModified(index, file)),
-        concatMap((file) => this.calculateChunkHash(sharePath, file)), // FIXME: Don't parse file if not modified
+        concatMap((file) =>
+          iif(
+            () => !!index.getEntry(file.path),
+            defer(() => this.calculateChunkHash(sharePath, file)),
+            of(file),
+          ),
+        ),
       );
   }
 
@@ -43,12 +49,12 @@ export class FileReader {
     );
   }
 
-  private async calculateChunkHash(sharePath: Buffer, file: FileManifest): Promise<FileManifest> {
+  private async calculateChunkHash(sharePath: Buffer, manifest: FileManifest): Promise<FileManifest> {
     try {
       const hashCalculator = new FileHashReader();
       const chunksCalculator = new ChunkHashReader();
       await pipeline(
-        createReadStream(joinBuffer(sharePath, file.path)),
+        createReadStream(joinBuffer(sharePath, manifest.path)),
         hashCalculator,
         chunksCalculator,
         new Writable({
@@ -57,12 +63,12 @@ export class FileReader {
           },
         }),
       );
-      file.sha256 = hashCalculator.hash;
-      file.chunks = chunksCalculator.hashs;
-      return file;
+      manifest.sha256 = hashCalculator.hash;
+      manifest.chunks = chunksCalculator.hashs;
+      return manifest;
     } catch (err) {
-      this.logger.warn(`Can't read hash of the file ${sharePath.toString()}/${file.path.toString()}`);
-      return file;
+      this.logger.warn(`Can't read hash of the file ${sharePath.toString()}/${manifest.path.toString()}`);
+      return manifest;
     }
   }
 }
