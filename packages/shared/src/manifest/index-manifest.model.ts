@@ -1,11 +1,6 @@
 import { from, Observable } from 'rxjs';
 
-import {
-  EntryType,
-  FileManifest,
-  FileManifestJournalEntryAddOrModify,
-  FileManifestJournalEntryRemove,
-} from '../models/manifest.model';
+import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
 import { hashBuffer } from '../utils/path.utils';
 import { IndexFileEntry } from './index-file-entry.model';
 
@@ -22,9 +17,9 @@ export class IndexManifest {
     return this.files.size;
   }
 
-  process(journalEntry: FileManifestJournalEntryAddOrModify | FileManifestJournalEntryRemove): void {
+  process(journalEntry: FileManifestJournalEntry): void {
     if (journalEntry.type === EntryType.REMOVE) {
-      this.remove(journalEntry.path);
+      this.remove(journalEntry.manifest.path);
     } else {
       this.add(journalEntry.manifest);
     }

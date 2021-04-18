@@ -32,14 +32,7 @@ export enum EntryType {
   REMOVE = 2,
 }
 
-export interface FileManifestJournalEntryRemove {
-  type: EntryType.REMOVE;
-  path: Buffer;
-}
-
-export interface FileManifestJournalEntryAddOrModify {
-  type: EntryType.ADD | EntryType.MODIFY;
+export interface FileManifestJournalEntry {
+  type: EntryType;
   manifest: FileManifest;
 }
-
-export type FileManifestJournalEntry = FileManifestJournalEntryRemove | FileManifestJournalEntryAddOrModify;

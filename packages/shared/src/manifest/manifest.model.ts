@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { rename, rm, access } from 'fs/promises';
 import { constants as constantsFs } from 'fs';
+import { access, rename, rm } from 'fs/promises';
 import { join } from 'path';
 import { concat, defer, EMPTY, Observable } from 'rxjs';
 import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
@@ -10,7 +10,6 @@ import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/man
 import { notUndefined, silence } from '../utils/observable.utils';
 import { IndexManifest } from './index-manifest.model';
 import { readAllMessages, writeAllMessages } from './manifest-wrapper.utils';
-import { constants } from 'fs';
 
 export class Manifest {
   private logger = new Logger(Manifest.name);
@@ -30,7 +29,9 @@ export class Manifest {
   static toRemoveJournalEntry(path: Buffer): FileManifestJournalEntry {
     return {
       type: EntryType.REMOVE,
-      path,
+      manifest: {
+        path,
+      },
     };
   }
 

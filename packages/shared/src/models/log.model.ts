@@ -7,6 +7,6 @@ export enum LogLevel {
 }
 
 export interface LogEntry {
-  level: LogLevel;
-  line: string;
+  level?: LogLevel;
+  line?: string;
 }

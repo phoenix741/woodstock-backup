@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package woodstock;
 
+// Status Code for reply
 enum StatusCode {
   Ok = 0;
   Failed = 1;
 }
 
+// File manifest used to store the content of a file
 message FileManifest {
   message FileManifestStat {
     int64 ownerId = 1;
@@ -33,6 +35,7 @@ message FileManifest {
   bytes sha256 = 4;
 }
 
+// Journal entry
 message FileManifestJournalEntry {
   enum EntryType {
     // Add a new file
@@ -41,17 +44,13 @@ message FileManifestJournalEntry {
     MODIFY = 1;
     // Remove a file
     REMOVE = 2;
-    // End of backup
-    CLOSE = 255;
   }
 
-  oneof entry {
-    FileManifest manifest = 1;
-    bytes path = 2;
-  }
-  EntryType type = 3;
+  EntryType type = 1;
+  FileManifest manifest = 2;
 }
 
+// Log entry
 message LogEntry {
   enum LogLevel {
     DEBUG = 0;
@@ -69,31 +68,52 @@ message FileChunk {
   bytes data = 1;
 }
 
-message BackupShare {
+message RefreshCacheHeader {
   bytes sharePath = 1;
-  repeated bytes includes = 2;
-  repeated bytes excludes = 3;
 }
 
-message PrepareBackupRequest {
-  BackupShare share = 1;
-  uint32 lastBackupNumber = 2;
-  uint32 newBackupNumber = 3;
-}
-
-message PrepareBackupReply {
-  StatusCode code = 1;
-  bool needRefreshCache = 2;
+message RefreshCacheRequest {
+  oneof content {
+    RefreshCacheHeader header = 2;
+    FileManifest manifest = 1;
+  }
 }
 
 message RefreshCacheReply {
   StatusCode code = 1;
 }
 
+message LaunchBackupHeader {
+  bytes sharePath = 1;
+  repeated bytes includes = 2;
+  repeated bytes excludes = 3;
+
+  uint32 lastBackupNumber = 4;
+  uint32 newBackupNumber = 5;
+}
+
+message LaunchBackupFooter {
+  StatusCode code = 1;
+}
+
 message LaunchBackupRequest {
-  BackupShare share = 1;
-  uint32 lastBackupNumber = 2;
-  uint32 newBackupNumber = 3;
+  oneof content {
+    LaunchBackupHeader header = 1;
+    FileManifestJournalEntry entry = 2;
+    LaunchBackupFooter footer = 3;
+  }
+}
+
+message LaunchBackupResponse {
+  StatusCode code = 1;
+  bool needRefreshCache = 2;
+}
+
+message LaunchBackupReply {
+  oneof content {
+    LaunchBackupResponse response = 2;
+    FileManifestJournalEntry entry = 1;
+  }
 }
 
 message GetChunkRequest {
@@ -105,10 +125,6 @@ message GetChunkRequest {
 
 message StreamLogRequest {
 
-}
-
-message UpdateManifestReply {
-  StatusCode code = 1;
 }
 
 message ExecuteCommandRequest {
@@ -125,22 +141,15 @@ service WoodstockClientService {
   // 0. Execute a command directly on the client
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
 
-  // 1. Server want to start a backup session and send the configuration and last backup number.
-  //    If the client has no previous cache, the client ask for more information.
-  rpc PrepareBackup(PrepareBackupRequest) returns (PrepareBackupReply) {}
+  // 1. The server launch the backup with a new number. The client will browse the client computer
+  //    and will send all new file to the server
+  rpc LaunchBackup(stream LaunchBackupRequest) returns (stream LaunchBackupReply) {}
 
   // 2. The client want a cache refresh, the server will send the new cache for the last backup
   //    number. (the backup number referenced previously)
-  rpc RefreshCache(stream FileManifest) returns (RefreshCacheReply) {}
+  rpc RefreshCache(stream RefreshCacheRequest) returns (RefreshCacheReply) {}
 
-  // 3. The server launch the backup with a new number. The client will browse the client computer
-  //    and will send all new file to the server
-  rpc LaunchBackup(LaunchBackupRequest) returns (stream FileManifestJournalEntry) {}
-
-  // 3bis. The server send modified manifest to the client
-  rpc UpdateFileManifest(stream FileManifestJournalEntry) returns (UpdateManifestReply) {}
-
-  // 4. When the server receive a journal entry, the server will compare the chunk with the manifest
+  // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
   //    and ask all necessary chunk to the client.
   rpc GetChunk(GetChunkRequest) returns (stream FileChunk) {}
 

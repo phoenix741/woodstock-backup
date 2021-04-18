@@ -4,24 +4,20 @@ import {
   ExecuteCommandReply,
   ExecuteCommandRequest,
   FileChunk,
-  FileManifest,
-  FileManifestJournalEntry,
   FileReader,
   GetChunkRequest,
   globStringToRegex,
+  LaunchBackupReply,
   LaunchBackupRequest,
   LogEntry,
-  longToBigInt,
   Manifest,
-  PrepareBackupReply,
-  PrepareBackupRequest,
   RefreshCacheReply,
+  RefreshCacheRequest,
   StatusCode,
-  UpdateManifestReply,
 } from '@woodstock/shared';
 import { createReadStream } from 'fs';
-import { defer, from, Observable, of } from 'rxjs';
-import { catchError, map, reduce, switchMap } from 'rxjs/operators';
+import { concat, forkJoin, from, iif, merge, Observable, of, throwError } from 'rxjs';
+import { catchError, filter, first, last, map, reduce, switchMap } from 'rxjs/operators';
 
 import { LogService } from './log.service';
 
@@ -39,80 +35,106 @@ export class AppController {
     };
   }
 
-  @GrpcMethod('WoodstockClientService', 'PrepareBackup')
-  prepareBackup(request: PrepareBackupRequest): Observable<PrepareBackupReply> {
-    console.log('prepareBackup', request.lastBackupNumber, request.newBackupNumber, request.configuration.sharePath);
+  @GrpcStreamMethod('WoodstockClientService', 'LaunchBackup')
+  launchBackup(request: Observable<LaunchBackupRequest>): Observable<LaunchBackupReply> {
+    console.log('launchBackup');
 
-    const { sharePath } = request.configuration;
+    const shareInformation$ = request.pipe(
+      first((value) => !!value.header),
+      map((value) => value.header),
+    );
 
-    const manifest = new Manifest(`backups.${sharePath.toString('base64')}`, '/tmp/');
+    const footerRequest$ = request.pipe(
+      last((value) => !!value.footer),
+      map((value) => value.footer),
+    );
 
-    return from(async () => ({
-      code: StatusCode.Ok,
-      needRefreshCache: await manifest.exists(),
-    }));
+    const defineManifest$ = shareInformation$.pipe(
+      map((header) => new Manifest(`backups.${header.sharePath.toString('base64')}`, '/tmp/')),
+      switchMap((manifest) => {
+        if (!manifest.exists()) {
+          return throwError({ needRefreshCache: true });
+        }
+        return of(manifest);
+      }),
+    );
+
+    const loadIndex$ = defineManifest$.pipe(switchMap((manifest) => manifest.loadIndex()));
+
+    const journalEntries$ = forkJoin([shareInformation$, loadIndex$]).pipe(
+      switchMap(([header, index]) =>
+        this.fileReader
+          .getFiles(
+            index,
+            header.sharePath,
+            header.includes.map((s) => globStringToRegex(s.toString('latin1'))),
+            header.excludes.map((s) => globStringToRegex(s.toString('latin1'))),
+          )
+          .pipe(map((manifestEntry) => Manifest.toAddJournalEntry(manifestEntry, true))),
+      ),
+    );
+
+    const updateManifestEntries$ = request.pipe(
+      filter((request) => !!request.entry),
+      map((request) => request.entry),
+    );
+
+    const concatEntries$ = defineManifest$.pipe(
+      switchMap((manifest) =>
+        merge(journalEntries$, updateManifestEntries$).pipe(
+          manifest.writeJournalEntry(),
+          map((manifestEntry) => ({ entry: manifestEntry })),
+        ),
+      ),
+      catchError((err) => of({ response: { code: StatusCode.Failed, needRefreshCache: !!err.needRefreshCache } })),
+    );
+
+    const compactManifest$ = forkJoin([defineManifest$, footerRequest$]).pipe(
+      switchMap(([manifest, footer]) =>
+        iif(
+          () => footer.code === StatusCode.Ok,
+          manifest.compact().pipe(
+            last(),
+            map(() => ({ response: { code: StatusCode.Ok, needRefreshCache: false } })),
+            catchError(() => of({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
+          ),
+          from(manifest.deleteManifest()).pipe(
+            last(),
+            map(() => ({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
+          ),
+        ),
+      ),
+    );
+
+    return concat(concatEntries$, compactManifest$);
   }
 
   @GrpcStreamMethod('WoodstockClientService', 'RefreshCache')
-  refreshCache(request: Observable<FileManifest>): Observable<RefreshCacheReply> {
+  refreshCache(request: Observable<RefreshCacheRequest>): Observable<RefreshCacheReply> {
     console.log('refreshCache', 'start');
 
-    const sharePath = Buffer.from('test'); //FIXME
-    const manifest = new Manifest(`backups.${sharePath.toString('base64')}`, '/tmp/');
-
-    const deleteManifest$ = defer(() => manifest.deleteManifest());
-    return deleteManifest$.pipe(
-      switchMap(() => request),
-      map((manifest) => Manifest.toAddJournalEntry(manifest, true)),
-      manifest.writeJournalEntry(),
-      catchError(() => {
-        return of({ code: StatusCode.Failed });
-      }),
-      reduce((acc) => acc, { code: StatusCode.Ok }),
+    const defineManifest$ = request.pipe(
+      first((value) => !!value.header),
+      map((value) => new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/')),
+      switchMap((manifest) => manifest.deleteManifest().then(() => manifest)),
     );
-  }
 
-  @GrpcMethod('WoodstockClientService', 'LaunchBackup')
-  launchBackup(request: LaunchBackupRequest): Observable<FileManifestJournalEntry> {
-    console.log('launchBackup', request.newBackupNumber, request.lastBackupNumber, request.configuration.sharePath);
-
-    const { sharePath, includes, excludes } = request.configuration;
-
-    const manifest = new Manifest(`backups.${sharePath.toString('base64')}`, '/tmp/');
-
-    const loadIndex$ = manifest.loadIndex();
-    const journalEntries$ = loadIndex$
-      .pipe(
-        switchMap((index) =>
-          this.fileReader.getFiles(
-            index,
-            sharePath,
-            includes.map((s) => globStringToRegex(s.toString('latin1'))),
-            excludes.map((s) => globStringToRegex(s.toString('latin1'))),
-          ),
-        ),
-      )
-      .pipe(
-        map((manifest) => Manifest.toAddJournalEntry(manifest, true)),
-        manifest.writeJournalEntry(),
-      );
-
-    return journalEntries$;
-  }
-
-  @GrpcStreamMethod('WoodstockClientService', 'UpdateFileManifest')
-  updateFileManifest(request: Observable<FileManifestJournalEntry>): Observable<UpdateManifestReply> {
-    console.log('updateFileManifest', 'start');
-
-    const sharePath = Buffer.from('test'); //FIXME
-    const manifest = new Manifest(`backups.${sharePath.toString('base64')}`, '/tmp/');
-    return request.pipe(
-      manifest.writeJournalEntry(),
-      catchError(() => {
-        return of({ code: StatusCode.Failed });
+    const journalEntry$ = defineManifest$.pipe(
+      switchMap((manifest) => {
+        return request.pipe(
+          filter((request) => !!request.manifest),
+          map((request) => request.manifest),
+          map((manifest) => Manifest.toAddJournalEntry(manifest, true)),
+          manifest.writeJournalEntry(),
+          catchError(() => {
+            return of({ code: StatusCode.Failed });
+          }),
+          reduce((acc) => acc, { code: StatusCode.Ok }),
+        );
       }),
-      reduce((acc) => acc, { code: StatusCode.Ok }),
     );
+
+    return journalEntry$;
   }
 
   @GrpcMethod('WoodstockClientService', 'GetChunk')

@@ -4,17 +4,14 @@ import { AppModule } from './app.module';
 import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
-    AppModule,
-    {
-      transport: Transport.GRPC,
-      options: {
-        package: 'woodstock',
-        protoPath: join(__dirname, 'woodstock.proto'),
-        url: '0.0.0.0:3657',
-      },
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
+    transport: Transport.GRPC,
+    options: {
+      package: 'woodstock',
+      protoPath: join(__dirname, '..', 'node_modules', '@woodstock', 'shared', 'woodstock.proto'),
+      url: '0.0.0.0:3657',
     },
-  );
+  });
   app.listen(() => console.log('Microservice is listening'));
 }
 bootstrap();
