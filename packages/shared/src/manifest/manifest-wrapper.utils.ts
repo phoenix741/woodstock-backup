@@ -2,7 +2,8 @@ import { createReadStream, createWriteStream } from 'fs';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
 import { Type, Writer } from 'protobufjs';
-import { Observable } from 'rxjs';
+import { from, Observable } from 'rxjs';
+import { concatMap } from 'rxjs/operators';
 import { Writable } from 'stream';
 
 import { ProtobufMessageReader, ProtobufMessageWithPosition } from './protobuf-message-reader.utils';
@@ -30,12 +31,6 @@ export function writeAllMessages<T>(path: string, type: Type) {
       let waiting = false;
       let stream: Writable;
 
-      mkdirp(dirname(path)).then(() => {
-        stream = createWriteStream(path, { flags: 'a' });
-        stream.on('finish', () => subscriber.complete());
-        stream.on('error', (err) => subscriber.error(err));
-      });
-
       function write() {
         const chunk = grpcWriter.finish();
         grpcWriter.reset();
@@ -48,32 +43,51 @@ export function writeAllMessages<T>(path: string, type: Type) {
           });
         }
       }
-      const subscription = source.subscribe({
-        next(message) {
-          try {
-            type.encodeDelimited(message, grpcWriter);
+      const subscription = source
+        .pipe(
+          concatMap((value) => {
+            return from(
+              mkdirp(dirname(path))
+                .then(() => {
+                  console.log('createWriteStream');
+                  stream = createWriteStream(path, { flags: 'a' });
+                  stream.on('finish', () => subscriber.complete());
+                  stream.on('error', (err) => subscriber.error(err));
+                })
+                .then(() => value),
+            );
+          }),
+        )
+        .subscribe({
+          next(message) {
+            console.log('message', message);
+            try {
+              type.encodeDelimited(message, grpcWriter);
 
-            if (grpcWriter.len > WRITE_BUFFER_SIZE && !waiting) {
-              write();
+              if (grpcWriter.len > WRITE_BUFFER_SIZE && !waiting) {
+                write();
+              }
+
+              subscriber.next(message);
+            } catch (err) {
+              subscriber.error(err);
             }
-
-            subscriber.next(message);
-          } catch (err) {
-            subscriber.error(err);
-          }
-        },
-        error(err) {
-          stream.end(grpcWriter.finish());
-          subscriber.error(err);
-        },
-        complete() {
-          if (waiting) {
-            stream.once('drain', () => stream.end(grpcWriter.finish()));
-          } else {
+          },
+          error(err) {
             stream.end(grpcWriter.finish());
-          }
-        },
-      });
+            subscriber.error(err);
+          },
+          complete() {
+            console.log(grpcWriter.len, stream);
+            if (!!grpcWriter.len) {
+              if (waiting) {
+                stream.once('drain', () => stream.end(grpcWriter.finish()));
+              } else {
+                stream.end(grpcWriter.finish());
+              }
+            }
+          },
+        });
 
       return () => subscription.unsubscribe();
     });
