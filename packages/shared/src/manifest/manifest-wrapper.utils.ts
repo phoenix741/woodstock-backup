@@ -2,8 +2,8 @@ import { createReadStream, createWriteStream } from 'fs';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
 import { Type, Writer } from 'protobufjs';
-import { from, Observable } from 'rxjs';
-import { concatMap } from 'rxjs/operators';
+import { from, Observable, of } from 'rxjs';
+import { concatMap, mapTo, tap } from 'rxjs/operators';
 import { Writable } from 'stream';
 
 import { ProtobufMessageReader, ProtobufMessageWithPosition } from './protobuf-message-reader.utils';
@@ -24,7 +24,7 @@ export function readAllMessages<T>(path: string, type: Type): Observable<Protobu
   });
 }
 
-export function writeAllMessages<T>(path: string, type: Type) {
+export function writeAllMessages<T>(path: () => string, type: Type) {
   return function (source: Observable<T>): Observable<T> {
     return new Observable((subscriber) => {
       const grpcWriter = new Writer();
@@ -45,22 +45,23 @@ export function writeAllMessages<T>(path: string, type: Type) {
       }
       const subscription = source
         .pipe(
-          concatMap((value) => {
-            return from(
-              mkdirp(dirname(path))
-                .then(() => {
-                  console.log('createWriteStream');
-                  stream = createWriteStream(path, { flags: 'a' });
+          concatMap((value, index) => {
+            if (index === 0) {
+              const p = path();
+              return from(mkdirp(dirname(p))).pipe(
+                tap(() => {
+                  stream = createWriteStream(p, { flags: 'a' });
                   stream.on('finish', () => subscriber.complete());
                   stream.on('error', (err) => subscriber.error(err));
-                })
-                .then(() => value),
-            );
+                }),
+                mapTo(value),
+              );
+            }
+            return of(value);
           }),
         )
         .subscribe({
           next(message) {
-            console.log('message', message);
             try {
               type.encodeDelimited(message, grpcWriter);
 
@@ -74,11 +75,16 @@ export function writeAllMessages<T>(path: string, type: Type) {
             }
           },
           error(err) {
-            stream.end(grpcWriter.finish());
+            if (!!grpcWriter.len) {
+              if (waiting) {
+                stream.once('drain', () => stream.end(grpcWriter.finish()));
+              } else {
+                stream.end(grpcWriter.finish());
+              }
+            }
             subscriber.error(err);
           },
           complete() {
-            console.log(grpcWriter.len, stream);
             if (!!grpcWriter.len) {
               if (waiting) {
                 stream.once('drain', () => stream.end(grpcWriter.finish()));

@@ -22,6 +22,7 @@ export interface RefreshCacheRequest {
 
 export interface RefreshCacheReply {
   code: StatusCode;
+  message?: string;
 }
 
 export interface LaunchBackupHeader {
@@ -45,6 +46,7 @@ export interface LaunchBackupRequest {
 export interface LaunchBackupResponse {
   code: StatusCode;
   needRefreshCache: boolean;
+  message?: string;
 }
 
 export interface LaunchBackupReply {

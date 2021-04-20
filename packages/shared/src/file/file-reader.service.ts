@@ -23,8 +23,8 @@ export class FileReader {
   public getFiles(
     index: IndexManifest,
     sharePath: Buffer,
-    includes: RegExp[],
-    excludes: RegExp[],
+    includes: RegExp[] = [],
+    excludes: RegExp[] = [],
   ): Observable<FileManifest> {
     return this.browser
       .getFiles(sharePath)(Buffer.alloc(0), includes, excludes)

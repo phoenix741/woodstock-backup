@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   FileChunk,
   FileReader,
@@ -7,120 +7,105 @@ import {
   LaunchBackupReply,
   LaunchBackupRequest,
   Manifest,
+  ManifestService,
   RefreshCacheReply,
   RefreshCacheRequest,
+  silence,
   StatusCode,
 } from '@woodstock/shared';
 import { createReadStream } from 'fs';
-import { concat, forkJoin, from, iif, merge, Observable, of, throwError } from 'rxjs';
-import { catchError, filter, first, last, map, reduce, switchMap, tap } from 'rxjs/operators';
+import { from, Observable, of, throwError } from 'rxjs';
+import { catchError, concatMap, filter, last, map, reduce, switchMap, tap } from 'rxjs/operators';
 
 @Injectable()
 export class AppService {
-  constructor(private fileReader: FileReader) {}
+  constructor(private fileReader: FileReader, private manifestService: ManifestService) {}
 
   launchBackup(request: Observable<LaunchBackupRequest>): Observable<LaunchBackupReply> {
-    console.log('launchBackup');
+    let manifest: Manifest;
 
-    const shareInformation$ = request.pipe(
-      first((value) => !!value.header),
-      map((value) => value.header),
-    );
-
-    const footerRequest$ = request.pipe(
-      last((value) => !!value.footer),
-      map((value) => value.footer),
-    );
-
-    const defineManifest$ = shareInformation$.pipe(
-      map((header) => new Manifest(`backups.${header.sharePath.toString('base64')}`, '/tmp/')),
-      switchMap((manifest) => {
-        if (!manifest.exists()) {
-          return throwError({ needRefreshCache: true });
+    const journalEntry$ = request.pipe(
+      concatMap((value) => {
+        if (!!value.header) {
+          manifest = new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/');
+          return from(this.manifestService.exists(manifest)).pipe(
+            tap((value) => {
+              if (!value) {
+                return throwError({ needRefreshCache: true });
+              }
+            }),
+            switchMap(() => this.manifestService.loadIndex(manifest)),
+            switchMap((index) =>
+              this.fileReader.getFiles(
+                index,
+                value.header.sharePath,
+                value.header.includes?.map((s) => globStringToRegex(s.toString('latin1'))),
+                value.header.excludes?.map((s) => globStringToRegex(s.toString('latin1'))),
+              ),
+            ),
+            map((manifestEntry) => this.manifestService.toAddJournalEntry(manifestEntry, true)),
+          );
         }
-        return of(manifest);
+        if (!!value.footer) {
+          if (value.footer.code === StatusCode.Ok) {
+            return this.manifestService.compact(manifest).pipe(
+              last(),
+              map(() => ({ response: { code: StatusCode.Ok, needRefreshCache: false } })),
+              catchError(() => of({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
+            );
+          } else {
+            return from(this.manifestService.deleteManifest(manifest)).pipe(
+              last(),
+              map(() => ({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
+            );
+          }
+        }
+
+        return of(value.entry);
+      }),
+      tap((e) => console.log('e', e, manifest)),
+      this.manifestService.writeJournalEntry(() => manifest),
+
+      map((entry) => ({ entry })),
+      catchError((err) => {
+        console.log(err);
+        return of({
+          response: { code: StatusCode.Failed, message: err.message, needRefreshCache: !!err.needRefreshCache },
+        });
       }),
     );
 
-    const loadIndex$ = defineManifest$.pipe(switchMap((manifest) => manifest.loadIndex()));
-
-    const journalEntries$ = forkJoin([shareInformation$, loadIndex$]).pipe(
-      switchMap(([header, index]) =>
-        this.fileReader
-          .getFiles(
-            index,
-            header.sharePath,
-            header.includes.map((s) => globStringToRegex(s.toString('latin1'))),
-            header.excludes.map((s) => globStringToRegex(s.toString('latin1'))),
-          )
-          .pipe(map((manifestEntry) => Manifest.toAddJournalEntry(manifestEntry, true))),
-      ),
-    );
-
-    const updateManifestEntries$ = request.pipe(
-      filter((request) => !!request.entry),
-      map((request) => request.entry),
-    );
-
-    const concatEntries$ = defineManifest$.pipe(
-      switchMap((manifest) =>
-        merge(journalEntries$, updateManifestEntries$).pipe(
-          manifest.writeJournalEntry(),
-          map((manifestEntry) => ({ entry: manifestEntry })),
-        ),
-      ),
-      catchError((err) => of({ response: { code: StatusCode.Failed, needRefreshCache: !!err.needRefreshCache } })),
-    );
-
-    const compactManifest$ = forkJoin([defineManifest$, footerRequest$]).pipe(
-      switchMap(([manifest, footer]) =>
-        iif(
-          () => footer.code === StatusCode.Ok,
-          manifest.compact().pipe(
-            last(),
-            map(() => ({ response: { code: StatusCode.Ok, needRefreshCache: false } })),
-            catchError(() => of({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
-          ),
-          from(manifest.deleteManifest()).pipe(
-            last(),
-            map(() => ({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
-          ),
-        ),
-      ),
-    );
-
-    return concat(concatEntries$, compactManifest$);
+    return journalEntry$;
   }
 
   refreshCache(request: Observable<RefreshCacheRequest>): Observable<RefreshCacheReply> {
-    console.log('refreshCache', 'start');
-
-    const defineManifest$ = request.pipe(
-      first((value) => !!value.header),
-      map((value) => new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/')),
-      switchMap((manifest) => manifest.deleteManifest().then(() => manifest)),
-    );
+    let manifest: Manifest;
 
     const journalEntry$ = request.pipe(
-      tap((e) => console.log(e)),
+      concatMap((value) => {
+        if (!!value.header) {
+          manifest = new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/');
+          return from(this.manifestService.deleteManifest(manifest)).pipe(silence);
+        }
+        return of(value);
+      }),
       filter((request) => !!request.manifest),
       map((request) => request.manifest),
-      map((manifest) => Manifest.toAddJournalEntry(manifest, true)),
-    );
-
-    const writeJournalEntry$ = defineManifest$.pipe(
-      switchMap((manifest) => {
-        return journalEntry$.pipe(
-          manifest.writeJournalEntry(),
-          catchError(() => {
-            return of({ code: StatusCode.Failed });
-          }),
-          reduce((acc) => acc, { code: StatusCode.Ok }),
-        );
+      map((manifest) => this.manifestService.toAddJournalEntry(manifest, true)),
+      this.manifestService.writeJournalEntry(() => {
+        if (!manifest) {
+          throw new BadRequestException('The header must be specified to refresh the cache');
+        }
+        return manifest;
+      }),
+      reduce((acc) => acc, { code: StatusCode.Ok }),
+      catchError((err) => {
+        return of({ code: StatusCode.Failed, message: err.message });
       }),
     );
 
-    return writeJournalEntry$;
+    // FIXME: should compact
+    return journalEntry$;
   }
 
   getChunk(request: GetChunkRequest): Observable<FileChunk> {

@@ -16,7 +16,11 @@ export class FileBrowserService {
   public getFiles(
     sharePath: Buffer,
   ): (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]) => Observable<FileManifest> {
-    const forShare = (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]): Observable<FileManifest> => {
+    const forShare = (
+      backupPath: Buffer,
+      includes: RegExp[] = [],
+      excludes: RegExp[] = [],
+    ): Observable<FileManifest> => {
       const files$ = from(readdir(joinBuffer(sharePath, backupPath), { encoding: 'buffer' })).pipe(
         catchError(() => {
           this.logger.warn(`Can't read the directory ${sharePath.toString()}/${backupPath.toString()}`);

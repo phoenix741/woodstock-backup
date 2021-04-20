@@ -81,6 +81,7 @@ message RefreshCacheRequest {
 
 message RefreshCacheReply {
   StatusCode code = 1;
+  string message = 2;
 }
 
 message LaunchBackupHeader {
@@ -107,6 +108,7 @@ message LaunchBackupRequest {
 message LaunchBackupResponse {
   StatusCode code = 1;
   bool needRefreshCache = 2;
+  string message = 3;
 }
 
 message LaunchBackupReply {

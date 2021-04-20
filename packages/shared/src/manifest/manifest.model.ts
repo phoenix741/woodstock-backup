@@ -1,116 +1,17 @@
-import { Logger } from '@nestjs/common';
-import { constants as constantsFs } from 'fs';
-import { access, rename, rm } from 'fs/promises';
+import { Injectable } from '@nestjs/common';
 import { join } from 'path';
-import { concat, defer, EMPTY, Observable } from 'rxjs';
-import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
 
-import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../manifest/object-proto.model';
-import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
-import { notUndefined, silence } from '../utils/observable.utils';
-import { IndexManifest } from './index-manifest.model';
-import { readAllMessages, writeAllMessages } from './manifest-wrapper.utils';
-
+@Injectable()
 export class Manifest {
-  private logger = new Logger(Manifest.name);
-
-  private journalPath: string;
-  private manifestPath: string;
-  private newPath: string;
-  private lockPath: string;
+  public readonly journalPath: string;
+  public readonly manifestPath: string;
+  public readonly newPath: string;
+  public readonly lockPath: string;
 
   constructor(manifestName: string, private path: string) {
     this.journalPath = join(path, `${manifestName}.journal`);
     this.manifestPath = join(path, `${manifestName}.manifest`);
     this.newPath = join(path, `${manifestName}.new`);
     this.lockPath = join(path, `${manifestName}.lock`);
-  }
-
-  static toRemoveJournalEntry(path: Buffer): FileManifestJournalEntry {
-    return {
-      type: EntryType.REMOVE,
-      manifest: {
-        path,
-      },
-    };
-  }
-
-  static toAddJournalEntry(manifest: FileManifest, add: boolean): FileManifestJournalEntry {
-    return {
-      type: add ? EntryType.ADD : EntryType.MODIFY,
-      manifest,
-    };
-  }
-
-  loadIndex(): Observable<IndexManifest> {
-    const manifestWrapper = readAllMessages<FileManifest>(this.manifestPath, ProtoFileManifest).pipe(
-      map(
-        (frame) =>
-          ({
-            type: EntryType.ADD,
-            manifest: frame.message,
-          } as FileManifestJournalEntry),
-      ),
-      catchError((err) => {
-        this.logger.warn(`Can't read the file ${this.manifestPath}: ${err.message}`);
-        return EMPTY;
-      }),
-    );
-
-    const journalWrapper = readAllMessages<FileManifestJournalEntry>(
-      this.journalPath,
-      ProtoFileManifestJournalEntry,
-    ).pipe(
-      map((frame) => frame.message),
-      catchError((err) => {
-        this.logger.warn(`Can't read the file ${this.journalPath}: ${err.message}`);
-        return EMPTY;
-      }),
-    );
-
-    const indexWrapper = concat(manifestWrapper, journalWrapper).pipe(
-      reduce<FileManifestJournalEntry, IndexManifest>((index, journalEntry) => {
-        index.process(journalEntry);
-
-        return index;
-      }, new IndexManifest()),
-    );
-
-    return indexWrapper;
-  }
-
-  writeJournalEntry(): (source: Observable<FileManifestJournalEntry>) => Observable<FileManifestJournalEntry> {
-    return writeAllMessages<FileManifestJournalEntry>(this.journalPath, ProtoFileManifestJournalEntry);
-  }
-
-  async exists() {
-    const isExists = async (path: string) =>
-      access(path, constantsFs.F_OK)
-        .then(() => true)
-        .catch(() => false);
-    return isExists(this.manifestPath) && !isExists(this.journalPath);
-  }
-
-  async deleteManifest(): Promise<void> {
-    await rm(this.newPath, { force: true });
-    await rm(this.journalPath, { force: true });
-    await rm(this.manifestPath, { force: true });
-    await rm(this.lockPath, { force: true });
-  }
-
-  compact(): Observable<FileManifest> {
-    const writeToManifest$ = this.loadIndex().pipe(
-      mergeMap((index) => index.walk()),
-      map((entry) => entry.manifest),
-      notUndefined(),
-      writeAllMessages(this.newPath, ProtoFileManifest),
-    );
-
-    const cleanupManifest$ = defer(async () => {
-      await Promise.all([rm(this.journalPath, { force: true }), rm(this.manifestPath, { force: true })]);
-      await rename(this.newPath, this.manifestPath);
-    }).pipe(silence);
-
-    return concat(writeToManifest$, cleanupManifest$);
   }
 }

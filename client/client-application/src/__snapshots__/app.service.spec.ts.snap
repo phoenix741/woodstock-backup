@@ -1,0 +1,242 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`AppService #launchBackup should make a backup: Define refresh cache 1`] = `
+Object {
+  "entry": Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          47,
+          52,
+          50,
+          48,
+          57,
+          51,
+          95,
+          88,
+          95,
+          72,
+          111,
+          116,
+          32,
+          82,
+          111,
+          100,
+          46,
+          112,
+          100,
+          102,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "created": Long {
+          "high": 376,
+          "low": 1271037455,
+          "unsigned": false,
+        },
+        "groupId": Long {
+          "high": 0,
+          "low": 1000,
+          "unsigned": false,
+        },
+        "lastModified": Long {
+          "high": 371,
+          "low": 1656647184,
+          "unsigned": false,
+        },
+        "lastRead": Long {
+          "high": 372,
+          "low": 1063485888,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 33188,
+          "unsigned": false,
+        },
+        "ownerId": Long {
+          "high": 0,
+          "low": 1000,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 4503209,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 1`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 100,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 2`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 200,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 3`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 300,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 4`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        52,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 400,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 5`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        53,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 500,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define journal entry 6`] = `
+Object {
+  "manifest": Object {
+    "path": Object {
+      "data": Array [
+        47,
+        116,
+        101,
+        115,
+        116,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 600,
+        "unsigned": false,
+      },
+    },
+  },
+  "type": 0,
+}
+`;
+
+exports[`AppService #refreshCache should create a manifest file from scratch: Define refresh cache 1`] = `
+Object {
+  "code": 0,
+}
+`;
+
+exports[`AppService #refreshCache should have an error when no header: Define refresh cache 1`] = `
+Object {
+  "code": 1,
+  "message": "The header must be specified to refresh the cache",
+}
+`;
