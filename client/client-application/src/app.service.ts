@@ -14,8 +14,8 @@ import {
   StatusCode,
 } from '@woodstock/shared';
 import { createReadStream } from 'fs';
-import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, concatMap, filter, last, map, reduce, switchMap, tap } from 'rxjs/operators';
+import { from, Observable, of, partition, throwError, merge, concat, iif, EMPTY, defer } from 'rxjs';
+import { catchError, concatMap, filter, finalize, first, last, map, reduce, switchMap, tap } from 'rxjs/operators';
 
 @Injectable()
 export class AppService {
@@ -23,16 +23,22 @@ export class AppService {
 
   launchBackup(request: Observable<LaunchBackupRequest>): Observable<LaunchBackupReply> {
     let manifest: Manifest;
+    let statusCode: StatusCode;
 
-    const journalEntry$ = request.pipe(
-      concatMap((value) => {
-        if (!!value.header) {
+    const [headerEntries$, requestEntries$] = partition(request, (value) => !!value.header);
+    const [footerEntries$, journalEntries$] = partition(requestEntries$, (value) => !!value.footer);
+
+    const fromDiskEntries$ = concat(
+      headerEntries$.pipe(
+        first(),
+        switchMap((value) => {
           manifest = new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/');
           return from(this.manifestService.exists(manifest)).pipe(
-            tap((value) => {
-              if (!value) {
+            switchMap((manifestExists) => {
+              if (!manifestExists && value.header.lastBackupNumber >= 0) {
                 return throwError({ needRefreshCache: true });
               }
+              return of(value);
             }),
             switchMap(() => this.manifestService.loadIndex(manifest)),
             switchMap((index) =>
@@ -43,32 +49,50 @@ export class AppService {
                 value.header.excludes?.map((s) => globStringToRegex(s.toString('latin1'))),
               ),
             ),
-            map((manifestEntry) => this.manifestService.toAddJournalEntry(manifestEntry, true)),
+            map((entry) => this.manifestService.toAddJournalEntry(entry, true)),
+            map((entry) => ({ from: 'disk', entry, response: undefined })),
           );
-        }
-        if (!!value.footer) {
-          if (value.footer.code === StatusCode.Ok) {
-            return this.manifestService.compact(manifest).pipe(
-              last(),
-              map(() => ({ response: { code: StatusCode.Ok, needRefreshCache: false } })),
-              catchError(() => of({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
-            );
-          } else {
-            return from(this.manifestService.deleteManifest(manifest)).pipe(
-              last(),
-              map(() => ({ response: { code: StatusCode.Failed, needRefreshCache: false } })),
-            );
-          }
-        }
+        }),
+      ),
+      of({ from: 'disk', entry: undefined, response: { code: StatusCode.Partial, diskReadFinished: true } }),
+    );
 
-        return of(value.entry);
+    const fromRequestEntries$ = journalEntries$.pipe(
+      map((manifestEntry) => ({ from: 'network', entry: manifestEntry.entry, response: undefined })),
+    );
+
+    const entries$ = merge(fromDiskEntries$, fromRequestEntries$).pipe(
+      this.manifestService.writeJournalEntry(
+        () => manifest,
+        (entry) => entry.entry,
+      ),
+      filter((entry) => entry.from === 'disk'),
+      map(({ entry, response }) => ({ entry, response })),
+    );
+
+    const statusCode$ = footerEntries$.pipe(
+      first(),
+      switchMap((value) => {
+        statusCode = value.footer.code;
+        return EMPTY;
       }),
-      tap((e) => console.log('e', e, manifest)),
-      this.manifestService.writeJournalEntry(() => manifest),
+    );
 
-      map((entry) => ({ entry })),
+    const compactEntries$ = iif(
+      () => statusCode === StatusCode.Ok,
+      defer(() =>
+        this.manifestService.compact(manifest).pipe(reduce((acc) => acc, { response: { code: StatusCode.Ok } })),
+      ),
+      defer(() =>
+        from(this.manifestService.deleteManifest(manifest)).pipe(
+          last(),
+          map(() => ({ response: { code: StatusCode.Failed } })),
+        ),
+      ),
+    );
+
+    const journalEntry$ = concat(merge(entries$, statusCode$), compactEntries$).pipe(
       catchError((err) => {
-        console.log(err);
         return of({
           response: { code: StatusCode.Failed, message: err.message, needRefreshCache: !!err.needRefreshCache },
         });

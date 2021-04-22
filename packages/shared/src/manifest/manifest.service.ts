@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { constants as constantsFs } from 'fs';
 import { access, rename, unlink } from 'fs/promises';
 import { concat, defer, EMPTY, Observable } from 'rxjs';
-import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
+import { catchError, map, mergeMap, reduce, tap, finalize } from 'rxjs/operators';
 
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../manifest/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
@@ -43,10 +43,15 @@ export class ManifestService {
     };
   }
 
-  writeJournalEntry(
+  writeJournalEntry<T = FileManifestJournalEntry>(
     manifest: () => Manifest,
-  ): (source: Observable<FileManifestJournalEntry>) => Observable<FileManifestJournalEntry> {
-    return writeAllMessages<FileManifestJournalEntry>(() => manifest().journalPath, ProtoFileManifestJournalEntry);
+    mapping: (v: T) => FileManifestJournalEntry = (v) => v as any,
+  ): (source: Observable<T>) => Observable<T> {
+    return writeAllMessages<T, FileManifestJournalEntry>(
+      () => manifest().journalPath,
+      mapping,
+      ProtoFileManifestJournalEntry,
+    );
   }
 
   loadIndex(manifest: Manifest): Observable<IndexManifest> {
@@ -102,7 +107,11 @@ export class ManifestService {
       mergeMap((index) => index.walk()),
       map((entry) => entry.manifest),
       notUndefined(),
-      writeAllMessages(() => manifest.newPath, ProtoFileManifest),
+      writeAllMessages(
+        () => manifest.newPath,
+        (m) => m,
+        ProtoFileManifest,
+      ),
     );
 
     const cleanupManifest$ = defer(async () => {

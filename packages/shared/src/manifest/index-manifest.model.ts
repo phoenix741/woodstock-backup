@@ -1,4 +1,4 @@
-import { from, Observable } from 'rxjs';
+import { from, Observable, EMPTY } from 'rxjs';
 
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/manifest.model';
 import { hashBuffer } from '../utils/path.utils';

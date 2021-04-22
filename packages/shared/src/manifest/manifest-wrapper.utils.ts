@@ -1,5 +1,6 @@
 import { createReadStream, createWriteStream } from 'fs';
 import * as mkdirp from 'mkdirp';
+import { cpuUsage } from 'node:process';
 import { dirname } from 'path';
 import { Type, Writer } from 'protobufjs';
 import { from, Observable, of } from 'rxjs';
@@ -24,8 +25,8 @@ export function readAllMessages<T>(path: string, type: Type): Observable<Protobu
   });
 }
 
-export function writeAllMessages<T>(path: () => string, type: Type) {
-  return function (source: Observable<T>): Observable<T> {
+export function writeAllMessages<O, T>(path: () => string, mapping: (v: O) => T, type: Type) {
+  return function (source: Observable<O>): Observable<O> {
     return new Observable((subscriber) => {
       const grpcWriter = new Writer();
       let waiting = false;
@@ -62,20 +63,25 @@ export function writeAllMessages<T>(path: () => string, type: Type) {
         )
         .subscribe({
           next(message) {
-            try {
-              type.encodeDelimited(message, grpcWriter);
+            const toEncodeMessage = mapping(message);
+            if (toEncodeMessage) {
+              try {
+                type.encodeDelimited(toEncodeMessage, grpcWriter);
 
-              if (grpcWriter.len > WRITE_BUFFER_SIZE && !waiting) {
-                write();
+                if (grpcWriter.len > WRITE_BUFFER_SIZE && !waiting) {
+                  write();
+                }
+
+                subscriber.next(message);
+              } catch (err) {
+                subscriber.error(err);
               }
-
+            } else {
               subscriber.next(message);
-            } catch (err) {
-              subscriber.error(err);
             }
           },
           error(err) {
-            if (!!grpcWriter.len) {
+            if (!!grpcWriter.len && stream) {
               if (waiting) {
                 stream.once('drain', () => stream.end(grpcWriter.finish()));
               } else {
@@ -85,7 +91,7 @@ export function writeAllMessages<T>(path: () => string, type: Type) {
             subscriber.error(err);
           },
           complete() {
-            if (!!grpcWriter.len) {
+            if (!!grpcWriter.len && stream) {
               if (waiting) {
                 stream.once('drain', () => stream.end(grpcWriter.finish()));
               } else {

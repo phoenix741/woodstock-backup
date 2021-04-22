@@ -5,6 +5,7 @@ import { FileManifest, FileManifestJournalEntry } from './manifest.model';
 export enum StatusCode {
   Ok = 0,
   Failed = 1,
+  Partial = 2,
 }
 
 export interface FileChunk {
@@ -45,13 +46,14 @@ export interface LaunchBackupRequest {
 
 export interface LaunchBackupResponse {
   code: StatusCode;
-  needRefreshCache: boolean;
   message?: string;
+  needRefreshCache?: boolean;
+  diskReadFinished?: boolean;
 }
 
 export interface LaunchBackupReply {
-  response?: LaunchBackupResponse;
   entry?: FileManifestJournalEntry;
+  response?: LaunchBackupResponse;
 }
 
 export interface GetChunkRequest {

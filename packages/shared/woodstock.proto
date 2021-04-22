@@ -6,6 +6,7 @@ package woodstock;
 enum StatusCode {
   Ok = 0;
   Failed = 1;
+  Partial = 2;
 }
 
 // File manifest used to store the content of a file
@@ -107,14 +108,15 @@ message LaunchBackupRequest {
 
 message LaunchBackupResponse {
   StatusCode code = 1;
-  bool needRefreshCache = 2;
-  string message = 3;
+  string message = 2;
+  bool needRefreshCache = 3;
+  bool diskReadFinished = 4;
 }
 
 message LaunchBackupReply {
   oneof content {
-    LaunchBackupResponse response = 2;
     FileManifestJournalEntry entry = 1;
+    LaunchBackupResponse response = 2;
   }
 }
 
