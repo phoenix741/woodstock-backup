@@ -61,6 +61,7 @@ export interface GetChunkRequest {
   position: Long;
   size: Long;
   sha256: Buffer;
+  failIfWrongHash?: boolean;
 }
 
 export interface ExecuteCommandRequest {

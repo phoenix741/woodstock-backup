@@ -1,8 +1,9 @@
 import { BullModule } from '@nestjs/bull';
-import { HttpModule, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { SharedModule } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
 
 import { BackupConsumer } from './backups/backup/backup.consumer';
@@ -75,6 +76,7 @@ import { YamlService } from './utils/yaml.service';
       imports: [ApplicationConfigModule],
       useClass: ServeStaticService,
     }),
+    SharedModule,
   ],
   controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],
   providers: [

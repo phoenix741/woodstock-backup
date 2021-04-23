@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { pick } from '@woodstock/shared';
 import * as Redis from 'ioredis';
-import * as Long from 'long';
 import { join } from 'path';
-
-import { pick } from '../utils/lodash.utils';
 
 @Injectable()
 export class ApplicationConfigService {

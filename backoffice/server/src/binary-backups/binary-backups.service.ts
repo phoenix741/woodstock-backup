@@ -1,20 +1,29 @@
-import { HttpService, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ClientProxyFactory, Transport } from '@nestjs/microservices';
+import {
+  CHUNK_SIZE,
+  EntryType,
+  FileChunk,
+  FileManifest,
+  FileManifestJournalEntry,
+  GetChunkRequest,
+  LaunchBackupRequest,
+  longMin,
+  Manifest,
+  ManifestService,
+  StatusCode,
+  WoodstockClientService,
+} from '@woodstock/shared';
 import { promises } from 'fs';
 import { credentials } from 'grpc';
 import * as Long from 'long';
 import { join } from 'path';
-import { concat, from, Observable, of } from 'rxjs';
-import { concatMap, filter, map, reduce, switchMap } from 'rxjs/operators';
-import { ApplicationConfigService, CHUNK_SIZE } from 'src/config/application-config.service';
-import { EntryType } from 'src/storage/backup-manifest/object-proto.model';
+import { concat, from, Observable, of, Subject } from 'rxjs';
+import { concatMap, filter, map, reduce, startWith, switchMap } from 'rxjs/operators';
+import { ApplicationConfigService } from 'src/config/application-config.service';
 import { Readable } from 'stream';
 
-import { Manifest } from '../storage/backup-manifest/manifest.model';
-import { FileManifest } from '../storage/backup-manifest/object-proto.model';
-import { GetChunkRequest, WoodstockClientService, FileChunk } from '../storage/backup-manifest/query-proto.model';
 import { PoolService } from '../storage/pool/pool.service';
-import { longMin } from '../utils/lodash.utils';
 import wrapObservable from '../utils/wrap-observable';
 import { BackupConfiguration } from './models/backups-configuration.model';
 import { BackupsStats } from './models/backups-stats.model';
@@ -30,6 +39,7 @@ export class BinaryBackupsService {
   private statistics?: BackupsStats;
 
   constructor(
+    private manifestService: ManifestService,
     private configService: ApplicationConfigService,
     private poolService: PoolService,
     private hostToBackup: string,
@@ -98,7 +108,7 @@ export class BinaryBackupsService {
     };
   }
 
-  async start(): Promise<void> {
+  async start(needRefresh = false) {
     this.statistics = new BackupsStats();
 
     // Get the configuration for the client
@@ -121,77 +131,73 @@ export class BinaryBackupsService {
     // Create the connection with the client
     const woodstockClientService = client.getService<WoodstockClientService>('WoodstockClientService');
 
-    this.logger.log('Prepare the backup and send configuration');
-    const prepareResult = await woodstockClientService
-      .prepareBackup({ configuration, lastBackupNumber: this.lastBackupId, newBackupNumber: this.currentBackupId })
-      .toPromise();
-    this.logger.log('The backup need to refresh ' + JSON.stringify(prepareResult));
-
-    if (prepareResult.needRefreshCache && this.lastBackupId) {
-    }
-
     const manifest = new Manifest(`backups.${this.hostToBackup}.${this.currentBackupId}`, this.configService.hostPath);
 
-    const loadIndex$ = manifest.loadIndex();
+    const fileManifestEntries$ = new Subject<LaunchBackupRequest>();
+    const launchBackupRequest$ = concat(
+      fileManifestEntries$.pipe(
+        startWith({
+          header: {
+            sharePath: Buffer.from('/home'),
+            includes: [],
+            excludes: [],
+            lastBackupNumber: -1,
+            newBackupNumber: 0,
+          },
+        }),
+      ),
+    );
+    const loadIndex$ = this.manifestService.loadIndex(manifest);
+    const launchBackup$ = woodstockClientService.launchBackup(launchBackupRequest$);
 
-    await new Promise<void>((resolve, reject) => {
-      const createIndex$ = loadIndex$.pipe(
-        switchMap((index) =>
-          woodstockClientService.launchBackup({ backupNumber: this.currentBackupId }).pipe(
-            concatMap((entry) => {
-              if (entry.type !== EntryType.REMOVE && entry.type !== EntryType.CLOSE) {
-                return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
-                  map((manifest) => ({
+    const createIndex$ = loadIndex$.pipe(
+      switchMap((index) =>
+        launchBackup$.pipe(
+          concatMap(({ entry, response }) => {
+            if (entry && entry.type !== EntryType.REMOVE) {
+              return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
+                map((manifest) => ({
+                  response,
+                  entry: {
                     type: entry.type,
                     manifest,
-                  })),
-                );
-              } else {
-                return of(entry);
-              }
-            }),
-            manifest.writeJournalEntry(),
-            reduce((index, journalEntry) => {
-              if (journalEntry.type !== EntryType.CLOSE) {
-                const path = journalEntry.type === EntryType.REMOVE ? journalEntry.path : journalEntry.manifest.path;
-                if (path) {
-                  const entry = index.getEntry(path);
-                  if (entry) {
-                    index.mark(entry);
-                  }
-                }
-              }
-              return index;
-            }, index),
+                  },
+                })),
+              );
+            } else {
+              return of({ entry, response });
+            }
+          }),
+          this.manifestService.writeJournalEntry(
+            () => manifest,
+            ({ entry }) => entry,
           ),
+          reduce((index, { entry, response }) => {
+            if (entry?.manifest?.path) {
+              const indexEntry = index.getEntry(entry.manifest.path);
+              if (indexEntry) {
+                index.mark(indexEntry);
+              }
+            }
+            return index;
+          }, index),
         ),
-      );
+      ),
+    );
 
-      const addRemoveToIndex$ = createIndex$.pipe(
-        switchMap((index) =>
-          index.walk().pipe(
-            filter((entry) => !entry.markViewed),
-            map((file) => Manifest.toRemoveJournalEntry(file.path)),
-            manifest.writeJournalEntry(),
-          ),
+    const addRemoveToIndex$ = createIndex$.pipe(
+      switchMap((index) =>
+        index.walk().pipe(
+          filter((entry) => !entry.markViewed),
+          map((file) => this.manifestService.toRemoveJournalEntry(file.path)),
+          this.manifestService.writeJournalEntry(() => manifest),
         ),
-      );
+      ),
+    );
 
-      const compact$ = manifest.compact();
+    const compact$ = this.manifestService.compact(manifest);
 
-      const subscription$ = concat(addRemoveToIndex$, compact$).subscribe({
-        complete: () => {
-          this.logger.log(`The manifest have been compacted`);
-          subscription$.unsubscribe();
-          resolve();
-        },
-        error: (err) => {
-          this.logger.error(`Can't create the manifest: ${err.message}`);
-          subscription$.unsubscribe();
-          reject(err);
-        },
-      });
-    });
+    return concat(addRemoveToIndex$, compact$);
   }
 
   private async copyManifest(woodstockClientService: WoodstockClientService, fileManifest: FileManifest) {
@@ -214,11 +220,14 @@ export class BinaryBackupsService {
     const sha256 = fileManifest.chunks[chunkNumber];
     const wrapper = this.poolService.getChunk(sha256);
 
-    const position = CHUNK_SIZE.mul(chunkNumber);
+    const position = Long.fromValue(CHUNK_SIZE).mul(chunkNumber);
     const chunk: GetChunkRequest = {
       filename: fileManifest.path,
       position,
-      size: longMin(CHUNK_SIZE, (fileManifest.stats?.size || Long.ZERO).sub(CHUNK_SIZE).mul(chunkNumber)),
+      size: longMin(
+        Long.fromValue(CHUNK_SIZE),
+        (fileManifest.stats?.size || Long.ZERO).sub(CHUNK_SIZE).mul(chunkNumber),
+      ),
       sha256,
     };
 
@@ -232,18 +241,6 @@ export class BinaryBackupsService {
       } catch (err) {
         this.logger.error(`${fileManifest.path.toString()}:${chunkNumber}`);
       }
-
-      /*
-      const chunkResult = await woodstockClientService.getChunk(chunk).toPromise();
-      try {
-        const newChunk = await wrapper.write(chunkResult);
-        if (!newChunk.equals(sha256)) {
-          fileManifest.chunks[chunkNumber] = newChunk;
-        }
-      } catch (err) {
-        this.logger.error(`${fileManifest.path.toString()}:${chunkNumber}`);
-      }
-      */
     }
 
     return fileManifest;

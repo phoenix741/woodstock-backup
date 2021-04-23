@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { compactObject } from '@woodstock/shared';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { join } from 'path';
@@ -9,7 +10,6 @@ import * as tmp from 'tmp';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { CommandParameters } from '../server/tools.model';
 import { ToolsService } from '../server/tools.service';
-import { compactObject } from '../utils/lodash.utils';
 import { SharePathService } from '../utils/share-path.service';
 import { BackupProgression } from './interfaces/options';
 import { BackupContext, BackupOptions } from './interfaces/rsync-backup-options';

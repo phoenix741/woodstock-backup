@@ -45,7 +45,7 @@ export class ManifestService {
 
   writeJournalEntry<T = FileManifestJournalEntry>(
     manifest: () => Manifest,
-    mapping: (v: T) => FileManifestJournalEntry = (v) => v as any,
+    mapping: (v: T) => FileManifestJournalEntry | undefined = (v) => v as any,
   ): (source: Observable<T>) => Observable<T> {
     return writeAllMessages<T, FileManifestJournalEntry>(
       () => manifest().journalPath,

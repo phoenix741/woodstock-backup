@@ -5,7 +5,7 @@ import { Backup } from '../backups/backup.dto';
 import { HostConfiguration } from '../hosts/host-configuration.dto';
 import { BackupLogger } from '../logger/BackupLogger.logger';
 import { BackupProgression } from '../operation/interfaces/options';
-import { pick } from '../utils/lodash.utils';
+import { pick } from '@woodstock/shared';
 import { BackupState, BackupSubTask, BackupTask, TaskProgression } from './tasks.dto';
 
 export class InternalBackupSubTask implements BackupSubTask {

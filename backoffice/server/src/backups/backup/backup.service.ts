@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { bigIntToLong, FileManifest, CHUNK_SIZE } from '@woodstock/shared';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-
-import { CHUNK_SIZE } from '../../config/application-config.service';
-import { FileManifest } from '../../storage/backup-manifest/object-proto.model';
-import { bigIntToLong } from '../../utils/lodash.utils';
 
 @Injectable()
 export class BackupService {
@@ -38,7 +35,7 @@ export class BackupService {
       try {
         const s = fs.createReadStream(manifest.path);
         s.on('data', (data) => {
-          const chunkSizeRest = CHUNK_SIZE.sub(bufferLength).toNumber();
+          const chunkSizeRest = CHUNK_SIZE - bufferLength;
           let shaData, shaDataRest;
           if (data.length >= chunkSizeRest) {
             shaData = data.slice(0, chunkSizeRest);
@@ -50,7 +47,7 @@ export class BackupService {
           chunkShasum.update(shaData);
           bufferLength += data.length;
 
-          if (bufferLength >= CHUNK_SIZE.toNumber()) {
+          if (bufferLength >= CHUNK_SIZE) {
             chunks.push(chunkShasum.digest());
             chunkShasum = crypto.createHash('sha3-256');
             chunkShasum.update(shaDataRest);

@@ -1,8 +1,7 @@
 import { createHash } from 'crypto';
 import { Transform, TransformCallback, TransformOptions } from 'stream';
+import { HASH_ALGO, CHUNK_SIZE } from '../constants/index';
 
-export const HASH_ALGO = 'sha3-256';
-export const CHUNK_SIZE = 1 << 22;
 export class FileHashReader extends Transform {
   private digester = createHash(HASH_ALGO);
   public hash?: Buffer;

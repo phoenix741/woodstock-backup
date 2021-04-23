@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { CHUNK_SIZE, getTemporaryFileName } from '@woodstock/shared';
 import * as assert from 'assert';
 import { constants, createReadStream, createWriteStream } from 'fs';
 import { access, rename, rm } from 'fs/promises';
@@ -8,8 +9,6 @@ import { pipeline as streamPipeline, Readable, Writable } from 'stream';
 import * as util from 'util';
 import { createDeflate, createInflate } from 'zlib';
 
-import { CHUNK_SIZE } from '../../config/application-config.service';
-import { getTemporaryFileName } from '../../utils/lodash.utils';
 import { StreamHashTransform } from '../../utils/stream-hash-transform';
 
 const pipeline = util.promisify(streamPipeline);
@@ -77,7 +76,7 @@ export class PoolChunkWrapper {
     try {
       const hashCalculator = new StreamHashTransform();
       await pipeline(inputStream, hashCalculator, createDeflate({ level: 9 }), createWriteStream(tempfilename));
-      if (CHUNK_SIZE.lessThan(hashCalculator.length)) {
+      if (CHUNK_SIZE < hashCalculator.length) {
         this.logger.error(`Chunk ${this.sha256Str} has not the right size length: ${hashCalculator.length}`);
       }
 

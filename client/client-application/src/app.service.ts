@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import {
   FileChunk,
+  FileHashReader,
   FileReader,
   GetChunkRequest,
   globStringToRegex,
@@ -19,6 +20,8 @@ import { catchError, concatMap, filter, finalize, first, last, map, reduce, swit
 
 @Injectable()
 export class AppService {
+  private logger = new Logger(AppService.name);
+
   constructor(private fileReader: FileReader, private manifestService: ManifestService) {}
 
   launchBackup(request: Observable<LaunchBackupRequest>): Observable<LaunchBackupReply> {
@@ -133,18 +136,29 @@ export class AppService {
   }
 
   getChunk(request: GetChunkRequest): Observable<FileChunk> {
-    console.log('getChunk', request.filename, request.position, request.size);
-
     return new Observable<FileChunk>((subscribe) => {
-      const { filename, position, size } = request;
+      const { filename, position, size, sha256 } = request;
 
       const stream = createReadStream(filename, {
         start: position.toNumber(),
-        end: position.add(size).toNumber(),
+        end: position.add(size).sub(1).toNumber(),
       });
-      stream.on('data', (message: Buffer) => subscribe.next({ data: message }));
-      stream.on('end', () => subscribe.complete());
-      stream.on('error', (err) => subscribe.error(err));
+      const hashReader = new FileHashReader();
+
+      hashReader.on('data', (message: Buffer) => subscribe.next({ data: message }));
+      hashReader.on('end', () => {
+        if (hashReader.hash && !hashReader.hash.equals(sha256)) {
+          const message = `The chunk ${filename.toString()}:${position}:${size} should have a sha of ${sha256.toString(
+            'hex',
+          )}, but is ${hashReader.hash.toString('hex')}`;
+          this.logger.warn(message);
+          return subscribe.error(new InternalServerErrorException(message));
+        }
+        subscribe.complete();
+      });
+      hashReader.on('error', (err) => subscribe.error(err));
+
+      stream.pipe(hashReader);
     });
   }
 }

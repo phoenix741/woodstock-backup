@@ -25,7 +25,7 @@ export function readAllMessages<T>(path: string, type: Type): Observable<Protobu
   });
 }
 
-export function writeAllMessages<O, T>(path: () => string, mapping: (v: O) => T, type: Type) {
+export function writeAllMessages<O, T>(path: () => string, mapping: (v: O) => T | undefined, type: Type) {
   return function (source: Observable<O>): Observable<O> {
     return new Observable((subscriber) => {
       const grpcWriter = new Writer();

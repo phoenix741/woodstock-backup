@@ -1,5 +1,6 @@
 import { Processor } from '@nestjs/bull';
 import { HttpService } from '@nestjs/common';
+import { ManifestService } from '@woodstock/shared';
 import { Command, Console } from 'nestjs-console';
 
 import { ApplicationConfigService } from '../config/application-config.service';
@@ -12,9 +13,9 @@ import { BinaryBackupsService } from './binary-backups.service';
 @Processor('queue')
 export class BinaryBackupsCommand {
   constructor(
+    private manifestService: ManifestService,
     private configService: ApplicationConfigService,
     private poolService: PoolService,
-    private httpService: HttpService,
   ) {}
 
   @Command({
@@ -23,7 +24,7 @@ export class BinaryBackupsCommand {
   })
   async launchBackup(): Promise<void> {
     const service = new BinaryBackupsService(
-      this.httpService,
+      this.manifestService,
       this.configService,
       this.poolService,
       'pc-ulrich.eden.lan',

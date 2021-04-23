@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bull';
 import { HttpModule, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { SharedModule } from '@woodstock/shared';
 import { ConsoleModule } from 'nestjs-console';
 
 import { BackupService } from './backups/backup/backup.service';
@@ -39,6 +40,7 @@ import { YamlService } from './utils/yaml.service';
     ),
     ConsoleModule,
     HttpModule,
+    SharedModule,
   ],
   providers: [
     ApplicationConfigService,

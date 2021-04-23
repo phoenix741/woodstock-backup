@@ -1,20 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  EntryType,
+  FileReader,
+  IndexManifest,
+  LaunchBackupRequest,
   Manifest,
   ManifestService,
   RefreshCacheRequest,
-  LaunchBackupRequest,
   SharedModule,
-  IndexManifest,
-  EntryType,
   StatusCode,
-  FileReader,
 } from '@woodstock/shared';
 import * as Long from 'long';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Observable, pipe, Subject, throwError } from 'rxjs';
-import { tap, switchMap } from 'rxjs/operators';
+import { switchMap, tap } from 'rxjs/operators';
+
 import { AppService } from './app.service';
-import * as path from 'path';
 
 describe('AppService', () => {
   let service: AppService;
@@ -233,6 +235,50 @@ describe('AppService', () => {
       request.next({
         header: { sharePath: Buffer.from('/home/phoenix/Downloads/test'), lastBackupNumber: -1, newBackupNumber: 0 },
       });
+    });
+  });
+
+  describe('#getChunk', () => {
+    it('Cas nominal', (done) => {
+      const testFile = join(__dirname, 'app.service.ts');
+      service
+        .getChunk({
+          filename: Buffer.from(testFile),
+          position: Long.fromNumber(0),
+          size: Long.fromNumber(100000),
+          sha256: Buffer.from('b785c4e1e1d84f7ade49a681cccdde4d179d597f03709a6f455ab2488433eb68', 'hex'),
+          failIfWrongHash: true,
+        })
+        .subscribe({
+          next: (val) => {
+            expect(val.data).toEqual(readFileSync(testFile));
+          },
+          complete: () => done(),
+          error: (err) => done(err),
+        });
+    });
+
+    it('Cas nominal (a piece of file)', (done) => {
+      const testFile = join(__dirname, 'app.service.ts');
+      service
+        .getChunk({
+          filename: Buffer.from(testFile),
+          position: Long.fromNumber(10),
+          size: Long.fromNumber(30),
+          sha256: Buffer.from('fd4a6d2995cd3f227c79f77b7f51f5d59e032bac75a6d8e4905589925346633a', 'hex'),
+          failIfWrongHash: true,
+        })
+        .subscribe({
+          next: (val) => {
+            const buf = readFileSync(testFile);
+            const compare = buf.slice(10, 40);
+            expect(val.data.length).toBe(30);
+            expect(compare.length).toBe(30);
+            expect(val.data).toEqual(compare);
+          },
+          complete: () => done(),
+          error: (err) => done(err),
+        });
     });
   });
 });

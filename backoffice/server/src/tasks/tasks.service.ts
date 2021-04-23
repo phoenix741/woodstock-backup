@@ -8,7 +8,7 @@ import { ResolveService } from '../network/resolve';
 import { ExecuteCommandService } from '../operation/execute-command.service';
 import { RSyncCommandService } from '../operation/rsync-command.service';
 import { BtrfsService } from '../storage/btrfs/btrfs.service';
-import { pick } from '../utils/lodash.utils';
+import { pick } from '@woodstock/shared';
 import { InternalBackupSubTask, InternalBackupTask } from './tasks.class';
 import { BackupState, TaskProgression } from './tasks.dto';
 
