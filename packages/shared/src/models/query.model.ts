@@ -36,6 +36,7 @@ export interface LaunchBackupHeader {
 
 export interface LaunchBackupFooter {
   code: StatusCode;
+  message?: string;
 }
 
 export interface LaunchBackupRequest {

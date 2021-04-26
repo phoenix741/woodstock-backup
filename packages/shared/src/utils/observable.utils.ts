@@ -1,4 +1,4 @@
-import { Observable, OperatorFunction, pipe, UnaryFunction, EMPTY } from 'rxjs';
+import { EMPTY, Observable, OperatorFunction, pipe, UnaryFunction } from 'rxjs';
 import { concatMapTo, filter } from 'rxjs/operators';
 
 export function notUndefined<T>(): UnaryFunction<Observable<T | null | undefined>, Observable<T>> {

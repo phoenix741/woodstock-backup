@@ -7,6 +7,7 @@ import {
   FileManifest,
   FileManifestJournalEntry,
   GetChunkRequest,
+  LaunchBackupReply,
   LaunchBackupRequest,
   longMin,
   Manifest,
@@ -19,7 +20,7 @@ import { credentials } from 'grpc';
 import * as Long from 'long';
 import { join } from 'path';
 import { concat, from, Observable, of, Subject } from 'rxjs';
-import { concatMap, filter, map, reduce, startWith, switchMap } from 'rxjs/operators';
+import { concatMap, endWith, filter, map, reduce, startWith, switchMap, catchError, mergeMap } from 'rxjs/operators';
 import { ApplicationConfigService } from 'src/config/application-config.service';
 import { Readable } from 'stream';
 
@@ -134,7 +135,7 @@ export class BinaryBackupsService {
     const manifest = new Manifest(`backups.${this.hostToBackup}.${this.currentBackupId}`, this.configService.hostPath);
 
     const fileManifestEntries$ = new Subject<LaunchBackupRequest>();
-    const launchBackupRequest$ = concat(
+    const launchBackupRequest$ = concat<LaunchBackupRequest>(
       fileManifestEntries$.pipe(
         startWith({
           header: {
@@ -145,6 +146,19 @@ export class BinaryBackupsService {
             newBackupNumber: 0,
           },
         }),
+        endWith({
+          footer: {
+            code: StatusCode.Ok,
+          },
+        }),
+        catchError((err) => {
+          return of({
+            footer: {
+              code: StatusCode.Failed,
+              message: err.message,
+            },
+          });
+        }),
       ),
     );
     const loadIndex$ = this.manifestService.loadIndex(manifest);
@@ -153,7 +167,7 @@ export class BinaryBackupsService {
     const createIndex$ = loadIndex$.pipe(
       switchMap((index) =>
         launchBackup$.pipe(
-          concatMap(({ entry, response }) => {
+          mergeMap(({ entry, response }) => {
             if (entry && entry.type !== EntryType.REMOVE) {
               return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
                 map((manifest) => ({
@@ -167,7 +181,7 @@ export class BinaryBackupsService {
             } else {
               return of({ entry, response });
             }
-          }),
+          }), // FIXME: Merge with concurency
           this.manifestService.writeJournalEntry(
             () => manifest,
             ({ entry }) => entry,
@@ -178,6 +192,10 @@ export class BinaryBackupsService {
               if (indexEntry) {
                 index.mark(indexEntry);
               }
+              // FIXME: Update if modified
+            }
+            if (response?.diskReadFinished) {
+              fileManifestEntries$.complete();
             }
             return index;
           }, index),

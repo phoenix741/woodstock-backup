@@ -96,6 +96,7 @@ message LaunchBackupHeader {
 
 message LaunchBackupFooter {
   StatusCode code = 1;
+  string message = 2;
 }
 
 message LaunchBackupRequest {
