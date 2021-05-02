@@ -5,40 +5,28 @@ import {
   EntryType,
   FileChunk,
   FileManifest,
-  FileManifestJournalEntry,
   GetChunkRequest,
-  LaunchBackupReply,
+  LaunchBackupHeader,
   LaunchBackupRequest,
   longMin,
   Manifest,
   ManifestService,
   StatusCode,
   WoodstockClientService,
+  silence,
 } from '@woodstock/shared';
 import { promises } from 'fs';
 import { credentials } from 'grpc';
 import * as Long from 'long';
 import { join } from 'path';
-import { concat, from, Observable, of, Subject } from 'rxjs';
-import {
-  concatMap,
-  endWith,
-  filter,
-  map,
-  reduce,
-  startWith,
-  switchMap,
-  catchError,
-  mergeMap,
-  takeUntil,
-  takeWhile,
-} from 'rxjs/operators';
+import { concat, from, Observable, of, Subject, throwError } from 'rxjs';
+import { catchError, endWith, map, mergeMap, startWith, takeWhile, reduce, tap } from 'rxjs/operators';
 import { ApplicationConfigService } from 'src/config/application-config.service';
 import { Readable } from 'stream';
 
 import { PoolService } from '../storage/pool/pool.service';
 import wrapObservable from '../utils/wrap-observable';
-import { BackupConfiguration } from './models/backups-configuration.model';
+import { BackupConfiguration, Task } from './models/backups-configuration.model';
 import { BackupsStats } from './models/backups-stats.model';
 
 /**
@@ -121,7 +109,7 @@ export class BinaryBackupsService {
     };
   }
 
-  async start(needRefresh = false) {
+  async start(): Promise<void> {
     this.statistics = new BackupsStats();
 
     // Get the configuration for the client
@@ -144,20 +132,56 @@ export class BinaryBackupsService {
     // Create the connection with the client
     const woodstockClientService = client.getService<WoodstockClientService>('WoodstockClientService');
 
+    const { tasks, finalizedTasks } = configuration.operations;
+    try {
+      for (const task of tasks || []) {
+        await this.processTask(woodstockClientService, task);
+      }
+    } finally {
+      for (const task of finalizedTasks || []) {
+        await this.processTask(woodstockClientService, task);
+      }
+    }
+  }
+
+  private async processTask(woodstockClientService: WoodstockClientService, task: Task): Promise<void> {
+    const { command, shares, includes, excludes } = task;
+    if (command) {
+      const reply = await woodstockClientService
+        .executeCommand({
+          command,
+        })
+        .toPromise();
+
+      this.logger.log(reply.stdout);
+      if (reply.code) {
+        this.logger.error(reply.stderr);
+      }
+    }
+
+    for (const share of shares || []) {
+      const { name, includes: shareIncludes, excludes: shareExcludes } = share;
+
+      await this.createBackup(woodstockClientService, {
+        sharePath: Buffer.from(name),
+        includes: [...(includes || []), ...(shareIncludes || [])].map((s) => Buffer.from(s)),
+        excludes: [...(excludes || []), ...(shareExcludes || [])].map((s) => Buffer.from(s)),
+        lastBackupNumber: -1,
+        newBackupNumber: 0,
+      }).toPromise();
+    }
+  }
+
+  private createBackup(
+    woodstockClientService: WoodstockClientService,
+    header: LaunchBackupHeader,
+  ): Observable<boolean> {
     const manifest = new Manifest(`backups.${this.hostToBackup}.${this.currentBackupId}`, this.configService.hostPath);
 
     const fileManifestEntries$ = new Subject<LaunchBackupRequest>();
     const launchBackupRequest$ = concat<LaunchBackupRequest>(
       fileManifestEntries$.pipe(
-        startWith({
-          header: {
-            sharePath: Buffer.from('/home'),
-            includes: [],
-            excludes: [],
-            lastBackupNumber: -1,
-            newBackupNumber: 0,
-          },
-        }),
+        startWith({ header }),
         endWith({
           footer: {
             code: StatusCode.Ok,
@@ -176,6 +200,11 @@ export class BinaryBackupsService {
 
     const launchBackup$ = woodstockClientService.launchBackup(launchBackupRequest$).pipe(
       takeWhile(({ response }) => !response?.diskReadFinished),
+      tap(({ response }) => {
+        if (response && response.code === StatusCode.Failed) {
+          throw { needRefreshCache: response.needRefreshCache };
+        }
+      }),
       mergeMap(({ entry, response }) => {
         if (entry && entry.type !== EntryType.REMOVE) {
           return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
@@ -197,9 +226,17 @@ export class BinaryBackupsService {
       ),
     );
 
-    const compact$ = this.manifestService.compact(manifest);
+    const compact$ = this.manifestService.compact(manifest); // FIXME: REFCOUNT
 
-    return concat(launchBackup$, compact$);
+    return concat(launchBackup$, compact$).pipe(
+      reduce(() => false, false),
+      catchError((err) => {
+        if (err && err.needRefreshCache) {
+          return of(true);
+        }
+        return throwError(err);
+      }),
+    );
   }
 
   private async copyManifest(woodstockClientService: WoodstockClientService, fileManifest: FileManifest) {
