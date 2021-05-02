@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream } from 'fs';
 import { defer, iif, Observable, of } from 'rxjs';
-import { concatMap, filter } from 'rxjs/operators';
+import { concatMap, filter, tap } from 'rxjs/operators';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
 
@@ -10,7 +10,6 @@ import { FileManifest } from '../models';
 import { joinBuffer } from '../utils/path.utils';
 import { FileBrowserService } from './file-browser.service';
 import { ChunkHashReader, FileHashReader } from './hash-reader.transform';
-import { Manifest } from '../manifest/manifest.model';
 
 const pipeline = promisify(streamPipeline);
 
@@ -38,6 +37,7 @@ export class FileReader {
             of(file),
           ),
         ),
+        tap((file) => index.mark(file.path)),
       );
   }
 

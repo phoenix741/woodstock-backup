@@ -20,7 +20,19 @@ import { credentials } from 'grpc';
 import * as Long from 'long';
 import { join } from 'path';
 import { concat, from, Observable, of, Subject } from 'rxjs';
-import { concatMap, endWith, filter, map, reduce, startWith, switchMap, catchError, mergeMap } from 'rxjs/operators';
+import {
+  concatMap,
+  endWith,
+  filter,
+  map,
+  reduce,
+  startWith,
+  switchMap,
+  catchError,
+  mergeMap,
+  takeUntil,
+  takeWhile,
+} from 'rxjs/operators';
 import { ApplicationConfigService } from 'src/config/application-config.service';
 import { Readable } from 'stream';
 
@@ -161,61 +173,33 @@ export class BinaryBackupsService {
         }),
       ),
     );
-    const loadIndex$ = this.manifestService.loadIndex(manifest);
-    const launchBackup$ = woodstockClientService.launchBackup(launchBackupRequest$);
 
-    const createIndex$ = loadIndex$.pipe(
-      switchMap((index) =>
-        launchBackup$.pipe(
-          mergeMap(({ entry, response }) => {
-            if (entry && entry.type !== EntryType.REMOVE) {
-              return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
-                map((manifest) => ({
-                  response,
-                  entry: {
-                    type: entry.type,
-                    manifest,
-                  },
-                })),
-              );
-            } else {
-              return of({ entry, response });
-            }
-          }), // FIXME: Merge with concurency
-          this.manifestService.writeJournalEntry(
-            () => manifest,
-            ({ entry }) => entry,
-          ),
-          reduce((index, { entry, response }) => {
-            if (entry?.manifest?.path) {
-              const indexEntry = index.getEntry(entry.manifest.path);
-              if (indexEntry) {
-                index.mark(indexEntry);
-              }
-              // FIXME: Update if modified
-            }
-            if (response?.diskReadFinished) {
-              fileManifestEntries$.complete();
-            }
-            return index;
-          }, index),
-        ),
-      ),
-    );
-
-    const addRemoveToIndex$ = createIndex$.pipe(
-      switchMap((index) =>
-        index.walk().pipe(
-          filter((entry) => !entry.markViewed),
-          map((file) => this.manifestService.toRemoveJournalEntry(file.path)),
-          this.manifestService.writeJournalEntry(() => manifest),
-        ),
+    const launchBackup$ = woodstockClientService.launchBackup(launchBackupRequest$).pipe(
+      takeWhile(({ response }) => !response?.diskReadFinished),
+      mergeMap(({ entry, response }) => {
+        if (entry && entry.type !== EntryType.REMOVE) {
+          return from(this.copyManifest(woodstockClientService, entry.manifest)).pipe(
+            map((manifest) => ({
+              response,
+              entry: {
+                type: entry.type,
+                manifest,
+              },
+            })),
+          );
+        } else {
+          return of({ entry, response });
+        }
+      }), // FIXME: Merge with concurency
+      this.manifestService.writeJournalEntry(
+        () => manifest,
+        ({ entry }) => entry,
       ),
     );
 
     const compact$ = this.manifestService.compact(manifest);
 
-    return concat(addRemoveToIndex$, compact$);
+    return concat(launchBackup$, compact$);
   }
 
   private async copyManifest(woodstockClientService: WoodstockClientService, fileManifest: FileManifest) {

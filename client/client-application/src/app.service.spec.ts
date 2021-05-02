@@ -17,6 +17,7 @@ import { Observable, pipe, Subject, throwError } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 
 import { AppService } from './app.service';
+import { FileManifest } from '../../../packages/shared/dist/models/manifest.model';
 
 describe('AppService', () => {
   let service: AppService;
@@ -97,8 +98,10 @@ describe('AppService', () => {
   });
 
   describe('#launchBackup', () => {
+    let mockIndex: IndexManifest;
+
     beforeEach(() => {
-      const mockIndex = new IndexManifest();
+      mockIndex = new IndexManifest();
       jest.spyOn(manifestService, 'exists').mockResolvedValue(false);
       jest.spyOn(manifestService, 'loadIndex').mockImplementation((manifest: Manifest) => {
         return new Observable((subscribe) => {
@@ -236,6 +239,43 @@ describe('AppService', () => {
         header: { sharePath: Buffer.from('/home/phoenix/Downloads/test'), lastBackupNumber: -1, newBackupNumber: 0 },
       });
     });
+
+    it('should make a backup with a previous index', (done) => {
+      mockIndex = new IndexManifest();
+      const manifestDelete = {
+        path: Buffer.from('/another.pdf'),
+        stats: {
+          ownerId: Long.fromNumber(1000),
+          groupId: Long.fromNumber(1000),
+          size: Long.fromNumber(102),
+        },
+      };
+      mockIndex.add(manifestDelete);
+
+      jest.spyOn(manifestService, 'loadIndex').mockImplementation((manifest: Manifest) => {
+        return new Observable((subscribe) => {
+          expect(manifest.manifestPath).toBe('/tmp/backups.L2hvbWUvcGhvZW5peC9Eb3dubG9hZHMvdGVzdA==.manifest');
+          subscribe.next(mockIndex);
+          subscribe.complete();
+        });
+      });
+      const request = new Subject<LaunchBackupRequest>();
+      service.launchBackup(request).subscribe({
+        next: (val) => {
+          expect(val).toMatchSnapshot('Launch backup (normal)');
+          if (val.response?.diskReadFinished) {
+            request.next({ footer: { code: StatusCode.Ok } });
+            request.complete();
+          }
+        },
+        complete: () => done(),
+        error: (err) => done(err),
+      });
+
+      request.next({
+        header: { sharePath: Buffer.from('/home/phoenix/Downloads/test'), lastBackupNumber: -1, newBackupNumber: 0 },
+      });
+    });
   });
 
   describe('#getChunk', () => {
@@ -246,7 +286,7 @@ describe('AppService', () => {
           filename: Buffer.from(testFile),
           position: Long.fromNumber(0),
           size: Long.fromNumber(100000),
-          sha256: Buffer.from('b785c4e1e1d84f7ade49a681cccdde4d179d597f03709a6f455ab2488433eb68', 'hex'),
+          sha256: Buffer.from('8d1dc273b9a95707efd019c9e569c4b649c73e47adcb9aa2922ca4688b8fa3cf', 'hex'),
           failIfWrongHash: true,
         })
         .subscribe({

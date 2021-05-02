@@ -13,10 +13,24 @@ import {
   RefreshCacheRequest,
   silence,
   StatusCode,
+  LaunchBackupHeader,
 } from '@woodstock/shared';
 import { createReadStream } from 'fs';
 import { from, Observable, of, partition, throwError, merge, concat, iif, EMPTY, defer } from 'rxjs';
-import { catchError, concatMap, filter, finalize, first, last, map, reduce, switchMap, tap } from 'rxjs/operators';
+import {
+  catchError,
+  concatMap,
+  filter,
+  finalize,
+  first,
+  last,
+  map,
+  reduce,
+  share,
+  shareReplay,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 
 @Injectable()
 export class AppService {
@@ -27,36 +41,53 @@ export class AppService {
   launchBackup(request: Observable<LaunchBackupRequest>): Observable<LaunchBackupReply> {
     let manifest: Manifest;
     let statusCode: StatusCode;
+    let header: LaunchBackupHeader;
 
     const [headerEntries$, requestEntries$] = partition(request, (value) => !!value.header);
     const [footerEntries$, journalEntries$] = partition(requestEntries$, (value) => !!value.footer);
 
-    const fromDiskEntries$ = concat(
-      headerEntries$.pipe(
-        first(),
-        switchMap((value) => {
-          manifest = new Manifest(`backups.${value.header.sharePath.toString('base64')}`, '/tmp/');
-          return from(this.manifestService.exists(manifest)).pipe(
-            switchMap((manifestExists) => {
-              if (!manifestExists && value.header.lastBackupNumber >= 0) {
-                return throwError({ needRefreshCache: true });
-              }
-              return of(value);
-            }),
-            switchMap(() => this.manifestService.loadIndex(manifest)),
-            switchMap((index) =>
-              this.fileReader.getFiles(
-                index,
-                value.header.sharePath,
-                value.header.includes?.map((s) => globStringToRegex(s.toString('latin1'))),
-                value.header.excludes?.map((s) => globStringToRegex(s.toString('latin1'))),
-              ),
-            ),
-            map((entry) => this.manifestService.toAddJournalEntry(entry, true)),
-            map((entry) => ({ from: 'disk', entry, response: undefined })),
-          );
-        }),
+    const createIndex$ = headerEntries$.pipe(
+      first(),
+      switchMap((value) => {
+        header = value.header;
+        manifest = new Manifest(`backups.${header.sharePath.toString('base64')}`, '/tmp/');
+        return from(this.manifestService.exists(manifest)).pipe(
+          switchMap((manifestExists) => {
+            if (!manifestExists && header.lastBackupNumber >= 0) {
+              return throwError({ needRefreshCache: true });
+            }
+            return of(value);
+          }),
+          switchMap(() => this.manifestService.loadIndex(manifest)),
+        );
+      }),
+      shareReplay(1),
+    );
+
+    const addRemoveToIndex$ = createIndex$.pipe(
+      switchMap((index) =>
+        index.walk().pipe(
+          filter((entry) => !entry.markViewed),
+          map((file) => this.manifestService.toRemoveJournalEntry(file.path)),
+          map((entry) => ({ from: 'disk', entry, response: undefined })),
+        ),
       ),
+    );
+
+    const fromDiskEntries$ = concat(
+      createIndex$.pipe(
+        switchMap((index) =>
+          this.fileReader.getFiles(
+            index,
+            header.sharePath,
+            header.includes?.map((s) => globStringToRegex(s.toString('latin1'))),
+            header.excludes?.map((s) => globStringToRegex(s.toString('latin1'))),
+          ),
+        ),
+        map((entry) => this.manifestService.toAddJournalEntry(entry, true)),
+        map((entry) => ({ from: 'disk', entry, response: undefined })),
+      ),
+      addRemoveToIndex$,
       of({ from: 'disk', entry: undefined, response: { code: StatusCode.Partial, diskReadFinished: true } }),
     );
 

@@ -37,8 +37,11 @@ export class IndexManifest {
     this.files.delete(key);
   }
 
-  mark(index: IndexFileEntry): void {
-    index.markViewed = true;
+  mark(indexOrPath: IndexFileEntry | Buffer): void {
+    const index = isIndexFileEntry(indexOrPath) ? indexOrPath : this.getEntry(indexOrPath);
+    if (index) {
+      index.markViewed = true;
+    }
   }
 
   /**
@@ -56,4 +59,8 @@ export class IndexManifest {
     const key = hashBuffer(filePath);
     return this.files.get(key);
   }
+}
+
+function isIndexFileEntry(indexOrPath: IndexFileEntry | Buffer): indexOrPath is IndexFileEntry {
+  return (indexOrPath as IndexFileEntry).path !== undefined;
 }
