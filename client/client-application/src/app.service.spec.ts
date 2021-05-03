@@ -10,14 +10,13 @@ import {
   SharedModule,
   StatusCode,
 } from '@woodstock/shared';
-import * as Long from 'long';
 import { readFileSync } from 'fs';
+import * as Long from 'long';
 import { join } from 'path';
 import { Observable, pipe, Subject, throwError } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 
 import { AppService } from './app.service';
-import { FileManifest } from '../../../packages/shared/dist/models/manifest.model';
 
 describe('AppService', () => {
   let service: AppService;

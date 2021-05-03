@@ -115,7 +115,7 @@ export class BinaryBackupsService {
     // Get the configuration for the client
     const configuration = this.getConfiguration();
 
-    const channel_creds = credentials.createSsl(await promises.readFile('../client-sync/certs/server.crt'));
+    const channel_creds = credentials.createSsl(await promises.readFile('../../client/client-sync/certs/server.crt'));
 
     const client = ClientProxyFactory.create({
       transport: Transport.GRPC,

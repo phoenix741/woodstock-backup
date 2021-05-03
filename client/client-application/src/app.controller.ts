@@ -10,12 +10,12 @@ import {
   LogEntry,
   RefreshCacheReply,
   RefreshCacheRequest,
+  StatusCode,
 } from '@woodstock/shared';
 import { Observable } from 'rxjs';
 
 import { AppService } from './app.service';
 import { LogService } from './log.service';
-import { StatusCode } from '../../../packages/shared/src/models/query.model';
 
 @Controller()
 export class AppController {

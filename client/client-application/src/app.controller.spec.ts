@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { StatusCode } from '@woodstock/shared';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { LogService } from './log.service';
-import { StatusCode } from '../../../packages/shared/src/models/query.model';
 
 describe('AppController', () => {
   let appController: AppController;
