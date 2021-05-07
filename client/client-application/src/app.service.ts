@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import {
   FileChunk,
   FileHashReader,
   FileReader,
   GetChunkRequest,
   globStringToRegex,
+  LaunchBackupHeader,
   LaunchBackupReply,
   LaunchBackupRequest,
   Manifest,
@@ -13,24 +14,10 @@ import {
   RefreshCacheRequest,
   silence,
   StatusCode,
-  LaunchBackupHeader,
 } from '@woodstock/shared';
 import { createReadStream } from 'fs';
-import { from, Observable, of, partition, throwError, merge, concat, iif, EMPTY, defer } from 'rxjs';
-import {
-  catchError,
-  concatMap,
-  filter,
-  finalize,
-  first,
-  last,
-  map,
-  reduce,
-  share,
-  shareReplay,
-  switchMap,
-  tap,
-} from 'rxjs/operators';
+import { concat, defer, EMPTY, from, iif, merge, Observable, of, partition, throwError } from 'rxjs';
+import { catchError, concatMap, filter, first, last, map, reduce, shareReplay, switchMap, tap } from 'rxjs/operators';
 
 @Injectable()
 export class AppService {
@@ -54,6 +41,7 @@ export class AppService {
         return from(this.manifestService.exists(manifest)).pipe(
           switchMap((manifestExists) => {
             if (!manifestExists && header.lastBackupNumber >= 0) {
+              this.logger.warn(`Need refresh cache for the ${header.sharePath.toString()}`);
               return throwError({ needRefreshCache: true });
             }
             return of(value);
@@ -92,6 +80,7 @@ export class AppService {
     );
 
     const fromRequestEntries$ = journalEntries$.pipe(
+      tap((e) => this.logger.log(`From request: ${JSON.stringify(e)}`)),
       map((manifestEntry) => ({ from: 'network', entry: manifestEntry.entry, response: undefined })),
     );
 

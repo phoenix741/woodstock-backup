@@ -26,9 +26,9 @@ describe('AppController', () => {
   describe('executeCommand', () => {
     it('Should execute the command !', () => {
       expect(appController.executeCommand({ command: 'Cmd' })).toEqual({
-        code: StatusCode.Failed,
-        stdout: '',
-        stderr: 'Cmd',
+        code: StatusCode.Ok,
+        stdout: 'Cmd',
+        stderr: '',
       });
     });
   });

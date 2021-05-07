@@ -1,5 +1,4 @@
 import { Processor } from '@nestjs/bull';
-import { HttpService } from '@nestjs/common';
 import { ManifestService } from '@woodstock/shared';
 import { Command, Console } from 'nestjs-console';
 

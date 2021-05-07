@@ -74,10 +74,8 @@ message RefreshCacheHeader {
 }
 
 message RefreshCacheRequest {
-  oneof content {
-    RefreshCacheHeader header = 2;
-    FileManifest manifest = 1;
-  }
+  RefreshCacheHeader header = 2;
+  FileManifest manifest = 1;
 }
 
 message RefreshCacheReply {
@@ -90,7 +88,7 @@ message LaunchBackupHeader {
   repeated bytes includes = 2;
   repeated bytes excludes = 3;
 
-  uint32 lastBackupNumber = 4;
+  int32 lastBackupNumber = 4;
   uint32 newBackupNumber = 5;
 }
 
@@ -100,11 +98,9 @@ message LaunchBackupFooter {
 }
 
 message LaunchBackupRequest {
-  oneof content {
-    LaunchBackupHeader header = 1;
-    FileManifestJournalEntry entry = 2;
-    LaunchBackupFooter footer = 3;
-  }
+  LaunchBackupHeader header = 1;
+  FileManifestJournalEntry entry = 2;
+  LaunchBackupFooter footer = 3;
 }
 
 message LaunchBackupResponse {
@@ -115,10 +111,8 @@ message LaunchBackupResponse {
 }
 
 message LaunchBackupReply {
-  oneof content {
-    FileManifestJournalEntry entry = 1;
-    LaunchBackupResponse response = 2;
-  }
+  FileManifestJournalEntry entry = 1;
+  LaunchBackupResponse response = 2;
 }
 
 message GetChunkRequest {

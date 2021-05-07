@@ -285,7 +285,7 @@ describe('AppService', () => {
           filename: Buffer.from(testFile),
           position: Long.fromNumber(0),
           size: Long.fromNumber(100000),
-          sha256: Buffer.from('8d1dc273b9a95707efd019c9e569c4b649c73e47adcb9aa2922ca4688b8fa3cf', 'hex'),
+          sha256: Buffer.from('130429d8d40932228afbbe6c989208e433a0265dd978eb3a325cfbd0173a4d5e', 'hex'),
           failIfWrongHash: true,
         })
         .subscribe({

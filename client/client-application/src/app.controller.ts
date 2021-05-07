@@ -1,6 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { GrpcMethod, GrpcStreamMethod } from '@nestjs/microservices';
 import {
+  EntryType,
   ExecuteCommandReply,
   ExecuteCommandRequest,
   FileChunk,
@@ -16,6 +17,7 @@ import { Observable } from 'rxjs';
 
 import { AppService } from './app.service';
 import { LogService } from './log.service';
+import { tap } from 'rxjs/operators';
 
 @Controller()
 export class AppController {
@@ -24,9 +26,9 @@ export class AppController {
   @GrpcMethod('WoodstockClientService', 'ExecuteCommand')
   executeCommand(request: ExecuteCommandRequest): ExecuteCommandReply {
     return {
-      code: StatusCode.Failed,
-      stdout: '',
-      stderr: request.command,
+      code: StatusCode.Ok,
+      stdout: request.command,
+      stderr: '',
     };
   }
 
