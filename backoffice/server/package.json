@@ -19,6 +19,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "console:debug": "node --inspect-brk -r ts-node/register src/console.ts",
     "console:dev": "ts-node -r tsconfig-paths/register src/console.ts",
     "console": "node dist/console.js",
     "predeb": "npm run build && cd ../client/ && npm run build",

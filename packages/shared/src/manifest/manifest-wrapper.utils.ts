@@ -1,7 +1,7 @@
 import { createReadStream, createWriteStream } from 'fs';
 import * as mkdirp from 'mkdirp';
-import { cpuUsage } from 'node:process';
 import { dirname } from 'path';
+import { nextTick } from 'process';
 import { Type, Writer } from 'protobufjs';
 import { from, Observable, of } from 'rxjs';
 import { concatMap, mapTo, tap } from 'rxjs/operators';
@@ -13,13 +13,14 @@ const WRITE_BUFFER_SIZE = Math.pow(2, 16);
 
 export function readAllMessages<T>(path: string, type: Type): Observable<ProtobufMessageWithPosition<T>> {
   return new Observable((subscribe) => {
+    console.log('readAllMessages', path);
     const reader = createReadStream(path);
     const transform = new ProtobufMessageReader(type);
 
-    transform.on('data', (message: ProtobufMessageWithPosition<T>) => subscribe.next(message));
-    transform.on('end', () => subscribe.complete());
-    transform.on('error', (err) => subscribe.error(err));
-    reader.on('error', (err) => subscribe.error(err));
+    transform.on('data', (message: ProtobufMessageWithPosition<T>) => nextTick(() => subscribe.next(message)));
+    transform.on('end', () => nextTick(() => subscribe.complete()));
+    transform.on('error', (err) => nextTick(() => subscribe.error(err)));
+    reader.on('error', (err) => nextTick(() => subscribe.error(err)));
 
     reader.pipe(transform);
   });

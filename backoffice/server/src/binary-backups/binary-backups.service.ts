@@ -18,7 +18,18 @@ import { credentials } from 'grpc';
 import * as Long from 'long';
 import { join } from 'path';
 import { concat, from, Observable, of, Subject, throwError } from 'rxjs';
-import { catchError, endWith, finalize, map, mergeMap, reduce, startWith, takeWhile, tap } from 'rxjs/operators';
+import {
+  catchError,
+  endWith,
+  finalize,
+  map,
+  mergeMap,
+  reduce,
+  startWith,
+  takeWhile,
+  tap,
+  concatMap,
+} from 'rxjs/operators';
 import { ApplicationConfigService } from 'src/config/application-config.service';
 import { Readable } from 'stream';
 
@@ -197,31 +208,31 @@ export class BinaryBackupsService {
           },
         });
       }),
-      tap((e) => this.logger.log(`launchBackupRequest: ${JSON.stringify(e)}`)),
+      // tap((e) => this.logger.log(`launchBackupRequest: ${JSON.stringify(e)}`)),
     );
 
     const launchBackup$ = woodstockClientService.launchBackup(launchBackupRequest$).pipe(
-      tap(({ entry, response }) => {
-        if (entry) {
-          this.logger.log(
-            `${entry.type === EntryType.ADD ? 'ADD ' : entry.type === EntryType.MODIFY ? 'MODIFY' : 'REMOVE'} - ${
-              entry.manifest.path
-            }`,
-          );
-        }
-        if (response) {
-          this.logger.log(
-            `Code : ${response.code} - Disk Read Finished : ${response.diskReadFinished} - Message: ${response.message} - Need Refresh Cache: ${response.needRefreshCache}`,
-          );
-        }
-      }),
+      // tap(({ entry, response }) => {
+      //   if (entry) {
+      //     this.logger.log(
+      //       `${entry.type === EntryType.ADD ? 'ADD ' : entry.type === EntryType.MODIFY ? 'MODIFY' : 'REMOVE'} - ${
+      //         entry.manifest.path
+      //       }`,
+      //     );
+      //   }
+      //   if (response) {
+      //     this.logger.log(
+      //       `Code : ${response.code} - Disk Read Finished : ${response.diskReadFinished} - Message: ${response.message} - Need Refresh Cache: ${response.needRefreshCache}`,
+      //     );
+      //   }
+      // }),
       takeWhile(({ response }) => !response?.diskReadFinished),
       tap(({ response }) => {
         if (response && response.code === StatusCode.Failed) {
           throw { needRefreshCache: response.needRefreshCache };
         }
       }),
-      mergeMap(({ entry, response }) => {
+      concatMap(({ entry, response }) => {
         if (entry && entry.type !== EntryType.REMOVE) {
           return from(this.copyManifest(woodstockClientService, header.sharePath, entry.manifest)).pipe(
             map((manifest) => ({
@@ -241,6 +252,7 @@ export class BinaryBackupsService {
         ({ entry }) => entry,
       ),
       finalize(() => {
+        this.logger.log(`End of the backup of ${header.sharePath}`);
         fileManifestEntries$.complete();
       }),
     );

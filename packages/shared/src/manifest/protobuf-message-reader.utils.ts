@@ -43,8 +43,4 @@ export class ProtobufMessageReader extends Transform {
 
     cb();
   }
-
-  _flush(cb: TransformCallback): void {
-    cb();
-  }
 }
