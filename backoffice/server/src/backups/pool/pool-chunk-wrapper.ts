@@ -9,6 +9,7 @@ import { pipeline as streamPipeline, Readable, Writable } from 'stream';
 import * as util from 'util';
 import { createDeflate, createInflate } from 'zlib';
 import { PoolChunkInformation } from './pool-chunk.dto';
+import { calculateChunkDir } from './pool-chunk.utils';
 
 const pipeline = util.promisify(streamPipeline);
 
@@ -115,11 +116,7 @@ export class PoolChunkWrapper {
 
   private get chunkDir() {
     if (this.sha256Str) {
-      const part1 = this.sha256Str.substr(0, 2);
-      const part2 = this.sha256Str.substr(2, 2);
-      const part3 = this.sha256Str.substr(4, 2);
-
-      return join(this.poolPath, part1, part2, part3);
+      return calculateChunkDir(this.poolPath, this.sha256Str);
     } else {
       return join(this.poolPath, '_new');
     }

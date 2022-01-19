@@ -88,18 +88,20 @@ export class InternalBackupTask implements BackupTask {
   get progression(): TaskProgression {
     const subtasks = this.subtasks.filter((subtask) => !!subtask.progress);
 
-    const progression = subtasks.reduce((acc, subtask) => {
+    const progression = this.subtasks.reduce((acc, subtask) => {
       acc.fileCount += subtask.progression?.fileCount || 0;
       acc.fileSize += subtask.progression?.fileSize || 0n;
       acc.compressedFileSize += subtask.progression?.compressedFileSize || 0n;
       acc.newFileCount += subtask.progression?.newFileCount || 0;
       acc.newFileSize += subtask.progression?.newFileSize || 0n;
       acc.newCompressedFileSize += subtask.progression?.newCompressedFileSize || 0n;
-      acc.percent += subtask.progression?.percent || 0;
+      if (subtask.progress) {
+        acc.percent += subtask.progression?.percent || 0;
+      }
       acc.speed = subtask.progression?.speed || acc.speed;
       return acc;
     }, new TaskProgression());
-    progression.percent = progression.percent / subtasks.length;
+    progression.percent = progression.percent / subtasks.filter((s) => !!s.progress).length;
     return progression;
   }
 

@@ -3,12 +3,14 @@ import { sep } from 'path';
 const SEPARATOR = Buffer.from(sep);
 
 export function joinBuffer(...entries: Buffer[]): Buffer {
-  return entries.reduce((prev, next) => {
-    if (String.fromCharCode(prev[prev.length - 1]) === sep || String.fromCharCode(next[0]) === sep) {
-      return Buffer.concat([prev, next]);
-    }
-    return Buffer.concat([prev, SEPARATOR, next]);
-  });
+  return entries
+    .filter((v) => !!v.length)
+    .reduce((prev, next) => {
+      if (String.fromCharCode(prev[prev.length - 1]) === sep || String.fromCharCode(next[0]) === sep) {
+        return Buffer.concat([prev, next]);
+      }
+      return Buffer.concat([prev, SEPARATOR, next]);
+    });
 }
 
 export function splitBuffer(buffer: Buffer, delimiter: Buffer = SEPARATOR): Buffer[] {

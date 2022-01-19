@@ -11,6 +11,7 @@ import { BackupsGrpc } from './backups/backups-grpc.service';
 import { BackupController } from './backups/backups.controller';
 import { BackupsResolver } from './backups/backups.resolver';
 import { BackupsService } from './backups/backups.service';
+import { PoolChunkRefCnt } from './backups/pool/pool-chunk-refcnt';
 import { PoolService } from './backups/pool/pool.service';
 import { ApplicationConfigModule } from './config/application-config.module';
 import { ApplicationConfigService } from './config/application-config.service';
@@ -44,7 +45,6 @@ import { ExecuteCommandService } from './utils/execute-command.service';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service';
 import { LockService } from './utils/lock.service';
 import { YamlService } from './utils/yaml.service';
-
 
 @Module({
   imports: [
@@ -94,6 +94,7 @@ import { YamlService } from './utils/yaml.service';
     LockService,
     PingService,
     PoolService,
+    PoolChunkRefCnt,
     QueueResolver,
     QueueService,
     ResolveService,

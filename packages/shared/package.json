@@ -23,7 +23,8 @@
     "@types/jest": "^27.0.3",
     "@types/long": "^4.0.1",
     "@types/mkdirp": "^1.0.2",
-    "@types/node": "^16.11.7",
+    "@types/node": "^16.11.21",
+    "ix": "4.5.2",
     "jest": "^27.4.5",
     "long": "^4.0.0",
     "mkdirp": "^1.0.4",
@@ -31,7 +32,6 @@
     "protobufjs": "^6.11.2",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
-    "ix": "4.5.2",
     "rxjs": "^7.1.0",
     "ts-jest": "^27.1.2",
     "ts-proto": "^1.95.0",
@@ -42,12 +42,12 @@
     "@nestjs/common": "^8.2.4",
     "@nestjs/microservices": "^8.2.4",
     "@types/jest": "^27.0.3",
+    "ix": "4.5.2",
     "long": "^4.0.0",
     "mkdirp": "^1.0.4",
     "protobufjs": "^6.11.2",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.1.0",
-    "ix": "4.5.2"
+    "rxjs": "^7.1.0"
   },
   "jest": {
     "moduleFileExtensions": [

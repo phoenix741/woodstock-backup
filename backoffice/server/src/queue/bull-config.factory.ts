@@ -11,9 +11,6 @@ export class BullConfigService implements BullOptionsFactory {
     return {
       redis: this.configService.redis,
       prefix: 'woodstock-backup',
-      settings: {
-        stalledInterval: 0, // FIXME: Correction on big file required
-      },
     };
   }
 }

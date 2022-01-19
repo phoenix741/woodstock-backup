@@ -1,8 +1,8 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { constants as constantsFs } from 'fs';
-import { lstat, readdir, access } from 'fs/promises';
-import { AsyncIterableX, from, merge, of } from 'ix/asynciterable';
-import { catchError, filter, flatMap, map } from 'ix/asynciterable/operators';
+import { constants as constantsFs, Dirent } from 'fs';
+import { access, lstat, opendir } from 'fs/promises';
+import { AsyncIterableX, from, of, pipe } from 'ix/asynciterable';
+import { filter, flatMap, map, startWith } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { FileManifest } from '../models/woodstock';
 import { notUndefined } from '../utils/iterator.utils';
@@ -13,6 +13,36 @@ import { joinBuffer } from '../utils/path.utils';
 export class FileBrowserService {
   private logger = new Logger(FileBrowserService.name);
 
+  public getFilesRecursive(
+    sharePath: Buffer,
+    filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
+  ): (backupPath: Buffer) => AsyncIterableX<Buffer> {
+    const forShare = (backupPath: Buffer): AsyncIterableX<Buffer> => {
+      const path = joinBuffer(sharePath, backupPath);
+      const files = pipe(
+        from(
+          opendir(path, { encoding: 'buffer' as any }).catch((err) => {
+            this.logger.error(err);
+            return from([] as Dirent[]);
+          }),
+        ),
+        flatMap((dir) => dir),
+        filter((dirEntry) => !filterCallback || filterCallback(path, dirEntry)),
+        flatMap(async (dirEntry) => {
+          if (dirEntry.isDirectory()) {
+            return forShare(joinBuffer(backupPath, dirEntry.name as unknown as Buffer)).pipe(
+              startWith(joinBuffer(backupPath, dirEntry.name as unknown as Buffer)),
+            );
+          }
+          return of(joinBuffer(backupPath, dirEntry.name as unknown as Buffer));
+        }),
+      );
+      return files;
+    };
+
+    return forShare;
+  }
+
   public getFiles(
     sharePath: Buffer,
   ): (backupPath: Buffer, includes: RegExp[], excludes: RegExp[]) => AsyncIterableX<FileManifest> {
@@ -21,19 +51,19 @@ export class FileBrowserService {
       includes: RegExp[] = [],
       excludes: RegExp[] = [],
     ): AsyncIterableX<FileManifest> => {
-      const files$ = from(readdir(joinBuffer(sharePath, backupPath), { encoding: 'buffer' })).pipe(
-        catchError<Buffer[], Buffer[]>(() => {
-          this.logger.warn(`Can't read the directory ${sharePath.toString()}/${backupPath.toString()}`);
-          return of([]);
-        }),
-        flatMap((files) => from(files)),
-        filter((file) => FileBrowserService.isFileAuthorized(joinBuffer(backupPath, file), includes, excludes)),
+      return this.getFilesRecursive(joinBuffer(sharePath, backupPath), (currentPath, path) =>
+        FileBrowserService.isFileAuthorized(
+          joinBuffer(currentPath, path.name as unknown as Buffer),
+          includes,
+          excludes,
+        ),
+      )(backupPath).pipe(
         map<Buffer, FileManifest | undefined>(async (file) => {
           try {
-            return await this.createManifestFromLocalFile(sharePath, joinBuffer(backupPath, file));
+            return await this.createManifestFromLocalFile(sharePath, file);
           } catch (err) {
             this.logger.warn(
-              `Can't read information of the file ${sharePath.toString()}/${backupPath.toString()}: ${
+              `Can't read information of the file ${joinBuffer(sharePath, file).toString()}: ${
                 err instanceof Error ? err.message : err
               }`,
             );
@@ -42,13 +72,6 @@ export class FileBrowserService {
         }),
         notUndefined(),
       );
-
-      const folders$ = files$.pipe(
-        filter((folder) => FileBrowserService.isDirectory(folder.stats?.mode || Long.ZERO)),
-        flatMap((folder) => forShare(folder.path, includes, excludes)),
-      );
-
-      return merge(files$, folders$);
     };
     return forShare;
   }
@@ -56,12 +79,12 @@ export class FileBrowserService {
   private async createManifestFromLocalFile(sharePath: Buffer, path: Buffer): Promise<FileManifest> {
     const [fileStat, fileAccess] = await Promise.all([
       lstat(joinBuffer(sharePath, path), { bigint: true }),
-      access(joinBuffer(sharePath, path))
+      access(joinBuffer(sharePath, path), constantsFs.R_OK)
         .then(() => true)
         .catch(() => false),
     ]);
     if (!fileAccess) {
-      throw new UnauthorizedException(`Can't read the file ${sharePath.toString()}/${path.toString()}`);
+      throw new UnauthorizedException(`The file is not readable by current user`);
     }
 
     return {

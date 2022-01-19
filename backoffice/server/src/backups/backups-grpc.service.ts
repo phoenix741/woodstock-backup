@@ -37,19 +37,20 @@ import {
 import { concatAll, filter, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { join } from 'path';
-import { concat, defer, endWith, from, map, mapTo, Observable, reduce, scan, startWith, tap } from 'rxjs';
+import { concat, defer, endWith, from, map, mapTo, Observable, reduce, scan, startWith, Subscriber, tap } from 'rxjs';
 import { concurrentMap } from 'src/utils/p-promise.util';
 import { Readable, Writable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { BackupsService } from '../backups/backups.service';
 import { TaskProgression } from '../tasks/tasks.dto';
 import { BackupsGrpcContext } from './backups-grpc.dto';
-import { PoolChunkInformation } from './pool/pool-chunk.dto';
+import { PoolChunkRefCnt } from './pool/pool-chunk-refcnt';
+import { isPoolChunkInformation, PoolChunkInformation } from './pool/pool-chunk.dto';
 import { PoolService } from './pool/pool.service';
 
 export const SHA256_EMPTYSTRING = Buffer.from(
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-  'base64',
+  'hex',
 );
 
 export class LaunchBackupError extends Error {}
@@ -62,6 +63,7 @@ export class BackupsGrpc {
     private backupService: BackupsService,
     private manifestService: ManifestService,
     private poolService: PoolService,
+    private poolChunkRefCnt: PoolChunkRefCnt,
   ) {}
 
   private getMetadata(context: BackupsGrpcContext) {
@@ -281,9 +283,10 @@ export class BackupsGrpc {
     context: BackupsGrpcContext,
     sharePath: Buffer,
     fileManifest: FileManifest,
+    subscriber: Subscriber<FileManifestJournalEntry | PoolChunkInformation>,
   ): Promise<FileManifest> {
     let chunkLength = (fileManifest.stats?.size || Long.ZERO).div(LONG_CHUNK_SIZE).toNumber();
-    if ((fileManifest.stats?.size || Long.ZERO).mod(LONG_CHUNK_SIZE)) {
+    if ((fileManifest.stats?.size || Long.ZERO).mod(LONG_CHUNK_SIZE).greaterThan(Long.ZERO)) {
       chunkLength++;
     }
 
@@ -300,6 +303,7 @@ export class BackupsGrpc {
         acc.compressedSize += chunk.compressedSize;
         acc.size += chunk.size;
         acc.chunks[chunkNumber] = chunk.sha256;
+        subscriber.next(chunk);
         return acc;
       },
     });
@@ -316,12 +320,35 @@ export class BackupsGrpc {
     return fileManifest;
   }
 
-  private downloadFileList(context: BackupsGrpcContext, backupShare: Share, manifest: Manifest) {
-    return new Observable<FileManifestJournalEntry>((subscriber) => {
-      const grpclaunchBackup$ = context.service.launchBackup({ share: backupShare }, this.getMetadata(context));
-      const launchBackup$ = fromIx<LaunchBackupReply>(grpclaunchBackup$).pipe(mapIx(({ entry }) => entry));
+  private downloadChunksFromJournal(
+    context: BackupsGrpcContext,
+    backupShare: Share,
+    manifest: Manifest,
+  ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
+    return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
+      const entries = this.manifestService.readFilelistEntries(manifest).pipe(
+        concurrentMap(10, async (entry) => {
+          try {
+            if (entry?.type !== EntryType.REMOVE && entry?.manifest) {
+              const manifest = await this.downloadManifestFile(
+                context,
+                backupShare.sharePath,
+                entry.manifest,
+                subscriber,
+              );
+              return { type: entry.type, manifest };
+            } else {
+              return entry;
+            }
+          } catch (err) {
+            // FIXME: Gérer l'erreur
+            this.logger.error(`${entry.manifest.path.toString()}: ${(err as Error).message}`, err);
+            return undefined;
+          }
+        }),
+      );
       this.manifestService
-        .writeFileListEntry(launchBackup$, manifest, async (entry) => {
+        .writeJournalEntry(entries, manifest, async (entry) => {
           if (entry) {
             subscriber.next(entry);
           }
@@ -336,30 +363,12 @@ export class BackupsGrpc {
     });
   }
 
-  private downloadChunksFromJournal(
-    context: BackupsGrpcContext,
-    backupShare: Share,
-    manifest: Manifest,
-  ): Observable<FileManifestJournalEntry> {
+  private downloadFileList(context: BackupsGrpcContext, backupShare: Share, manifest: Manifest) {
     return new Observable<FileManifestJournalEntry>((subscriber) => {
-      const entries = this.manifestService.readFilelistEntries(manifest).pipe(
-        concurrentMap(10, async (entry) => {
-          try {
-            if (entry?.type !== EntryType.REMOVE && entry?.manifest) {
-              const manifest = await this.downloadManifestFile(context, backupShare.sharePath, entry.manifest);
-              return { type: entry.type, manifest };
-            } else {
-              return entry;
-            }
-          } catch (err) {
-            // FIXME: Gérer l'erreur
-            this.logger.error(`${entry.manifest.path.toString()}: ${(err as Error).message}`, err);
-            return undefined;
-          }
-        }),
-      );
+      const grpclaunchBackup$ = context.service.launchBackup({ share: backupShare }, this.getMetadata(context));
+      const launchBackup$ = fromIx<LaunchBackupReply>(grpclaunchBackup$).pipe(mapIx(({ entry }) => entry));
       this.manifestService
-        .writeJournalEntry(entries, manifest, async (entry) => {
+        .writeFileListEntry(launchBackup$, manifest, async (entry) => {
           if (entry) {
             subscriber.next(entry);
           }
@@ -390,26 +399,31 @@ export class BackupsGrpc {
     const readChunk$ = this.downloadChunksFromJournal(context, backupShare, manifest).pipe(
       scan(
         (current, value) => {
-          switch (value.type) {
-            case EntryType.ADD:
-              return {
-                ...current,
-                progress: current.progress + longToBigInt(value.manifest.stats.size),
-                count: current.count + 1,
-                size: current.size + longToBigInt(value.manifest.stats.size),
-                compressedFileSize:
-                  current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
-              };
-            case EntryType.MODIFY:
-              return {
-                ...current,
-                progress: current.progress + longToBigInt(value.manifest.stats.size),
-                size: current.size + longToBigInt(value.manifest.stats.size),
-                compressedFileSize:
-                  current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
-              };
-            case EntryType.REMOVE:
-              return current;
+          if (isPoolChunkInformation(value)) {
+            return {
+              ...current,
+              progress: current.progress + value.size,
+            };
+          } else {
+            switch (value.type) {
+              case EntryType.ADD:
+                return {
+                  ...current,
+                  count: current.count + 1,
+                  size: current.size + longToBigInt(value.manifest.stats.size),
+                  compressedFileSize:
+                    current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
+                };
+              case EntryType.MODIFY:
+                return {
+                  ...current,
+                  size: current.size + longToBigInt(value.manifest.stats.size),
+                  compressedFileSize:
+                    current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
+                };
+              case EntryType.REMOVE:
+                return current;
+            }
           }
         },
         {
@@ -417,6 +431,7 @@ export class BackupsGrpc {
           count: 0,
           size: 0n,
           compressedFileSize: 0n,
+          date: new Date(),
         },
       ),
       map(
@@ -426,6 +441,7 @@ export class BackupsGrpc {
             newFileCount: fileCount.count,
             newFileSize: fileCount.size,
             percent: Number((fileCount.progress * 100n) / count),
+            speed: Number((fileCount.progress * 1000n) / BigInt(Date.now() - fileCount.date.getTime())),
           }),
       ),
     );
@@ -434,6 +450,7 @@ export class BackupsGrpc {
   }
 
   countRef(context: BackupsGrpcContext, sharePath: Buffer): Observable<TaskProgression> {
+    this.logger.log('Counting reference for the share: ' + sharePath.toString());
     const manifest = new Manifest(
       `backups-${mangle(sharePath)}`,
       this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
@@ -442,6 +459,7 @@ export class BackupsGrpc {
     const compactManifest$ = new Observable<FileManifest>((subscriber) => {
       this.manifestService
         .compact(manifest, async (v) => {
+          await this.poolChunkRefCnt.incrBatch(v.chunks);
           if (v) {
             subscriber.next(v);
           }
