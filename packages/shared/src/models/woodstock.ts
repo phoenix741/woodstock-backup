@@ -32,6 +32,15 @@ export enum ChunkStatus {
   ERROR = 1,
 }
 
+export interface PoolRefCount {
+  sha256: Buffer;
+  refCount: number;
+}
+
+export interface PoolRefCountFile {
+  poolRefCounts: PoolRefCount[];
+}
+
 export interface FileManifestStat {
   ownerId?: Long | undefined;
   groupId?: Long | undefined;

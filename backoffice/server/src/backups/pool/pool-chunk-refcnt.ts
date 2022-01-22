@@ -1,12 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { FileBrowserService, joinBuffer } from '@woodstock/shared';
-import { from } from 'ix/asynciterable';
-import { flatMap } from 'ix/asynciterable/operators';
+import {
+  FileBrowserService,
+  joinBuffer,
+  PoolRefCount,
+  ProtoPoolRefCount,
+  readAllMessages,
+  writeAllMessages,
+} from '@woodstock/shared';
+import { rename, unlink } from 'fs/promises';
+import { from, reduce } from 'ix/asynciterable';
+import { flatMap, map } from 'ix/asynciterable/operators';
 import { join } from 'path';
 import { lock } from 'proper-lockfile';
 import { ApplicationConfigService } from 'src/config/application-config.service';
-import { YamlService } from 'src/utils/yaml.service';
-import { calculateChunkDir } from './pool-chunk.utils';
 
 export type ChunkRefCnt = Record<string, number>;
 
@@ -14,89 +20,85 @@ export type ChunkRefCnt = Record<string, number>;
 export class PoolChunkRefCnt {
   private logger = new Logger(PoolChunkRefCnt.name);
 
-  constructor(
-    private yamlService: YamlService,
-    private fileBrowserService: FileBrowserService,
-    private applicationConfig: ApplicationConfigService,
-  ) {}
+  constructor(private fileBrowserService: FileBrowserService, private applicationConfig: ApplicationConfigService) {}
 
   get poolPath() {
     return this.applicationConfig.poolPath;
   }
 
   /**
-   * Increment the number of reference to the chunk by batch.
+   * increment the reference count for each sha256 in the array.
    *
-   * @param sha256s Sha256 of the chunks
+   * @param sha256s - The list of sha256s to increment.
+   * @returns None
    */
   async incrBatch(sha256s: Buffer[]): Promise<void> {
-    this.logger.log(`Incrementing refcnt for ${sha256s.length} chunks`);
-    await Promise.all(sha256s.map(async (sha256) => this.incr(sha256)));
+    const refcntFile = join(this.poolPath, 'REFCNT');
+
+    const unlock = await lock(refcntFile, { realpath: false });
+    try {
+      const result = await this.readFile(refcntFile);
+      for (const sha256 of sha256s) {
+        const sha256Str = sha256.toString('hex');
+        const cnt = (result[sha256Str] || 0) + 1;
+        result[sha256Str] = cnt;
+      }
+      await this.writeFile(refcntFile, result);
+    } finally {
+      await unlock();
+    }
   }
 
   /**
-   * Decrement the number of reference to the chunk by batch.
+   * decrement the reference count for each sha256 in the sha256s array.
    *
-   * @param sha256s Sha256 of the chunks
+   * @param sha256s - The SHA256s of the files to decrement the reference count for.
+   * @returns None
    */
   async decrBatch(sha256s: Buffer[]): Promise<void> {
-    this.logger.log(`Incrementing refcnt for ${sha256s.length} chunks`);
-    await Promise.all(sha256s.map(async (sha256) => this.decr(sha256)));
-  }
+    const refcntFile = join(this.poolPath, 'REFCNT');
 
-  /**
-   * Increment the number of references to the chunk.
-   *
-   * Lock the refcnt file before updating the refcnt.
-   *
-   * @param sha256 Sha256 of the chunk
-   * @returns number of references to the chunk
-   */
-  async incr(sha256: Buffer): Promise<number> {
-    this.logger.log(`Incrementing refcnt for chunk ${sha256.toString('hex')}`);
-    const { refcntFile, sha256Str } = this.getRefCntFileName(sha256);
     const unlock = await lock(refcntFile, { realpath: false });
     try {
       const result = await this.readFile(refcntFile);
-      const cnt = (result[sha256Str] || 0) + 1;
-      result[sha256Str] = cnt;
-      await this.writeFile(refcntFile, result);
-      return cnt;
-    } finally {
-      await unlock();
-    }
-  }
-
-  /**
-   * Decerement the number of references to the chunk.
-   *
-   * Lock the refcnt file before updating the refcnt.
-   *
-   * @param sha256 Sha256 of the chunk
-   * @returns number of references to the chunk
-   */
-  async decr(sha256: Buffer): Promise<number> {
-    this.logger.log(`Decrementing refcnt for chunk ${sha256.toString('hex')}`);
-    const { refcntFile, sha256Str } = this.getRefCntFileName(sha256);
-    const unlock = await lock(refcntFile, { realpath: false });
-    try {
-      const result = await this.readFile(refcntFile);
-      const cnt = (result[sha256Str] || 0) - 1;
-      if (cnt < 0) {
-        this.logger.warn(`SHA256 ${sha256Str} is already pending for deletion`);
+      for (const sha256 of sha256s) {
+        const sha256Str = sha256.toString('hex');
+        const cnt = (result[sha256Str] || 0) - 1;
+        if (cnt < 0) {
+          this.logger.warn(`SHA256 ${sha256Str} is already pending for deletion`);
+        }
+        result[sha256Str] = cnt;
       }
-      result[sha256Str] = cnt;
       await this.writeFile(refcntFile, result);
-      return cnt;
     } finally {
       await unlock();
     }
+  }
+
+  /**
+   * Increment the reference count of the given sha256 hash.
+   *
+   * @param {Buffer} sha256 - The SHA256 hash of the file to increment.
+   * @returns None
+   */
+  async incr(sha256: Buffer): Promise<void> {
+    await this.incrBatch([sha256]);
+  }
+
+  /**
+   * Decrement the reference count of the given sha256 hash.
+   *
+   * @param {Buffer} sha256 - Buffer
+   * @returns None
+   */
+  async decr(sha256: Buffer): Promise<void> {
+    await this.decrBatch([sha256]);
   }
 
   /**
    * Return the list of chunks that are not referenced anymore.
-   *
-   * @returns List of chunks
+   * it reads the REFCNT file and returns an async iterable of all the chunks that have a refcount of 0.
+   * @returns An AsyncIterable<Buffer> that emits the sha256 of all chunks that are unused.
    */
   unusedChunks(): AsyncIterable<Buffer> {
     const poolPathBuffer = Buffer.from(this.poolPath);
@@ -124,19 +126,30 @@ export class PoolChunkRefCnt {
   }
 
   private async readFile(refcntFile: string): Promise<ChunkRefCnt> {
-    return await this.yamlService.loadFile<ChunkRefCnt>(refcntFile, {});
+    const it = readAllMessages<PoolRefCount>(refcntFile, ProtoPoolRefCount);
+    return await reduce(it, {
+      seed: {} as ChunkRefCnt,
+      callback: async (acc, msg) => {
+        acc[msg.message.sha256.toString('hex')] = msg.message.refCount;
+        return acc;
+      },
+    });
   }
 
   private async writeFile(refcntFile: string, chunkRefCnt: ChunkRefCnt): Promise<void> {
-    await this.yamlService.writeFile(refcntFile, chunkRefCnt);
-  }
-
-  private getRefCntFileName(sha256: Buffer) {
-    const sha256Str = sha256.toString('hex');
-    const chunkDir = calculateChunkDir(this.poolPath, sha256Str);
-    return {
-      sha256Str,
-      refcntFile: join(chunkDir, 'REFCNT'),
-    };
+    const it = from(Object.entries(chunkRefCnt)).pipe(
+      map(([sha256, refCount]) => ({
+        sha256: Buffer.from(sha256, 'hex'),
+        refCount,
+      })),
+    );
+    const refcntFileNew = refcntFile + '.new';
+    try {
+      await writeAllMessages(refcntFileNew, ProtoPoolRefCount, it);
+      await unlink(refcntFile).catch(() => undefined);
+      await rename(refcntFileNew, refcntFile);
+    } finally {
+      await unlink(refcntFileNew).catch(() => undefined);
+    }
   }
 }

@@ -2,6 +2,16 @@ syntax = "proto3";
 
 package woodstock;
 
+message PoolRefCount {
+  bytes sha256 = 1;
+  int32 refCount = 2;
+}
+
+message PoolRefCountFile {
+  repeated PoolRefCount poolRefCounts = 1;
+}
+
+
 // Status Code for reply
 enum StatusCode {
   Ok = 0;

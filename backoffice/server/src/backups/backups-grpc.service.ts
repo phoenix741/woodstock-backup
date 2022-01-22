@@ -327,7 +327,7 @@ export class BackupsGrpc {
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
-        concurrentMap(10, async (entry) => {
+        concurrentMap(20, async (entry) => {
           try {
             if (entry?.type !== EntryType.REMOVE && entry?.manifest) {
               const manifest = await this.downloadManifestFile(
@@ -459,11 +459,14 @@ export class BackupsGrpc {
     const compactManifest$ = new Observable<FileManifest>((subscriber) => {
       this.manifestService
         .compact(manifest, async (v) => {
-          await this.poolChunkRefCnt.incrBatch(v.chunks);
+          if (v.chunks) {
+            await this.poolChunkRefCnt.incrBatch(v.chunks);
+          }
           if (v) {
             subscriber.next(v);
+            return v;
           }
-          return v;
+          return undefined;
         })
         .then(() => {
           subscriber.complete();
