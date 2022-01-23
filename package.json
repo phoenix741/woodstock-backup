@@ -1,13 +1,4 @@
 {
   "name": "root",
-  "private": true,
-  "devDependencies": {
-    "lerna": "^4.0.0"
-  },
-  "workspaces": [
-    "packages/*",
-    "client/*",
-    "backoffice/*",
-    "docs/*"
-  ]
+  "private": true
 }

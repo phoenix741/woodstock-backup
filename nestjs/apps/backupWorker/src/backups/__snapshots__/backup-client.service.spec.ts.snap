@@ -1,0 +1,2155 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`BackupClient authenticate: logger.error 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "line2",
+      "context2",
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`BackupClient authenticate: logger.log 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "line1",
+      "context1",
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`BackupClient authenticate: logger.warn 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "line3",
+      "context3",
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`BackupClient authenticate: mockClientGrpc.authenticate 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      BackupsGrpcContext {
+        "abortable": Array [],
+        "client": Object {},
+        "currentBackupId": 1,
+        "host": "host",
+        "ip": "ip",
+        "logger": undefined,
+        "sessionId": undefined,
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient authenticate: mockClientGrpc.streamLog 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      BackupsGrpcContext {
+        "abortable": Array [],
+        "client": Object {},
+        "currentBackupId": 1,
+        "host": "host",
+        "ip": "ip",
+        "logger": undefined,
+        "sessionId": undefined,
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": FromAsyncIterable {
+        "_selector": [Function],
+        "_source": AsyncSink {
+          "_ended": true,
+          "_resolvers": Array [],
+          "_values": Array [],
+        },
+      },
+    },
+  ],
+}
+`;
+
+exports[`BackupClient compact: compactManifest 1`] = `
+Array [
+  Object {
+    "chunks": Array [
+      Object {
+        "data": Array [
+          115,
+          104,
+          97,
+          50,
+          53,
+          54,
+          95,
+          49,
+        ],
+        "type": "Buffer",
+      },
+    ],
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 100,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 200,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "chunks": Array [
+      Object {
+        "data": Array [
+          115,
+          104,
+          97,
+          50,
+          53,
+          54,
+          95,
+          49,
+        ],
+        "type": "Buffer",
+      },
+    ],
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 300,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        52,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 400,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        53,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 500,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 600,
+        "unsigned": false,
+      },
+    },
+  },
+]
+`;
+
+exports[`BackupClient compact: manifestService.compact 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Manifest {
+        "fileListPath": "host-1/backups-sharePath.filelist",
+        "journalPath": "host-1/backups-sharePath.journal",
+        "lockPath": "host-1/backups-sharePath.lock",
+        "manifestPath": "host-1/backups-sharePath.manifest",
+        "newPath": "host-1/backups-sharePath.new",
+      },
+      [Function],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient compact: result 1`] = `
+Array [
+  Object {
+    "chunks": Array [
+      Object {
+        "data": Array [
+          115,
+          104,
+          97,
+          50,
+          53,
+          54,
+          95,
+          49,
+        ],
+        "type": "Buffer",
+      },
+    ],
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 100,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 200,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "chunks": Array [
+      Object {
+        "data": Array [
+          115,
+          104,
+          97,
+          50,
+          53,
+          54,
+          95,
+          49,
+        ],
+        "type": "Buffer",
+      },
+    ],
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 300,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        52,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 400,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        53,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 500,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": Object {
+      "data": Array [
+        102,
+        105,
+        108,
+        101,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "stats": Object {
+      "size": Long {
+        "high": 0,
+        "low": 600,
+        "unsigned": false,
+      },
+    },
+  },
+]
+`;
+
+exports[`BackupClient countRef: poolChunkRefCnt.compact 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      ReferenceCount {
+        "backupPath": "host-1/REFCNT.backup",
+        "hostPath": "host/REFCNT.host",
+        "journalPath": "host-1/REFCNT.journal",
+        "poolPath": "poolPath/REFCNT.pool",
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      FinallyAsyncIterable {
+        "_action": [Function],
+        "_source": ConcurrentMapAsyncIterable {
+          "concurrent": 20,
+          "selector": [Function],
+          "source": FromAsyncIterable {
+            "_selector": [Function],
+            "_source": Array [
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        115,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        49,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      49,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 50,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 100,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        110,
+                        101,
+                        119,
+                        83,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        54,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      50,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 300,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 600,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        115,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        50,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      51,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 150,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 300,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        110,
+                        101,
+                        119,
+                        83,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        54,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      52,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 300,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 600,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        115,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        51,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      53,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 250,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 500,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+              Object {
+                "manifest": Object {
+                  "chunks": Array [
+                    Object {
+                      "data": Array [
+                        110,
+                        101,
+                        119,
+                        83,
+                        104,
+                        97,
+                        50,
+                        53,
+                        54,
+                        95,
+                        54,
+                      ],
+                      "type": "Buffer",
+                    },
+                  ],
+                  "path": Object {
+                    "data": Array [
+                      102,
+                      105,
+                      108,
+                      101,
+                      54,
+                    ],
+                    "type": "Buffer",
+                  },
+                  "stats": Object {
+                    "compressedSize": Long {
+                      "high": 0,
+                      "low": 300,
+                      "unsigned": false,
+                    },
+                    "size": Long {
+                      "high": 0,
+                      "low": 600,
+                      "unsigned": false,
+                    },
+                  },
+                },
+                "type": 0,
+              },
+            ],
+          },
+          "thisArg": undefined,
+        },
+      },
+      Manifest {
+        "fileListPath": "host-1/backups-sharePath.filelist",
+        "journalPath": "host-1/backups-sharePath.journal",
+        "lockPath": "host-1/backups-sharePath.lock",
+        "manifestPath": "host-1/backups-sharePath.manifest",
+        "newPath": "host-1/backups-sharePath.new",
+      },
+      [Function],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient createBackup: refcnt.writeJournal 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      AsyncSink {
+        "_ended": true,
+        "_resolvers": Array [],
+        "_values": Array [],
+      },
+      "host-1",
+      [Function],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient createBackup: result 1`] = `
+Array [
+  Object {
+    "compressedSize": 50n,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "size": 100n,
+  },
+  Object {
+    "compressedSize": 150n,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 300n,
+  },
+  Object {
+    "compressedSize": 250n,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "size": 500n,
+  },
+  Object {
+    "compressedSize": 300n,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600n,
+  },
+  Object {
+    "compressedSize": 300n,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600n,
+  },
+  Object {
+    "compressedSize": 300n,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600n,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            49,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 50,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 100,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            50,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          51,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 150,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            51,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          53,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 250,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          50,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          52,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          54,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+]
+`;
+
+exports[`BackupClient createBackup: savedJournal 1`] = `
+Array [
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            49,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 50,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 100,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            50,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          51,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 150,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            51,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          53,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 250,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          50,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          52,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          54,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+]
+`;
+
+exports[`BackupClient createBackup: savedJournalChunk 1`] = `
+Array [
+  Object {
+    "compressedSize": 50,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "size": 100,
+  },
+  Object {
+    "compressedSize": 150,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 300,
+  },
+  Object {
+    "compressedSize": 250,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "size": 500,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 1,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+]
+`;
+
+exports[`BackupClient createBackup: wrappers 1`] = `
+Array [
+  Array [
+    "chunk1",
+  ],
+  Array [
+    "chunk2",
+  ],
+  Array [],
+]
+`;
+
+exports[`BackupClient getFileList: downloadFileList 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      BackupsGrpcContext {
+        "abortable": Array [],
+        "client": Object {},
+        "currentBackupId": 1,
+        "host": "host",
+        "ip": "ip",
+      },
+      Object {
+        "excludes": Array [],
+        "includes": Array [],
+        "sharePath": Object {
+          "data": Array [
+            115,
+            104,
+            97,
+            114,
+            101,
+            80,
+            97,
+            116,
+            104,
+          ],
+          "type": "Buffer",
+        },
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": FromAsyncIterable {
+        "_selector": [Function],
+        "_source": Array [
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  49,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 100,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  50,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 200,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  51,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 300,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  52,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 400,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  53,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 500,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  54,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 600,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+        ],
+      },
+    },
+  ],
+}
+`;
+
+exports[`BackupClient getFileList: result 1`] = `
+Array [
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 100,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          50,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 200,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          51,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          52,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 400,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          53,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          54,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+]
+`;
+
+exports[`BackupClient getFileList: savedFilelist 1`] = `
+Array [
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 100,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          50,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 200,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          51,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          52,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 400,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          53,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          54,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+]
+`;
+
+exports[`BackupClient getFileList: writeFileListEntry 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      FromAsyncIterable {
+        "_selector": [Function],
+        "_source": Array [
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  49,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 100,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  50,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 200,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  51,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 300,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  52,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 400,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  53,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 500,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+          Object {
+            "manifest": Object {
+              "path": Object {
+                "data": Array [
+                  102,
+                  105,
+                  108,
+                  101,
+                  54,
+                ],
+                "type": "Buffer",
+              },
+              "stats": Object {
+                "size": Long {
+                  "high": 0,
+                  "low": 600,
+                  "unsigned": false,
+                },
+              },
+            },
+            "type": 0,
+          },
+        ],
+      },
+      Manifest {
+        "fileListPath": "host-1/backups-sharePath.filelist",
+        "journalPath": "host-1/backups-sharePath.journal",
+        "lockPath": "host-1/backups-sharePath.lock",
+        "manifestPath": "host-1/backups-sharePath.manifest",
+        "newPath": "host-1/backups-sharePath.new",
+      },
+      [Function],
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;

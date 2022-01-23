@@ -1,30 +1,65 @@
 kind: pipeline
 type: docker
-name: default
+name: backend
 
 steps:
-  - name: client:unit
-    image: node:12
-    commands:
-      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
-      - apt update && apt install -y google-chrome-stable
-      - cd client
-      - npm install
-      - npm run lint
-      - npm run test:unit
-
   - name: server:unit
-    image: node:12
+    image: node:16
     commands:
-      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
-      - apt update && apt install -y google-chrome-stable
-      - cd server
+      - cd nestjs
       - npm install
       - npm run lint
       - npm run test
+      - npm run build:all
 
+  - name: app:build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup
+      auto_tag: true
+
+---
+
+kind: pipeline
+type: docker
+name: frontend
+
+steps:
+  - name: front:unit
+    image: node:16
+    commands:
+      #- wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
+      #- sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
+      #- apt update && apt install -y google-chrome-stable
+      - cd front
+      - npm install
+      - npm run lint
+      - npm run build
+      #- npm run test:unit
+
+  - name: front:build
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup-front
+      dockerfile: ./front/Dockerfile
+      context: ./front
+      auto_tag: true
+
+---
+
+kind: pipeline
+type: docker
+name: website
+
+steps:
   - name: website:build
     image: plugins/docker
     settings:
@@ -37,28 +72,13 @@ steps:
       context: ./website
       auto_tag: true
 
-  - name: app:build
-    image: plugins/docker
-    settings:
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      repo: phoenix741/woodstock-backup
-      auto_tag: true
+---
 
-  - name: client:build
-    image: plugins/docker
-    settings:
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      repo: phoenix741/woodstock-backup-client
-      dockerfile: ./client-sync/Dockerfile
-      context: ./client-sync
-      auto_tag: true
+kind: pipeline
+type: docker
+name: final
 
+steps:
   - name: notify
     image: plugins/slack
     settings:
@@ -67,3 +87,8 @@ steps:
       channel: ci
     when:
       status: [success, failure]
+
+depends_on:
+  - backend
+  - frontend
+  - website

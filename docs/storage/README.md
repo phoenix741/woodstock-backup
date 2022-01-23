@@ -34,6 +34,7 @@ find . -type f -print0 | xargs -0 ls -l | awk '{ n=int(log($5)/log(2)); if (n<10
 | 512M      | 8066     | 99,99 %     |
 | > 1G      | 10068    | 100,00 %    |
 
+
 The conclusion is that a chunk of 2Mo should be enough to split a file and detect part to transfert. For many file the whole file
 would be transferted. For bigger file we can add or update by chunk of 2Mo.
 

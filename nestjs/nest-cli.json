@@ -1,0 +1,87 @@
+{
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/api/src",
+  "monorepo": true,
+  "root": "apps/api",
+  "compilerOptions": {
+    "webpack": true,
+    "tsConfigPath": "apps/api/tsconfig.app.json",
+    "assets": ["**/*.proto"],
+    "watchAssets": true,
+    "plugins": [
+      {
+        "name": "@nestjs/graphql",
+        "options": {
+          "typeFileNameSuffix": [".input.ts", ".args.ts", ".entity.ts", ".model.ts", ".dto.ts"],
+          "introspectComments": true
+        }
+      },
+      "@nestjs/swagger"
+    ]
+  },
+  "projects": {
+    "api": {
+      "type": "application",
+      "root": "apps/api",
+      "entryFile": "main",
+      "sourceRoot": "apps/api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api/tsconfig.app.json"
+      }
+    },
+    "backupWorker": {
+      "type": "application",
+      "root": "apps/backupWorker",
+      "entryFile": "main",
+      "sourceRoot": "apps/backupWorker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/backupWorker/tsconfig.app.json"
+      }
+    },
+    "scheduleWorker": {
+      "type": "application",
+      "root": "apps/scheduleWorker",
+      "entryFile": "main",
+      "sourceRoot": "apps/scheduleWorker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/scheduleWorker/tsconfig.app.json"
+      }
+    },
+    "statsWorker": {
+      "type": "application",
+      "root": "apps/statsWorker",
+      "entryFile": "main",
+      "sourceRoot": "apps/statsWorker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/statsWorker/tsconfig.app.json"
+      }
+    },
+    "client": {
+      "type": "application",
+      "root": "apps/client",
+      "entryFile": "main",
+      "sourceRoot": "apps/client/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/client/tsconfig.app.json"
+      }
+    },
+    "shared": {
+      "type": "library",
+      "root": "libs/shared",
+      "entryFile": "index",
+      "sourceRoot": "libs/shared/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/shared/tsconfig.lib.json"
+      }
+    },
+    "backoffice-shared": {
+      "type": "library",
+      "root": "libs/backoffice-shared",
+      "entryFile": "index",
+      "sourceRoot": "libs/backoffice-shared/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/backoffice-shared/tsconfig.lib.json"
+      }
+    }
+  }
+}

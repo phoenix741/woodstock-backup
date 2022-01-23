@@ -1,19 +1,13 @@
 {
   "folders": [
     {
-      "path": "packages/shared"
+      "path": "nestjs"
+    },
+    {
+      "path": "front"
     },
     {
       "path": "docs/website"
-    },
-    {
-      "path": "client/client-application"
-    },
-    {
-      "path": "backoffice/server"
-    },
-    {
-      "path": "backoffice/front"
     }
   ],
   "settings": {
