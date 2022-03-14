@@ -1,0 +1,9 @@
+#pragma once
+
+#include <QString>
+
+// alternatively you could add your global method getLibInterfaceVersion here
+QString getClientBackupDirectory()
+{
+    return "@CLIENT_BACKUP_DIRECTORY@";
+}

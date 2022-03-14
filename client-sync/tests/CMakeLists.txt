@@ -1,0 +1,2 @@
+add_subdirectory(client_daemon)
+add_subdirectory(lib)

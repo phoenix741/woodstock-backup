@@ -1,33 +1,40 @@
 version: "2"
 
 services:
-  website:
-    build:
-      context: ./website
-      dockerfile: Dockerfile
-    image: phoenix741/woodstock-backup-website:develop
-    ports:
-      - 8080:80
-  woodstock:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-    image: phoenix741/woodstock-backup:develop
-    ports:
-      - 3000:3000
-    links:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-      - APOLLO_KEY=service:woodstock-backup:iqaZyc66gS4JhesQlqnXvw
-      - MAX_BACKUP_TASK=2
-      - NODE_ENV=development
-    volumes:
-      - "backups_storage:/backups"
-    cap_add:
-      - SYS_ADMIN
+  # client:
+  #   build:
+  #     context: ./client/client-sync
+  #     dockerfile: Dockerfile
+  #   image: phoenix741/woodstock-backup-client:latest
+  #   ports:
+  #     - 3657:3657
+  # website:
+  #   build:
+  #     context: ./docs/website
+  #     dockerfile: Dockerfile
+  #   image: phoenix741/woodstock-backup-website:develop
+  #   ports:
+  #     - 8080:80
+  # woodstock:
+  #   build:
+  #     context: ./
+  #     dockerfile: Dockerfile
+  #   image: phoenix741/woodstock-backup:develop
+  #   ports:
+  #     - 3000:3000
+  #   links:
+  #     - redis
+  #   environment:
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - LOG_LEVEL=debug
+  #     - APOLLO_KEY=service:woodstock-backup:iqaZyc66gS4JhesQlqnXvw
+  #     - MAX_BACKUP_TASK=2
+  #     - NODE_ENV=development
+  #   volumes:
+  #     - "backups_storage:/backups"
+  #   cap_add:
+  #     - SYS_ADMIN
   redis:
     image: "bitnami/redis:5.0"
     environment:

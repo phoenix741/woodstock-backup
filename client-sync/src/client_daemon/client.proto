@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package woodstock;
+
+message ClientConfiguration {
+  string machineId = 1;
+  uint32 lastBackupNumber = 2;
+}

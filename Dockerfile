@@ -1,4 +1,4 @@
-FROM node:14-buster as dependencies
+FROM node:16-buster as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/server
@@ -32,7 +32,7 @@ RUN npm run build
 
 #
 # -------- Dist -----------
-FROM node:14-buster AS dist
+FROM node:16-buster AS dist
 
 RUN apt update && apt install -y btrfs-compsize btrfs-progs coreutils samba-common-bin rsync && rm -rf /var/lib/apt/lists/*
 
