@@ -1,26 +1,47 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BackupsService, EnumFileType, FileDescription } from '@woodstock/backoffice-shared';
-import { mangle, unmangle } from '@woodstock/shared';
+import { FilesService } from '@woodstock/backoffice-shared/services/files.service';
+import { mangle } from '@woodstock/shared';
 import * as fs from 'fs';
+import { toArray } from 'ix/asynciterable';
+import { map } from 'ix/asynciterable/operators';
 import { isAbsolute, join } from 'path';
 
 @Injectable()
 export class BackupsFilesService {
-  constructor(private backupsService: BackupsService) {}
+  constructor(private backupsService: BackupsService, private filesService: FilesService) {}
 
   async listShare(name: string, number: number): Promise<FileDescription[]> {
     try {
-      const destinationDirectory = this.backupsService.getDestinationDirectory(name, number);
+      const shares = this.filesService.listShares(name, number).pipe(
+        map((name) => ({
+          name,
+          type: EnumFileType.SHARE,
 
-      const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true });
+          dev: -1,
+          ino: -1,
+          mode: -1,
+          nlink: -1,
+          uid: -1,
+          gid: -1,
+          rdev: -1,
+          size: -1,
+          blksize: -1,
+          blocks: -1,
 
-      return Promise.all(
-        files.map(async (file) => ({
-          name: unmangle(file.name),
-          type: this.getFileType(file),
-          ...(await this.getFileStat(join(destinationDirectory, file.name))),
+          atimeMs: -1,
+          mtimeMs: -1,
+          ctimeMs: -1,
+          birthtimeMs: -1,
+
+          atime: new Date(),
+          mtime: new Date(),
+          ctime: new Date(),
+          birthtime: new Date(),
         })),
       );
+
+      return await toArray(shares);
     } catch (err) {
       throw new NotFoundException(err);
     }
@@ -41,7 +62,7 @@ export class BackupsFilesService {
       const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true, encoding: 'binary' });
       return Promise.all(
         files.map(async (file) => ({
-          name: Buffer.from(file.name),
+          name: mangle(file.name),
           type: this.getFileType(file),
           ...(await this.getFileStat(join(destinationDirectory, file.name))),
         })),

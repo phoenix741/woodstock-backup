@@ -1,7 +1,7 @@
-import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
-import { ApiProperty } from '@nestjs/swagger';
+import { ObjectType, registerEnumType } from '@nestjs/graphql';
 
 export enum EnumFileType {
+  SHARE = 'SHARE',
   BLOCK_DEVICE = 'BLOCK_DEVICE',
   CHARACTER_DEVICE = 'CHARACTER_DEVICE',
   DIRECTORY = 'DIRECTORY',
@@ -18,9 +18,7 @@ registerEnumType(EnumFileType, {
 
 @ObjectType()
 export class FileDescription {
-  @ApiProperty({ type: String })
-  @Field(() => String)
-  name!: Buffer;
+  name!: string;
   type!: EnumFileType;
 
   dev!: number;

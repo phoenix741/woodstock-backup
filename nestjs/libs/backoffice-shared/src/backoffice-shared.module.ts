@@ -16,6 +16,7 @@ import {
   StatsService,
   ToolsService,
 } from './services';
+import { FilesService } from './services/files.service';
 import { SchedulerConfigService } from './services/scheduler-config.service';
 
 export const WoodstockQueueModule = [
@@ -42,6 +43,7 @@ export const WoodstockBullModules = [
 
 const PROVIDERS = [
   BackupsService,
+  FilesService,
   ExecuteCommandService,
   HostsService,
   LockService,

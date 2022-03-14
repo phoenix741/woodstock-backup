@@ -115,10 +115,7 @@ export class BackupClient {
 
   getFileList(context: BackupsGrpcContext, backupShare: Share): Observable<FileManifestJournalEntry> {
     this.logger.log(`Get file list (${context.sessionId}): ${backupShare.sharePath.toString()}`);
-    const manifest = new Manifest(
-      `backups-${mangle(backupShare.sharePath)}`,
-      this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-    );
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry>((subscriber) => {
       const launchBackup = this.clientGrpc.downloadFileList(context, backupShare);
@@ -249,10 +246,7 @@ export class BackupClient {
     backupShare: Share,
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     this.logger.log(`Create backup (${context.sessionId}): ${backupShare.sharePath.toString()}`);
-    const manifest = new Manifest(
-      `backups-${mangle(backupShare.sharePath)}`,
-      this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-    );
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
       const chunkSink = new AsyncSink<PoolChunkInformation>();
@@ -320,9 +314,7 @@ export class BackupClient {
 
   compact(context: BackupsGrpcContext, sharePath: Buffer): Observable<FileManifest> {
     this.logger.log('Counting reference for the share: ' + sharePath.toString());
-    const destinationDirectory = this.backupService.getDestinationDirectory(context.host, context.currentBackupId);
-
-    const manifest = new Manifest(`backups-${mangle(sharePath)}`, destinationDirectory);
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, sharePath);
 
     return new Observable<FileManifest>((subscriber) => {
       const compactManifest = this.manifestService.compact(manifest, async (v) => {
@@ -357,10 +349,7 @@ export class BackupClient {
     const shares$ = fromIx(shares).pipe(mapIx((s) => Buffer.from(s)));
     const request$ = shares$.pipe(
       mapIx((share) => {
-        const manifest = new Manifest(
-          `backups-${mangle(share)}`,
-          this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-        );
+        const manifest = this.backupService.getManifest(context.host, context.currentBackupId, share);
         return concatIx(
           ofIx({ header: { sharePath: share }, fileManifest: undefined } as RefreshCacheRequest),
           this.manifestService

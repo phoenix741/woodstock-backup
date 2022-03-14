@@ -14,22 +14,29 @@ import { joinBuffer } from '../utils/path.utils';
 export class FileBrowserService {
   private logger = new Logger(FileBrowserService.name);
 
+  public getFilesFromDirectory(
+    path: Buffer,
+    filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
+  ): AsyncIterableX<Dirent> {
+    return pipe(
+      from(
+        opendir(path, { encoding: 'buffer' as any }).catch((err) => {
+          this.logger.error(err);
+          return from([] as Dirent[]);
+        }),
+      ),
+      flatMap((dir) => dir),
+      filter((dirEntry) => !filterCallback || filterCallback(path, dirEntry)),
+    );
+  }
+
   public getFilesRecursive(
     sharePath: Buffer,
     filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
   ): (backupPath: Buffer) => AsyncIterableX<Buffer> {
     const forShare = (backupPath: Buffer): AsyncIterableX<Buffer> => {
       const path = joinBuffer(sharePath, backupPath);
-      const files = pipe(
-        from(
-          opendir(path, { encoding: 'buffer' as any }).catch((err) => {
-            this.logger.error(err);
-            return from([] as Dirent[]);
-          }),
-        ),
-        flatMap((dir) => dir),
-        filter((dirEntry) => !filterCallback || filterCallback(path, dirEntry)),
-        // tap((f) => console.log('xxx', f.name.toString())),
+      const files = this.getFilesFromDirectory(path, filterCallback).pipe(
         flatMap(async (dirEntry) => {
           if (dirEntry.isDirectory()) {
             return forShare(joinBuffer(backupPath, dirEntry.name as unknown as Buffer)).pipe(
