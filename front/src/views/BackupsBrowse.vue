@@ -24,6 +24,9 @@
           {{ item.file | toIcon }}
         </v-icon>
       </template>
+      <template v-slot:label="{ item }">
+        {{ item.fullPath | unmangle }}
+      </template>
     </v-treeview>
     <v-bottom-sheet v-model="sheet">
       <v-sheet class="text-center" v-if="selected">
@@ -32,7 +35,7 @@
             <tbody>
               <tr>
                 <td>Path</td>
-                <td>{{ selected.fullPath }}</td>
+                <td>{{ selected.fullPath | unmangle }}</td>
               </tr>
               <tr>
                 <td>Type</td>
@@ -103,13 +106,14 @@ function isShares(query: BackupsBrowseQuery | SharesBrowseQuery): query is Share
 function mapToItems(path: string, query: BackupsBrowseQuery | SharesBrowseQuery, sharePath?: string): TreeItem[] {
   const files = isShares(query) ? query.backup.shares : query.backup.files;
   return files.map((b) => {
+    const fullPath = [path, b.name].filter((v) => !!v).join('%2F');
     const object: TreeItem = {
       ...b,
-      path: sharePath ? `${path}/${b.name}` : '',
+      path: sharePath ? fullPath : '',
       sharePath: sharePath || b.name,
-      fullPath: `${path}/${b.name}`,
+      fullPath,
     };
-    if (b.type !== 'DIRECTORY') {
+    if (!['DIRECTORY', 'SHARE'].includes(b.type)) {
       object.file = b.name.split('.').pop();
     } else {
       object.children = [];
@@ -158,7 +162,7 @@ export default class BackupBrowse extends Vue {
         hostname: this.hostname,
         number: parseInt(this.number),
         sharePath: item.sharePath,
-        path: item.path || '/',
+        path: item.path || '%2F',
       },
     });
 

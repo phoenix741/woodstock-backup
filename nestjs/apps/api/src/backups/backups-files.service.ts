@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BackupsService, EnumFileType, FileDescription } from '@woodstock/backoffice-shared';
 import { FilesService } from '@woodstock/backoffice-shared/services/files.service';
-import { mangle } from '@woodstock/shared';
+import { mangle, unmangle } from '@woodstock/shared';
 import * as fs from 'fs';
 import { toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
@@ -12,6 +12,8 @@ export class BackupsFilesService {
   constructor(private backupsService: BackupsService, private filesService: FilesService) {}
 
   async listShare(name: string, number: number): Promise<FileDescription[]> {
+    const backup = await this.backupsService.getBackup(name, number);
+    const startDate = backup.startDate;
     try {
       const shares = this.filesService.listShares(name, number).pipe(
         map((name) => ({
@@ -25,19 +27,19 @@ export class BackupsFilesService {
           uid: -1,
           gid: -1,
           rdev: -1,
-          size: -1,
-          blksize: -1,
+          size: 0,
+          blksize: 0,
           blocks: -1,
 
-          atimeMs: -1,
-          mtimeMs: -1,
-          ctimeMs: -1,
-          birthtimeMs: -1,
+          atimeMs: startDate * 1000,
+          mtimeMs: startDate * 1000,
+          ctimeMs: startDate * 1000,
+          birthtimeMs: startDate * 1000,
 
-          atime: new Date(),
-          mtime: new Date(),
-          ctime: new Date(),
-          birthtime: new Date(),
+          atime: new Date(startDate),
+          mtime: new Date(startDate),
+          ctime: new Date(startDate),
+          birthtime: new Date(startDate),
         })),
       );
 
@@ -48,24 +50,15 @@ export class BackupsFilesService {
   }
 
   async list(name: string, number: number, sharePath: string, path = '/'): Promise<FileDescription[]> {
-    if (!isAbsolute(sharePath) || !isAbsolute(path)) {
-      throw new BadRequestException('Only absolute path can be used to serach for directory');
-    }
-
     try {
-      const destinationDirectory = join(
-        this.backupsService.getDestinationDirectory(name, number),
-        mangle(sharePath),
-        path,
-      );
-
-      const files = await fs.promises.readdir(destinationDirectory, { withFileTypes: true, encoding: 'binary' });
-      return Promise.all(
-        files.map(async (file) => ({
-          name: mangle(file.name),
-          type: this.getFileType(file),
-          ...(await this.getFileStat(join(destinationDirectory, file.name))),
-        })),
+      return await toArray(
+        this.filesService.listFiles(name, number, unmangle(sharePath), unmangle(path)).pipe(
+          map((file) => ({
+            name: mangle(file.path),
+            type: EnumFileType.REGULAR_FILE,
+            mode: file.stats.mode.toNumber(),
+          })),
+        ),
       );
     } catch (err) {
       console.log(err.stack);
@@ -82,7 +75,7 @@ export class BackupsFilesService {
     if (!isAbsolute(sharePath) || !isAbsolute(path)) {
       throw new BadRequestException('Only absolute path can be used to serach for directory');
     }
-
+    /*
     try {
       const filename = join(this.backupsService.getDestinationDirectory(name, number), mangle(sharePath), path);
       const stats = await this.getFileStat(filename);
@@ -91,37 +84,8 @@ export class BackupsFilesService {
         filename,
         stats,
       };
-    } catch (err) {
-      throw new NotFoundException(err);
-    }
-  }
-
-  private getFileType(file: fs.Dirent): EnumFileType {
-    if (file.isBlockDevice()) {
-      return EnumFileType.BLOCK_DEVICE;
-    }
-    if (file.isCharacterDevice()) {
-      return EnumFileType.CHARACTER_DEVICE;
-    }
-    if (file.isDirectory()) {
-      return EnumFileType.DIRECTORY;
-    }
-    if (file.isFIFO()) {
-      return EnumFileType.FIFO;
-    }
-    if (file.isFile()) {
-      return EnumFileType.REGULAR_FILE;
-    }
-    if (file.isSocket()) {
-      return EnumFileType.SOCKET;
-    }
-    if (file.isSymbolicLink()) {
-      return EnumFileType.SYMBOLIC_LINK;
-    }
-    return EnumFileType.UNKNOWN;
-  }
-
-  private async getFileStat(file: string) {
-    return await fs.promises.lstat(file);
+    } catch (err) {*/
+    throw new NotFoundException();
+    // }
   }
 }
