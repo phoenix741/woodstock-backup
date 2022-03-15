@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationConfigService, BackupsService, PoolChunkRefCnt, PoolService } from '@woodstock/backoffice-shared';
-import { bigIntToLong, EntryType, LogEntry, LogLevel, ManifestService } from '@woodstock/shared';
+import { bigIntToLong, EntryType, LogEntry, LogLevel, Manifest, ManifestService } from '@woodstock/shared';
 import { fromNodeStream } from 'ix';
 import { AsyncSink, from, pipe, toArray as toArrayIx } from 'ix/asynciterable';
 import { lastValueFrom, toArray } from 'rxjs';
@@ -25,6 +25,7 @@ describe('BackupClient', () => {
 
   const mockBackupService = {
     getDestinationDirectory: (host, backup) => `${host}-${backup}`,
+    getManifest: (host, backup, share) => new Manifest(share, `${host}-${backup}`),
     getHostDirectory: (host) => host,
   };
 

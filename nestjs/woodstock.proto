@@ -25,6 +25,12 @@ message FileManifestStat {
   optional int64 lastModified = 5;
   optional int64 created = 6;
   optional int64 mode = 7;
+
+  optional int64 dev = 9;
+  optional int64 rdev = 10;
+
+  optional int64 ino = 11;
+  optional int64 nlink = 12;
 }
 
 message FileManifestAcl {
@@ -42,6 +48,7 @@ message FileManifest {
   repeated FileManifestAcl acl = 6;
   repeated bytes chunks = 3;
   optional bytes sha256 = 4;
+  optional bytes symlink = 7;
 }
 
 enum EntryType {

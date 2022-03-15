@@ -1,6 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { constants as constantsFs, Dirent } from 'fs';
-import { access, lstat, opendir } from 'fs/promises';
+import { access, lstat, opendir, readlink } from 'fs/promises';
 import { AsyncIterableX, from, of, pipe } from 'ix/asynciterable';
 import { filter, flatMap, map, startWith, tap } from 'ix/asynciterable/operators';
 import * as Long from 'long';
@@ -86,14 +86,21 @@ export class FileBrowserService {
   }
 
   private async createManifestFromLocalFile(sharePath: Buffer, path: Buffer): Promise<FileManifest> {
+    const file = joinBuffer(sharePath, path);
+
     const [fileStat, fileAccess] = await Promise.all([
-      lstat(joinBuffer(sharePath, path), { bigint: true }),
-      access(joinBuffer(sharePath, path), constantsFs.R_OK)
+      lstat(file, { bigint: true }),
+      access(file, constantsFs.R_OK)
         .then(() => true)
         .catch(() => false),
     ]);
     if (!fileAccess) {
       throw new UnauthorizedException(`The file is not readable by current user`);
+    }
+
+    let symlink: Buffer | undefined;
+    if (FileBrowserService.isSymLink(fileStat.mode)) {
+      symlink = await readlink(file, { encoding: 'buffer' });
     }
 
     return {
@@ -106,10 +113,15 @@ export class FileBrowserService {
         lastModified: bigIntToLong(fileStat.mtimeMs),
         lastRead: bigIntToLong(fileStat.atimeMs),
         created: bigIntToLong(fileStat.birthtimeMs),
+        dev: bigIntToLong(fileStat.dev),
+        rdev: bigIntToLong(fileStat.rdev),
+        ino: bigIntToLong(fileStat.ino),
+        nlink: bigIntToLong(fileStat.nlink),
       },
       xattr: {},
       acl: [],
       chunks: [],
+      symlink,
     };
   }
 
@@ -130,11 +142,19 @@ export class FileBrowserService {
     return true;
   }
 
-  public static isRegularFile(mode: Long = Long.ZERO): boolean {
-    return (mode.toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFREG;
+  public static isRegularFile(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFREG;
   }
 
-  public static isDirectory(mode: Long = Long.ZERO): boolean {
-    return (mode.toNumber() & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
+  public static isSymLink(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFLNK;
+  }
+
+  public static isDirectory(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
+  }
+
+  public static isSpecialFile(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) !== constantsFs.S_IFREG;
   }
 }

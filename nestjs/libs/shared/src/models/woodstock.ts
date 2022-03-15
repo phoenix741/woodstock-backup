@@ -48,6 +48,10 @@ export interface FileManifestStat {
   lastModified?: Long | undefined;
   created?: Long | undefined;
   mode?: Long | undefined;
+  dev?: Long | undefined;
+  rdev?: Long | undefined;
+  ino?: Long | undefined;
+  nlink?: Long | undefined;
 }
 
 export interface FileManifestAcl {
@@ -65,6 +69,7 @@ export interface FileManifest {
   acl: FileManifestAcl[];
   chunks: Buffer[];
   sha256?: Buffer | undefined;
+  symlink?: Buffer | undefined;
 }
 
 export interface FileManifest_XattrEntry {

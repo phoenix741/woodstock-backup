@@ -11,13 +11,14 @@ import {
   ChunkInformation,
   concurrentMap,
   EntryType,
+  FileBrowserService,
   FileManifest,
   FileManifestJournalEntry,
+  FileReader,
   joinBuffer,
   LogLevel,
+  longToBigInt,
   LONG_CHUNK_SIZE,
-  mangle,
-  Manifest,
   ManifestService,
   ReferenceCount,
   RefreshCacheReply,
@@ -254,7 +255,11 @@ export class BackupClient {
         // FIXME: Define the concurrency
         concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry>(20, async (entry) => {
           try {
-            if (entry?.type !== EntryType.REMOVE && entry?.manifest) {
+            if (
+              entry?.type !== EntryType.REMOVE &&
+              entry?.manifest &&
+              !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode))
+            ) {
               const manifest = await this.downloadManifestFile(
                 context,
                 backupShare.sharePath,
