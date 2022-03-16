@@ -1,5 +1,5 @@
 import { InjectQueue } from '@nestjs/bull';
-import { NotFoundException } from '@nestjs/common';
+import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/backoffice-shared';
 import { Queue } from 'bull';
@@ -49,11 +49,13 @@ export class BackupsResolver {
   }
 
   @ResolveField(() => [FileDescription])
+  @UseInterceptors(ClassSerializerInterceptor)
   async shares(@Parent() parent: ExtendedBackup): Promise<FileDescription[]> {
     return this.service.listShare(parent.hostname, parent.number);
   }
 
   @ResolveField(() => [FileDescription])
+  @UseInterceptors(ClassSerializerInterceptor)
   async files(
     @Parent() parent: ExtendedBackup,
     @Args('sharePath') sharePath: string,

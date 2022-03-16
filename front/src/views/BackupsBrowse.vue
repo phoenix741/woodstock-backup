@@ -25,7 +25,7 @@
         </v-icon>
       </template>
       <template v-slot:label="{ item }">
-        {{ item.fullPath | unmangle }}
+        {{ item.path | unmangle }}
       </template>
     </v-treeview>
     <v-bottom-sheet v-model="sheet">
@@ -41,25 +41,29 @@
                 <td>Type</td>
                 <td>{{ selected.type }}</td>
               </tr>
+              <tr v-if="selected.symlink">
+                <td>Symlink</td>
+                <td>{{ selected.symlink | unmangle }}</td>
+              </tr>
               <tr>
                 <td>Owner</td>
-                <td>{{ selected.uid }}</td>
+                <td>{{ selected.stats.ownerId }}</td>
               </tr>
               <tr>
                 <td>Group</td>
-                <td>{{ selected.gid }}</td>
+                <td>{{ selected.stats.groupId }}</td>
               </tr>
               <tr>
                 <td>Mode</td>
-                <td>{{ (selected.mode & 0o7777).toString(8) }}</td>
+                <td>{{ (parseInt(selected.stats.mode || '0') & 0o7777).toString(8) }}</td>
               </tr>
               <tr>
                 <td>Size</td>
-                <td>{{ selected.size | filesize }}</td>
+                <td>{{ parseInt(selected.stats.size || '0') | filesize }}</td>
               </tr>
               <tr>
                 <td>Modification Time</td>
-                <td>{{ selected.mtime | date }}</td>
+                <td>{{ parseInt(selected.stats.lastModified || '0') | date }}</td>
               </tr>
             </tbody>
           </template>
@@ -69,7 +73,7 @@
           class="mt-6"
           text
           color="primary"
-          :href="'/api/hosts/' + hostname + '/backups/' + number + '/files/download?path=' + selected.path"
+          :href="'/api/hosts/' + hostname + '/backups/' + number + '/files/download?path=' + selected.searchPath"
           >download</v-btn
         >
       </v-sheet>
@@ -81,40 +85,42 @@
 import { Component, Vue, Prop } from 'vue-property-decorator';
 import backupsBrowse from './BackupsBrowse.graphql';
 import shareBrowse from './ShareBrowse.graphql';
-import { BackupsBrowseQuery, SharesBrowseQuery } from '@/generated/graphql';
+import { BackupsBrowseQuery, FragmentFileDescriptionFragment, SharesBrowseQuery } from '@/generated/graphql';
 
-interface TreeItem {
-  name: string;
-  type: string;
-  uid: number;
-  gid: number;
-  mode: number;
-  size: number;
-  mtime: number;
-
+interface TreeItem extends FragmentFileDescriptionFragment {
   file?: string;
   path: string;
-  sharePath: string;
+  sharePath?: string;
   fullPath: string;
+  searchPath?: string;
   children?: TreeItem[];
 }
 
-function isShares(query: BackupsBrowseQuery | SharesBrowseQuery): query is SharesBrowseQuery {
-  return !!(query as SharesBrowseQuery).backup.shares;
+function mapShareToItems(query: SharesBrowseQuery): TreeItem[] {
+  const files = query.backup.shares;
+  return files.map((b) => ({
+    ...b,
+    searchPath: '',
+    sharePath: b.path,
+    fullPath: b.path,
+    children: [],
+  }));
 }
 
-function mapToItems(path: string, query: BackupsBrowseQuery | SharesBrowseQuery, sharePath?: string): TreeItem[] {
-  const files = isShares(query) ? query.backup.shares : query.backup.files;
+function mapBackupToItems(currentItem: TreeItem, query: BackupsBrowseQuery): TreeItem[] {
+  const files = query.backup.files;
   return files.map((b) => {
-    const fullPath = [path, b.name].filter((v) => !!v).join('%2F');
+    const isCurrentItemShare = currentItem.type === 'SHARE';
+
     const object: TreeItem = {
       ...b,
-      path: sharePath ? fullPath : '',
-      sharePath: sharePath || b.name,
-      fullPath,
+      searchPath: isCurrentItemShare ? b.path : [currentItem.searchPath, b.path].join('%2F'),
+      sharePath: currentItem.sharePath,
+      fullPath: [currentItem.fullPath, b.path].join('%2F'),
     };
+
     if (!['DIRECTORY', 'SHARE'].includes(b.type)) {
-      object.file = b.name.split('.').pop();
+      object.file = b.path.split('.').pop();
     } else {
       object.children = [];
     }
@@ -132,7 +138,7 @@ function mapToItems(path: string, query: BackupsBrowseQuery | SharesBrowseQuery,
           number: parseInt(this.number),
         };
       },
-      update: (query: SharesBrowseQuery) => mapToItems('', query),
+      update: (query: SharesBrowseQuery) => mapShareToItems(query),
       fetchPolicy: 'network-only',
     },
   },
@@ -162,11 +168,11 @@ export default class BackupBrowse extends Vue {
         hostname: this.hostname,
         number: parseInt(this.number),
         sharePath: item.sharePath,
-        path: item.path || '%2F',
+        path: item.searchPath,
       },
     });
 
-    const items = mapToItems(item.path, data, item.sharePath);
+    const items = mapBackupToItems(item, data);
     item.children.push(...items);
   }
 

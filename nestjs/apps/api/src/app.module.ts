@@ -32,6 +32,7 @@ import { BigIntScalar } from './utils/bigint.scalar';
     ...WoodstockBullModules,
     ConfigModule.forRoot(),
     GraphQLModule.forRoot({
+      fieldResolverEnhancers: ['interceptors'],
       installSubscriptionHandlers: true,
       autoSchemaFile: true,
       buildSchemaOptions: {

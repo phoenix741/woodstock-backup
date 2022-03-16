@@ -1,4 +1,14 @@
-import { Controller, Get, Headers, Param, Query, Res } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Query,
+  Res,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
 import { FileDescription } from '@woodstock/backoffice-shared';
 import * as archiver from 'archiver';
@@ -11,14 +21,16 @@ export class BackupsFilesController {
   constructor(private service: BackupsFilesService) {}
 
   @Get()
-  async share(@Param('name') name: string, @Param('number') number: number): Promise<FileDescription[]> {
+  @UseInterceptors(ClassSerializerInterceptor)
+  async share(@Param('name') name: string, @Param('number', ParseIntPipe) number: number): Promise<FileDescription[]> {
     return this.service.listShare(name, number);
   }
 
   @Get()
+  @UseInterceptors(ClassSerializerInterceptor)
   async list(
     @Param('name') name: string,
-    @Param('number') number: number,
+    @Param('number', ParseIntPipe) number: number,
     @Query('sharePath') sharePath: string,
     @Query('path') path: string,
   ): Promise<FileDescription[]> {

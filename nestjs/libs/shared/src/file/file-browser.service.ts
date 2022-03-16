@@ -94,7 +94,10 @@ export class FileBrowserService {
         .then(() => true)
         .catch(() => false),
     ]);
-    if (!fileAccess) {
+    if (
+      (FileBrowserService.isDirectory(fileStat.mode) || FileBrowserService.isRegularFile(fileStat.mode)) &&
+      !fileAccess
+    ) {
       throw new UnauthorizedException(`The file is not readable by current user`);
     }
 
@@ -152,6 +155,22 @@ export class FileBrowserService {
 
   public static isDirectory(mode: bigint): boolean {
     return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
+  }
+
+  public static isBlockDevice(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFBLK;
+  }
+
+  public static isCharacterDevice(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFCHR;
+  }
+
+  public static isFIFO(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFIFO;
+  }
+
+  public static isSocket(mode: bigint): boolean {
+    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFSOCK;
   }
 
   public static isSpecialFile(mode: bigint): boolean {

@@ -1,3 +1,4 @@
+
 declare module '*/NavigationBarTasks.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;
@@ -5,6 +6,7 @@ declare module '*/NavigationBarTasks.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/NavigationBarTasksJobUpdated.graphql' {
   import { DocumentNode } from 'graphql';
@@ -13,6 +15,7 @@ declare module '*/NavigationBarTasksJobUpdated.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/RunningTasksMenu.graphql' {
   import { DocumentNode } from 'graphql';
@@ -21,6 +24,7 @@ declare module '*/RunningTasksMenu.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/RunningTasksMenuJobUpdated.graphql' {
   import { DocumentNode } from 'graphql';
@@ -29,6 +33,7 @@ declare module '*/RunningTasksMenuJobUpdated.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/Backups.graphql' {
   import { DocumentNode } from 'graphql';
@@ -37,6 +42,7 @@ declare module '*/Backups.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/BackupsBrowse.graphql' {
   import { DocumentNode } from 'graphql';
@@ -45,6 +51,7 @@ declare module '*/BackupsBrowse.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/BackupsCreate.graphql' {
   import { DocumentNode } from 'graphql';
@@ -53,6 +60,7 @@ declare module '*/BackupsCreate.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/BackupsRemove.graphql' {
   import { DocumentNode } from 'graphql';
@@ -61,6 +69,7 @@ declare module '*/BackupsRemove.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/Dashboard.graphql' {
   import { DocumentNode } from 'graphql';
@@ -69,6 +78,16 @@ declare module '*/Dashboard.graphql' {
 
   export default defaultDocument;
 }
+    
+
+declare module '*/FragmentFileDescription.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const FragmentFileDescription: DocumentNode;
+
+  export default defaultDocument;
+}
+    
 
 declare module '*/FragmentJob.graphql' {
   import { DocumentNode } from 'graphql';
@@ -77,6 +96,7 @@ declare module '*/FragmentJob.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/Hosts.graphql' {
   import { DocumentNode } from 'graphql';
@@ -85,6 +105,7 @@ declare module '*/Hosts.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/QueueTasks.graphql' {
   import { DocumentNode } from 'graphql';
@@ -93,6 +114,7 @@ declare module '*/QueueTasks.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/QueueTasksSubscription.graphql' {
   import { DocumentNode } from 'graphql';
@@ -101,6 +123,7 @@ declare module '*/QueueTasksSubscription.graphql' {
 
   export default defaultDocument;
 }
+    
 
 declare module '*/ShareBrowse.graphql' {
   import { DocumentNode } from 'graphql';
@@ -109,3 +132,4 @@ declare module '*/ShareBrowse.graphql' {
 
   export default defaultDocument;
 }
+    
