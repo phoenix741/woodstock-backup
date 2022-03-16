@@ -38,33 +38,41 @@ export class QueueService {
   @OnGlobalQueueCompleted()
   async onCompleted(jobId: JobId): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
-    this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
-    await this.removeHost(job);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    if (job) {
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
+      await this.removeHost(job);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
   }
 
   @OnGlobalQueueProgress()
   async onProgress(jobId: JobId): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
-    this.logger.log(`Job ${job.id} for the host ${job.data.host} is in progress.`);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    if (job) {
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} is in progress.`);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
   }
 
   @OnGlobalQueueStalled()
   async onStalled(jobId: JobId): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
-    this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
-    await this.removeHost(job);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    if (job) {
+      this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
+      await this.removeHost(job);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
   }
 
   @OnGlobalQueueFailed()
   async onFailed(jobId: JobId, err: Error): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
-    this.logger.error(`Error when processing the job ${job.id} with the error ${err.message}`, err.stack);
-    await this.removeHost(job);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
-    this.pubSub.publish('jobFailed', { jobFailed: job });
+    if (job) {
+      this.logger.error(`Error when processing the job ${job.id} with the error ${err.message}`, err.stack);
+      await this.removeHost(job);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobFailed', { jobFailed: job });
+    }
   }
 
   @OnGlobalQueueCleaned()
@@ -81,9 +89,11 @@ export class QueueService {
   @OnGlobalQueueRemoved()
   async onRemoved(jobId: JobId): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
-    this.logger.log(`Job ${job.id} was removed from the queue.`);
-    this.pubSub.publish('jobUpdated', { jobUpdated: job });
-    this.pubSub.publish('jobRemoved', { jobRemoved: job });
+    if (job) {
+      this.logger.log(`Job ${job.id} was removed from the queue.`);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobRemoved', { jobRemoved: job });
+    }
   }
 
   async removeHost(job: Job<BackupTask>): Promise<void> {

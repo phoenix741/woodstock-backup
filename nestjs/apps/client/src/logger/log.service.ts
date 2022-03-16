@@ -15,9 +15,9 @@ export class LogService extends ConsoleLogger {
     super.printMessages(messages, context, logLevel, writeStreamType);
     for (const message of messages) {
       this.logStream.next({
-        level: GrpcLogLevel[logLevel],
-        line: message.toString(),
-        context,
+        level: logLevel ? GrpcLogLevel[logLevel] : GrpcLogLevel.log,
+        line: (message as any).toString(),
+        context: context || LogService.name,
       });
     }
   }

@@ -14,6 +14,10 @@ export class BackupsFilesService {
 
   async listShare(name: string, number: number): Promise<FileDescription[]> {
     const backup = await this.backupsService.getBackup(name, number);
+    if (!backup) {
+      throw new NotFoundException();
+    }
+
     const startDate = backup.startDate;
     const shares = this.filesService.listShares(name, number).pipe(
       map(
@@ -34,18 +38,13 @@ export class BackupsFilesService {
   }
 
   async list(name: string, number: number, sharePath: string, path = '/'): Promise<FileDescription[]> {
-    try {
-      return (
-        await toArray(
-          this.filesService
-            .searchFiles(name, number, unmangle(sharePath), unmangle(path))
-            .pipe(map((file) => new FileDescription(file))),
-        )
-      ).sort((a, b) => a.type.localeCompare(b.type) || a.path.compare(b.path));
-    } catch (err) {
-      console.log(err.stack);
-      throw new NotFoundException(err);
-    }
+    return (
+      await toArray(
+        this.filesService
+          .searchFiles(name, number, unmangle(sharePath), unmangle(path))
+          .pipe(map((file) => new FileDescription(file))),
+      )
+    ).sort((a, b) => a.type.localeCompare(b.type) || a.path.compare(b.path));
   }
 
   async getFileName(

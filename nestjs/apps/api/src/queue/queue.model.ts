@@ -17,6 +17,6 @@ export class QueueStats {
   @Field(() => Int)
   completed!: number;
 
-  lastExecution!: number;
-  nextWakeup!: number;
+  lastExecution?: number;
+  nextWakeup?: number;
 }

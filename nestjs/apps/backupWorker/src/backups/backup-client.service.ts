@@ -14,7 +14,6 @@ import {
   FileBrowserService,
   FileManifest,
   FileManifestJournalEntry,
-  FileReader,
   joinBuffer,
   LogLevel,
   longToBigInt,
@@ -174,7 +173,7 @@ export class BackupClient {
             }),
           );
 
-          if (!oldChunk.sha256.equals(sha256)) {
+          if (!sha256 || !oldChunk.sha256.equals(sha256)) {
             this.logger.error(
               `${fileManifest.path.toString()}:${chunkNumber}: Chunk ${sha256} is not the same that ${
                 oldChunk.sha256
@@ -230,10 +229,11 @@ export class BackupClient {
       },
     });
 
+    fileManifest.stats = fileManifest.stats || {};
     fileManifest.stats.compressedSize = bigIntToLong(manifestSize.compressedSize);
-    if (!fileManifest.stats.size.equals(bigIntToLong(manifestSize.size))) {
+    if (!bigIntToLong(manifestSize.size).equals(fileManifest.stats.size || Long.ZERO)) {
       this.logger.error(
-        `The manifest of file ${fileManifest.path.toString()} size (${fileManifest.stats.size.toString()}) is not equal to the sum of chunk size ${manifestSize.size.toString()}`,
+        `The manifest of file ${fileManifest.path.toString()} size (${fileManifest.stats.size?.toString()}) is not equal to the sum of chunk size ${manifestSize.size.toString()}`,
       );
       fileManifest.stats.size = bigIntToLong(manifestSize.size);
     }
@@ -253,12 +253,12 @@ export class BackupClient {
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
         // FIXME: Define the concurrency
-        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry>(20, async (entry) => {
+        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | undefined>(20, async (entry) => {
           try {
             if (
               entry?.type !== EntryType.REMOVE &&
               entry?.manifest &&
-              !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode))
+              !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode || Long.ZERO))
             ) {
               const manifest = await this.downloadManifestFile(
                 context,
@@ -273,7 +273,7 @@ export class BackupClient {
           } catch (err) {
             // FIXME: Gérer l'erreur
             console.log(err.stack);
-            this.logger.error(`${entry.manifest.path.toString()}: ${(err as Error).message}`, err);
+            this.logger.error(`${entry.manifest?.path.toString()}: ${(err as Error).message}`, err);
             return undefined;
           }
         }),

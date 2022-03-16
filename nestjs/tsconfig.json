@@ -13,24 +13,16 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@woodstock/shared": [
-        "libs/shared/src"
-      ],
-      "@woodstock/shared/*": [
-        "libs/shared/src/*"
-      ],
-      "@woodstock/backoffice-shared": [
-        "libs/backoffice-shared/src"
-      ],
-      "@woodstock/backoffice-shared/*": [
-        "libs/backoffice-shared/src/*"
-      ]
+      "@woodstock/shared": ["libs/shared/src"],
+      "@woodstock/shared/*": ["libs/shared/src/*"],
+      "@woodstock/backoffice-shared": ["libs/backoffice-shared/src"],
+      "@woodstock/backoffice-shared/*": ["libs/backoffice-shared/src/*"]
     }
   }
 }

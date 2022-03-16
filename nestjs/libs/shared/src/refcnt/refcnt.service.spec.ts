@@ -1,7 +1,9 @@
 import { cp, unlink } from 'fs/promises';
-import { count, from, toArray } from 'ix/asynciterable';
+import { count, from, pipe, toArray } from 'ix/asynciterable';
+import { map, take } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
+import { PoolRefCount } from '../models/libs/shared/woodstock';
+import { ProtoFileManifestJournalEntry, ProtoPoolRefCount } from '../models/object-proto.model';
 import { FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
 import { ReferenceCount, ReferenceCountFileTypeEnum } from './refcnt.model';
@@ -40,8 +42,7 @@ describe('RefCntService', () => {
 
       const source = service.readRefCnt(refcntFilename);
       const array = await toArray(source);
-      expect(array.length).toBe(2_347_832);
-      // expect(array).toMatchSnapshot('refcnt');
+      expect(array.length).toBe(1_064);
     } finally {
       await unlink(refcntFilename);
     }
@@ -54,7 +55,7 @@ describe('RefCntService', () => {
     try {
       await cp(refcntFilename, cnt.journalPath);
 
-      expect(await count(service.readRefCnt(cnt.journalPath))).toBe(2_347_832);
+      expect(await count(service.readRefCnt(cnt.journalPath))).toBe(1_000);
 
       await service.compactRefCnt(cnt);
 
@@ -62,10 +63,9 @@ describe('RefCntService', () => {
         if (type !== ReferenceCountFileTypeEnum.JOURNAL) {
           const source = service.readRefCnt(path);
           const array = await toArray(source);
-          expect(array.length).toBe(1_169_737);
+          expect(array.length).toBe(936);
         }
       }
-      // expect(array).toMatchSnapshot('compact');
     } finally {
       await unlink(cnt.backupPath).catch(() => void 0);
       await unlink(cnt.poolPath).catch(() => void 0);

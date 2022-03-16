@@ -61,7 +61,7 @@ export class PoolChunkWrapper {
 
     const hashCalculator = new FileHashReader();
     await pipeline(createReadStream(this.chunkPath), createInflate(), hashCalculator, outputStream);
-    if (!hashCalculator.hash.equals(this.sha256)) {
+    if (!this.sha256 || !hashCalculator.hash?.equals(this.sha256)) {
       this.logger.error(
         `When reading chunk, the hash should be ${this.sha256Str} but is ${hashCalculator.hash?.toString('hex')}`,
       );

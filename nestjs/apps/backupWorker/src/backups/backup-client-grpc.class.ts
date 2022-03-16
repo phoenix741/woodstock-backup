@@ -142,7 +142,10 @@ export class BackupClientGrpc implements BackupClientInterface {
 
   downloadFileList(context: BackupsGrpcContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry> {
     const grpclaunchBackup = context.service.launchBackup({ share: backupShare }, this.getMetadata(context));
-    return from<LaunchBackupReply>(grpclaunchBackup).pipe(map(({ entry }) => entry));
+    return from<LaunchBackupReply>(grpclaunchBackup).pipe(
+      map(({ entry }) => entry),
+      filter((entry): entry is FileManifestJournalEntry => !!entry),
+    );
   }
 
   copyChunk(context: BackupsGrpcContext, chunk: ChunkInformation): Readable {
@@ -157,7 +160,8 @@ export class BackupClientGrpc implements BackupClientInterface {
           return pieceOfChunk;
         }),
         filter<GetChunkReply>((pieceOfChunk) => pieceOfChunk.status === ChunkStatus.DATA),
-        map<GetChunkReply, Buffer>((pieceOfChunk) => pieceOfChunk.data.data),
+        map<GetChunkReply, Buffer | undefined>((pieceOfChunk) => pieceOfChunk.data?.data),
+        filter<Buffer>((buffer): buffer is Buffer => !!buffer),
       ),
     );
   }

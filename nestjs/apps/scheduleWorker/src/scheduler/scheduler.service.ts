@@ -16,27 +16,31 @@ export class SchedulerService implements OnModuleInit {
 
     await this.removeAll();
 
-    await this.scheduleQueue.add(
-      'wakeup',
-      {},
-      {
-        repeat: {
-          cron: wakeupSchedule,
+    if (wakeupSchedule) {
+      await this.scheduleQueue.add(
+        'wakeup',
+        {},
+        {
+          repeat: {
+            cron: wakeupSchedule,
+          },
+          removeOnComplete: true,
         },
-        removeOnComplete: true,
-      },
-    );
+      );
+    }
 
-    await this.scheduleQueue.add(
-      'nightly',
-      {},
-      {
-        repeat: {
-          cron: nightlySchedule,
+    if (nightlySchedule) {
+      await this.scheduleQueue.add(
+        'nightly',
+        {},
+        {
+          repeat: {
+            cron: nightlySchedule,
+          },
+          removeOnComplete: true,
         },
-        removeOnComplete: true,
-      },
-    );
+      );
+    }
   }
 
   async removeAll(): Promise<void> {

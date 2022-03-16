@@ -34,7 +34,7 @@ export class BackupClientProgress {
     const fileList$ = this.backupClient.getFileList(context, backupShare).pipe(
       scan((current, value) => {
         return new TaskProgression({
-          progressMax: current.progressMax + longToBigInt(value.manifest.stats?.size || Long.ZERO),
+          progressMax: current.progressMax + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
         });
       }, new TaskProgression({ percent: 0, progressMax: 0n })),
     );
@@ -57,16 +57,16 @@ export class BackupClientProgress {
                 return {
                   ...current,
                   count: current.count + 1,
-                  size: current.size + longToBigInt(value.manifest.stats.size),
+                  size: current.size + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
                   compressedFileSize:
-                    current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
+                    current.compressedFileSize + longToBigInt(value.manifest?.stats?.compressedSize || Long.ZERO),
                 };
               case EntryType.MODIFY:
                 return {
                   ...current,
-                  size: current.size + longToBigInt(value.manifest.stats.size),
+                  size: current.size + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
                   compressedFileSize:
-                    current.compressedFileSize + longToBigInt(value.manifest.stats.compressedSize || Long.ZERO),
+                    current.compressedFileSize + longToBigInt(value.manifest?.stats?.compressedSize || Long.ZERO),
                 };
               case EntryType.REMOVE:
                 return current;
@@ -103,8 +103,8 @@ export class BackupClientProgress {
             ...current,
             progress: current.progress + 1,
             count: current.count + 1,
-            size: current.size + longToBigInt(value.stats.size),
-            compressedFileSize: current.compressedFileSize + longToBigInt(value.stats.compressedSize || Long.ZERO),
+            size: current.size + longToBigInt(value.stats?.size || Long.ZERO),
+            compressedFileSize: current.compressedFileSize + longToBigInt(value.stats?.compressedSize || Long.ZERO),
           };
         },
         {

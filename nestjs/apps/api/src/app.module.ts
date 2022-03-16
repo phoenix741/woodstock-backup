@@ -15,8 +15,6 @@ import { JobResolver } from './queue/job.resolver';
 import { QueueController } from './queue/queue.controller';
 import { QueueResolver } from './queue/queue.resolver';
 import { QueueService } from './queue/queue.service';
-import { SchedulerConsumer } from './scheduler/scheduler.consumer';
-import { SchedulerService } from './scheduler/scheduler.service';
 import { ServeStaticService } from './server/serve-static.service';
 import { ServerController } from './server/server.controller';
 import { ServerService } from './server/server.service';
@@ -59,8 +57,6 @@ import { BigIntScalar } from './utils/bigint.scalar';
     QueueController,
     QueueResolver,
     QueueService,
-    SchedulerConsumer,
-    SchedulerService,
     ServerController,
     ServerService,
     ServeStaticService,

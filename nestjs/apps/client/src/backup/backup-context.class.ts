@@ -1,4 +1,4 @@
-import { BadRequestException, Logger } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import {
   ChunkInformation,
   FileChunk,
@@ -26,7 +26,7 @@ export class BackupContext {
 
   constructor(private fileReader: FileReader, private manifestService: ManifestService) {}
 
-  private async createManifestForSharePath(sharePath: Buffer, source: AsyncIterable<FileManifest>) {
+  private async createManifestForSharePath(sharePath: Buffer, source: AsyncIterable<FileManifest | undefined>) {
     const manifest = new Manifest(`backups.${mangle(sharePath)}`, '/tmp/');
     await this.manifestService.deleteManifest(manifest);
 
@@ -44,8 +44,8 @@ export class BackupContext {
     // First search the first header
     const it = request[Symbol.asyncIterator]();
     let next: IteratorResult<RefreshCacheRequest, RefreshCacheRequest>;
-    let sharePath: Buffer;
-    let firstManifest: FileManifest;
+    let sharePath: Buffer | undefined;
+    let firstManifest: FileManifest | undefined;
 
     while (!(next = await it.next()).done) {
       const { header, fileManifest } = next.value;
@@ -55,10 +55,13 @@ export class BackupContext {
         break;
       }
     }
+    if (!sharePath) {
+      throw new InternalServerErrorException();
+    }
 
     while (!next.done) {
       // Then create an iterator for the rest
-      const dataIt = create<FileManifest>((signal) => {
+      const dataIt = create<FileManifest | undefined>((signal) => {
         return {
           async next() {
             throwIfAborted(signal);
@@ -79,7 +82,6 @@ export class BackupContext {
       });
 
       // Then create the manifest
-
       await this.createManifestForSharePath(sharePath, firstManifest ? concat(of(firstManifest), dataIt) : dataIt);
     }
   }

@@ -57,7 +57,19 @@ exports[`BackupClient authenticate: mockClientGrpc.authenticate 1`] = `
     Array [
       BackupsGrpcContext {
         "abortable": Array [],
-        "client": Object {},
+        "client": Object {
+          "close": [MockFunction] {
+            "calls": Array [
+              Array [],
+            ],
+            "results": Array [
+              Object {
+                "type": "return",
+                "value": undefined,
+              },
+            ],
+          },
+        },
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
@@ -81,7 +93,19 @@ exports[`BackupClient authenticate: mockClientGrpc.streamLog 1`] = `
     Array [
       BackupsGrpcContext {
         "abortable": Array [],
-        "client": Object {},
+        "client": Object {
+          "close": [MockFunction] {
+            "calls": Array [
+              Array [],
+            ],
+            "results": Array [
+              Object {
+                "type": "return",
+                "value": undefined,
+              },
+            ],
+          },
+        },
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
@@ -131,10 +155,16 @@ Array [
         108,
         101,
         49,
+        51,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 100,
@@ -149,11 +179,17 @@ Array [
         105,
         108,
         101,
-        50,
+        49,
+        52,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 200,
@@ -183,11 +219,17 @@ Array [
         105,
         108,
         101,
-        51,
+        49,
+        53,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 300,
@@ -202,11 +244,17 @@ Array [
         105,
         108,
         101,
-        52,
+        49,
+        54,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 400,
@@ -221,11 +269,17 @@ Array [
         105,
         108,
         101,
-        53,
+        49,
+        55,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 500,
@@ -240,11 +294,17 @@ Array [
         105,
         108,
         101,
-        54,
+        49,
+        56,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 600,
@@ -303,10 +363,16 @@ Array [
         108,
         101,
         49,
+        51,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 100,
@@ -321,11 +387,17 @@ Array [
         105,
         108,
         101,
-        50,
+        49,
+        52,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 200,
@@ -355,11 +427,17 @@ Array [
         105,
         108,
         101,
-        51,
+        49,
+        53,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 300,
@@ -374,11 +452,17 @@ Array [
         105,
         108,
         101,
-        52,
+        49,
+        54,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 400,
@@ -393,11 +477,17 @@ Array [
         105,
         108,
         101,
-        53,
+        49,
+        55,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 500,
@@ -412,11 +502,17 @@ Array [
         105,
         108,
         101,
-        54,
+        49,
+        56,
       ],
       "type": "Buffer",
     },
     "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
       "size": Long {
         "high": 0,
         "low": 600,
@@ -483,7 +579,7 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      49,
+                      55,
                     ],
                     "type": "Buffer",
                   },
@@ -491,6 +587,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 50,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -528,7 +629,7 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      50,
+                      56,
                     ],
                     "type": "Buffer",
                   },
@@ -536,6 +637,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 300,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -570,7 +676,7 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      51,
+                      57,
                     ],
                     "type": "Buffer",
                   },
@@ -578,6 +684,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 150,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -615,7 +726,8 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      52,
+                      49,
+                      48,
                     ],
                     "type": "Buffer",
                   },
@@ -623,6 +735,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 300,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -657,7 +774,8 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      53,
+                      49,
+                      49,
                     ],
                     "type": "Buffer",
                   },
@@ -665,6 +783,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 250,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -702,7 +825,8 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                       105,
                       108,
                       101,
-                      54,
+                      49,
+                      50,
                     ],
                     "type": "Buffer",
                   },
@@ -710,6 +834,11 @@ exports[`BackupClient createBackup: manifest.writeJournalEntry 1`] = `
                     "compressedSize": Long {
                       "high": 0,
                       "low": 300,
+                      "unsigned": false,
+                    },
+                    "mode": Long {
+                      "high": 0,
+                      "low": 32768,
                       "unsigned": false,
                     },
                     "size": Long {
@@ -903,7 +1032,7 @@ Array [
           105,
           108,
           101,
-          49,
+          55,
         ],
         "type": "Buffer",
       },
@@ -911,6 +1040,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 50,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -945,7 +1079,7 @@ Array [
           105,
           108,
           101,
-          51,
+          57,
         ],
         "type": "Buffer",
       },
@@ -953,6 +1087,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 150,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -987,7 +1126,8 @@ Array [
           105,
           108,
           101,
-          53,
+          49,
+          49,
         ],
         "type": "Buffer",
       },
@@ -995,6 +1135,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 250,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1032,6 +1177,108 @@ Array [
           105,
           108,
           101,
+          56,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+          48,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
           50,
         ],
         "type": "Buffer",
@@ -1042,94 +1289,9 @@ Array [
           "low": 300,
           "unsigned": false,
         },
-        "size": Long {
+        "mode": Long {
           "high": 0,
-          "low": 600,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  Object {
-    "manifest": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
-            110,
-            101,
-            119,
-            83,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            54,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": Object {
-        "data": Array [
-          102,
-          105,
-          108,
-          101,
-          52,
-        ],
-        "type": "Buffer",
-      },
-      "stats": Object {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 300,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 600,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  Object {
-    "manifest": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
-            110,
-            101,
-            119,
-            83,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            54,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": Object {
-        "data": Array [
-          102,
-          105,
-          108,
-          101,
-          54,
-        ],
-        "type": "Buffer",
-      },
-      "stats": Object {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 300,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1169,7 +1331,7 @@ Array [
           105,
           108,
           101,
-          49,
+          55,
         ],
         "type": "Buffer",
       },
@@ -1177,6 +1339,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 50,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1211,7 +1378,7 @@ Array [
           105,
           108,
           101,
-          51,
+          57,
         ],
         "type": "Buffer",
       },
@@ -1219,6 +1386,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 150,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1253,7 +1425,8 @@ Array [
           105,
           108,
           101,
-          53,
+          49,
+          49,
         ],
         "type": "Buffer",
       },
@@ -1261,6 +1434,11 @@ Array [
         "compressedSize": Long {
           "high": 0,
           "low": 250,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1298,6 +1476,108 @@ Array [
           105,
           108,
           101,
+          56,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
+          48,
+        ],
+        "type": "Buffer",
+      },
+      "stats": Object {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 600,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  Object {
+    "manifest": Object {
+      "chunks": Array [
+        Object {
+          "data": Array [
+            110,
+            101,
+            119,
+            83,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            54,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": Object {
+        "data": Array [
+          102,
+          105,
+          108,
+          101,
+          49,
           50,
         ],
         "type": "Buffer",
@@ -1308,94 +1588,9 @@ Array [
           "low": 300,
           "unsigned": false,
         },
-        "size": Long {
+        "mode": Long {
           "high": 0,
-          "low": 600,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  Object {
-    "manifest": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
-            110,
-            101,
-            119,
-            83,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            54,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": Object {
-        "data": Array [
-          102,
-          105,
-          108,
-          101,
-          52,
-        ],
-        "type": "Buffer",
-      },
-      "stats": Object {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 300,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 600,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  Object {
-    "manifest": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
-            110,
-            101,
-            119,
-            83,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            54,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": Object {
-        "data": Array [
-          102,
-          105,
-          108,
-          101,
-          54,
-        ],
-        "type": "Buffer",
-      },
-      "stats": Object {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 300,
+          "low": 32768,
           "unsigned": false,
         },
         "size": Long {
@@ -1550,7 +1745,19 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
     Array [
       BackupsGrpcContext {
         "abortable": Array [],
-        "client": Object {},
+        "client": Object {
+          "close": [MockFunction] {
+            "calls": Array [
+              Array [],
+            ],
+            "results": Array [
+              Object {
+                "type": "return",
+                "value": undefined,
+              },
+            ],
+          },
+        },
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
@@ -1594,6 +1801,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 100,
@@ -1616,6 +1828,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 200,
@@ -1638,6 +1855,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 300,
@@ -1660,6 +1882,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 400,
@@ -1682,6 +1909,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 500,
@@ -1704,6 +1936,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 600,
@@ -1735,6 +1972,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 100,
@@ -1757,6 +1999,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 200,
@@ -1779,6 +2026,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 300,
@@ -1801,6 +2053,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 400,
@@ -1823,6 +2080,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 500,
@@ -1845,6 +2107,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 600,
@@ -1872,6 +2139,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 100,
@@ -1894,6 +2166,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 200,
@@ -1916,6 +2193,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 300,
@@ -1938,6 +2220,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 400,
@@ -1960,6 +2247,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 500,
@@ -1982,6 +2274,11 @@ Array [
         "type": "Buffer",
       },
       "stats": Object {
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
         "size": Long {
           "high": 0,
           "low": 600,
@@ -2014,6 +2311,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 100,
@@ -2036,6 +2338,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 200,
@@ -2058,6 +2365,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 300,
@@ -2080,6 +2392,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 400,
@@ -2102,6 +2419,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 500,
@@ -2124,6 +2446,11 @@ exports[`BackupClient getFileList: writeFileListEntry 1`] = `
                 "type": "Buffer",
               },
               "stats": Object {
+                "mode": Long {
+                  "high": 0,
+                  "low": 32768,
+                  "unsigned": false,
+                },
                 "size": Long {
                   "high": 0,
                   "low": 600,

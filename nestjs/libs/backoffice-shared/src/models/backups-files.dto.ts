@@ -8,7 +8,7 @@ import {
   longToBigInt,
   mangle,
 } from '@woodstock/shared';
-import { Exclude, Expose, Transform, Type } from 'class-transformer';
+import { Exclude, Expose, Transform } from 'class-transformer';
 import * as Long from 'long';
 
 export enum EnumFileType {
@@ -127,7 +127,7 @@ export class FileDescription implements FileManifest {
   @Expose()
   @Field(() => EnumFileType)
   get type(): EnumFileType {
-    const m = longToBigInt(this.stats.mode);
+    const m = longToBigInt(this.stats?.mode || Long.ZERO);
     if (m === -1n) {
       return EnumFileType.SHARE;
     } else if (FileBrowserService.isDirectory(m)) {
