@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { BackupsService, FileDescription } from '@woodstock/backoffice-shared';
 import { FilesService } from '@woodstock/backoffice-shared/services/files.service';
 import { unmangle } from '@woodstock/shared';
+import { Archiver } from 'archiver';
 import * as fs from 'fs';
 import { toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
@@ -47,26 +48,7 @@ export class BackupsFilesService {
     ).sort((a, b) => a.type.localeCompare(b.type) || a.path.compare(b.path));
   }
 
-  async getFileName(
-    name: string,
-    number: number,
-    sharePath: string,
-    path: string,
-  ): Promise<{ filename: string; stats: fs.Stats }> {
-    if (!isAbsolute(sharePath) || !isAbsolute(path)) {
-      throw new BadRequestException('Only absolute path can be used to serach for directory');
-    }
-    /*
-    try {
-      const filename = join(this.backupsService.getDestinationDirectory(name, number), mangle(sharePath), path);
-      const stats = await this.getFileStat(filename);
-
-      return {
-        filename,
-        stats,
-      };
-    } catch (err) {*/
-    throw new NotFoundException();
-    // }
+  async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path = '') {
+    return this.filesService.createArchive(archiver, hostname, backupNumber, unmangle(sharePath), unmangle(path));
   }
 }

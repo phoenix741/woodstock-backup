@@ -2,15 +2,18 @@ import { Injectable } from '@nestjs/common';
 import {
   FileBrowserService,
   FileManifest,
-  FileReader,
   longToBigInt,
   ManifestService,
   splitBuffer,
   unmangle,
 } from '@woodstock/shared';
+import { Archiver } from 'archiver';
+import { Stats } from 'fs';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
-import MultiStream from 'multistream';
+import * as Long from 'long';
+import * as MultiStream from 'multistream';
+import { FactoryStream } from 'multistream';
 import { Readable } from 'stream';
 import { BackupsService } from './backups.service';
 import { PoolService } from './pool/pool.service';
@@ -39,20 +42,25 @@ export class FilesService {
     );
   }
 
-  searchFiles(hostname: string, backupNumber: number, sharePath: Buffer, path?: Buffer): AsyncIterableX<FileManifest> {
+  searchFiles(
+    hostname: string,
+    backupNumber: number,
+    sharePath: Buffer,
+    path?: Buffer,
+    recursive = false,
+  ): AsyncIterableX<FileManifest> {
     const manifest = this.backupService.getManifest(hostname, backupNumber, sharePath);
     const searchPath = splitBuffer(path || Buffer.alloc(0));
 
     return this.manifestService.readManifestEntries(manifest).pipe(
       map((manifest) => ({
         ...manifest,
-        path: splitBuffer(manifest.path),
+        splittedPath: splitBuffer(manifest.path),
       })),
-      filter((manifest) => this.filterPath(manifest.path, searchPath)),
-      map((manifest) => ({
-        ...manifest,
-        path: manifest.path[manifest.path.length - 1],
-      })),
+      filter((manifest) => this.filterPath(manifest.splittedPath, searchPath, recursive)),
+      // map((manifest) => ({
+      //   ...manifest,
+      // })),
     );
   }
 
@@ -61,25 +69,61 @@ export class FilesService {
    * @param manifest The file manifest
    */
   readFileStream(manifest: FileManifest): Readable {
-    if (FileBrowserService.isSpecialFile(longToBigInt(manifest.stats?.mode))) {
+    if (FileBrowserService.isSpecialFile(longToBigInt(manifest.stats?.mode || Long.ZERO))) {
       return Readable.from([]);
     }
 
     let currentChunk = 0;
-    function chunkReadableFactory(cb) {
-      if (currentChunk >= manifest.chunks.length) {
+    const chunkReadableFactory: FactoryStream = (cb) => {
+      if (!manifest.chunks || currentChunk >= manifest.chunks.length) {
         return cb(null, null);
       }
       setImmediate(() => {
         const wrapper = this.poolService.getChunk(manifest.chunks[currentChunk++]);
         cb(null, wrapper.read());
       });
-    }
+    };
     return new MultiStream(chunkReadableFactory);
   }
 
-  private filterPath(path: Buffer[], searchPath: Buffer[]) {
-    if (path.length !== searchPath.length + 1) {
+  async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: Buffer, path?: Buffer) {
+    console.log('createArchive', hostname, backupNumber, sharePath.toString('utf-8'), path?.toString('utf-8'));
+    const manifests = this.searchFiles(hostname, backupNumber, sharePath, path, true);
+    for await (const manifest of manifests) {
+      const mode = longToBigInt(manifest.stats?.mode || Long.ZERO);
+      console.log('manifest', manifest, mode);
+
+      if (FileBrowserService.isRegularFile(mode)) {
+        archiver.append(this.readFileStream(manifest), {
+          name: manifest.path.toString('utf-8'),
+          date: manifest.stats?.lastModified && new Date(manifest.stats?.lastModified.toNumber()),
+          mode: manifest.stats?.mode?.toNumber(),
+          stats: {
+            size: manifest.stats?.size?.toNumber(),
+            mode: Number(mode),
+            mtime: manifest.stats?.lastModified && new Date(manifest.stats?.lastModified.toNumber()),
+            isFile: () => FileBrowserService.isRegularFile(mode),
+            isDirectory: () => FileBrowserService.isDirectory(mode),
+            isSymbolicLink: () => FileBrowserService.isSymLink(mode),
+
+            dev: manifest.stats?.dev?.toNumber(),
+            ino: manifest.stats?.ino?.toNumber(),
+            nlink: manifest.stats?.nlink?.toNumber(),
+            uid: manifest.stats?.ownerId?.toNumber(),
+            gid: manifest.stats?.groupId?.toNumber(),
+            rdev: manifest.stats?.rdev?.toNumber(),
+            atime: manifest.stats?.lastRead && new Date(manifest.stats?.lastRead.toNumber()),
+            ctime: manifest.stats?.created && new Date(manifest.stats?.created.toNumber()),
+          } as Stats,
+        });
+      } else if (FileBrowserService.isSymLink(mode) && manifest.symlink) {
+        archiver.symlink(manifest.path.toString('utf-8'), manifest.symlink?.toString('utf-8'), Number(mode));
+      }
+    }
+  }
+
+  private filterPath(path: Buffer[], searchPath: Buffer[], recursive = false) {
+    if (recursive ? path.length <= searchPath.length : path.length !== searchPath.length + 1) {
       return false;
     }
 

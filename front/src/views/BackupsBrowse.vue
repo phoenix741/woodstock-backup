@@ -25,7 +25,7 @@
         </v-icon>
       </template>
       <template v-slot:label="{ item }">
-        {{ item.path | unmangle }}
+        {{ item.namePath | unmangle }}
       </template>
     </v-treeview>
     <v-bottom-sheet v-model="sheet">
@@ -73,7 +73,16 @@
           class="mt-6"
           text
           color="primary"
-          :href="'/api/hosts/' + hostname + '/backups/' + number + '/files/download?path=' + selected.searchPath"
+          :href="
+            '/api/hosts/' +
+            hostname +
+            '/backups/' +
+            number +
+            '/files/download?sharePath=' +
+            selected.sharePath +
+            '&path=' +
+            selected.searchPath
+          "
           >download</v-btn
         >
       </v-sheet>
@@ -92,6 +101,7 @@ interface TreeItem extends FragmentFileDescriptionFragment {
   path: string;
   sharePath?: string;
   fullPath: string;
+  namePath?: string;
   searchPath?: string;
   children?: TreeItem[];
 }
@@ -100,6 +110,7 @@ function mapShareToItems(query: SharesBrowseQuery): TreeItem[] {
   const files = query.backup.shares;
   return files.map((b) => ({
     ...b,
+    namePath: b.path,
     searchPath: '',
     sharePath: b.path,
     fullPath: b.path,
@@ -110,13 +121,12 @@ function mapShareToItems(query: SharesBrowseQuery): TreeItem[] {
 function mapBackupToItems(currentItem: TreeItem, query: BackupsBrowseQuery): TreeItem[] {
   const files = query.backup.files;
   return files.map((b) => {
-    const isCurrentItemShare = currentItem.type === 'SHARE';
-
     const object: TreeItem = {
       ...b,
-      searchPath: isCurrentItemShare ? b.path : [currentItem.searchPath, b.path].join('%2F'),
+      namePath: b.path.split('%2F').pop(),
+      searchPath: b.path,
       sharePath: currentItem.sharePath,
-      fullPath: [currentItem.fullPath, b.path].join('%2F'),
+      fullPath: [currentItem.sharePath, b.path].join('%2F'),
     };
 
     if (!['DIRECTORY', 'SHARE'].includes(b.type)) {
