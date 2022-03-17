@@ -165,13 +165,7 @@ export class BackupClient {
         // FIXME: this.logger.error(`${fileManifest.path.toString()}:${chunkNumber}: ${(err as Error).message}`, err);
         if (await wrapper.exists()) {
           // Read the chunk
-          const oldChunk = await wrapper.read(
-            new Writable({
-              write(_, _2, callback) {
-                setImmediate(callback);
-              },
-            }),
-          );
+          const oldChunk = await wrapper.getChunkInformation();
 
           if (!sha256 || !oldChunk.sha256.equals(sha256)) {
             this.logger.error(

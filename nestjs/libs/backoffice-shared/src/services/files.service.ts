@@ -1,8 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { FileBrowserService, FileManifest, ManifestService, SEPARATOR, splitBuffer, unmangle } from '@woodstock/shared';
+import {
+  FileBrowserService,
+  FileManifest,
+  FileReader,
+  longToBigInt,
+  ManifestService,
+  splitBuffer,
+  unmangle,
+} from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
+import MultiStream from 'multistream';
+import { Readable } from 'stream';
 import { BackupsService } from './backups.service';
+import { PoolService } from './pool/pool.service';
 
 @Injectable()
 export class FilesService {
@@ -10,6 +21,7 @@ export class FilesService {
     private backupService: BackupsService,
     private fileBrowserService: FileBrowserService,
     private manifestService: ManifestService,
+    private poolService: PoolService,
   ) {}
 
   /**
@@ -42,6 +54,28 @@ export class FilesService {
         path: manifest.path[manifest.path.length - 1],
       })),
     );
+  }
+
+  /**
+   * Create a stream that can be used to read the file describe by the manifest
+   * @param manifest The file manifest
+   */
+  readFileStream(manifest: FileManifest): Readable {
+    if (FileBrowserService.isSpecialFile(longToBigInt(manifest.stats?.mode))) {
+      return Readable.from([]);
+    }
+
+    let currentChunk = 0;
+    function chunkReadableFactory(cb) {
+      if (currentChunk >= manifest.chunks.length) {
+        return cb(null, null);
+      }
+      setImmediate(() => {
+        const wrapper = this.poolService.getChunk(manifest.chunks[currentChunk++]);
+        cb(null, wrapper.read());
+      });
+    }
+    return new MultiStream(chunkReadableFactory);
   }
 
   private filterPath(path: Buffer[], searchPath: Buffer[]) {

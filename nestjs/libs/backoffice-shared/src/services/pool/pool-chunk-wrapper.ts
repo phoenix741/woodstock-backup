@@ -5,7 +5,8 @@ import { constants, createReadStream, createWriteStream } from 'fs';
 import { access, rename, rm, stat } from 'fs/promises';
 import * as mkdirp from 'mkdirp';
 import { join } from 'path';
-import { pipeline as streamPipeline, Readable, Writable } from 'stream';
+import * as stream from 'stream';
+import { pipeline as streamPipeline, Readable, Writable, Stream, Duplex } from 'stream';
 import * as util from 'util';
 import { createDeflate, createInflate } from 'zlib';
 import { PoolChunkInformation } from '../../models/pool-chunk.dto';
@@ -13,6 +14,11 @@ import { calculateChunkDir } from './pool-chunk.utils';
 import { PoolService } from './pool.service';
 
 const pipeline = util.promisify(streamPipeline);
+
+// eslint-disable-next-line @typescript-eslint/ban-types
+const compose: (...streams: Array<Stream | Iterable<unknown> | AsyncIterable<unknown> | Function>) => Duplex = (
+  stream as any
+).compose;
 
 export class PoolChunkWrapper {
   private logger = new Logger(PoolChunkWrapper.name);
@@ -56,11 +62,28 @@ export class PoolChunkWrapper {
       .catch(() => false);
   }
 
-  async read(outputStream: Writable): Promise<PoolChunkInformation> {
+  read(): Readable {
+    return compose(createReadStream(this.chunkPath), createInflate());
+  }
+
+  /**
+   * Get chunk information by reading the chunk.
+   *
+   * WARNING: This method read the chunk from the disk and is slow compared to getting chunk information
+   * from the pool.
+   * @returns
+   */
+  async getChunkInformation(): Promise<PoolChunkInformation> {
     const chunkStatistics = await stat(this.chunkPath, { bigint: true });
 
+    const nullStream = new Writable({
+      write(_, _2, callback) {
+        setImmediate(callback);
+      },
+    });
+
     const hashCalculator = new FileHashReader();
-    await pipeline(createReadStream(this.chunkPath), createInflate(), hashCalculator, outputStream);
+    await pipeline(createReadStream(this.chunkPath), createInflate(), hashCalculator, nullStream);
     if (!this.sha256 || !hashCalculator.hash?.equals(this.sha256)) {
       this.logger.error(
         `When reading chunk, the hash should be ${this.sha256Str} but is ${hashCalculator.hash?.toString('hex')}`,
