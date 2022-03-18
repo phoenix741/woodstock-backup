@@ -1,0 +1,340 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`FilesService createArchive create archive: append 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "d1/dd2/ddd1/abcd",
+      Object {
+        "date": undefined,
+        "mode": 32768,
+        "name": "d1/dd2/ddd1/abcd",
+        "stats": Object {
+          "atime": undefined,
+          "ctime": undefined,
+          "dev": undefined,
+          "gid": undefined,
+          "ino": undefined,
+          "isDirectory": [Function],
+          "isFile": [Function],
+          "isSymbolicLink": [Function],
+          "mode": 32768,
+          "mtime": undefined,
+          "nlink": undefined,
+          "rdev": undefined,
+          "size": undefined,
+          "uid": undefined,
+        },
+      },
+    ],
+    Array [
+      "d1/dd2/ddd1/efgh",
+      Object {
+        "date": undefined,
+        "mode": 32768,
+        "name": "d1/dd2/ddd1/efgh",
+        "stats": Object {
+          "atime": undefined,
+          "ctime": undefined,
+          "dev": undefined,
+          "gid": undefined,
+          "ino": undefined,
+          "isDirectory": [Function],
+          "isFile": [Function],
+          "isSymbolicLink": [Function],
+          "mode": 32768,
+          "mtime": undefined,
+          "nlink": undefined,
+          "rdev": undefined,
+          "size": undefined,
+          "uid": undefined,
+        },
+      },
+    ],
+    Array [
+      "d1/dd2/ddd1/mnop",
+      Object {
+        "date": undefined,
+        "mode": 32768,
+        "name": "d1/dd2/ddd1/mnop",
+        "stats": Object {
+          "atime": undefined,
+          "ctime": undefined,
+          "dev": undefined,
+          "gid": undefined,
+          "ino": undefined,
+          "isDirectory": [Function],
+          "isFile": [Function],
+          "isSymbolicLink": [Function],
+          "mode": 32768,
+          "mtime": undefined,
+          "nlink": undefined,
+          "rdev": undefined,
+          "size": undefined,
+          "uid": undefined,
+        },
+      },
+    ],
+    Array [
+      "d1/dd2/ddd3",
+      Object {
+        "date": undefined,
+        "mode": 32768,
+        "name": "d1/dd2/ddd3",
+        "stats": Object {
+          "atime": undefined,
+          "ctime": undefined,
+          "dev": undefined,
+          "gid": undefined,
+          "ino": undefined,
+          "isDirectory": [Function],
+          "isFile": [Function],
+          "isSymbolicLink": [Function],
+          "mode": 32768,
+          "mtime": undefined,
+          "nlink": undefined,
+          "rdev": undefined,
+          "size": undefined,
+          "uid": undefined,
+        },
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`FilesService createArchive create archive: readFileStream 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      Object {
+        "path": Object {
+          "data": Array [
+            100,
+            49,
+            47,
+            100,
+            100,
+            50,
+            47,
+            100,
+            100,
+            100,
+            49,
+            47,
+            97,
+            98,
+            99,
+            100,
+          ],
+          "type": "Buffer",
+        },
+        "stats": Object {
+          "mode": Long {
+            "high": 0,
+            "low": 32768,
+            "unsigned": false,
+          },
+        },
+      },
+    ],
+    Array [
+      Object {
+        "path": Object {
+          "data": Array [
+            100,
+            49,
+            47,
+            100,
+            100,
+            50,
+            47,
+            100,
+            100,
+            100,
+            49,
+            47,
+            101,
+            102,
+            103,
+            104,
+          ],
+          "type": "Buffer",
+        },
+        "stats": Object {
+          "mode": Long {
+            "high": 0,
+            "low": 32768,
+            "unsigned": false,
+          },
+        },
+      },
+    ],
+    Array [
+      Object {
+        "path": Object {
+          "data": Array [
+            100,
+            49,
+            47,
+            100,
+            100,
+            50,
+            47,
+            100,
+            100,
+            100,
+            49,
+            47,
+            109,
+            110,
+            111,
+            112,
+          ],
+          "type": "Buffer",
+        },
+        "stats": Object {
+          "mode": Long {
+            "high": 0,
+            "low": 32768,
+            "unsigned": false,
+          },
+        },
+      },
+    ],
+    Array [
+      Object {
+        "path": Object {
+          "data": Array [
+            100,
+            49,
+            47,
+            100,
+            100,
+            50,
+            47,
+            100,
+            100,
+            100,
+            51,
+          ],
+          "type": "Buffer",
+        },
+        "stats": Object {
+          "mode": Long {
+            "high": 0,
+            "low": 32768,
+            "unsigned": false,
+          },
+        },
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": "d1/dd2/ddd1/abcd",
+    },
+    Object {
+      "type": "return",
+      "value": "d1/dd2/ddd1/efgh",
+    },
+    Object {
+      "type": "return",
+      "value": "d1/dd2/ddd1/mnop",
+    },
+    Object {
+      "type": "return",
+      "value": "d1/dd2/ddd3",
+    },
+  ],
+}
+`;
+
+exports[`FilesService createArchive create archive: symlink 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "d1/dd2/ddd1/ijkl",
+      "symlink",
+      40960,
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`FilesService listShares list share from a directory: res 1`] = `
+Array [
+  "file1",
+  "file3",
+]
+`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 1`] = `"chunks1"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 2`] = `"chunks2"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 3`] = `"chunks3"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 4`] = `"chunks4"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 5`] = `"chunks5"`;
+
+exports[`FilesService searchFiles search files in directory: res 1`] = `
+Array [
+  Object {
+    "path": "d1/dd2/ddd1",
+    "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 16384,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": "d1/dd2/ddd2",
+    "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 16384,
+        "unsigned": false,
+      },
+    },
+  },
+  Object {
+    "path": "d1/dd2/ddd3",
+    "stats": Object {
+      "mode": Long {
+        "high": 0,
+        "low": 32768,
+        "unsigned": false,
+      },
+    },
+  },
+]
+`;

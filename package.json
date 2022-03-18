@@ -1,10 +1,4 @@
 {
   "name": "root",
-  "private": true,
-  "dependencies": {
-    "multistream": "^4.1.0"
-  },
-  "devDependencies": {
-    "@types/multistream": "^4.1.0"
-  }
+  "private": true
 }

@@ -58,9 +58,7 @@ export class FilesService {
         splittedPath: splitBuffer(manifest.path),
       })),
       filter((manifest) => this.filterPath(manifest.splittedPath, searchPath, recursive)),
-      // map((manifest) => ({
-      //   ...manifest,
-      // })),
+      map(({ splittedPath, ...manifest }) => manifest),
     );
   }
 
@@ -87,11 +85,10 @@ export class FilesService {
   }
 
   async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: Buffer, path?: Buffer) {
-    console.log('createArchive', hostname, backupNumber, sharePath.toString('utf-8'), path?.toString('utf-8'));
     const manifests = this.searchFiles(hostname, backupNumber, sharePath, path, true);
+
     for await (const manifest of manifests) {
       const mode = longToBigInt(manifest.stats?.mode || Long.ZERO);
-      console.log('manifest', manifest, mode);
 
       if (FileBrowserService.isRegularFile(mode)) {
         archiver.append(this.readFileStream(manifest), {

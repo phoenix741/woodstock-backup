@@ -1,9 +1,7 @@
 import { cp, unlink } from 'fs/promises';
-import { count, from, pipe, toArray } from 'ix/asynciterable';
-import { map, take } from 'ix/asynciterable/operators';
+import { count, from, toArray } from 'ix/asynciterable';
 import { join } from 'path';
-import { PoolRefCount } from '../models/libs/shared/woodstock';
-import { ProtoFileManifestJournalEntry, ProtoPoolRefCount } from '../models/object-proto.model';
+import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
 import { ReferenceCount, ReferenceCountFileTypeEnum } from './refcnt.model';
