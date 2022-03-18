@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import * as archiver from 'archiver';
-import { Response } from 'express';
+import * as httpMocks from 'node-mocks-http';
 import { BackupsFilesController } from './backups-files.controller';
 import { BackupsFilesService } from './backups-files.service';
 
@@ -23,14 +23,9 @@ describe('Backups File Controller', () => {
       { name: share },
       { name: path },
     ],
-    getFileName: (name: string, number: number, share: string, path: string) => ({
-      filename: `${name}/${number}/${share}/${path}`,
-      stats: {
-        isDirectory() {
-          return path === 'directory';
-        },
-      },
-    }),
+    createArchive(archive: archiver.Archiver, name: string, number: number, share: string, path: string) {
+      archive.append('test', { name: 'test' });
+    },
   };
 
   beforeEach(async () => {
@@ -58,28 +53,12 @@ describe('Backups File Controller', () => {
     ]);
   });
 
-  it('should download a file with the name', async () => {
+  it('should download zip file', async () => {
     // GIVEN
-    const res = {
-      download: jest.fn(),
-    } as unknown as Response;
-
-    // WHEN
-    await controller.download('name', 10, 'share', 'path', res);
-
-    // THEN
-    expect(res.download).toHaveBeenCalledWith('name/10/share/path', 'path', { dotfiles: 'allow' });
-  });
-
-  it('should download a zip file with the file name', async () => {
-    // GIVEN
-    const res = {
-      attachment: jest.fn(),
-    } as unknown as Response;
-
+    const res = httpMocks.createResponse();
     const mockedArchiverInstance = {
       pipe: jest.fn(),
-      file: jest.fn(),
+      append: jest.fn(),
       finalize: jest.fn(),
     } as unknown as archiver.Archiver;
 
@@ -89,33 +68,32 @@ describe('Backups File Controller', () => {
     await controller.download('name', 10, 'share', 'path', res, 'application/zip');
 
     // THEN
-    expect(res.attachment).toHaveBeenCalledWith('path.zip');
+    expect(mockedArchiver.create).toHaveBeenCalledWith('zip');
+    expect(res).toMatchSnapshot('res');
     expect(mockedArchiverInstance.pipe).toHaveBeenCalledWith(res);
-    expect(mockedArchiverInstance.file).toHaveBeenCalledWith('name/10/share/path', { name: 'path' });
+    expect(mockedArchiverInstance.append).toMatchSnapshot('append');
     expect(mockedArchiverInstance.finalize).toHaveBeenCalledWith();
   });
 
-  it('should download a zip file with the directory', async () => {
+  it('should download zip file', async () => {
     // GIVEN
-    const res = {
-      attachment: jest.fn(),
-    } as unknown as Response;
-
+    const res = httpMocks.createResponse();
     const mockedArchiverInstance = {
       pipe: jest.fn(),
-      directory: jest.fn(),
+      append: jest.fn(),
       finalize: jest.fn(),
     } as unknown as archiver.Archiver;
 
     mockedArchiver.create.mockReturnValue(mockedArchiverInstance);
 
     // WHEN
-    await controller.download('name', 10, 'share', 'directory', res);
+    await controller.download('name', 10, 'share', 'path', res, 'application/x-tar');
 
     // THEN
-    expect(res.attachment).toHaveBeenCalledWith('directory.zip');
+    expect(mockedArchiver.create).toHaveBeenCalledWith('tar');
+    expect(res).toMatchSnapshot('res');
     expect(mockedArchiverInstance.pipe).toHaveBeenCalledWith(res);
-    expect(mockedArchiverInstance.directory).toHaveBeenCalledWith('name/10/share/directory', 'directory');
+    expect(mockedArchiverInstance.append).toMatchSnapshot('append');
     expect(mockedArchiverInstance.finalize).toHaveBeenCalledWith();
   });
 });

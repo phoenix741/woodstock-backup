@@ -181,7 +181,7 @@ export class ManifestService {
     manifest: Manifest,
     mapping: (v: T) => Promise<FileManifest | undefined> = (v) => v as any,
   ): Promise<void> {
-    this.logger.log(`Compact manifest from ${manifest.manifestPath}`);
+    this.logger.debug(`Compact manifest from ${manifest.manifestPath}`);
     const allMessages$ = this.readAllMessages(manifest);
 
     await this.protobufService
@@ -192,7 +192,7 @@ export class ManifestService {
         } catch (err) {
         } finally {
           await rename(manifest.newPath, manifest.manifestPath);
-          this.logger.log(`[END] Compact manifest from ${manifest.manifestPath}`);
+          this.logger.debug(`[END] Compact manifest from ${manifest.manifestPath}`);
         }
       });
   }

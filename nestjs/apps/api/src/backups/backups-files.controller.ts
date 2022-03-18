@@ -51,10 +51,10 @@ export class BackupsFilesController {
     let archive: archiver.Archiver;
     switch (type || 'application/zip') {
       case 'application/zip':
-        archive = archiver('zip');
+        archive = archiver.create('zip');
         break;
       case 'application/x-tar':
-        archive = archiver('tar');
+        archive = archiver.create('tar');
         break;
       default:
         throw new UnsupportedMediaTypeException(`Unsupported media type: ${type}`);

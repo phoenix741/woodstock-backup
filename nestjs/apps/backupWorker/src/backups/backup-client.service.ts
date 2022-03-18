@@ -36,7 +36,6 @@ import {
 import { concatAll, finalize, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
-import { Writable } from 'stream';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
 import { LaunchBackupError } from './backup.error';
 

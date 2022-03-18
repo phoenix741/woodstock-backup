@@ -1,13 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { BackupsService, FileDescription } from '@woodstock/backoffice-shared';
 import { FilesService } from '@woodstock/backoffice-shared/services/files.service';
 import { unmangle } from '@woodstock/shared';
 import { Archiver } from 'archiver';
-import * as fs from 'fs';
 import { toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import * as Long from 'long';
-import { isAbsolute } from 'path';
 
 @Injectable()
 export class BackupsFilesService {
