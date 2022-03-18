@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { YamlService } from '@woodstock/shared';
+import { mangle, Manifest, YamlService } from '@woodstock/shared';
 import { JobId } from 'bull';
 import { copy } from 'fs-extra';
 import { rm } from 'fs/promises';
@@ -28,6 +28,10 @@ export class BackupsService {
 
   getDestinationDirectory(hostname: string, backupNumber: number): string {
     return join(this.configService.hostPath, hostname, '' + backupNumber);
+  }
+
+  getManifest(hostname: string, backupNumber: number, share: Buffer): Manifest {
+    return new Manifest(mangle(share), this.getDestinationDirectory(hostname, backupNumber));
   }
 
   getHostDirectory(hostname: string): string {

@@ -2,9 +2,11 @@ import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationConfigService, BackupsService, PoolChunkRefCnt, PoolService } from '@woodstock/backoffice-shared';
-import { bigIntToLong, EntryType, LogEntry, LogLevel, ManifestService } from '@woodstock/shared';
+import { bigIntToLong, EntryType, LogEntry, LogLevel, Manifest, ManifestService } from '@woodstock/shared';
+import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';
 import { AsyncSink, from, pipe, toArray as toArrayIx } from 'ix/asynciterable';
+import * as Long from 'long';
 import { lastValueFrom, toArray } from 'rxjs';
 import { Readable } from 'stream';
 import { setTimeout } from 'timers/promises';
@@ -24,8 +26,9 @@ describe('BackupClient', () => {
   };
 
   const mockBackupService = {
-    getDestinationDirectory: (host, backup) => `${host}-${backup}`,
-    getHostDirectory: (host) => host,
+    getDestinationDirectory: (host: string, backup: string) => `${host}-${backup}`,
+    getManifest: (host: string, backup: string, share: string) => new Manifest(share, `${host}-${backup}`),
+    getHostDirectory: (host: string) => host,
   };
 
   const mockManifestService = {
@@ -44,7 +47,9 @@ describe('BackupClient', () => {
     compact: () => 0,
   };
 
-  const fakeClient = {} as ClientGrpcProxy;
+  const fakeClient = {
+    close: () => void 0,
+  } as ClientGrpcProxy;
 
   function fakeLogger() {
     const logger = new Logger('FakeLogger');
@@ -82,6 +87,7 @@ describe('BackupClient', () => {
 
     mockCientGrpc.authenticate = jest.fn().mockResolvedValue({ sessionId: 'sessionId' });
     mockCientGrpc.streamLog = jest.fn().mockReturnValue(pipe(streamLog));
+    fakeClient.close = jest.fn();
 
     // WHEN
     await backupClient.authenticate(ctxt, logger);
@@ -96,6 +102,7 @@ describe('BackupClient', () => {
     streamLog.end();
 
     // THEN
+    expect(fakeClient.close).toHaveBeenCalled();
     expect(mockCientGrpc.authenticate).toMatchSnapshot('mockClientGrpc.authenticate');
     expect(mockCientGrpc.streamLog).toMatchSnapshot('mockClientGrpc.streamLog');
     expect(logger.log).toMatchSnapshot('logger.log');
@@ -105,15 +112,51 @@ describe('BackupClient', () => {
 
   it('getFileList', async () => {
     // GIVEN
-    const savedFilelist = [];
+    const savedFilelist: unknown[] = [];
 
     const filelist = from([
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file1'), stats: { size: bigIntToLong(100n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file2'), stats: { size: bigIntToLong(200n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file3'), stats: { size: bigIntToLong(300n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file4'), stats: { size: bigIntToLong(400n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file5'), stats: { size: bigIntToLong(500n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file6'), stats: { size: bigIntToLong(600n) } } },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file1'),
+          stats: { size: bigIntToLong(100n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file2'),
+          stats: { size: bigIntToLong(200n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file3'),
+          stats: { size: bigIntToLong(300n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file4'),
+          stats: { size: bigIntToLong(400n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file5'),
+          stats: { size: bigIntToLong(500n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file6'),
+          stats: { size: bigIntToLong(600n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
     ]);
 
     mockCientGrpc.downloadFileList = jest.fn().mockReturnValue(filelist);
@@ -143,37 +186,55 @@ describe('BackupClient', () => {
 
   it('createBackup', async () => {
     // GIVEN
-    const savedJournal = [];
-    const savedJournalChunk = [];
+    const savedJournal: unknown[] = [];
+    const savedJournalChunk: unknown[] = [];
 
     const filelist = from([
       {
         type: EntryType.ADD,
         manifest: {
-          path: Buffer.from('file1'),
-          stats: { size: bigIntToLong(100n) },
+          path: Buffer.from('file7'),
+          stats: { size: bigIntToLong(100n), mode: Long.fromNumber(constantsFs.S_IFREG) },
           chunks: [Buffer.from('sha256_1')],
         },
       },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file2'), stats: { size: bigIntToLong(200n) } } },
       {
         type: EntryType.ADD,
         manifest: {
-          path: Buffer.from('file3'),
-          stats: { size: bigIntToLong(300n) },
+          path: Buffer.from('file8'),
+          stats: { size: bigIntToLong(200n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file9'),
+          stats: { size: bigIntToLong(300n), mode: Long.fromNumber(constantsFs.S_IFREG) },
           chunks: [Buffer.from('sha256_2')],
         },
       },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file4'), stats: { size: bigIntToLong(400n) } } },
       {
         type: EntryType.ADD,
         manifest: {
-          path: Buffer.from('file5'),
-          stats: { size: bigIntToLong(500n) },
+          path: Buffer.from('file10'),
+          stats: { size: bigIntToLong(400n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file11'),
+          stats: { size: bigIntToLong(500n), mode: Long.fromNumber(constantsFs.S_IFREG) },
           chunks: [Buffer.from('sha256_3')],
         },
       },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file6'), stats: { size: bigIntToLong(600n) } } },
+      {
+        type: EntryType.ADD,
+        manifest: {
+          path: Buffer.from('file12'),
+          stats: { size: bigIntToLong(600n), mode: Long.fromNumber(constantsFs.S_IFREG) },
+        },
+      },
     ]);
     mockManifestService.readFilelistEntries = jest.fn().mockReturnValue(filelist);
 
@@ -189,12 +250,12 @@ describe('BackupClient', () => {
       }
     });
 
-    const wrappers = [];
+    const wrappers: unknown[] = [];
     let i = 0;
     mockPoolService.getChunk = jest.fn().mockImplementation((sha256) => {
       const wrapper = {
         exists: () => !!sha256,
-        read: async () => ({ sha256, size: BigInt(i * 100), compressedSize: BigInt(i * 50) }),
+        getChunkInformation: async () => ({ sha256, size: BigInt(i * 100), compressedSize: BigInt(i * 50) }),
         write: async (readable: Readable) => {
           wrappers.push(await toArrayIx(fromNodeStream(readable)));
           return {
@@ -233,22 +294,22 @@ describe('BackupClient', () => {
     //
     const fileManifests = [
       {
-        path: Buffer.from('file1'),
-        stats: { size: bigIntToLong(100n) },
+        path: Buffer.from('file13'),
+        stats: { size: bigIntToLong(100n), mode: Long.fromNumber(constantsFs.S_IFREG) },
         chunks: [Buffer.from('sha256_1')],
       },
-      { path: Buffer.from('file2'), stats: { size: bigIntToLong(200n) } },
+      { path: Buffer.from('file14'), stats: { size: bigIntToLong(200n), mode: Long.fromNumber(constantsFs.S_IFREG) } },
       {
-        path: Buffer.from('file3'),
-        stats: { size: bigIntToLong(300n) },
+        path: Buffer.from('file15'),
+        stats: { size: bigIntToLong(300n), mode: Long.fromNumber(constantsFs.S_IFREG) },
         chunks: [Buffer.from('sha256_1')],
       },
-      { path: Buffer.from('file4'), stats: { size: bigIntToLong(400n) } },
-      { path: Buffer.from('file5'), stats: { size: bigIntToLong(500n) } },
-      { path: Buffer.from('file6'), stats: { size: bigIntToLong(600n) } },
+      { path: Buffer.from('file16'), stats: { size: bigIntToLong(400n), mode: Long.fromNumber(constantsFs.S_IFREG) } },
+      { path: Buffer.from('file17'), stats: { size: bigIntToLong(500n), mode: Long.fromNumber(constantsFs.S_IFREG) } },
+      { path: Buffer.from('file18'), stats: { size: bigIntToLong(600n), mode: Long.fromNumber(constantsFs.S_IFREG) } },
     ];
 
-    const compactManifest = [];
+    const compactManifest: unknown[] = [];
     mockManifestService.compact = jest.fn().mockImplementation(async (m, cb) => {
       for (const fileManifest of fileManifests) {
         compactManifest.push(await cb(fileManifest));

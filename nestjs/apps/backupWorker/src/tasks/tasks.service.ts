@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/backoffice-shared';
 import * as mkdirp from 'mkdirp';
 import { defer, from, Observable, of, throwError } from 'rxjs';
@@ -124,6 +124,10 @@ export class TasksService {
     task.start();
 
     logger.log(`Start Backup with state ${task.state}`, 'tasks');
+    if (!task.ip) {
+      throw new InternalServerErrorException(`Missing ip on host ${task.host}`);
+    }
+
     return from(this.backupGrpcClient.createConnection(task.ip, task.host, task.number)).pipe(
       switchMap((connection) => {
         return from(task.subtasks).pipe(

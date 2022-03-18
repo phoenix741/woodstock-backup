@@ -52,12 +52,13 @@ export class HostConsumer {
 
     // If backup is activated, and the last backup is old, we crete a new backup
     const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate || 0)) / 1000;
+    const backupPeriod = schedule.backupPeriod || 0;
     this.logger.debug(
       `Last backup for the host ${job.data.host} have been made at ${
         timeSinceLastBackup / 3600
-      } hours past (should be made after ${schedule.backupPerdiod / 3600} hour)  - JOB ID = ${job.id}`,
+      } hours past (should be made after ${backupPeriod / 3600} hour)  - JOB ID = ${job.id}`,
     );
-    if (schedule.activated && (!lastBackup?.complete || timeSinceLastBackup > schedule.backupPerdiod)) {
+    if (schedule.activated && (!lastBackup?.complete || timeSinceLastBackup > backupPeriod)) {
       // Check if we can ping
       // Add a more complexe logic, to backup only if not in a blackout period.
       if (await this.pingService.pingFromConfig(job.data.host, config)) {

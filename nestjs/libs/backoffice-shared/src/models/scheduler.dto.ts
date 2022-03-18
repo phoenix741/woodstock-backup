@@ -12,7 +12,7 @@ export class ScheduledBackupToKeep {
 @ObjectType()
 export class Schedule {
   activated?: boolean;
-  backupPerdiod?: number;
+  backupPeriod?: number;
   backupToKeep?: ScheduledBackupToKeep;
 }
 

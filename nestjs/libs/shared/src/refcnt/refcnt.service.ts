@@ -55,7 +55,7 @@ export class RefCntService {
   }
 
   async compactRefCnt(refcnt: ReferenceCount): Promise<void> {
-    this.logger.log(`Compact ref count from ${refcnt.journalPath}`);
+    this.logger.debug(`Compact ref count from ${refcnt.journalPath}`);
 
     try {
       for (const type in refcnt.getPaths()) {
@@ -87,7 +87,7 @@ export class RefCntService {
         }
       }
     } finally {
-      this.logger.log(`[END] Compact ref count from ${refcnt.journalPath}`);
+      this.logger.debug(`[END] Compact ref count from ${refcnt.journalPath}`);
       await unlink(refcnt.journalPath).catch((err) =>
         this.logger.warn("Can't delete the journal file :" + err.message),
       );

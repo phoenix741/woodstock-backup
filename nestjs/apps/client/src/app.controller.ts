@@ -1,5 +1,5 @@
 import { Metadata, ServerReadableStream } from '@grpc/grpc-js';
-import { BadRequestException, Controller, Logger } from '@nestjs/common';
+import { BadRequestException, Controller, InternalServerErrorException, Logger } from '@nestjs/common';
 import { GrpcMethod, GrpcStreamCall } from '@nestjs/microservices';
 import {
   AuthenticateReply,
@@ -80,6 +80,9 @@ export class AppController {
   @GrpcMethod('WoodstockClientService', 'LaunchBackup')
   launchBackup(request: LaunchBackupRequest, metadata: Metadata): Observable<LaunchBackupReply> {
     try {
+      if (!request.share) {
+        throw new InternalServerErrorException('share must be defined');
+      }
       const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
       return from(this.service.launchBackup(sessionId, request.share));
     } catch (err) {
@@ -96,6 +99,10 @@ export class AppController {
   @GrpcMethod('WoodstockClientService', 'GetChunk')
   getChunk(request: GetChunkRequest, metadata: Metadata): Observable<GetChunkReply> {
     try {
+      if (!request.chunk) {
+        throw new InternalServerErrorException('chunk must be defined');
+      }
+
       const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
       return from(
         this.service.getChunk(sessionId, request.chunk).pipe(

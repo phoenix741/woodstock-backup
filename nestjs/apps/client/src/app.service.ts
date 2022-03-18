@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import {
   AuthenticateReply,
   AuthenticateRequest,
@@ -34,16 +34,28 @@ export class AppService {
 
   async refreshCache(sessionId: string, request: AsyncIterableX<RefreshCacheRequest>): Promise<RefreshCacheReply> {
     const context = this.backupService.getContext(sessionId);
+    if (!context) {
+      throw new InternalServerErrorException('The context is not defined');
+    }
+
     return context.refreshCache(request);
   }
 
   launchBackup(sessionId: string, share: Share): AsyncIterableX<LaunchBackupReply> {
     const context = this.backupService.getContext(sessionId);
+    if (!context) {
+      throw new InternalServerErrorException('The context is not defined');
+    }
+
     return context.launchBackup(share);
   }
 
   getChunk(sessionId: string, request: ChunkInformation): AsyncIterableX<FileChunk> {
     const context = this.backupService.getContext(sessionId);
+    if (!context) {
+      throw new InternalServerErrorException('The context is not defined');
+    }
+
     return context.getChunk(request);
   }
 

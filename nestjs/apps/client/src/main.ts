@@ -1,10 +1,9 @@
-import 'source-map-support/register';
-
 import { ServerCredentials } from '@grpc/grpc-js';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
+import 'source-map-support/register';
 import { AppModule } from './app.module';
 import { LogService } from './logger/log.service';
 

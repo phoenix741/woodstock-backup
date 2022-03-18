@@ -29,7 +29,6 @@ export class FileReader {
     return this.browser
       .getFiles(sharePath)(Buffer.alloc(0), includes, excludes)
       .pipe(
-        filter((file) => FileBrowserService.isRegularFile(file.stats?.mode)),
         tap((file) => index.mark(file.path)),
         filter((file) => FileReader.isModified(index, file)),
         map(async (file) => {

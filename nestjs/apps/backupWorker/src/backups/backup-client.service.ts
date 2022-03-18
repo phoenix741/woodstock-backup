@@ -11,13 +11,13 @@ import {
   ChunkInformation,
   concurrentMap,
   EntryType,
+  FileBrowserService,
   FileManifest,
   FileManifestJournalEntry,
   joinBuffer,
   LogLevel,
+  longToBigInt,
   LONG_CHUNK_SIZE,
-  mangle,
-  Manifest,
   ManifestService,
   ReferenceCount,
   RefreshCacheReply,
@@ -36,7 +36,6 @@ import {
 import { concatAll, finalize, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
-import { Writable } from 'stream';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
 import { LaunchBackupError } from './backup.error';
 
@@ -115,10 +114,7 @@ export class BackupClient {
 
   getFileList(context: BackupsGrpcContext, backupShare: Share): Observable<FileManifestJournalEntry> {
     this.logger.log(`Get file list (${context.sessionId}): ${backupShare.sharePath.toString()}`);
-    const manifest = new Manifest(
-      `backups-${mangle(backupShare.sharePath)}`,
-      this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-    );
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry>((subscriber) => {
       const launchBackup = this.clientGrpc.downloadFileList(context, backupShare);
@@ -168,15 +164,9 @@ export class BackupClient {
         // FIXME: this.logger.error(`${fileManifest.path.toString()}:${chunkNumber}: ${(err as Error).message}`, err);
         if (await wrapper.exists()) {
           // Read the chunk
-          const oldChunk = await wrapper.read(
-            new Writable({
-              write(_, _2, callback) {
-                setImmediate(callback);
-              },
-            }),
-          );
+          const oldChunk = await wrapper.getChunkInformation();
 
-          if (!oldChunk.sha256.equals(sha256)) {
+          if (!sha256 || !oldChunk.sha256.equals(sha256)) {
             this.logger.error(
               `${fileManifest.path.toString()}:${chunkNumber}: Chunk ${sha256} is not the same that ${
                 oldChunk.sha256
@@ -232,10 +222,11 @@ export class BackupClient {
       },
     });
 
+    fileManifest.stats = fileManifest.stats || {};
     fileManifest.stats.compressedSize = bigIntToLong(manifestSize.compressedSize);
-    if (!fileManifest.stats.size.equals(bigIntToLong(manifestSize.size))) {
+    if (!bigIntToLong(manifestSize.size).equals(fileManifest.stats.size || Long.ZERO)) {
       this.logger.error(
-        `The manifest of file ${fileManifest.path.toString()} size (${fileManifest.stats.size.toString()}) is not equal to the sum of chunk size ${manifestSize.size.toString()}`,
+        `The manifest of file ${fileManifest.path.toString()} size (${fileManifest.stats.size?.toString()}) is not equal to the sum of chunk size ${manifestSize.size.toString()}`,
       );
       fileManifest.stats.size = bigIntToLong(manifestSize.size);
     }
@@ -249,18 +240,19 @@ export class BackupClient {
     backupShare: Share,
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     this.logger.log(`Create backup (${context.sessionId}): ${backupShare.sharePath.toString()}`);
-    const manifest = new Manifest(
-      `backups-${mangle(backupShare.sharePath)}`,
-      this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-    );
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
         // FIXME: Define the concurrency
-        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry>(20, async (entry) => {
+        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | undefined>(20, async (entry) => {
           try {
-            if (entry?.type !== EntryType.REMOVE && entry?.manifest) {
+            if (
+              entry?.type !== EntryType.REMOVE &&
+              entry?.manifest &&
+              !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode || Long.ZERO))
+            ) {
               const manifest = await this.downloadManifestFile(
                 context,
                 backupShare.sharePath,
@@ -274,7 +266,7 @@ export class BackupClient {
           } catch (err) {
             // FIXME: Gérer l'erreur
             console.log(err.stack);
-            this.logger.error(`${entry.manifest.path.toString()}: ${(err as Error).message}`, err);
+            this.logger.error(`${entry.manifest?.path.toString()}: ${(err as Error).message}`, err);
             return undefined;
           }
         }),
@@ -320,9 +312,7 @@ export class BackupClient {
 
   compact(context: BackupsGrpcContext, sharePath: Buffer): Observable<FileManifest> {
     this.logger.log('Counting reference for the share: ' + sharePath.toString());
-    const destinationDirectory = this.backupService.getDestinationDirectory(context.host, context.currentBackupId);
-
-    const manifest = new Manifest(`backups-${mangle(sharePath)}`, destinationDirectory);
+    const manifest = this.backupService.getManifest(context.host, context.currentBackupId, sharePath);
 
     return new Observable<FileManifest>((subscriber) => {
       const compactManifest = this.manifestService.compact(manifest, async (v) => {
@@ -357,10 +347,7 @@ export class BackupClient {
     const shares$ = fromIx(shares).pipe(mapIx((s) => Buffer.from(s)));
     const request$ = shares$.pipe(
       mapIx((share) => {
-        const manifest = new Manifest(
-          `backups-${mangle(share)}`,
-          this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-        );
+        const manifest = this.backupService.getManifest(context.host, context.currentBackupId, share);
         return concatIx(
           ofIx({ header: { sharePath: share }, fileManifest: undefined } as RefreshCacheRequest),
           this.manifestService

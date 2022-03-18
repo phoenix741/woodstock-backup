@@ -24,7 +24,15 @@ export class QueueResolver {
 
   @Query(() => QueueStats)
   async queueStats(): Promise<QueueStats> {
-    const interval = cronParser.parseExpression((await this.scheduler.getScheduler()).wakeupSchedule);
+    const scheduler = await this.scheduler.getScheduler();
+    let lastExecution: number | undefined;
+    let nextWakeup: number | undefined;
+    if (scheduler.wakeupSchedule) {
+      const interval = cronParser.parseExpression(scheduler.wakeupSchedule);
+      lastExecution = interval.prev().toDate().getTime();
+      nextWakeup = interval.next().toDate().getTime();
+    }
+
     return {
       waiting: await this.backupQueue.getWaitingCount(),
       active: await this.backupQueue.getActiveCount(),
@@ -32,8 +40,8 @@ export class QueueResolver {
       delayed: await this.backupQueue.getDelayedCount(),
       completed: await this.backupQueue.getCompletedCount(),
 
-      lastExecution: interval.prev().toDate().getTime(),
-      nextWakeup: interval.next().toDate().getTime(),
+      lastExecution,
+      nextWakeup,
     };
   }
 

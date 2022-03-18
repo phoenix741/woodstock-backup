@@ -199,7 +199,7 @@ describe('BackupContext', () => {
         filename: Buffer.from(testFile),
         position: Long.fromNumber(0),
         size: Long.fromNumber(100000),
-        sha256: Buffer.from('4f0346ee6d52d69c9155ec4f4009844fd7a2c1ef7bc51228967287f0dde0da0d', 'hex'),
+        sha256: Buffer.from('c1d0ec014e7f5ede24138ed0ab1aa3f036ee2d8e6d6744d844b283b1aeefc98d', 'hex'),
         failIfWrongHash: true,
       });
 
@@ -227,7 +227,7 @@ describe('BackupContext', () => {
         filename: Buffer.from(testFile),
         position: Long.fromNumber(10),
         size: Long.fromNumber(30),
-        sha256: Buffer.from('657a10b6e2d31694e6883487659c70e993be31799e80f43431f572690439f39e', 'hex'),
+        sha256: Buffer.from('bbc1eaf9e6f958bfb798e0c572d295ed53b5d4ab9fa7cc2e0d8c71efdc8b090a', 'hex'),
         failIfWrongHash: true,
       });
 

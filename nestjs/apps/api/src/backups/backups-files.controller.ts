@@ -1,9 +1,19 @@
-import { Controller, Get, Headers, Param, Query, Res } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseIntPipe,
+  Query,
+  Res,
+  UnsupportedMediaTypeException,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
 import { FileDescription } from '@woodstock/backoffice-shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
-import { basename } from 'path';
 import { BackupsFilesService } from './backups-files.service';
 
 @Controller('hosts/:name/backups/:number/files')
@@ -11,14 +21,16 @@ export class BackupsFilesController {
   constructor(private service: BackupsFilesService) {}
 
   @Get()
-  async share(@Param('name') name: string, @Param('number') number: number): Promise<FileDescription[]> {
+  @UseInterceptors(ClassSerializerInterceptor)
+  async share(@Param('name') name: string, @Param('number', ParseIntPipe) number: number): Promise<FileDescription[]> {
     return this.service.listShare(name, number);
   }
 
   @Get()
+  @UseInterceptors(ClassSerializerInterceptor)
   async list(
     @Param('name') name: string,
-    @Param('number') number: number,
+    @Param('number', ParseIntPipe) number: number,
     @Query('sharePath') sharePath: string,
     @Query('path') path: string,
   ): Promise<FileDescription[]> {
@@ -36,20 +48,23 @@ export class BackupsFilesController {
     @Res() res: Response,
     @Headers('content-type') type?: string,
   ): Promise<void> {
-    const infos = await this.service.getFileName(name, number, sharePath, path);
-
-    if (type === 'application/zip' || infos.stats.isDirectory()) {
-      const archive = archiver.create('zip');
-      res.attachment(`${basename(infos.filename)}.zip`);
-      archive.pipe(res);
-      if (infos.stats.isDirectory()) {
-        archive.directory(infos.filename, path);
-      } else {
-        archive.file(infos.filename, { name: basename(infos.filename) });
-      }
-      archive.finalize();
-    } else {
-      res.download(infos.filename, basename(infos.filename), { dotfiles: 'allow' });
+    let archive: archiver.Archiver;
+    switch (type || 'application/zip') {
+      case 'application/zip':
+        archive = archiver.create('zip');
+        break;
+      case 'application/x-tar':
+        archive = archiver.create('tar');
+        break;
+      default:
+        throw new UnsupportedMediaTypeException(`Unsupported media type: ${type}`);
     }
+
+    res.attachment(`download.zip`);
+    archive.pipe(res);
+
+    await this.service.createArchive(archive, name, number, sharePath, path);
+
+    await archive.finalize();
   }
 }

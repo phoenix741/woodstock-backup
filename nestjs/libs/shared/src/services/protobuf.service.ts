@@ -30,7 +30,7 @@ export class ProtobufService {
    * @returns An AsyncIterable<ProtobufMessageWithPosition<T>>.
    */
   loadFile<T>(path: string, type: Type, compress = true): AsyncIterable<ProtobufMessageWithPosition<T>> {
-    this.logger.verbose(`Read the file ${path} with type ${type.name}`);
+    this.logger.debug(`Read the file ${path} with type ${type.name}`);
     try {
       const reader = createReadStream(path);
       const transform = new ProtobufMessageReader(type);

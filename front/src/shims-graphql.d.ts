@@ -70,6 +70,14 @@ declare module '*/Dashboard.graphql' {
   export default defaultDocument;
 }
 
+declare module '*/FragmentFileDescription.graphql' {
+  import { DocumentNode } from 'graphql';
+  const defaultDocument: DocumentNode;
+  export const FragmentFileDescription: DocumentNode;
+
+  export default defaultDocument;
+}
+
 declare module '*/FragmentJob.graphql' {
   import { DocumentNode } from 'graphql';
   const defaultDocument: DocumentNode;

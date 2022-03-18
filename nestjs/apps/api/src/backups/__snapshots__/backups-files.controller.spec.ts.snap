@@ -1,0 +1,167 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Backups File Controller should download zip file: append 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "test",
+      Object {
+        "name": "test",
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`Backups File Controller should download zip file: append 2`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "test",
+      Object {
+        "name": "test",
+      },
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
+exports[`Backups File Controller should download zip file: res 1`] = `
+EventEmitter {
+  "_getBuffer": [Function],
+  "_getChunks": [Function],
+  "_getData": [Function],
+  "_getHeaders": [Function],
+  "_getJSONData": [Function],
+  "_getLocals": [Function],
+  "_getRedirectUrl": [Function],
+  "_getRenderData": [Function],
+  "_getRenderView": [Function],
+  "_getStatusCode": [Function],
+  "_getStatusMessage": [Function],
+  "_headers": Object {
+    "content-disposition": "attachment; filename=\\"download.zip\\"",
+    "content-type": "application/zip",
+  },
+  "_isDataLengthValid": [Function],
+  "_isEndCalled": [Function],
+  "_isJSON": [Function],
+  "_isUTF8": [Function],
+  "append": [Function],
+  "attachment": [Function],
+  "clearCookie": [Function],
+  "contentType": [Function],
+  "cookie": [Function],
+  "cookies": Object {},
+  "destroy": [Function],
+  "destroySoon": [Function],
+  "end": [Function],
+  "finished": false,
+  "format": [Function],
+  "get": [Function],
+  "getEncoding": [Function],
+  "getHeader": [Function],
+  "getHeaderNames": [Function],
+  "getHeaders": [Function],
+  "hasHeader": [Function],
+  "header": [Function],
+  "headersSent": false,
+  "json": [Function],
+  "jsonp": [Function],
+  "locals": Object {},
+  "location": [Function],
+  "redirect": [Function],
+  "removeHeader": [Function],
+  "render": [Function],
+  "send": [Function],
+  "sendStatus": [Function],
+  "set": [Function],
+  "setEncoding": [Function],
+  "setHeader": [Function],
+  "status": [Function],
+  "statusCode": 200,
+  "statusMessage": "OK",
+  "type": [Function],
+  "vary": [Function],
+  "writableEnded": false,
+  "writableFinished": false,
+  "write": [Function],
+  "writeHead": [Function],
+}
+`;
+
+exports[`Backups File Controller should download zip file: res 2`] = `
+EventEmitter {
+  "_getBuffer": [Function],
+  "_getChunks": [Function],
+  "_getData": [Function],
+  "_getHeaders": [Function],
+  "_getJSONData": [Function],
+  "_getLocals": [Function],
+  "_getRedirectUrl": [Function],
+  "_getRenderData": [Function],
+  "_getRenderView": [Function],
+  "_getStatusCode": [Function],
+  "_getStatusMessage": [Function],
+  "_headers": Object {
+    "content-disposition": "attachment; filename=\\"download.zip\\"",
+    "content-type": "application/zip",
+  },
+  "_isDataLengthValid": [Function],
+  "_isEndCalled": [Function],
+  "_isJSON": [Function],
+  "_isUTF8": [Function],
+  "append": [Function],
+  "attachment": [Function],
+  "clearCookie": [Function],
+  "contentType": [Function],
+  "cookie": [Function],
+  "cookies": Object {},
+  "destroy": [Function],
+  "destroySoon": [Function],
+  "end": [Function],
+  "finished": false,
+  "format": [Function],
+  "get": [Function],
+  "getEncoding": [Function],
+  "getHeader": [Function],
+  "getHeaderNames": [Function],
+  "getHeaders": [Function],
+  "hasHeader": [Function],
+  "header": [Function],
+  "headersSent": false,
+  "json": [Function],
+  "jsonp": [Function],
+  "locals": Object {},
+  "location": [Function],
+  "redirect": [Function],
+  "removeHeader": [Function],
+  "render": [Function],
+  "send": [Function],
+  "sendStatus": [Function],
+  "set": [Function],
+  "setEncoding": [Function],
+  "setHeader": [Function],
+  "status": [Function],
+  "statusCode": 200,
+  "statusMessage": "OK",
+  "type": [Function],
+  "vary": [Function],
+  "writableEnded": false,
+  "writableFinished": false,
+  "write": [Function],
+  "writeHead": [Function],
+}
+`;
