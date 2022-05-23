@@ -1,5 +1,5 @@
 import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
-import { BackupTask } from '@woodstock/backoffice-shared';
+import { BackupTask } from '@woodstock/shared';
 import { JobId, Queue } from 'bull';
 import { Command as Cmd } from 'commander';
 import { Command, Console, createSpinner } from 'nestjs-console';

@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BackupsService, BackupTask, HostConfiguration, HostsService } from '@woodstock/backoffice-shared';
+import { BackupsService, BackupTask, HostConfiguration, HostsService } from '@woodstock/shared';
 import { Job, Queue } from 'bull';
 
 @Injectable()

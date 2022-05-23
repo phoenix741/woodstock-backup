@@ -14,7 +14,7 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
-  StatusCode,
+  StatusCode
 } from '@woodstock/shared';
 import { createReadStream, ReadStream } from 'fs';
 import { throwIfAborted } from 'ix/aborterror';

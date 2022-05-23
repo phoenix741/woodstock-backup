@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/backoffice-shared';
+import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/shared';
 import * as mkdirp from 'mkdirp';
 import { defer, from, Observable, of, throwError } from 'rxjs';
 import { catchError, concatMap, map, startWith, switchMap, tap } from 'rxjs/operators';

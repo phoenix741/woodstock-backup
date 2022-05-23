@@ -6,8 +6,8 @@ import {
   BackupTask,
   PingService,
   ResolveService,
-  SchedulerConfigService,
-} from '@woodstock/backoffice-shared';
+  SchedulerConfigService
+} from '@woodstock/shared';
 import { Job, Queue } from 'bull';
 import { lastValueFrom } from 'rxjs';
 import { auditTime, map } from 'rxjs/operators';

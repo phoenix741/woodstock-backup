@@ -1,6 +1,5 @@
 import { Injectable, LoggerService } from '@nestjs/common';
-import { isPoolChunkInformation, TaskProgression } from '@woodstock/backoffice-shared';
-import { EntryType, longToBigInt, Share } from '@woodstock/shared';
+import { EntryType, isPoolChunkInformation, longToBigInt, Share, TaskProgression } from '@woodstock/shared';
 import * as Long from 'long';
 import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
 import { BackupsGrpcContext } from './backup-client-grpc.class';

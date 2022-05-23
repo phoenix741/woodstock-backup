@@ -13,7 +13,7 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
-  WoodstockClientServiceClient,
+  WoodstockClientServiceClient
 } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';

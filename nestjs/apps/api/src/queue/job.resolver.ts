@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Float, Parent, ResolveField, Resolver } from '@nestjs/graphql';
-import { BackupTask, Job } from '@woodstock/backoffice-shared';
+import { BackupTask, Job } from '@woodstock/shared';
 import { JobStatus, Queue } from 'bull';
 
 @Resolver(() => Job)

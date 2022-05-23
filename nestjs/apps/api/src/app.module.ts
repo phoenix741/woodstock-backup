@@ -2,8 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { ApplicationConfigModule, BackofficeSharedModule, WoodstockBullModules } from '@woodstock/backoffice-shared';
-import { SharedModule } from '@woodstock/shared';
+import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
@@ -18,15 +17,14 @@ import { QueueService } from './queue/queue.service';
 import { ServeStaticService } from './server/serve-static.service';
 import { ServerController } from './server/server.controller';
 import { ServerService } from './server/server.service';
-import { BackupQuotaResolver } from './stats/backup-quota.resolver';
+import { PrometheusController } from './stats/prometheus.controller';
+import { PrometheusService } from './stats/prometheus.service';
 import { StatsResolver } from './stats/stats.resolver';
-import { TimestampBackupQuotaResolver } from './stats/timestamp-backup-quota.resolver';
 import { BigIntScalar } from './utils/bigint.scalar';
 
 @Module({
   imports: [
     ApplicationConfigModule,
-    BackofficeSharedModule,
     ...WoodstockBullModules,
     ConfigModule.forRoot(),
     GraphQLModule.forRoot({
@@ -43,10 +41,16 @@ import { BigIntScalar } from './utils/bigint.scalar';
     }),
     SharedModule,
   ],
-  controllers: [QueueController, BackupController, HostController, ServerController, BackupsFilesController],
+  controllers: [
+    QueueController,
+    BackupController,
+    HostController,
+    ServerController,
+    BackupsFilesController,
+    PrometheusController,
+  ],
   providers: [
     BackupController,
-    BackupQuotaResolver,
     BackupsFilesController,
     BackupsFilesService,
     BackupsResolver,
@@ -61,11 +65,12 @@ import { BigIntScalar } from './utils/bigint.scalar';
     ServerService,
     ServeStaticService,
     StatsResolver,
-    TimestampBackupQuotaResolver,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),
     },
+
+    PrometheusService,
   ],
 })
 export class AppModule {}

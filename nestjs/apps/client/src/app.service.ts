@@ -9,7 +9,7 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
-  StatusCode,
+  StatusCode
 } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Observable } from 'rxjs';

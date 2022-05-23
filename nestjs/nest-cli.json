@@ -73,15 +73,6 @@
       "compilerOptions": {
         "tsConfigPath": "libs/shared/tsconfig.lib.json"
       }
-    },
-    "backoffice-shared": {
-      "type": "library",
-      "root": "libs/backoffice-shared",
-      "entryFile": "index",
-      "sourceRoot": "libs/backoffice-shared/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/backoffice-shared/tsconfig.lib.json"
-      }
     }
   }
 }

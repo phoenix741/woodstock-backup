@@ -5,7 +5,7 @@ import {
   ClientUnaryCall,
   ClientWritableStream,
   Metadata,
-  ServiceError,
+  ServiceError
 } from '@grpc/grpc-js';
 import {
   AuthenticateReply,
@@ -19,7 +19,7 @@ import {
   LogEntry,
   RefreshCacheReply,
   RefreshCacheRequest,
-  StreamLogRequest,
+  StreamLogRequest
 } from '.';
 
 export interface WoodstockClientServiceClient extends Client {

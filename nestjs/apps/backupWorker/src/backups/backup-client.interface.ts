@@ -6,7 +6,7 @@ import {
   LogEntry,
   RefreshCacheReply,
   RefreshCacheRequest,
-  Share,
+  Share
 } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Readable } from 'stream';

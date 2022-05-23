@@ -1,5 +1,5 @@
 import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
-import { BackupTask, HostsService } from '@woodstock/backoffice-shared';
+import { BackupTask, HostsService } from '@woodstock/shared';
 import { JobId, Queue } from 'bull';
 import { Command as Cmd } from 'commander';
 import { promises as fs } from 'fs';

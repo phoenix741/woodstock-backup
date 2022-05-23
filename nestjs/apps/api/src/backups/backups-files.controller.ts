@@ -8,10 +8,10 @@ import {
   Query,
   Res,
   UnsupportedMediaTypeException,
-  UseInterceptors,
+  UseInterceptors
 } from '@nestjs/common';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
-import { FileDescription } from '@woodstock/backoffice-shared';
+import { FileDescription } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { BackupsFilesService } from './backups-files.service';

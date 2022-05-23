@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExecuteCommandService, ToolsService } from '@woodstock/backoffice-shared';
+import { ExecuteCommandService, ToolsService } from '@woodstock/shared';
 import * as mkdirp from 'mkdirp';
 import { CommandCheck, ServerChecks } from './server.dto';
 
