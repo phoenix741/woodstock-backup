@@ -1,0 +1,22 @@
+overwrite: true
+schema: 'http://localhost:3000/graphql'
+documents: 'src/**/*.gql'
+config:
+  scalars:
+    Timestamp: number
+    BigInt: string
+  skipTypename: true
+generates:
+  src/graphql/index.ts:
+    plugins:
+      - 'typescript'
+      - 'typescript-operations'
+      - 'typed-document-node'
+    config:
+      useTypeImports: true
+  # src/shims-graphql.d.ts:
+  #   plugins:
+  #     - 'typescript-graphql-files-modules'
+  # ./graphql.schema.json:
+  #   plugins:
+  #     - 'introspection'

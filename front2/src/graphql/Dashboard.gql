@@ -1,0 +1,46 @@
+query Dashboard {
+  queueStats {
+    waiting
+    active
+    failed
+    lastExecution
+    nextWakeup
+  }
+  statistics {
+    diskUsage {
+      used
+      usedLastMonth
+      free
+      total
+    }
+    poolUsage {
+      size
+      sizeLastMonth
+      sizeRange {
+        time
+        value
+      }
+      compressedSize
+      compressedSizeLastMonth
+      compressedSizeRange {
+        time
+        value
+      }
+      longestChain
+      longestChainLastMonth
+      nbChunk
+      nbChunkLastMonth
+      nbChunkRange {
+        time
+        value
+      }
+      nbRef
+      nbRefLastMonth
+    }
+    hosts {
+      host
+      size
+      compressedSize
+    }
+  }
+}
