@@ -12,13 +12,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-import {
-  ApplicationConfigService,
-  Backup,
-  BackupsService,
-  BackupTask,
-  HostsService,
-} from '@woodstock/backoffice-shared';
+import { ApplicationConfigService, Backup, BackupsService, BackupTask, HostsService } from '@woodstock/shared';
 import { Queue } from 'bull';
 import { Response } from 'express';
 import { join } from 'path';

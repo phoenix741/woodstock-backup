@@ -8,6 +8,9 @@
     },
     {
       "path": "docs/website"
+    },
+    {
+      "path": "front2"
     }
   ],
   "settings": {

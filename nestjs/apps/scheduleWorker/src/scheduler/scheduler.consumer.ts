@@ -1,6 +1,6 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { BackupTask, HostsService } from '@woodstock/backoffice-shared';
+import { BackupTask, HostsService } from '@woodstock/shared';
 import { Job, Queue } from 'bull';
 
 @Processor('schedule')

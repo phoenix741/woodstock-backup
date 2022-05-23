@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bull';
 import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/backoffice-shared';
+import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/shared';
 import { Queue } from 'bull';
 import { BackupsFilesService } from './backups-files.service';
 import { JobResponse } from './backups.model';

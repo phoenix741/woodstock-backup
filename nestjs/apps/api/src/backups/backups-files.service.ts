@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BackupsService, FileDescription } from '@woodstock/backoffice-shared';
-import { FilesService } from '@woodstock/backoffice-shared/services/files.service';
+import { BackupsService, FileDescription } from '@woodstock/shared';
+import { FilesService } from '@woodstock/shared';
 import { unmangle } from '@woodstock/shared';
 import { Archiver } from 'archiver';
 import { toArray } from 'ix/asynciterable';

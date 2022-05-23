@@ -2,11 +2,6 @@ import { Injectable, Logger, LoggerService } from '@nestjs/common';
 import {
   ApplicationConfigService,
   BackupsService,
-  PoolChunkInformation,
-  PoolChunkRefCnt,
-  PoolService,
-} from '@woodstock/backoffice-shared';
-import {
   bigIntToLong,
   ChunkInformation,
   concurrentMap,
@@ -19,6 +14,9 @@ import {
   longToBigInt,
   LONG_CHUNK_SIZE,
   ManifestService,
+  PoolChunkInformation,
+  PoolChunkRefCnt,
+  PoolService,
   ReferenceCount,
   RefreshCacheReply,
   RefreshCacheRequest,

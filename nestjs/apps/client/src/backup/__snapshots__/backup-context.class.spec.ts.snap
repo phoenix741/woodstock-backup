@@ -7,94 +7,15 @@ Object {
 }
 `;
 
-exports[`BackupContext #RefreshCache #RefreshCache should create error: deleteManifest 1`] = `
-[MockFunction] {
-  "calls": Array [
-    Array [
-      Manifest {
-        "fileListPath": "/tmp/backups.%2Fhome.filelist",
-        "journalPath": "/tmp/backups.%2Fhome.journal",
-        "lockPath": "/tmp/backups.%2Fhome.lock",
-        "manifestPath": "/tmp/backups.%2Fhome.manifest",
-        "newPath": "/tmp/backups.%2Fhome.new",
-      },
-    ],
-  ],
-  "results": Array [
-    Object {
-      "type": "return",
-      "value": Promise {},
-    },
-  ],
-}
-`;
-
 exports[`BackupContext #RefreshCache #RefreshCache should create one manifest from scratch : RefreshCacheReply 1`] = `
 Object {
   "code": 0,
 }
 `;
 
-exports[`BackupContext #RefreshCache #RefreshCache should create one manifest from scratch : deleteManifest 1`] = `
-[MockFunction] {
-  "calls": Array [
-    Array [
-      Manifest {
-        "fileListPath": "/tmp/backups.%2Fhome.filelist",
-        "journalPath": "/tmp/backups.%2Fhome.journal",
-        "lockPath": "/tmp/backups.%2Fhome.lock",
-        "manifestPath": "/tmp/backups.%2Fhome.manifest",
-        "newPath": "/tmp/backups.%2Fhome.new",
-      },
-    ],
-  ],
-  "results": Array [
-    Object {
-      "type": "return",
-      "value": Promise {},
-    },
-  ],
-}
-`;
-
 exports[`BackupContext #RefreshCache #RefreshCache should create two manifest from scratch : RefreshCacheReply 1`] = `
 Object {
   "code": 0,
-}
-`;
-
-exports[`BackupContext #RefreshCache #RefreshCache should create two manifest from scratch : deleteManifest 1`] = `
-[MockFunction] {
-  "calls": Array [
-    Array [
-      Manifest {
-        "fileListPath": "/tmp/backups.%2Fhome.filelist",
-        "journalPath": "/tmp/backups.%2Fhome.journal",
-        "lockPath": "/tmp/backups.%2Fhome.lock",
-        "manifestPath": "/tmp/backups.%2Fhome.manifest",
-        "newPath": "/tmp/backups.%2Fhome.new",
-      },
-    ],
-    Array [
-      Manifest {
-        "fileListPath": "/tmp/backups.%2Fetc.filelist",
-        "journalPath": "/tmp/backups.%2Fetc.journal",
-        "lockPath": "/tmp/backups.%2Fetc.lock",
-        "manifestPath": "/tmp/backups.%2Fetc.manifest",
-        "newPath": "/tmp/backups.%2Fetc.new",
-      },
-    ],
-  ],
-  "results": Array [
-    Object {
-      "type": "return",
-      "value": Promise {},
-    },
-    Object {
-      "type": "return",
-      "value": Promise {},
-    },
-  ],
 }
 `;
 

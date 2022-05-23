@@ -23,7 +23,7 @@ describe('Backups File Controller', () => {
       { name: share },
       { name: path },
     ],
-    createArchive(archive: archiver.Archiver, name: string, number: number, share: string, path: string) {
+    createArchive(archive: archiver.Archiver) {
       archive.append('test', { name: 'test' });
     },
   };

@@ -1,18 +1,29 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { cp, unlink } from 'fs/promises';
 import { count, from, toArray } from 'ix/asynciterable';
 import { join } from 'path';
 import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
+import { PoolStatisticsService } from '../statistics';
 import { ReferenceCount, ReferenceCountFileTypeEnum } from './refcnt.model';
 import { RefCntService } from './refcnt.service';
 
 describe('RefCntService', () => {
   let service: RefCntService;
 
-  beforeEach(() => {
-    const protobufService = new ProtobufService();
-    service = new RefCntService(protobufService);
+  const statsService = {
+    async writeStatistics(): Promise<void> {
+      //empty
+    },
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [ProtobufService, RefCntService, { provide: PoolStatisticsService, useValue: statsService }],
+    }).compile();
+
+    service = module.get<RefCntService>(RefCntService);
   });
 
   it('read a file list/journal and generate a refcount file', async () => {
@@ -64,6 +75,8 @@ describe('RefCntService', () => {
           expect(array.length).toBe(936);
         }
       }
+
+      expect(statsService.writeStatistics).toMatchSnapshot('statsService.writeStatistics');
     } finally {
       await unlink(cnt.backupPath).catch(() => void 0);
       await unlink(cnt.poolPath).catch(() => void 0);
