@@ -1,17 +1,21 @@
+import 'source-map-support/register';
 import { ServerCredentials } from '@grpc/grpc-js';
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
-import 'source-map-support/register';
 import { AppModule } from './app.module';
+import { ClientConfigService } from './config/client.config';
 import { LogService } from './logger/log.service';
 
 async function bootstrap() {
-  const channel_creds = ServerCredentials.createSsl(await readFile('../client-sync/certs/rootCA.pem'), [
+  const appStandalone = await NestFactory.createApplicationContext(AppModule);
+  const configService = appStandalone.get(ClientConfigService);
+
+  const credentials = ServerCredentials.createSsl(await readFile(configService.rootCA), [
     {
-      private_key: await readFile('./certs/server.key'),
-      cert_chain: await readFile('./certs/server.crt'),
+      private_key: await readFile(configService.privateKey),
+      cert_chain: await readFile(configService.publicKey),
     },
   ]);
 
@@ -20,12 +24,13 @@ async function bootstrap() {
     options: {
       package: 'woodstock',
       protoPath: resolve('woodstock.proto'),
-      url: '0.0.0.0:3657',
-      credentials: channel_creds,
+      url: configService.config.bind,
+      credentials,
     },
     bufferLogs: true,
   });
   app.useLogger(app.get(LogService));
   app.listen();
 }
+
 bootstrap();

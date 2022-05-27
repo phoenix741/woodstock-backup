@@ -1,10 +1,12 @@
 import { credentials, Metadata } from '@grpc/grpc-js';
-import { Injectable, Logger, LoggerService } from '@nestjs/common';
+import { Injectable, Logger, LoggerService, UnauthorizedException } from '@nestjs/common';
 import { ClientGrpcProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
 import {
+  ApplicationConfigService,
   AuthenticateReply,
   ChunkInformation,
   ChunkStatus,
+  EncryptionService,
   ExecuteCommandReply,
   FileManifestJournalEntry,
   GetChunkReply,
@@ -19,7 +21,7 @@ import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
 import { AsyncIterableX, from, pipe } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
-import { resolve } from 'path';
+import { join, resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -42,14 +44,16 @@ export class BackupsGrpcContext implements BackupClientContext {
 export class BackupClientGrpc implements BackupClientInterface {
   private readonly logger = new Logger(BackupClientGrpc.name);
 
+  constructor(private config: ApplicationConfigService, private encryptionService: EncryptionService) {}
+
   createConnection(ip: string, hostname: string, currentBackupId: number): Observable<BackupsGrpcContext> {
     return defer(async () => {
       this.logger.log(`Create connection to ${hostname} (${ip})`);
 
       const channel_creds = credentials.createSsl(
-        await readFile('./certs/rootCA.pem'),
-        await readFile('./certs/server.key'),
-        await readFile('./certs/server.crt'),
+        await readFile(join(this.config.certificatePath, 'rootCA.pem')),
+        await readFile(join(this.config.certificatePath, `${hostname}.key`)),
+        await readFile(join(this.config.certificatePath, `${hostname}.pem`)),
       );
       const client = ClientProxyFactory.create({
         transport: Transport.GRPC,
@@ -59,7 +63,7 @@ export class BackupClientGrpc implements BackupClientInterface {
           url: ip + ':3657',
           credentials: channel_creds,
           channelOptions: {
-            'grpc.ssl_target_name_override': 'pc-ulrich.eden.lan',
+            'grpc.ssl_target_name_override': hostname,
             'grpc.enable_channelz': 0,
             'grpc.default_compression_algorithm': 2,
             'grpc.default_compression_level': 2,
@@ -81,9 +85,14 @@ export class BackupClientGrpc implements BackupClientInterface {
     return metadata;
   }
 
-  authenticate(context: BackupsGrpcContext): Promise<AuthenticateReply> {
-    return new Promise<AuthenticateReply>((resolve, reject) => {
-      context.service.authenticate({ version: 0 }, (err, reply) => {
+  async authenticate(context: BackupsGrpcContext, password: string): Promise<AuthenticateReply> {
+    const token = await this.encryptionService.createAuthentificationToken(context.host, password);
+    if (!token) {
+      throw new UnauthorizedException("The token for the backup can't be generated");
+    }
+
+    return await new Promise<AuthenticateReply>((resolve, reject) => {
+      context.service.authenticate({ version: 0, token }, (err, reply) => {
         if (err) {
           reject(err);
           return;

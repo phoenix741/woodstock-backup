@@ -34,7 +34,12 @@ export class TasksService {
         `Authentification to ${task.host} (${task.ip})`,
         false,
         false,
-        (connection, _, _2, logger) => this.backupsClient.authenticate(connection, logger),
+        (connection, backupTask, _2, logger) => {
+          if (!backupTask.config?.password) {
+            throw new InternalServerErrorException('No password provided');
+          }
+          return this.backupsClient.authenticate(connection, logger, backupTask.config?.password);
+        },
       ),
     );
 

@@ -81,4 +81,13 @@ export class YamlService {
     await writeFile(tmpFilename, hostsFromStr, 'utf-8');
     await rename(tmpFilename, filename);
   }
+
+  /**
+   * Save the object in the buffer
+   */
+  async writeBuffer<T>(obj: T): Promise<string> {
+    this.logger.verbose(`Write the buffer with ${JSON.stringify(obj)}`);
+
+    return yaml.dump(compact(obj), { schema: YAML_SCHEMA });
+  }
 }

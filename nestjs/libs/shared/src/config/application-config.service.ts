@@ -1,20 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { RedisOptions } from 'ioredis';
+import { homedir } from 'os';
 import { join } from 'path';
-import { PrometheusConnectionOptions } from 'prometheus-query';
 import { pick } from '../utils';
 
 @Injectable()
 export class ApplicationConfigService {
   constructor(private configService: ConfigService) {}
 
+  #isRoot() {
+    return process.getuid && process.getuid() === 0;
+  }
+
   get staticPath(): string {
     return this.configService.get('STATIC_PATH', join(__dirname, '..', '..', '..', 'client', 'dist'));
   }
 
+  get clientPath(): string {
+    return this.configService.get(
+      'CLIENT_PATH',
+      this.#isRoot() ? join(this.backupPath, 'client') : join(homedir(), '.woodstock'),
+    );
+  }
+
   get backupPath(): string {
     return this.configService.get('BACKUP_PATH', '/var/lib/woodstock');
+  }
+
+  get certificatePath(): string {
+    return this.configService.get('CONFIG_PATH', join(this.backupPath, 'certs'));
   }
 
   get configPath(): string {
@@ -60,17 +75,6 @@ export class ApplicationConfigService {
     return this.configService.get<string>('LOG_LEVEL', 'info');
   }
 
-  get prometheus(): PrometheusConnectionOptions {
-    return {
-      endpoint: this.configService.get<string>('PROMETHEUS_ENDPOINT', 'http://localhost:9090'),
-      baseURL: this.configService.get<string>('PROMETHEUS_BASE_URL', '/api/v1'),
-    };
-  }
-
-  get prometheusInstanceFilter(): string {
-    return this.configService.get<string>('PROMETHEUS_INSTANCE_FILTER', 'localhost:3000');
-  }
-
   toJSON(): Pick<
     this,
     | 'backupPath'
@@ -78,6 +82,7 @@ export class ApplicationConfigService {
     | 'configPathOfHosts'
     | 'configPathOfScheduler'
     | 'configPathOfTools'
+    | 'certificatePath'
     | 'hostPath'
     | 'logPath'
     | 'poolPath'
@@ -89,6 +94,7 @@ export class ApplicationConfigService {
       'configPathOfHosts',
       'configPathOfScheduler',
       'configPathOfTools',
+      'certificatePath',
       'hostPath',
       'logPath',
       'poolPath',

@@ -55,10 +55,10 @@ export class BackupClient {
     private poolChunkRefCnt: PoolChunkRefCnt,
   ) {}
 
-  async authenticate(context: BackupsGrpcContext, logger: LoggerService): Promise<void> {
+  async authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Promise<void> {
     this.logger.log(`Authenticate to ${context.host} (${context.ip})`);
 
-    const reply = await this.clientGrpc.authenticate(context);
+    const reply = await this.clientGrpc.authenticate(context, password);
 
     if (!reply || reply.code === StatusCode.Failed || !reply.sessionId) {
       throw new LaunchBackupError('Authentication failed');

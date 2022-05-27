@@ -3,6 +3,7 @@ import {
   AuthenticateReply,
   AuthenticateRequest,
   ChunkInformation,
+  EncryptionService,
   FileChunk,
   LaunchBackupReply,
   LogEntry,
@@ -14,14 +15,27 @@ import {
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Observable } from 'rxjs';
 import { BackupService } from './backup/backup.service';
+import { ClientConfigService } from './config/client.config';
 import { LogService } from './logger/log.service';
 
 @Injectable()
 export class AppService {
-  constructor(private backupService: BackupService, private logService: LogService) {}
+  constructor(
+    private clientConfig: ClientConfigService,
+    private encryptionService: EncryptionService,
+    private backupService: BackupService,
+    private logService: LogService,
+  ) {}
 
-  authenticate(request: AuthenticateRequest): AuthenticateReply {
+  async authenticate(request: AuthenticateRequest): Promise<AuthenticateReply> {
     try {
+      // Check token validity
+      await this.encryptionService.verifyAuthentificationToken(
+        this.clientConfig.config.hostname,
+        request.token,
+        this.clientConfig.config.password,
+      );
+
       const uuid = this.backupService.initializeBackup(request);
       return { code: StatusCode.Ok, sessionId: uuid };
     } catch (err) {

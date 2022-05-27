@@ -37,8 +37,8 @@ export class AppController {
   constructor(private service: AppService) {}
 
   @GrpcMethod('WoodstockClientService', 'Authenticate')
-  authenticate(request: AuthenticateRequest): AuthenticateReply {
-    return this.service.authenticate(request);
+  async authenticate(request: AuthenticateRequest): Promise<AuthenticateReply> {
+    return await this.service.authenticate(request);
   }
 
   @GrpcMethod('WoodstockClientService', 'ExecuteCommand')

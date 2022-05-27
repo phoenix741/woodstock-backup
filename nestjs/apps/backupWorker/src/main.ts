@@ -5,7 +5,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   await NestFactory.createApplicationContext(AppModule, {
-    logger: new ApplicationLogger('stats'),
+    logger: new ApplicationLogger('backup'),
   });
 }
 bootstrap();

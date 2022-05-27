@@ -21,6 +21,8 @@ import {
   ToolsService,
   YamlService,
 } from './services';
+import { CertificateService } from './services/auth/certificate.service';
+import { EncryptionService } from './services/auth/encryption.service';
 import { PoolStatisticsService, StatsInstantService, DiskStatisticsService } from './statistics';
 
 export const WoodstockQueueModule = [
@@ -47,25 +49,27 @@ export const WoodstockBullModules = [
 
 const PROVIDERS = [
   BackupsService,
+  CertificateService,
+  DiskStatisticsService,
+  EncryptionService,
   ExecuteCommandService,
+  FileBrowserService,
+  FileReader,
   FilesService,
   HostsService,
   LockService,
+  ManifestService,
   PingService,
   PoolChunkRefCnt,
   PoolService,
   PoolStatisticsService,
+  ProtobufService,
+  RefCntService,
   ResolveService,
   SchedulerConfigService,
   StatsInstantService,
-  DiskStatisticsService,
   ToolsService,
-  FileReader,
-  FileBrowserService,
-  ManifestService,
   YamlService,
-  ProtobufService,
-  RefCntService,
 ];
 
 @Module({
