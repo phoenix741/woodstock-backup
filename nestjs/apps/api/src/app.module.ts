@@ -8,6 +8,7 @@ import { BackupsFilesController } from './backups/backups-files.controller';
 import { BackupsFilesService } from './backups/backups-files.service';
 import { BackupController } from './backups/backups.controller';
 import { BackupsResolver } from './backups/backups.resolver';
+import { GlobalModule } from './global.module';
 import { HostController } from './hosts/hosts.controller';
 import { HostsResolver } from './hosts/hosts.resolver';
 import { JobResolver } from './queue/job.resolver';
@@ -24,6 +25,7 @@ import { BigIntScalar } from './utils/bigint.scalar';
 
 @Module({
   imports: [
+    GlobalModule,
     ApplicationConfigModule,
     ...WoodstockBullModules,
     ConfigModule.forRoot(),
@@ -65,12 +67,11 @@ import { BigIntScalar } from './utils/bigint.scalar';
     ServerService,
     ServeStaticService,
     StatsResolver,
+    PrometheusService,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),
     },
-
-    PrometheusService,
   ],
 })
 export class AppModule {}

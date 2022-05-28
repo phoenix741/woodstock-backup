@@ -1,3 +1,5 @@
+export * from './auth/certificate.service';
+export * from './auth/encryption.service';
 export * from './backups.service';
 export * from './commands/execute-command.service';
 export * from './commands/ping.service';

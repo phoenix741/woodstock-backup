@@ -158,6 +158,7 @@ export interface Share {
 
 export interface AuthenticateRequest {
   version: number;
+  token: string;
 }
 
 export interface AuthenticateReply {

@@ -1,26 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { constants as constantsFs } from 'fs';
-import { access, rename, unlink } from 'fs/promises';
+import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, pipe, reduce } from 'ix/asynciterable';
 import { catchError, concatAll, map } from 'ix/asynciterable/operators';
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
+import { isExists, rm } from '../utils/fs.utils';
 import { notUndefined } from '../utils/iterator.utils';
 import { IndexManifest } from './index-manifest.model';
 import { Manifest } from './manifest.model';
-
-async function rm(path: string) {
-  try {
-    await unlink(path);
-  } catch (err) {}
-}
-
-async function isExists(path: string) {
-  return access(path, constantsFs.F_OK)
-    .then(() => true)
-    .catch(() => false);
-}
 
 @Injectable()
 export class ManifestService {

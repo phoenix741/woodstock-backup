@@ -101,7 +101,7 @@ describe('BackupClient', () => {
     fakeClient.close = jest.fn();
 
     // WHEN
-    await backupClient.authenticate(ctxt, logger);
+    await backupClient.authenticate(ctxt, logger, 'password');
 
     streamLog.write({ context: 'context1', level: LogLevel.log, line: 'line1' });
     streamLog.write({ context: 'context2', level: LogLevel.error, line: 'line2' });
@@ -114,7 +114,10 @@ describe('BackupClient', () => {
 
     // THEN
     expect(fakeClient.close).toHaveBeenCalled();
-    expect(mockCientGrpc.authenticate).toHaveBeenCalledWith(new BackupsGrpcContext('host', 'ip', 1, fakeClient));
+    expect(mockCientGrpc.authenticate).toHaveBeenCalledWith(
+      new BackupsGrpcContext('host', 'ip', 1, fakeClient),
+      'password',
+    );
     expect(mockCientGrpc.streamLog).toMatchSnapshot('mockClientGrpc.streamLog');
     expect(logger.log).toMatchSnapshot('logger.log');
     expect(logger.warn).toMatchSnapshot('logger.warn');

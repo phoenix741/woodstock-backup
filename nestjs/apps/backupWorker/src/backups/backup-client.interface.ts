@@ -20,7 +20,7 @@ export interface BackupClientContext {
 }
 
 export interface BackupClientInterface {
-  authenticate(context: BackupClientContext): Promise<AuthenticateReply>;
+  authenticate(context: BackupClientContext, password: string): Promise<AuthenticateReply>;
   streamLog(context: BackupClientContext): AsyncIterable<LogEntry>;
   executeCommand(context: BackupClientContext, command: string): Promise<void>;
   refreshCache(context: BackupClientContext, request: AsyncIterable<RefreshCacheRequest>): Promise<RefreshCacheReply>;

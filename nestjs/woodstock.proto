@@ -155,6 +155,7 @@ message Share {
 
 message AuthenticateRequest {
   uint32 version = 1;
+  string token = 2;
 }
 
 message AuthenticateReply {

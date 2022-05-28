@@ -56,7 +56,7 @@ describe('BackupClientProgress', () => {
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
     // WHEN
-    const observable = backupClientProgress.authenticate(ctxt, logger);
+    const observable = backupClientProgress.authenticate(ctxt, logger, 'password');
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN

@@ -1,5 +1,6 @@
 import { createUnionType, Field, ObjectType } from '@nestjs/graphql';
 import { ApiExtraModels, ApiProperty, getSchemaPath } from '@nestjs/swagger';
+import { Exclude } from 'class-transformer';
 import { IsNumber, Matches, Max, Min, ValidateNested } from 'class-validator';
 import { Schedule } from './scheduler.dto';
 
@@ -121,6 +122,9 @@ export class HostConfiguration {
   @ApiProperty({ type: Boolean })
   @Field(() => Boolean)
   isLocal?: boolean;
+
+  @Exclude()
+  password: string;
 
   @ApiProperty({ example: [] })
   addresses?: string[];

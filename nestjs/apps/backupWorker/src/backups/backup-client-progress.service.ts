@@ -9,8 +9,8 @@ import { BackupClient } from './backup-client.service';
 export class BackupClientProgress {
   constructor(private backupClient: BackupClient) {}
 
-  authenticate(context: BackupsGrpcContext, logger: LoggerService): Observable<TaskProgression> {
-    const authenticate$ = defer(() => this.backupClient.authenticate(context, logger));
+  authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Observable<TaskProgression> {
+    const authenticate$ = defer(() => this.backupClient.authenticate(context, logger, password));
 
     return authenticate$.pipe(
       mapTo(new TaskProgression()),
