@@ -2,18 +2,23 @@ import { Injectable, Logger } from '@nestjs/common';
 import { unlink } from 'fs/promises';
 import { concat, from, pipe, reduce } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
+import { dirname } from 'path';
+import { lock } from 'proper-lockfile';
+import { PoolRefCount, PoolStatistics } from '../models';
 import { ProtoPoolRefCount } from '../models/object-proto.model';
-import { PoolRefCount } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
+import { PoolStatisticsService } from '../statistics/pool-statistics.service';
 import { notUndefined } from '../utils/iterator.utils';
 import { ReferenceCount, ReferenceCountFileTypeEnum } from './refcnt.model';
-import { lock } from 'proper-lockfile';
 
 @Injectable()
 export class RefCntService {
   private logger = new Logger(RefCntService.name);
 
-  constructor(private readonly protobufService: ProtobufService) {}
+  constructor(
+    private readonly protobufService: ProtobufService,
+    private readonly statsService: PoolStatisticsService,
+  ) {}
 
   async writeRefCnt(
     source: AsyncIterable<PoolRefCount>,
@@ -69,12 +74,31 @@ export class RefCntService {
           const fileToUpdate = this.readRefCnt(filepath);
           const journalFile = this.readRefCnt(refcnt.journalPath);
 
+          const statistics: PoolStatistics = {
+            longestChain: 0,
+            nbChunk: 0,
+            nbRef: 0,
+            size: 0n,
+            compressedSize: 0n,
+          };
+
           const rrefcnt = await reduce(concat(fileToUpdate, journalFile), {
             callback: (acc, v) => {
               const cnt = acc.get(v.sha256.toString());
+              statistics.nbRef += v.refCount;
               if (cnt) {
-                acc.set(v.sha256.toString(), Object.assign(cnt, { refCount: cnt.refCount + v.refCount }));
+                const refCount = cnt.refCount + v.refCount;
+                if (refCount > statistics.longestChain) {
+                  statistics.longestChain = refCount;
+                }
+                acc.set(v.sha256.toString(), Object.assign(cnt, { refCount }));
               } else {
+                if (v.refCount > statistics.longestChain) {
+                  statistics.longestChain = v.refCount;
+                }
+                statistics.nbChunk++;
+                statistics.size += BigInt(v.size);
+                statistics.compressedSize += BigInt(v.compressedSize);
                 acc.set(v.sha256.toString(), v);
               }
               return acc;
@@ -82,6 +106,9 @@ export class RefCntService {
             seed: new Map<string, PoolRefCount>(),
           });
           await this.writeRefCnt(from(rrefcnt.values()), filepath);
+          if (type !== ReferenceCountFileTypeEnum.BACKUP) {
+            await this.statsService.writeStatistics(statistics, dirname(filepath));
+          }
         } finally {
           await unlock();
         }

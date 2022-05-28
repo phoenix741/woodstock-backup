@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { BackupsService, HostConfiguration, HostsService } from '@woodstock/backoffice-shared';
+import { BackupsService, HostConfiguration, HostsService } from '@woodstock/shared';
 import { HostInformation } from './hosts.dto';
 
 @Controller('hosts')

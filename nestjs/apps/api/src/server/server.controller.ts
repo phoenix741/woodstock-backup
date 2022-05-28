@@ -1,6 +1,6 @@
 import { Controller, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { ApplicationConfigService } from '@woodstock/backoffice-shared';
+import { ApplicationConfigService } from '@woodstock/shared';
 import { Response } from 'express';
 import { join } from 'path';
 import { getLog, tailLog } from '../utils/log-utils.service';

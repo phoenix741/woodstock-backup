@@ -1,6 +1,6 @@
 import 'source-map-support/register';
 import { NestFactory } from '@nestjs/core';
-import { ApplicationLogger } from '@woodstock/backoffice-shared';
+import { ApplicationLogger } from '@woodstock/shared';
 import { AppModule } from './app.module';
 
 async function bootstrap() {

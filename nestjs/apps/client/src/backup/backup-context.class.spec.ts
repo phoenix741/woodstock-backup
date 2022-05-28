@@ -1,6 +1,13 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { FileReader, IndexManifest, Manifest, ManifestService, SharedModule } from '@woodstock/shared';
+import {
+  FileBrowserService,
+  FileReader,
+  IndexManifest,
+  Manifest,
+  ManifestService,
+  ProtobufService,
+} from '@woodstock/shared';
 import { count, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
 import { join } from 'path';
@@ -13,7 +20,7 @@ describe('BackupContext', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [SharedModule],
+      providers: [ManifestService, ProtobufService, FileReader, FileBrowserService],
     }).compile();
 
     manifestService = module.get<ManifestService>(ManifestService);
@@ -25,7 +32,7 @@ describe('BackupContext', () => {
     test('#RefreshCache should create one manifest from scratch ', async () => {
       let cnt = 0;
       jest.spyOn(manifestService, 'deleteManifest').mockResolvedValue(undefined);
-      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries, manifest: Manifest, _) => {
+      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries) => {
         cnt = await count(entries);
       });
 
@@ -42,7 +49,7 @@ describe('BackupContext', () => {
       const reply = await service.refreshCache(from(myIterator()));
 
       expect(manifestService.deleteManifest).toHaveBeenCalledTimes(1);
-      expect(manifestService.deleteManifest).toMatchSnapshot('deleteManifest');
+      expect(manifestService.deleteManifest).toHaveBeenCalledWith(new Manifest('backups.%2Fhome', '/tmp'));
       expect(cnt).toBe(6);
       expect(reply).toMatchSnapshot('RefreshCacheReply');
     });
@@ -50,7 +57,7 @@ describe('BackupContext', () => {
     test('#RefreshCache should create two manifest from scratch ', async () => {
       const cnt: Record<string, number> = {};
       jest.spyOn(manifestService, 'deleteManifest').mockResolvedValue(undefined);
-      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries, manifest: Manifest, _) => {
+      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries, manifest: Manifest) => {
         cnt[manifest.journalPath] = await count(entries);
       });
 
@@ -74,7 +81,7 @@ describe('BackupContext', () => {
       const reply = await service.refreshCache(from(myIterator()));
 
       expect(manifestService.deleteManifest).toHaveBeenCalledTimes(2);
-      expect(manifestService.deleteManifest).toMatchSnapshot('deleteManifest');
+      expect(manifestService.deleteManifest).toHaveBeenCalledWith(new Manifest('backups.%2Fhome', '/tmp'));
       expect(cnt).toMatchInlineSnapshot(`
               Object {
                 "/tmp/backups.%2Fetc.journal": 4,
@@ -87,7 +94,7 @@ describe('BackupContext', () => {
     test('#RefreshCache should create error', async () => {
       const cnt: Record<string, number> = {};
       jest.spyOn(manifestService, 'deleteManifest').mockResolvedValue(undefined);
-      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries, manifest: Manifest, _) => {
+      jest.spyOn(manifestService, 'writeJournalEntry').mockImplementation(async (entries, manifest: Manifest) => {
         cnt[manifest.journalPath] = await count(entries);
       });
 
@@ -100,7 +107,7 @@ describe('BackupContext', () => {
       const reply = await service.refreshCache(from(myIterator()));
 
       expect(manifestService.deleteManifest).toHaveBeenCalledTimes(1);
-      expect(manifestService.deleteManifest).toMatchSnapshot('deleteManifest');
+      expect(manifestService.deleteManifest).toHaveBeenCalledWith(new Manifest('backups.%2Fhome', '/tmp'));
       expect(cnt).toMatchInlineSnapshot(`Object {}`);
       expect(reply).toMatchSnapshot('RefreshCacheReply');
     });

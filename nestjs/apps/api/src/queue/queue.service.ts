@@ -11,7 +11,7 @@ import {
   Processor,
 } from '@nestjs/bull';
 import { Inject, Logger } from '@nestjs/common';
-import { BackupTask } from '@woodstock/backoffice-shared';
+import { BackupTask } from '@woodstock/shared';
 import { Job, JobId, Queue } from 'bull';
 import { PubSub } from 'graphql-subscriptions';
 

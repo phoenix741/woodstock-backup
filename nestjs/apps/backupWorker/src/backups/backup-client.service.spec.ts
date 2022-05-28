@@ -1,8 +1,19 @@
 import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationConfigService, BackupsService, PoolChunkRefCnt, PoolService } from '@woodstock/backoffice-shared';
-import { bigIntToLong, EntryType, LogEntry, LogLevel, Manifest, ManifestService } from '@woodstock/shared';
+import {
+  ApplicationConfigService,
+  BackupsService,
+  bigIntToLong,
+  EntryType,
+  LogEntry,
+  LogLevel,
+  Manifest,
+  ManifestService,
+  PoolChunkRefCnt,
+  PoolService,
+  ReferenceCount,
+} from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';
 import { AsyncSink, from, pipe, toArray as toArrayIx } from 'ix/asynciterable';
@@ -103,7 +114,7 @@ describe('BackupClient', () => {
 
     // THEN
     expect(fakeClient.close).toHaveBeenCalled();
-    expect(mockCientGrpc.authenticate).toMatchSnapshot('mockClientGrpc.authenticate');
+    expect(mockCientGrpc.authenticate).toHaveBeenCalledWith(new BackupsGrpcContext('host', 'ip', 1, fakeClient));
     expect(mockCientGrpc.streamLog).toMatchSnapshot('mockClientGrpc.streamLog');
     expect(logger.log).toMatchSnapshot('logger.log');
     expect(logger.warn).toMatchSnapshot('logger.warn');
@@ -162,6 +173,7 @@ describe('BackupClient', () => {
     mockCientGrpc.downloadFileList = jest.fn().mockReturnValue(filelist);
 
     mockManifestService.writeFileListEntry = jest.fn().mockImplementation(async (it, m, cb) => {
+      expect(m).toEqual(new Manifest('sharePath', 'host-1'));
       for await (const v of it) {
         savedFilelist.push(await cb(v));
       }
@@ -181,7 +193,6 @@ describe('BackupClient', () => {
     expect(result).toMatchSnapshot('result');
     expect(savedFilelist).toMatchSnapshot('savedFilelist');
     expect(mockCientGrpc.downloadFileList).toMatchSnapshot('downloadFileList');
-    expect(mockManifestService.writeFileListEntry).toMatchSnapshot('writeFileListEntry');
   });
 
   it('createBackup', async () => {
@@ -239,6 +250,7 @@ describe('BackupClient', () => {
     mockManifestService.readFilelistEntries = jest.fn().mockReturnValue(filelist);
 
     mockManifestService.writeJournalEntry = jest.fn().mockImplementation(async (it, m, cb) => {
+      expect(m).toEqual(new Manifest('sharePath', 'host-1'));
       for await (const v of it) {
         savedJournal.push(await cb(v));
       }
@@ -286,8 +298,11 @@ describe('BackupClient', () => {
     expect(savedJournal).toMatchSnapshot('savedJournal');
     expect(savedJournalChunk).toMatchSnapshot('savedJournalChunk');
     expect(wrappers).toMatchSnapshot('wrappers');
-    expect(mockManifestService.writeJournalEntry).toMatchSnapshot('manifest.writeJournalEntry');
-    expect(mockPoolChunkRefCnt.writeJournal).toMatchSnapshot('refcnt.writeJournal');
+    expect(mockPoolChunkRefCnt.writeJournal).toHaveBeenCalledWith(
+      expect.any(AsyncSink),
+      'host-1',
+      expect.any(Function),
+    );
   });
 
   it('compact', async () => {
@@ -324,7 +339,7 @@ describe('BackupClient', () => {
 
     // THEN
     expect(result).toMatchSnapshot('result');
-    expect(mockManifestService.compact).toMatchSnapshot('manifestService.compact');
+    expect(mockManifestService.compact).toHaveBeenCalledWith(new Manifest('sharePath', 'host-1'), expect.any(Function));
     expect(compactManifest).toMatchSnapshot('compactManifest');
   });
 
@@ -337,6 +352,6 @@ describe('BackupClient', () => {
     await backupClient.countRef(ctxt);
 
     // THEN
-    expect(mockPoolChunkRefCnt.compact).toMatchSnapshot('poolChunkRefCnt.compact');
+    expect(mockPoolChunkRefCnt.compact).toHaveBeenCalledWith(new ReferenceCount('host', 'host-1', 'poolPath'));
   });
 });

@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/backoffice-shared';
+import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/shared';
 import * as mkdirp from 'mkdirp';
 import { defer, from, Observable, of, throwError } from 'rxjs';
 import { catchError, concatMap, map, startWith, switchMap, tap } from 'rxjs/operators';
@@ -59,7 +59,7 @@ export class TasksService {
             );
           case 'Backup':
             return [
-              new InternalBackupSubTask('cache', `Refresh cache`, false, false, (connection, _, _2) => {
+              new InternalBackupSubTask('cache', `Refresh cache`, false, false, (connection) => {
                 return this.backupsClient.refreshCache(
                   connection,
                   task.shares.map((share) => share.name),
@@ -111,7 +111,7 @@ export class TasksService {
                     return this.backupsClient.compact(connection, sharePath);
                   }),
               ),
-              new InternalBackupSubTask('backup', `Ref count`, false, false, (connection, _, _2) => {
+              new InternalBackupSubTask('backup', `Ref count`, false, false, (connection) => {
                 return this.backupsClient.countRef(connection);
               }),
             ];

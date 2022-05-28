@@ -1,4 +1,4 @@
-import { ApplicationLogger } from '@woodstock/backoffice-shared';
+import { ApplicationLogger } from '@woodstock/shared';
 import { BootstrapConsole } from 'nestjs-console';
 import { AppCommandModule } from './app-command.module';
 

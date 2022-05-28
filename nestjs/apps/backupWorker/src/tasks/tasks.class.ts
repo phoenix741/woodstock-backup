@@ -5,10 +5,11 @@ import {
   BackupState,
   BackupSubTask,
   BackupTask,
+  bigIntMax,
   HostConfiguration,
+  pick,
   TaskProgression,
-} from '@woodstock/backoffice-shared';
-import { bigIntMax, pick } from '@woodstock/shared';
+} from '@woodstock/shared';
 import { Observable } from 'rxjs';
 import { BackupsGrpcContext } from '../backups/backup-client-grpc.class';
 

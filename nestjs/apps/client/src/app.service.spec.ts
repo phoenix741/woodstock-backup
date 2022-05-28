@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SharedModule } from '@woodstock/shared';
 import { AppService } from './app.service';
 import { BackupService } from './backup/backup.service';
 import { LogService } from './logger/log.service';
@@ -7,10 +6,16 @@ import { LogService } from './logger/log.service';
 describe('AppService', () => {
   let service: AppService;
 
+  const backupService = {};
+  const logService = {};
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [SharedModule],
-      providers: [AppService, BackupService, LogService],
+      providers: [
+        AppService,
+        { provide: BackupService, useValue: backupService },
+        { provide: LogService, useValue: logService },
+      ],
     }).compile();
 
     service = module.get<AppService>(AppService);

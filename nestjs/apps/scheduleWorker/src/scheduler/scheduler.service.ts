@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { SchedulerConfigService } from '@woodstock/backoffice-shared';
+import { SchedulerConfigService } from '@woodstock/shared';
 import { Queue } from 'bull';
 
 @Injectable()
