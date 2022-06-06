@@ -26,9 +26,7 @@ export class IndexManifest {
 
   add(manifest: FileManifest): void {
     const key = mangle(manifest.path);
-    if (!this.files.has(key)) {
-      this.files.set(key, new IndexFileEntry(manifest));
-    }
+    this.files.set(key, new IndexFileEntry(manifest));
   }
 
   remove(filePath: Buffer): void {

@@ -10,9 +10,10 @@ import {
   LogLevel,
   Manifest,
   ManifestService,
-  PoolChunkRefCnt,
+  RefCntService,
   PoolService,
   ReferenceCount,
+  PoolRefCount,
 } from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';
@@ -39,7 +40,10 @@ describe('BackupClient', () => {
   const mockBackupService = {
     getDestinationDirectory: (host: string, backup: string) => `${host}-${backup}`,
     getManifest: (host: string, backup: string, share: string) => new Manifest(share, `${host}-${backup}`),
+    getManifests: (host: string, backup: string) =>
+      ['home', 'etc'].map((share) => new Manifest(share, `${host}-${backup}`)),
     getHostDirectory: (host: string) => host,
+    addBackupSharePath: async (_host: string, _n: number, _sharePath: Buffer) => void 0,
   };
 
   const mockManifestService = {
@@ -47,6 +51,7 @@ describe('BackupClient', () => {
     writeJournalEntry: () => 0,
     readFilelistEntries: () => 0,
     compact: () => 0,
+    generateRefcntFromManifest: () => 0,
   };
 
   const mockPoolService = {
@@ -54,8 +59,9 @@ describe('BackupClient', () => {
   };
 
   const mockPoolChunkRefCnt = {
-    writeJournal: () => 0,
-    compact: () => 0,
+    addChunkInformationToRefCnt: async (_s: AsyncIterable<PoolRefCount>, _f: string) => void 0,
+    addReferenceCountToRefCnt: async (_s: AsyncIterable<PoolRefCount>, _f: string) => void 0,
+    compactAllRefCnt: () => 0,
   };
 
   const fakeClient = {
@@ -82,7 +88,7 @@ describe('BackupClient', () => {
         { provide: BackupsService, useValue: mockBackupService },
         { provide: ManifestService, useValue: mockManifestService },
         { provide: PoolService, useValue: mockPoolService },
-        { provide: PoolChunkRefCnt, useValue: mockPoolChunkRefCnt },
+        { provide: RefCntService, useValue: mockPoolChunkRefCnt },
         BackupClient,
       ],
     }).compile();
@@ -201,7 +207,7 @@ describe('BackupClient', () => {
   it('createBackup', async () => {
     // GIVEN
     const savedJournal: unknown[] = [];
-    const savedJournalChunk: unknown[] = [];
+    const refcntHost: unknown[] = [];
 
     const filelist = from([
       {
@@ -259,9 +265,10 @@ describe('BackupClient', () => {
       }
     });
 
-    mockPoolChunkRefCnt.writeJournal = jest.fn().mockImplementation(async (it, path, cb) => {
+    mockPoolChunkRefCnt.addChunkInformationToRefCnt = jest.fn().mockImplementation(async (it, m) => {
+      expect(m).toEqual('host-1/REFCNT.backup');
       for await (const v of it) {
-        savedJournalChunk.push(await cb(v));
+        refcntHost.push(v);
       }
     });
 
@@ -299,17 +306,13 @@ describe('BackupClient', () => {
     // THEN
     expect(result).toMatchSnapshot('result');
     expect(savedJournal).toMatchSnapshot('savedJournal');
-    expect(savedJournalChunk).toMatchSnapshot('savedJournalChunk');
     expect(wrappers).toMatchSnapshot('wrappers');
-    expect(mockPoolChunkRefCnt.writeJournal).toHaveBeenCalledWith(
-      expect.any(AsyncSink),
-      'host-1',
-      expect.any(Function),
-    );
+    expect(mockPoolChunkRefCnt.addChunkInformationToRefCnt).toHaveBeenCalledTimes(1);
+    expect(refcntHost).toMatchSnapshot('refcntHost');
   });
 
   it('compact', async () => {
-    //
+    // GIVEN
     const fileManifests = [
       {
         path: Buffer.from('file13'),
@@ -334,6 +337,8 @@ describe('BackupClient', () => {
       }
     });
 
+    mockBackupService.addBackupSharePath = jest.fn();
+
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
     // WHEN
@@ -344,10 +349,31 @@ describe('BackupClient', () => {
     expect(result).toMatchSnapshot('result');
     expect(mockManifestService.compact).toHaveBeenCalledWith(new Manifest('sharePath', 'host-1'), expect.any(Function));
     expect(compactManifest).toMatchSnapshot('compactManifest');
+    expect(mockBackupService.addBackupSharePath).toHaveBeenCalledWith('host', 1, Buffer.from('sharePath'));
   });
 
   it('countRef', async () => {
-    mockPoolChunkRefCnt.compact = jest.fn().mockResolvedValue(undefined);
+    // GIVEN
+    const sha256 = [
+      { sha256: Buffer.from('sha256_1'), refCount: 1 },
+      { sha256: Buffer.from('sha256_2'), refCount: 2 },
+      { sha256: Buffer.from('sha256_3'), refCount: 3 },
+      { sha256: Buffer.from('sha256_4'), refCount: 4 },
+      { sha256: Buffer.from('sha256_5'), refCount: 5 },
+      { sha256: Buffer.from('sha256_6'), refCount: 6 },
+    ];
+
+    mockPoolChunkRefCnt.addReferenceCountToRefCnt = jest.fn().mockResolvedValue(undefined);
+    mockBackupService.getManifests = jest
+      .fn()
+      .mockImplementation((host, backup) => ['home', 'etc'].map((share) => new Manifest(share, `${host}-${backup}`)));
+    mockManifestService.generateRefcntFromManifest = jest.fn().mockImplementation((m) => {
+      return sha256.map((sha256) => ({
+        ...sha256,
+        sha256: Buffer.concat([sha256.sha256, Buffer.from(m.manifestPath)]),
+      }));
+    });
+    mockPoolChunkRefCnt.compactAllRefCnt = jest.fn();
 
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
@@ -355,6 +381,9 @@ describe('BackupClient', () => {
     await backupClient.countRef(ctxt);
 
     // THEN
-    expect(mockPoolChunkRefCnt.compact).toHaveBeenCalledWith(new ReferenceCount('host', 'host-1', 'poolPath'));
+    expect(mockPoolChunkRefCnt.addReferenceCountToRefCnt).toMatchSnapshot(
+      'mockPoolChunkRefCnt.addReferenceCountToRefCnt',
+    );
+    expect(mockPoolChunkRefCnt.compactAllRefCnt).toHaveBeenCalledWith(new ReferenceCount('host', 'host-1', 'poolPath'));
   });
 });

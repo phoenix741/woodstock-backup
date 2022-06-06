@@ -4,7 +4,8 @@ import { rename, writeFile } from 'fs/promises';
 import * as yaml from 'js-yaml';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
-import { compact, tmpNameAsync } from '../utils';
+import { compact, longMin, tmpNameAsync } from '../utils';
+import * as Long from 'long';
 
 // Custom BigInt type
 const BigIntType = new yaml.Type('!big', {
@@ -20,7 +21,21 @@ const BigIntType = new yaml.Type('!big', {
   },
 });
 
-const YAML_SCHEMA = yaml.DEFAULT_SCHEMA.extend([BigIntType]);
+// Custom Long.js type
+const LongType = new yaml.Type('!long', {
+  kind: 'scalar',
+  predicate(data) {
+    return data instanceof Long;
+  },
+  construct(data) {
+    return Long.fromString(data);
+  },
+  represent(data) {
+    return data.toString();
+  },
+});
+
+export const YAML_SCHEMA = yaml.DEFAULT_SCHEMA.extend([BigIntType, LongType]);
 
 @Injectable()
 export class YamlService {

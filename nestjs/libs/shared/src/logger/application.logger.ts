@@ -15,7 +15,7 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 export class ApplicationLogger implements LoggerService {
   private logger: Logger;
 
-  constructor(private readonly worker?: string) {
+  constructor(private readonly worker?: string, console = true) {
     const logPath = join(process.env.BACKUP_PATH || '', 'log');
     mkdirp(logPath);
 
@@ -23,9 +23,13 @@ export class ApplicationLogger implements LoggerService {
       level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),
       transports: [
-        new transports.Console({
-          format: combine(colorize(), timestamp(), applicationFormat),
-        }),
+        ...(console
+          ? [
+              new transports.Console({
+                format: combine(colorize(), timestamp(), applicationFormat),
+              }),
+            ]
+          : []),
         new transports.DailyRotateFile({
           filename: join(logPath, `application-${worker}-%DATE%.log`),
           datePattern: 'YYYY-MM-DD',

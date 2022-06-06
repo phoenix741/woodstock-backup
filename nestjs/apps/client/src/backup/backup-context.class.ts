@@ -33,7 +33,7 @@ export class BackupContext {
     const entries$ = pipe(
       source,
       notUndefined<FileManifest>(),
-      map((fileManifest) => this.manifestService.toAddJournalEntry(fileManifest, true)),
+      map((fileManifest) => ManifestService.toAddJournalEntry(fileManifest, true)),
     );
     await this.manifestService.writeJournalEntry(entries$, manifest);
 
@@ -41,6 +41,8 @@ export class BackupContext {
   }
 
   private async createManifestsFromSource(request: AsyncIterableX<RefreshCacheRequest>) {
+    this.logger.log(`Start creating manifests from source`);
+
     // First search the first header
     const it = request[Symbol.asyncIterator]();
     let next: IteratorResult<RefreshCacheRequest, RefreshCacheRequest>;
@@ -55,9 +57,13 @@ export class BackupContext {
         break;
       }
     }
+
     if (!sharePath) {
-      throw new InternalServerErrorException();
+      this.logger.warn(`No content from the source`);
+      return;
     }
+    this.logger.log(`Starting backup for share ${sharePath.toString('utf8')}`);
+    const logger = this.logger;
 
     while (!next.done) {
       // Then create an iterator for the rest
@@ -67,15 +73,19 @@ export class BackupContext {
             throwIfAborted(signal);
 
             next = await it.next();
+
             if (next.done) {
               return { done: true, value: undefined };
             }
+
             const { header, fileManifest } = next.value;
             if (header?.sharePath) {
+              logger.log(`Starting backup for share ${header.sharePath.toString('utf8')}`);
               sharePath = header.sharePath;
               firstManifest = fileManifest;
               return { done: true, value: undefined };
             }
+
             return { value: fileManifest };
           },
         };
@@ -111,7 +121,6 @@ export class BackupContext {
         ),
       ),
       concatAll(),
-      map((entry) => this.manifestService.toAddJournalEntry(entry, true)),
       map((entry) => ({ entry, response: undefined })),
     );
 
@@ -119,7 +128,7 @@ export class BackupContext {
       map((index) => from(index.walk())),
       concatAll(),
       filter((entry) => !entry.markViewed),
-      map((file) => this.manifestService.toRemoveJournalEntry(file.path)),
+      map((file) => ManifestService.toRemoveJournalEntry(file.path)),
       map((entry) => ({ entry, response: undefined })),
     );
 

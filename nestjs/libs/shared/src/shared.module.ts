@@ -10,10 +10,10 @@ import {
   BackupsService,
   ExecuteCommandService,
   FilesService,
+  FsckService,
   HostsService,
   LockService,
   PingService,
-  PoolChunkRefCnt,
   PoolService,
   ProtobufService,
   ResolveService,
@@ -23,7 +23,7 @@ import {
 } from './services';
 import { CertificateService } from './services/auth/certificate.service';
 import { EncryptionService } from './services/auth/encryption.service';
-import { PoolStatisticsService, StatsInstantService, DiskStatisticsService } from './statistics';
+import { DiskStatisticsService, PoolStatisticsService, StatsInstantService } from './statistics';
 
 export const WoodstockQueueModule = [
   BullModule.registerQueue(
@@ -60,11 +60,11 @@ const PROVIDERS = [
   LockService,
   ManifestService,
   PingService,
-  PoolChunkRefCnt,
   PoolService,
   PoolStatisticsService,
   ProtobufService,
   RefCntService,
+  FsckService,
   ResolveService,
   SchedulerConfigService,
   StatsInstantService,

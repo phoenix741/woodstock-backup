@@ -15,12 +15,13 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
+  StatusCode,
   WoodstockClientServiceClient,
 } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
 import { AsyncIterableX, from, pipe } from 'ix/asynciterable';
-import { filter, map } from 'ix/asynciterable/operators';
+import { filter, map, tap } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { Readable } from 'stream';
@@ -136,16 +137,23 @@ export class BackupClientGrpc implements BackupClientInterface {
 
   refreshCache(context: BackupsGrpcContext, request: AsyncIterable<RefreshCacheRequest>): Promise<RefreshCacheReply> {
     return new Promise((resolve, reject) => {
+      const abortController = new AbortController();
+      const reader = Readable.from(request);
       const writer = context.service.refreshCache(this.getMetadata(context), (err, response) => {
-        if (err) {
-          reject(err);
+        this.logger.log(
+          `Recieve response from refresh cache : ${err?.message} : ${response?.code} ${response?.message || ''}`,
+        );
+
+        if (err || response?.code === StatusCode.Failed) {
+          abortController.abort();
+          reject(err || new Error(response.code + ' ' + response.message));
         } else {
           resolve(response);
         }
       });
-      pipeline(Readable.from(request), writer as unknown as NodeJS.WritableStream).catch((err) => {
+      pipeline(reader, writer as unknown as NodeJS.WritableStream, { signal: abortController.signal }).catch((err) => {
         reject(err);
-      }); // FIXME: abort
+      });
     });
   }
 

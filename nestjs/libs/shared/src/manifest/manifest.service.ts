@@ -1,14 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, pipe, reduce } from 'ix/asynciterable';
-import { catchError, concatAll, map } from 'ix/asynciterable/operators';
+import { catchError, concatAll, filter, flatMap, map } from 'ix/asynciterable/operators';
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
-import { isExists, rm } from '../utils/fs.utils';
+import { isExists } from '../utils/fs.utils';
 import { notUndefined } from '../utils/iterator.utils';
 import { IndexManifest } from './index-manifest.model';
 import { Manifest } from './manifest.model';
+import { PoolRefCount } from '../models';
+import { ManifestChunk } from '../models/manifest.dto';
 
 @Injectable()
 export class ManifestService {
@@ -16,7 +18,7 @@ export class ManifestService {
 
   constructor(private readonly protobufService: ProtobufService) {}
 
-  toRemoveJournalEntry(path: Buffer): FileManifestJournalEntry {
+  static toRemoveJournalEntry(path: Buffer): FileManifestJournalEntry {
     return {
       type: EntryType.REMOVE,
       manifest: {
@@ -29,7 +31,7 @@ export class ManifestService {
     };
   }
 
-  toAddJournalEntry(manifest: FileManifest, add: boolean): FileManifestJournalEntry {
+  static toAddJournalEntry(manifest: FileManifest, add: boolean): FileManifestJournalEntry {
     return {
       type: add ? EntryType.ADD : EntryType.MODIFY,
       manifest,
@@ -52,7 +54,7 @@ export class ManifestService {
     mapping: (v: T) => Promise<FileManifestJournalEntry | undefined> = (v) => v as any,
   ): Promise<void> {
     const mappedSource = pipe(source, map(mapping), notUndefined());
-    return await this.protobufService.writeFile<FileManifestJournalEntry>(
+    await this.protobufService.atomicWriteFile<FileManifestJournalEntry>(
       manifest.journalPath,
       ProtoFileManifestJournalEntry,
       mappedSource,
@@ -75,7 +77,7 @@ export class ManifestService {
     mapping: (v: T) => Promise<FileManifestJournalEntry | undefined> = (v) => v as any,
   ): Promise<void> {
     const mappedSource = pipe(source, map(mapping), notUndefined());
-    return await this.protobufService.writeFile<FileManifestJournalEntry>(
+    await this.protobufService.atomicWriteFile<FileManifestJournalEntry>(
       manifest.fileListPath,
       ProtoFileManifestJournalEntry,
       mappedSource,
@@ -156,11 +158,11 @@ export class ManifestService {
   }
 
   async deleteManifest(manifest: Manifest): Promise<void> {
-    await rm(manifest.fileListPath);
-    await rm(manifest.newPath);
-    await rm(manifest.journalPath);
-    await rm(manifest.manifestPath);
-    await rm(manifest.lockPath);
+    await this.protobufService.rmFile(manifest.fileListPath);
+    await this.protobufService.rmFile(manifest.newPath);
+    await this.protobufService.rmFile(manifest.journalPath);
+    await this.protobufService.rmFile(manifest.manifestPath);
+    await this.protobufService.rmFile(manifest.lockPath);
   }
 
   compact(manifest: Manifest, mapping?: (v: FileManifest) => Promise<FileManifest | undefined>): Promise<void>;
@@ -176,12 +178,37 @@ export class ManifestService {
       .writeFile(manifest.newPath, ProtoFileManifest, allMessages$.pipe(map(mapping)))
       .then(async () => {
         try {
-          await Promise.all([rm(manifest.journalPath), rm(manifest.fileListPath), rm(manifest.manifestPath)]);
+          // await Promise.all([
+          //   this.protobufService.rmFile(manifest.journalPath),
+          //   this.protobufService.rmFile(manifest.fileListPath),
+          //   this.protobufService.rmFile(manifest.manifestPath),
+          // ]);
         } catch (err) {
         } finally {
           await rename(manifest.newPath, manifest.manifestPath);
           this.logger.debug(`[END] Compact manifest from ${manifest.manifestPath}`);
         }
       });
+  }
+
+  listChunksFromManifest(manifest: Manifest): AsyncIterableX<ManifestChunk> {
+    return this.readManifestEntries(manifest).pipe(
+      flatMap((manifest) => {
+        const chunks = manifest.chunks || [];
+        return from(chunks).pipe(map((sha256) => ({ sha256, manifest })));
+      }),
+      filter((chunk) => !!chunk.sha256),
+    );
+  }
+
+  generateRefcntFromManifest(manifest: Manifest): AsyncIterableX<PoolRefCount> {
+    return this.listChunksFromManifest(manifest).pipe(
+      map((chunk) => ({
+        sha256: chunk.sha256,
+        refCount: 1,
+        size: 0,
+        compressedSize: 0,
+      })),
+    );
   }
 }

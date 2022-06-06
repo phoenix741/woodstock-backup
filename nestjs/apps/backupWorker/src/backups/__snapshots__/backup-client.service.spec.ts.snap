@@ -464,6 +464,171 @@ Array [
 ]
 `;
 
+exports[`BackupClient countRef: mockPoolChunkRefCnt.addReferenceCountToRefCnt 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      FlatMapAsyncIterable {
+        "_selector": [Function],
+        "_source": FlatMapAsyncIterable {
+          "_selector": [Function],
+          "_source": FromAsyncIterable {
+            "_selector": [Function],
+            "_source": Array [
+              Manifest {
+                "fileListPath": "host-1/home.filelist",
+                "journalPath": "host-1/home.journal",
+                "lockPath": "host-1/home.lock",
+                "manifestPath": "host-1/home.manifest",
+                "newPath": "host-1/home.new",
+              },
+              Manifest {
+                "fileListPath": "host-1/etc.filelist",
+                "journalPath": "host-1/etc.journal",
+                "lockPath": "host-1/etc.lock",
+                "manifestPath": "host-1/etc.manifest",
+                "newPath": "host-1/etc.new",
+              },
+            ],
+          },
+          "_thisArg": undefined,
+        },
+        "_thisArg": undefined,
+      },
+      "host-1/REFCNT.backup",
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": Promise {},
+    },
+  ],
+}
+`;
+
+exports[`BackupClient createBackup: refcntHost 1`] = `
+Array [
+  Object {
+    "compressedSize": 50,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        49,
+      ],
+      "type": "Buffer",
+    },
+    "size": 100,
+  },
+  Object {
+    "compressedSize": 150,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 300,
+  },
+  Object {
+    "compressedSize": 250,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "size": 500,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+  Object {
+    "compressedSize": 300,
+    "refCount": 0,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600,
+  },
+]
+`;
+
 exports[`BackupClient createBackup: result 1`] = `
 Array [
   Object {
@@ -1169,128 +1334,6 @@ Array [
       },
     },
     "type": 0,
-  },
-]
-`;
-
-exports[`BackupClient createBackup: savedJournalChunk 1`] = `
-Array [
-  Object {
-    "compressedSize": 50,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        49,
-      ],
-      "type": "Buffer",
-    },
-    "size": 100,
-  },
-  Object {
-    "compressedSize": 150,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        50,
-      ],
-      "type": "Buffer",
-    },
-    "size": 300,
-  },
-  Object {
-    "compressedSize": 250,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        51,
-      ],
-      "type": "Buffer",
-    },
-    "size": 500,
-  },
-  Object {
-    "compressedSize": 300,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        54,
-      ],
-      "type": "Buffer",
-    },
-    "size": 600,
-  },
-  Object {
-    "compressedSize": 300,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        54,
-      ],
-      "type": "Buffer",
-    },
-    "size": 600,
-  },
-  Object {
-    "compressedSize": 300,
-    "refCount": 1,
-    "sha256": Object {
-      "data": Array [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        54,
-      ],
-      "type": "Buffer",
-    },
-    "size": 600,
   },
 ]
 `;

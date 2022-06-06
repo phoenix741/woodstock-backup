@@ -4,12 +4,12 @@ export interface HistoricalDiskStatistics extends StatsDiskUsage {
   date: number;
 }
 
-export interface PoolStatistics {
-  longestChain: number;
-  nbChunk: number;
-  nbRef: number;
-  size: bigint;
-  compressedSize: bigint;
+export class PoolStatistics {
+  longestChain = 0;
+  nbChunk = 0;
+  nbRef = 0;
+  size = 0n;
+  compressedSize = 0n;
 }
 
 export interface HistoricalPoolStatistics extends PoolStatistics {

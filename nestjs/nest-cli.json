@@ -29,6 +29,15 @@
         "tsConfigPath": "apps/api/tsconfig.app.json"
       }
     },
+    "console": {
+      "type": "application",
+      "root": "apps/console",
+      "entryFile": "main",
+      "sourceRoot": "apps/console/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/console/tsconfig.app.json"
+      }
+    },
     "backupWorker": {
       "type": "application",
       "root": "apps/backupWorker",

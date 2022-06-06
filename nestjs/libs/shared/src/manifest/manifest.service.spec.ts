@@ -7,8 +7,11 @@ import { Manifest } from './manifest.model';
 import { ManifestService } from './manifest.service';
 
 async function deleteTest(filename: string) {
-  await unlink(join(__dirname, 'fixtures', `${filename}.journal`)).catch(() => undefined);
-  await unlink(join(__dirname, 'fixtures', `${filename}.manifest`)).catch(() => undefined);
+  const journal = join(__dirname, 'fixtures', `${filename}.journal`);
+  const manifest = join(__dirname, 'fixtures', `${filename}.manifest`);
+
+  await unlink(journal).catch(() => undefined);
+  await unlink(manifest).catch(() => undefined);
 }
 
 describe('ManifestService', () => {
