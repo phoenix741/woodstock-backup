@@ -6,8 +6,10 @@ import Long from 'long';
 import { IMinimatch } from 'minimatch';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
+import { ManifestService } from '../manifest';
 import { IndexManifest } from '../manifest/index-manifest.model';
-import { FileManifest } from '../models/woodstock';
+import { FileManifest, FileManifestJournalEntry } from '../models/woodstock';
+import { longToBigInt } from '../utils';
 import { joinBuffer } from '../utils/path.utils';
 import { FileBrowserService } from './file-browser.service';
 import { ChunkHashReader, FileHashReader } from './hash-reader.transform';
@@ -25,18 +27,22 @@ export class FileReader {
     sharePath: Buffer,
     includes: IMinimatch[] = [],
     excludes: IMinimatch[] = [],
-  ): AsyncIterableX<FileManifest> {
+  ): AsyncIterableX<FileManifestJournalEntry> {
     return this.browser
       .getFiles(sharePath)(Buffer.alloc(0), includes, excludes)
       .pipe(
         tap((file) => index.mark(file.path)),
         filter((file) => FileReader.isModified(index, file)),
         map(async (file) => {
-          if (!!index.getEntry(file.path)) {
-            return await this.calculateChunkHash(sharePath, file);
-          } else {
-            return file;
+          if (
+            !!index.getEntry(file.path) &&
+            FileBrowserService.isRegularFile(longToBigInt(file.stats?.mode || Long.ZERO))
+          ) {
+            const manifest = await this.calculateChunkHash(sharePath, file);
+            return ManifestService.toAddJournalEntry(manifest, false);
           }
+
+          return ManifestService.toAddJournalEntry(file, true);
         }),
       );
   }

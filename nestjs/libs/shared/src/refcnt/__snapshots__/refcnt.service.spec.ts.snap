@@ -1,3 +1,114 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`RefCntService compact: statsService.writeStatistics 1`] = `[Function]`;
+exports[`RefCntService With mock cleanup some file: atomicWriteFileRefCnt 1`] = `
+Object {
+  "append": undefined,
+  "filename": "fileToChange",
+  "source": Array [
+    Object {
+      "compressedSize": 4000000,
+      "refCount": 5,
+      "sha256": "sha256_1",
+      "size": 4000000,
+    },
+    Object {
+      "compressedSize": 4000000,
+      "refCount": 2,
+      "sha256": "sha256_2",
+      "size": 4000000,
+    },
+  ],
+  "type": Object {
+    "fields": Object {
+      "compressedSize": Object {
+        "id": 4,
+        "type": "int32",
+      },
+      "refCount": Object {
+        "id": 2,
+        "type": "int32",
+      },
+      "sha256": Object {
+        "id": 1,
+        "type": "bytes",
+      },
+      "size": Object {
+        "id": 3,
+        "type": "int32",
+      },
+    },
+  },
+}
+`;
+
+exports[`RefCntService With mock cleanup some file: atomicWriteFileUnused 1`] = `
+Object {
+  "append": undefined,
+  "filename": "unusedPath",
+  "source": Array [
+    Object {
+      "sha256": "sha256_4",
+    },
+    Object {
+      "sha256": "sha256_5",
+    },
+    Object {
+      "sha256": "sha256_3",
+    },
+    Object {
+      "sha256": "sha256_10",
+    },
+  ],
+  "type": Object {
+    "fields": Object {
+      "sha256": Object {
+        "id": 1,
+        "type": "bytes",
+      },
+    },
+  },
+}
+`;
+
+exports[`RefCntService With mock cleanup some file: statsService.writeStatistics 1`] = `
+Array [
+  PoolStatistics {
+    "compressedSize": 8000000n,
+    "longestChain": 5,
+    "nbChunk": 2,
+    "nbRef": 7,
+    "size": 8000000n,
+  },
+  ".",
+]
+`;
+
+exports[`RefCntService With real file compact: statsService.writeStatistics 1 1`] = `
+PoolStatistics {
+  "compressedSize": 3744000000n,
+  "longestChain": 10,
+  "nbChunk": 936,
+  "nbRef": 1000,
+  "size": 3744000000n,
+}
+`;
+
+exports[`RefCntService With real file compact: statsService.writeStatistics 2 1`] = `
+PoolStatistics {
+  "compressedSize": 3744000000n,
+  "longestChain": 10,
+  "nbChunk": 936,
+  "nbRef": 1000,
+  "size": 3744000000n,
+}
+`;
+
+exports[`RefCntService With real file compact: statsService.writeStatistics 3 1`] = `
+PoolStatistics {
+  "compressedSize": 3744000000n,
+  "longestChain": 10,
+  "nbChunk": 936,
+  "nbRef": 1000,
+  "size": 3744000000n,
+}
+`;

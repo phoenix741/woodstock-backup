@@ -38,6 +38,11 @@ export function splitBuffer(buffer: Buffer, delimiter: Buffer = SEPARATOR): Buff
   return result;
 }
 
+export function basenameBuffer(buffer: Buffer | undefined): Buffer {
+  const parts = splitBuffer(buffer || Buffer.alloc(0));
+  return parts[parts.length - 1];
+}
+
 export function mangle(buffer: Buffer | string): string {
   return encodeURIComponent(buffer as unknown as string);
 }

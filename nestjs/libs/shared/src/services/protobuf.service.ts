@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { createReadStream, createWriteStream } from 'fs';
-import { rename, unlink } from 'fs/promises';
-import { never } from 'ix/asynciterable';
+import { cp, rename, unlink } from 'fs/promises';
+import { never, pipe } from 'ix/asynciterable';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
 import { Type } from 'protobufjs';
@@ -9,6 +9,7 @@ import * as stream from 'stream';
 import { Duplex, Readable, Stream } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createDeflate, createInflate } from 'zlib';
+import { notUndefined } from '../utils';
 import { fromNodeStream } from '../utils/fromnodestream';
 import { tmpNameAsync } from '../utils/path.utils';
 import { ProtobufMessageReader, ProtobufMessageWithPosition } from './transform/protobuf-message-reader.utils';
@@ -52,7 +53,7 @@ export class ProtobufService {
    * @param {string} path - The path to the file to write.
    * @param {Type} type - The type of the message to write.
    * @param source - The source of the data to write.
-   * @returns A promise that resolves to void.
+   * @returns A promise that resolves to the real filename.
    */
   async writeFile<O>(path: string, type: Type, source: AsyncIterable<O>, compress = true): Promise<void> {
     this.logger.debug(`Write the file ${path} with type ${type.name}`);
@@ -62,11 +63,14 @@ export class ProtobufService {
     const stream = createWriteStream(path, { flags: 'a' });
     const transform = new ProtobufMessageWriter<O>(type);
 
-    const streams = [Readable.from(source), transform, ...(compress ? [createDeflate()] : []), stream];
+    const allDefinedSource = pipe(source, notUndefined());
 
-    return await pipeline(streams);
+    const streams = [Readable.from(allDefinedSource), transform, ...(compress ? [createDeflate()] : []), stream];
+
+    await pipeline(streams);
   }
 
+  i = 0;
   /**
    * it takes an AsyncIterable of objects of type O, and writes them to a file with the given path.
    * The file will be written in protobuf format.
@@ -87,9 +91,23 @@ export class ProtobufService {
     try {
       await this.writeFile(tmpFilename, type, source, compress);
       await rename(tmpFilename, path);
+      //await cp(path, path + '-' + this.i++);
     } catch (err) {
-      await unlink(tmpFilename);
+      await this.rmFile(tmpFilename);
       throw err;
     }
+  }
+
+  /**
+   * Remove the file after determining the extension of the file
+   * @param path the file to remove
+   */
+  async rmFile(path: string): Promise<void> {
+    await unlink(path).catch((err) => {
+      if (err.code !== 'ENOENT') {
+        // Ignore error on unlink, the file don't exist
+        throw err;
+      }
+    });
   }
 }

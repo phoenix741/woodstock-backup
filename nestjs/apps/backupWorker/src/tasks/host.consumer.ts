@@ -4,6 +4,8 @@ import {
   BackupLogger,
   BackupsService,
   BackupTask,
+  Manifest,
+  ManifestService,
   PingService,
   ResolveService,
   SchedulerConfigService,
@@ -12,6 +14,7 @@ import { Job, Queue } from 'bull';
 import { lastValueFrom } from 'rxjs';
 import { auditTime, map } from 'rxjs/operators';
 import { HostConsumerUtilService } from '../utils/host-consumer-util.service';
+import { RemoveService } from './remove.service';
 import { InternalBackupTask } from './tasks.class';
 import { TasksService } from './tasks.service';
 
@@ -27,6 +30,7 @@ export class HostConsumer {
     private resolveService: ResolveService,
     private tasksService: TasksService,
     private backupsService: BackupsService,
+    private removeService: RemoveService,
     private pingService: PingService,
     private schedulerConfigService: SchedulerConfigService,
   ) {}
@@ -152,8 +156,10 @@ export class HostConsumer {
 
     await this.hostConsumerUtilService.lock(job);
     try {
-      await this.backupsService.removeBackup(job.data.host, job.data.number);
-      // FIXME: Remove backup files
+      await this.removeService.remove(job.data.host, job.data.number);
+    } catch (err) {
+      this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
+      throw err;
     } finally {
       await this.hostConsumerUtilService.unlock(job);
     }

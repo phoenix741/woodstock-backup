@@ -32,6 +32,10 @@ export enum ChunkStatus {
   ERROR = 1,
 }
 
+export interface PoolUnused {
+  sha256: Buffer;
+}
+
 export interface PoolRefCount {
   sha256: Buffer;
   refCount: number;

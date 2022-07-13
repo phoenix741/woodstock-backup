@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { PoolUnused } from '@woodstock/shared/models';
+import { Observable } from 'rxjs';
 import { ApplicationConfigService } from '../../config';
-import { YamlService } from '../yaml.service';
+import { RefCntService, ReferenceCount } from '../../refcnt';
+import { rm } from '../../utils';
 import { PoolChunkWrapper } from './pool-chunk-wrapper';
 
 @Injectable()
 export class PoolService {
-  constructor(private applicationConfig: ApplicationConfigService, private yamlService: YamlService) {}
+  constructor(private applicationConfig: ApplicationConfigService, private refcntService: RefCntService) {}
 
   isChunkExists(sha256: Buffer): Promise<boolean> {
     return PoolChunkWrapper.exists(this, this.applicationConfig.poolPath, sha256);
@@ -15,45 +18,20 @@ export class PoolService {
     return PoolChunkWrapper.get(this, this.applicationConfig.poolPath, sha256);
   }
 
-  // async incrStatistics(info: PoolChunkInformation): Promise<void> {
-  //   const unlock = await lock(this.poolStatisticsFileName, { realpath: false });
-  //   try {
-  //     const poolStatistics = await this.readPoolStatistics();
-  //     poolStatistics.fileCount++;
-  //     poolStatistics.poolSize += info.size;
-  //     poolStatistics.compressedPoolSize += info.compressedSize;
-  //     await this.writePoolStatistics(poolStatistics);
-  //   } finally {
-  //     await unlock();
-  //   }
-  // }
+  removeUnusedFiles(): Observable<PoolUnused> {
+    return new Observable<PoolUnused>((observable) => {
+      (async () => {
+        const refcnt = new ReferenceCount('', '', this.applicationConfig.poolPath);
+        const unused = this.refcntService.readUnused(refcnt.unusedPoolPath);
 
-  // async decrStatistics(info: PoolChunkInformation): Promise<void> {
-  //   const unlock = await lock(this.poolStatisticsFileName, { realpath: false });
-  //   try {
-  //     const poolStatistics = await this.readPoolStatistics();
-  //     poolStatistics.fileCount--;
-  //     poolStatistics.poolSize -= info.size;
-  //     poolStatistics.compressedPoolSize -= info.compressedSize;
-  //     await this.writePoolStatistics(poolStatistics);
-  //   } finally {
-  //     await unlock();
-  //   }
-  // }
+        for await (const chunk of unused) {
+          await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).remove();
+          observable.next(chunk);
+        }
 
-  // private get poolStatisticsFileName() {
-  //   return join(this.applicationConfig.poolPath, 'pool.statistics');
-  // }
-
-  // private async readPoolStatistics(): Promise<PoolSize> {
-  //   return await this.yamlService.loadFile<PoolSize>(this.poolStatisticsFileName, {
-  //     fileCount: 0n,
-  //     poolSize: 0n,
-  //     compressedPoolSize: 0n,
-  //   } as PoolSize);
-  // }
-
-  // private async writePoolStatistics(poolSize: PoolSize): Promise<void> {
-  //   await this.yamlService.writeFile(this.poolStatisticsFileName, poolSize);
-  // }
+        await rm(refcnt.unusedPoolPath);
+        observable.complete();
+      })();
+    });
+  }
 }

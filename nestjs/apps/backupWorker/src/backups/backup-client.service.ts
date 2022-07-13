@@ -15,8 +15,8 @@ import {
   LONG_CHUNK_SIZE,
   ManifestService,
   PoolChunkInformation,
-  PoolChunkRefCnt,
   PoolService,
+  RefCntService,
   ReferenceCount,
   RefreshCacheReply,
   RefreshCacheRequest,
@@ -26,12 +26,14 @@ import {
 import {
   AsyncSink,
   concat as concatIx,
+  from,
   from as fromIx,
   of as ofIx,
+  pipe,
   range as rangeIx,
   reduce as reduceIx,
 } from 'ix/asynciterable';
-import { concatAll, finalize, map as mapIx } from 'ix/asynciterable/operators';
+import { concatAll, finalize, flatMap, map, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
@@ -52,7 +54,7 @@ export class BackupClient {
     private backupService: BackupsService,
     private manifestService: ManifestService,
     private poolService: PoolService,
-    private poolChunkRefCnt: PoolChunkRefCnt,
+    private poolChunkRefCnt: RefCntService,
   ) {}
 
   async authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Promise<void> {
@@ -278,20 +280,27 @@ export class BackupClient {
         return entry;
       });
 
-      const refCntEntry = this.poolChunkRefCnt.writeJournal(
-        chunkSink,
+      const referenceCountFiles = new ReferenceCount(
+        this.backupService.getHostDirectory(context.host),
         this.backupService.getDestinationDirectory(context.host, context.currentBackupId),
-        async (entry) => {
-          if (entry) {
-            subscriber.next(entry);
-          }
-          return {
-            sha256: entry.sha256,
-            refCount: 1,
-            size: Number(entry.size),
-            compressedSize: Number(entry.compressedSize),
-          };
-        },
+        this.applicationConfig.poolPath,
+      );
+      const refCntEntry = this.poolChunkRefCnt.addChunkInformationToRefCnt(
+        pipe(
+          chunkSink,
+          map(async (entry) => {
+            if (entry) {
+              subscriber.next(entry);
+            }
+            return {
+              sha256: entry.sha256,
+              refCount: 0,
+              size: Number(entry.size),
+              compressedSize: Number(entry.compressedSize),
+            };
+          }),
+        ),
+        referenceCountFiles.backupPath,
       );
 
       Promise.all([journalEntry, refCntEntry])
@@ -309,7 +318,7 @@ export class BackupClient {
   }
 
   compact(context: BackupsGrpcContext, sharePath: Buffer): Observable<FileManifest> {
-    this.logger.log('Counting reference for the share: ' + sharePath.toString());
+    this.logger.log('Compact backup for the share: ' + sharePath.toString());
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, sharePath);
 
     return new Observable<FileManifest>((subscriber) => {
@@ -322,7 +331,8 @@ export class BackupClient {
       });
 
       compactManifest
-        .then(() => {
+        .then(async () => {
+          await this.backupService.addBackupSharePath(context.host, context.currentBackupId, sharePath);
           subscriber.complete();
         })
         .catch((err) => {
@@ -338,19 +348,38 @@ export class BackupClient {
 
     const refcnt = new ReferenceCount(hostDirectory, destinationDirectory, this.applicationConfig.poolPath);
 
-    await this.poolChunkRefCnt.compact(refcnt);
+    // Complete the refcnt with the real refcount
+    const manifests = from(this.backupService.getManifests(context.host, context.currentBackupId)).pipe(
+      flatMap((manifests) => from(manifests)),
+      flatMap((manifest) => {
+        this.logger.log(`Counting reference for ${manifest.manifestPath}`);
+        return from(this.manifestService.generateRefcntFromManifest(manifest));
+      }),
+    );
+
+    await this.poolChunkRefCnt.addReferenceCountToRefCnt(manifests, refcnt.backupPath);
+
+    this.logger.log('Compact the reference to host and pool');
+    // Compact the refcnt files
+    await this.poolChunkRefCnt.compactAllRefCnt(refcnt);
   }
 
   refreshCache(context: BackupsGrpcContext, shares: string[]): Promise<RefreshCacheReply> {
-    const shares$ = fromIx(shares).pipe(mapIx((s) => Buffer.from(s)));
-    const request$ = shares$.pipe(
+    this.logger.log(`Refresh cache for all share [${shares.join(',')}]`);
+    const request$ = fromIx(shares).pipe(
+      mapIx((s) => Buffer.from(s)),
       mapIx((share) => {
+        this.logger.log(`Refresh cache for ${share.toString()}`);
         const manifest = this.backupService.getManifest(context.host, context.currentBackupId, share);
         return concatIx(
           ofIx({ header: { sharePath: share }, fileManifest: undefined } as RefreshCacheRequest),
           this.manifestService
             .readManifestEntries(manifest)
             .pipe(mapIx((fileManifest) => ({ header: undefined, fileManifest } as RefreshCacheRequest))),
+          // ofIx(() => {
+          //   this.logger.log(`End of refreshing cache for ${share.toString()}`);
+          //   return { header: undefined, fileManifest: undefined };
+          // }),
         );
       }),
       concatAll<RefreshCacheRequest>(),

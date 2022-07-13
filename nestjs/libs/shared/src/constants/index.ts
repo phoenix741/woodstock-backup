@@ -8,6 +8,7 @@ export const WORKER_TYPE = 'worker_type';
 
 export enum WorkerType {
   api = 'api',
+  console = 'console',
   backupWorker = 'backupWorker',
   scheduleWorker = 'scheduleWorker',
   statsWorker = 'statsWorker',

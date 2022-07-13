@@ -1,4 +1,4 @@
-import { readFile, rm } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { count, pipe } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
@@ -50,7 +50,7 @@ describe('ManifestWrapper', () => {
 
       expect(await readFile(inFile)).toEqual(await readFile(outFile));
     } finally {
-      await rm(outFile);
+      await service.rmFile(outFile);
     }
   });
 });

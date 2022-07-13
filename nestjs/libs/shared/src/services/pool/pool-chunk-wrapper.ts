@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import * as assert from 'assert';
 import { constants, createReadStream, createWriteStream } from 'fs';
-import { access, rename, rm, stat } from 'fs/promises';
+import { access, rename, stat } from 'fs/promises';
 import * as mkdirp from 'mkdirp';
 import { join } from 'path';
 import * as stream from 'stream';
@@ -11,7 +11,7 @@ import { createDeflate, createInflate } from 'zlib';
 import { CHUNK_SIZE } from '../../constants';
 import { FileHashReader } from '../../file/hash-reader.transform';
 import { PoolChunkInformation } from '../../models/pool-chunk.dto';
-import { getTemporaryFileName } from '../../utils';
+import { getTemporaryFileName, isExists, rm } from '../../utils';
 import { calculateChunkDir } from './pool-chunk.utils';
 import { PoolService } from './pool.service';
 
@@ -59,9 +59,7 @@ export class PoolChunkWrapper {
   }
 
   async exists(): Promise<boolean> {
-    return access(this.chunkPath, constants.F_OK)
-      .then(() => true)
-      .catch(() => false);
+    return await isExists(this.chunkPath);
   }
 
   read(): Readable {
@@ -134,27 +132,13 @@ export class PoolChunkWrapper {
 
       return chunk;
     } catch (err) {
-      try {
-        await rm(tempfilename);
-      } catch (_) {}
+      await rm(tempfilename);
       throw err;
     }
   }
 
   async remove(): Promise<void> {
-    if (await this.exists()) {
-      // const chunk = await this.read(
-      //   new Writable({
-      //     write(_, _2, callback) {
-      //       setImmediate(callback);
-      //     },
-      //   }),
-      // );
-
-      // await this.poolService.decrStatistics(chunk);
-
-      await rm(this.chunkPath);
-    }
+    await rm(this.chunkPath);
   }
 
   private get chunkDir() {

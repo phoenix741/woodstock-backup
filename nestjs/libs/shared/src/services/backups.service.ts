@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { JobId } from 'bull';
 import { copy } from 'fs-extra';
-import { rm } from 'fs/promises';
+import { readdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
 import { Manifest } from '../manifest';
 import { Backup } from '../models/backup.dto';
-import { mangle } from '../utils';
+import { mangle, unmangle } from '../utils';
 import { LockService } from './lock.service';
 import { YamlService } from './yaml.service';
 
@@ -19,6 +19,10 @@ export class BackupsService {
     private lockService: LockService,
     private yamlService: YamlService,
   ) {}
+
+  private getSharePathFile(hostname: string, backupNumber: number): string {
+    return join(this.configService.hostPath, hostname, '' + backupNumber, 'shares.yml');
+  }
 
   private getBackupFile(hostname: string): string {
     return join(this.configService.hostPath, hostname, 'backup.yml');
@@ -34,6 +38,31 @@ export class BackupsService {
 
   getManifest(hostname: string, backupNumber: number, share: Buffer): Manifest {
     return new Manifest(mangle(share), this.getDestinationDirectory(hostname, backupNumber));
+  }
+
+  /**
+   * Return all the manifest of backup
+   * @param hostname hostname of the backup
+   * @param backupNumber number of the backup
+   */
+  async getManifests(hostname: string, backupNumber: number): Promise<Manifest[]> {
+    return (await this.getBackupSharePaths(hostname, backupNumber)).map((share) =>
+      this.getManifest(hostname, backupNumber, share),
+    );
+  }
+
+  async addBackupSharePath(hostname: string, backupNumber: number, sharePath: Buffer): Promise<void> {
+    const sharepathFilename = this.getSharePathFile(hostname, backupNumber);
+    const sharepaths = new Set(await this.yamlService.loadFile<string[]>(sharepathFilename, []));
+
+    sharepaths.add(mangle(sharePath));
+
+    await this.yamlService.writeFile(sharepathFilename, [...sharepaths]);
+  }
+
+  async getBackupSharePaths(hostname: string, backupNumber: number): Promise<Buffer[]> {
+    const sharepathFilename = this.getSharePathFile(hostname, backupNumber);
+    return await (await this.yamlService.loadFile<string[]>(sharepathFilename, [])).map((path) => unmangle(path));
   }
 
   getHostDirectory(hostname: string): string {
