@@ -10,10 +10,10 @@ import {
   LogLevel,
   Manifest,
   ManifestService,
-  RefCntService,
-  PoolService,
-  ReferenceCount,
   PoolRefCount,
+  PoolService,
+  RefCntService,
+  ReferenceCount,
 } from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';

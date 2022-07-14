@@ -1,7 +1,7 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { BackupsService, BackupTask, HostConfiguration, HostsService } from '@woodstock/shared';
-import { Job, Queue } from 'bull';
+import { Job, Queue } from 'bullmq';
 
 @Injectable()
 export class HostConsumerUtilService {
@@ -12,6 +12,9 @@ export class HostConsumerUtilService {
   ) {}
 
   async lock(job: Job<BackupTask>): Promise<void> {
+    if (!job.id) {
+      throw new NotFoundException('Job ID not found');
+    }
     /* *********** LOCK ************ */
     const previousLock = await this.backupsService.lock(job.data.host, job.id);
     if (previousLock) {
@@ -26,6 +29,9 @@ export class HostConsumerUtilService {
   }
 
   async unlock(job: Job<BackupTask>): Promise<void> {
+    if (!job.id) {
+      throw new NotFoundException('Job ID not found');
+    }
     /* ************** UNLOCK ************ */
     await this.backupsService.unlock(job.data.host, job.id);
     /* ************** END UNLOCK ************ */

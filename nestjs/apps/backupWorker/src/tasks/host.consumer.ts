@@ -1,16 +1,14 @@
-import { InjectQueue, Process, Processor } from '@nestjs/bull';
-import { BadGatewayException, BadRequestException, Logger } from '@nestjs/common';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { BadGatewayException, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import {
   BackupLogger,
   BackupsService,
   BackupTask,
-  Manifest,
-  ManifestService,
   PingService,
   ResolveService,
   SchedulerConfigService,
 } from '@woodstock/shared';
-import { Job, Queue } from 'bull';
+import { Job, Queue } from 'bullmq';
 import { lastValueFrom } from 'rxjs';
 import { auditTime, map } from 'rxjs/operators';
 import { HostConsumerUtilService } from '../utils/host-consumer-util.service';
@@ -20,8 +18,8 @@ import { TasksService } from './tasks.service';
 
 const maxBackupTask = parseInt(process.env.MAX_BACKUP_TASK || '') || 1;
 
-@Processor('queue')
-export class HostConsumer {
+@Processor('queue', { concurrency: maxBackupTask })
+export class HostConsumer extends WorkerHost {
   private logger = new Logger(HostConsumer.name);
 
   constructor(
@@ -33,12 +31,26 @@ export class HostConsumer {
     private removeService: RemoveService,
     private pingService: PingService,
     private schedulerConfigService: SchedulerConfigService,
-  ) {}
+  ) {
+    super();
+  }
 
-  @Process({
-    name: 'schedule_host',
-    concurrency: 0,
-  })
+  async process(job: Job<BackupTask>): Promise<void> {
+    switch (job.name) {
+      case 'schedule_host':
+        await this.schedule(job);
+        break;
+      case 'backup':
+        await this.launchBackup(job);
+        break;
+      case 'remove':
+        await this.remove(job);
+        break;
+      default:
+        throw new NotFoundException(`Unknown job name ${job.name}`);
+    }
+  }
+
   async schedule(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Test ${job.data.host} for backup - JOB ID = ${job.id}`);
 
@@ -79,10 +91,6 @@ export class HostConsumer {
     // Check if some backup should be removed
   }
 
-  @Process({
-    name: 'backup',
-    concurrency: maxBackupTask,
-  })
   async launchBackup(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
 
@@ -122,7 +130,7 @@ export class HostConsumer {
           auditTime(5000), // FIXME: Conf
           map(async (task) => {
             job.update(task);
-            job.progress(task.progression?.percent);
+            job.updateProgress(task.progression?.percent);
             await this.backupsService.addOrReplaceBackup(job.data.host, task.toBackup());
             return task;
           }),
@@ -130,7 +138,7 @@ export class HostConsumer {
       );
 
       job.update(task);
-      job.progress(task.progression?.percent);
+      job.updateProgress(task.progression?.percent);
 
       this.logger.verbose(
         `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
@@ -147,7 +155,6 @@ export class HostConsumer {
     this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
   }
 
-  @Process('remove_backup')
   async remove(job: Job<BackupTask>): Promise<void> {
     this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number} - JOB ID = ${job.id}`);
     if (!job.data.host || job.data.number === undefined) {

@@ -1,11 +1,11 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ApplicationConfigService } from '../../config/application-config.service';
-import { isExists } from '../../utils/fs.utils';
 import { readFile, writeFile } from 'fs/promises';
+import * as mkdirp from 'mkdirp';
 import { md, pki } from 'node-forge';
 import { join } from 'path';
+import { ApplicationConfigService } from '../../config/application-config.service';
 import { WorkerType, WORKER_TYPE } from '../../constants';
-import * as mkdirp from 'mkdirp';
+import { isExists } from '../../utils/fs.utils';
 
 const CERTIFICATE_ATTRS = [
   {

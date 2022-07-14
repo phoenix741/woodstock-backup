@@ -1,7 +1,7 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { HostsStatsUsage, PoolStatistics, StatsDiskUsage, StatsInstantService } from '@woodstock/shared';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 import * as promClient from 'prom-client';
 
 interface QueueStats {

@@ -1,6 +1,6 @@
-import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
+import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { BackupTask, HostsService } from '@woodstock/shared';
-import { JobId, Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { promises as fs } from 'fs';
 import { Command, Console, createSpinner } from 'nestjs-console';
@@ -17,12 +17,14 @@ const DATEISO8601 = /\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}/;
 @Console({
   command: 'backups',
 })
-@Processor('queue')
-export class BackupsCommand {
+@QueueEventsListener('queue')
+export class BackupsCommand extends QueueEventsHost {
   private spinner?: ora.Ora;
-  private jobId?: JobId;
+  private jobId?: string;
 
-  constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService) {}
+  constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService) {
+    super();
+  }
 
   @Command({
     command: 'import <hostname> <date> <path>',
@@ -49,8 +51,12 @@ export class BackupsCommand {
     );
     try {
       this.jobId = job.id;
-      await job.finished();
-      job = (await this.hostsQueue.getJob(job.id)) || job;
+      if (!this.jobId) {
+        throw new Error('Job ID is not defined');
+      }
+
+      await job.waitUntilFinished(this.queueEvents);
+      job = (await this.hostsQueue.getJob(this.jobId)) || job;
 
       if (await job.isFailed()) {
         throw new Error(job.failedReason);
@@ -58,7 +64,11 @@ export class BackupsCommand {
 
       this.spinner.succeed(`[Backups/Import] ${host}/${job.data.number || 'NA'}: Progress 100%`);
     } catch (err) {
-      job = (await this.hostsQueue.getJob(job.id)) || job;
+      if (!this.jobId) {
+        throw new Error('Job ID is not defined');
+      }
+
+      job = (await this.hostsQueue.getJob(this.jobId)) || job;
       this.spinner.fail(`[Backups/Import] ${host}/${job.data.number || 'NA'}: ${(err as Error).message}`);
     }
   }
@@ -132,11 +142,13 @@ export class BackupsCommand {
     }
   }
 
-  @OnGlobalQueueProgress()
-  async handler(jobId: number, progress: number): Promise<void> {
+  @OnQueueEvent('progress')
+  async handler({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.hostsQueue.getJob(jobId);
     if (job && job.id === this.jobId && this.spinner) {
-      this.spinner.text = `[Backups/Import] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress)}%`;
+      this.spinner.text = `[Backups/Import] ${job.data.host}/${job.data.number}: Progress ${Math.round(
+        job.progress as number,
+      )}%`;
     }
   }
 }

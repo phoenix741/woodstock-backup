@@ -10,7 +10,6 @@ import {
   ProtoFileManifestJournalEntry,
   ProtoPoolRefCount,
   ProtoPoolUnused,
-  ReferenceCount,
   YAML_SCHEMA,
 } from '@woodstock/shared';
 import { pipe } from 'ix/asynciterable';
@@ -18,7 +17,6 @@ import { filter, map } from 'ix/asynciterable/operators';
 import * as yaml from 'js-yaml';
 import { Command, Console } from 'nestjs-console';
 import * as ora from 'ora';
-import { basename } from 'path';
 import { Type } from 'protobufjs';
 
 @Console({

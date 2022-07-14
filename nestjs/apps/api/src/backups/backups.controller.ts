@@ -1,4 +1,4 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import {
   Controller,
   Delete,
@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
 import { ApplicationConfigService, Backup, BackupsService, BackupTask, HostsService } from '@woodstock/shared';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { Response } from 'express';
 import { join } from 'path';
 import { getLog, tailLog } from '../utils/log-utils.service';

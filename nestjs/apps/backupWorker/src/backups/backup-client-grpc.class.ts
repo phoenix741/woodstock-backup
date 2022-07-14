@@ -21,7 +21,7 @@ import {
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
 import { AsyncIterableX, from, pipe } from 'ix/asynciterable';
-import { filter, map, tap } from 'ix/asynciterable/operators';
+import { filter, map } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { Readable } from 'stream';

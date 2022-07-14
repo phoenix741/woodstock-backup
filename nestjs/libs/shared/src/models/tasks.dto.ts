@@ -119,7 +119,7 @@ export class BackupTask {
 @ObjectType()
 export class Job {
   @Field(() => Int)
-  id!: number;
+  id!: string;
 
   name!: string;
   data!: BackupTask;

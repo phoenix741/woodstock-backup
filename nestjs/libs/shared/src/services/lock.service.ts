@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { JobId } from 'bull';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
 
 @Injectable()
 export class LockService {
-  async lock(lockfile: string, jobId: JobId, force = false): Promise<JobId | null> {
+  async lock(lockfile: string, jobId: string, force = false): Promise<string | null> {
     try {
       await mkdirp(dirname(lockfile));
 
@@ -29,7 +28,7 @@ export class LockService {
     }
   }
 
-  async isLocked(lockfile: string): Promise<JobId | null> {
+  async isLocked(lockfile: string): Promise<string | null> {
     try {
       return JSON.parse(await fs.promises.readFile(lockfile, 'utf-8'));
     } catch (err) {
@@ -41,7 +40,7 @@ export class LockService {
     }
   }
 
-  async unlock(lockfile: string, jobId: JobId, force = false): Promise<JobId | null> {
+  async unlock(lockfile: string, jobId: string, force = false): Promise<string | null> {
     try {
       const currentLock = JSON.parse(await fs.promises.readFile(lockfile, 'utf-8'));
 

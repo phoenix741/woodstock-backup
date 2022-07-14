@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { createReadStream, createWriteStream } from 'fs';
-import { cp, rename, unlink } from 'fs/promises';
+import { rename, unlink } from 'fs/promises';
 import { never, pipe } from 'ix/asynciterable';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';

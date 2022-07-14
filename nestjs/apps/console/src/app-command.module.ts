@@ -4,9 +4,9 @@ import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@wo
 import { ConsoleModule } from 'nestjs-console';
 import { BackupsCommand } from './backups/backups.command';
 import { GlobalModule } from './global.module';
-import { StatsCommand } from './stats/stats.command';
 import { PoolCommand } from './pool/pool.command';
 import { ProtobufCommand } from './protobuf/protobuf.command';
+import { StatsCommand } from './stats/stats.command';
 
 @Module({
   imports: [
