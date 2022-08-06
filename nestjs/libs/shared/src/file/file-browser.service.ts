@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { constants as constantsFs, Dirent } from 'fs';
 import { access, lstat, opendir, readlink } from 'fs/promises';
-import { AsyncIterableX, from, of, pipe } from 'ix/asynciterable';
+import { AsyncIterableX, from, of } from 'ix/asynciterable';
 import { filter, flatMap, map, startWith } from 'ix/asynciterable/operators';
 import { IMinimatch } from 'minimatch';
 import { FileManifest } from '../models/woodstock';
@@ -17,13 +17,12 @@ export class FileBrowserService {
     path: Buffer,
     filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
   ): AsyncIterableX<Dirent> {
-    return pipe(
-      from(
-        opendir(path, { encoding: 'buffer' as any }).catch((err) => {
-          this.logger.error(err);
-          return from([] as Dirent[]);
-        }),
-      ),
+    return from(
+      opendir(path, { encoding: 'buffer' as any }).catch((err) => {
+        this.logger.error(err);
+        return from([] as Dirent[]);
+      }),
+    ).pipe(
       flatMap((dir) => dir),
       filter((dirEntry) => !filterCallback || filterCallback(path, dirEntry)),
     );

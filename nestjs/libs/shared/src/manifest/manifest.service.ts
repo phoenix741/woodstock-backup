@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { rename } from 'fs/promises';
-import { AsyncIterableX, concat, from, pipe, reduce } from 'ix/asynciterable';
+import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
 import { catchError, concatAll, filter, flatMap, map } from 'ix/asynciterable/operators';
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
@@ -53,7 +53,7 @@ export class ManifestService {
     manifest: Manifest,
     mapping: (v: T) => Promise<FileManifestJournalEntry | undefined> = (v) => v as any,
   ): Promise<void> {
-    const mappedSource = pipe(source, map(mapping), notUndefined());
+    const mappedSource = from(source).pipe(map(mapping), notUndefined());
     await this.protobufService.atomicWriteFile<FileManifestJournalEntry>(
       manifest.journalPath,
       ProtoFileManifestJournalEntry,
@@ -76,7 +76,7 @@ export class ManifestService {
     manifest: Manifest,
     mapping: (v: T) => Promise<FileManifestJournalEntry | undefined> = (v) => v as any,
   ): Promise<void> {
-    const mappedSource = pipe(source, map(mapping), notUndefined());
+    const mappedSource = from(source).pipe(map(mapping), notUndefined());
     await this.protobufService.atomicWriteFile<FileManifestJournalEntry>(
       manifest.fileListPath,
       ProtoFileManifestJournalEntry,
@@ -94,8 +94,7 @@ export class ManifestService {
   }
 
   readManifestEntries(manifest: Manifest): AsyncIterableX<FileManifest> {
-    return pipe(
-      this.protobufService.loadFile<FileManifest>(manifest.manifestPath, ProtoFileManifest),
+    return from(this.protobufService.loadFile<FileManifest>(manifest.manifestPath, ProtoFileManifest)).pipe(
       map((frame) => frame.message),
       catchError((err) => {
         this.logger.warn(`Can't read the file ${manifest.manifestPath}: ${err.message}`);
@@ -106,8 +105,9 @@ export class ManifestService {
 
   readJournalEntries(manifest: Manifest): AsyncIterableX<FileManifestJournalEntry> {
     try {
-      return pipe(
+      return from(
         this.protobufService.loadFile<FileManifestJournalEntry>(manifest.journalPath, ProtoFileManifestJournalEntry),
+      ).pipe(
         map((frame) => frame.message),
         catchError((err) => {
           this.logger.warn(`Can't read the file ${manifest.journalPath}: ${err.message}`);
@@ -120,8 +120,9 @@ export class ManifestService {
   }
 
   readFilelistEntries(manifest: Manifest): AsyncIterableX<FileManifestJournalEntry> {
-    return pipe(
+    return from(
       this.protobufService.loadFile<FileManifestJournalEntry>(manifest.fileListPath, ProtoFileManifestJournalEntry),
+    ).pipe(
       map((frame) => frame.message),
       catchError((err) => {
         this.logger.warn(`Can't read the file ${manifest.journalPath}: ${err.message}`);

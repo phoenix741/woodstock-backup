@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { concat, from, pipe, reduce, toSet } from 'ix/asynciterable';
+import { concat, from, reduce, toSet } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
 import { lock } from 'proper-lockfile';
@@ -36,13 +36,7 @@ export class RefCntService {
     this.logger.debug(`Write empty ref count into ${filename}`);
     const originRefcnt = this.readRefCnt(filename);
 
-    await this.writeRefCnt(
-      pipe(
-        concat(originRefcnt, source),
-        map((v) => ({ ...v, refCount: 0 })),
-      ),
-      filename,
-    );
+    await this.writeRefCnt(from(concat(originRefcnt, source)).pipe(map((v) => ({ ...v, refCount: 0 }))), filename);
   }
 
   /**
@@ -60,16 +54,7 @@ export class RefCntService {
     this.logger.debug(`Merge reference count to ${filename}`);
     const originRefcnt = this.readRefCnt(filename);
 
-    await this.writeRefCnt(
-      concat(
-        pipe(
-          originRefcnt,
-          map((v) => ({ ...v, refCount: 0 })),
-        ),
-        source,
-      ),
-      filename,
-    );
+    await this.writeRefCnt(concat(from(originRefcnt).pipe(map((v) => ({ ...v, refCount: 0 }))), source), filename);
 
     // And compact
     await this.#addBackupRefcntTo(filename);
@@ -77,8 +62,7 @@ export class RefCntService {
 
   readRefCnt(filename: string, compress = true): AsyncIterable<PoolRefCount> {
     this.logger.debug(`Read ref count from ${filename}`);
-    return pipe(
-      this.protobufService.loadFile<PoolRefCount>(filename, ProtoPoolRefCount, compress),
+    return from(this.protobufService.loadFile<PoolRefCount>(filename, ProtoPoolRefCount, compress)).pipe(
       map((v) => v.message),
       catchError((err) => {
         this.logger.warn("Can't read the file :" + err.message);
@@ -110,8 +94,7 @@ export class RefCntService {
 
   readUnused(filename: string): AsyncIterable<PoolUnused> {
     this.logger.debug(`Read unused from ${filename}`);
-    return pipe(
-      this.protobufService.loadFile<PoolUnused>(filename, ProtoPoolUnused),
+    return from(this.protobufService.loadFile<PoolUnused>(filename, ProtoPoolUnused)).pipe(
       map((v) => v.message),
       catchError((err) => {
         this.logger.warn("Can't read the file :" + err.message);
@@ -205,12 +188,7 @@ export class RefCntService {
 
       const statistics = new PoolStatistics();
 
-      const unusedArray = await toSet(
-        pipe(
-          unused,
-          map((v) => v.sha256.toString('base64')),
-        ),
-      );
+      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
 
       const rrefcnt = await this.#calculateRefCount(concat(fileToUpdate, backupRefcnt), statistics, unusedArray);
 
@@ -237,18 +215,10 @@ export class RefCntService {
     const unlock = await lock(fileToChangePath, { realpath: false });
     try {
       const fileToChange = this.readRefCnt(fileToChangePath);
-      const backupRefcnt = pipe(
-        this.readRefCnt(backupRefcntPath),
-        map((v) => ({ ...v, refCount: -v.refCount })),
-      );
+      const backupRefcnt = from(this.readRefCnt(backupRefcntPath)).pipe(map((v) => ({ ...v, refCount: -v.refCount })));
       const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
-      const unusedArray = await toSet(
-        pipe(
-          unused,
-          map((v) => v.sha256.toString('base64')),
-        ),
-      );
+      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
 
       const originalCount = await this.#calculateRefCount(fileToChange, new PoolStatistics(), unusedArray);
 

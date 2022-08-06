@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AsyncIterableX, concat, count, from, pipe, reduce, toSet } from 'ix/asynciterable';
+import { AsyncIterableX, concat, count, from, reduce, toSet } from 'ix/asynciterable';
 import { filter, flatMap, map, tap } from 'ix/asynciterable/operators';
 import { basename } from 'path';
 import { ApplicationConfigService } from '../config';
@@ -275,10 +275,7 @@ export class FsckService {
     // Read unused file
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
     const unusedPool = await toSet(
-      pipe(
-        this.refCntService.readUnused(refcnt.unusedPoolPath),
-        map((chunk) => chunk.sha256.toString('base64')),
-      ),
+      from(this.refCntService.readUnused(refcnt.unusedPoolPath)).pipe(map((chunk) => chunk.sha256.toString('base64'))),
     );
 
     logger.log(0, 1, `Read Refcnt`);

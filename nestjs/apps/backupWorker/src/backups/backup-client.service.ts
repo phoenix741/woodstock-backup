@@ -29,7 +29,6 @@ import {
   from,
   from as fromIx,
   of as ofIx,
-  pipe,
   range as rangeIx,
   reduce as reduceIx,
 } from 'ix/asynciterable';
@@ -286,8 +285,7 @@ export class BackupClient {
         this.applicationConfig.poolPath,
       );
       const refCntEntry = this.poolChunkRefCnt.addChunkInformationToRefCnt(
-        pipe(
-          chunkSink,
+        fromIx(chunkSink).pipe(
           map(async (entry) => {
             if (entry) {
               subscriber.next(entry);
