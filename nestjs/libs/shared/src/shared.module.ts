@@ -12,6 +12,7 @@ import {
   FilesService,
   FsckService,
   HostsService,
+  JobService,
   LockService,
   PingService,
   PoolService,
@@ -70,6 +71,7 @@ const PROVIDERS = [
   StatsInstantService,
   ToolsService,
   YamlService,
+  JobService,
 ];
 
 @Module({

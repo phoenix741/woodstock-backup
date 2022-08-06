@@ -14,3 +14,4 @@ export * from './protobuf.service';
 export * from './scheduler-config.service';
 export * from './transform';
 export * from './yaml.service';
+export * from './job.service';

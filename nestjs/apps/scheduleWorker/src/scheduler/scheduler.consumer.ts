@@ -1,6 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, NotFoundException } from '@nestjs/common';
-import { BackupTask, HostsService, PoolService } from '@woodstock/shared';
+import { BackupTask, HostsService, JobService, PoolService } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { count } from 'rxjs';
 
@@ -12,6 +12,7 @@ export class SchedulerConsumer extends WorkerHost {
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
     private hostsService: HostsService,
     private poolService: PoolService,
+    private jobService: JobService,
   ) {
     super();
   }
@@ -32,12 +33,9 @@ export class SchedulerConsumer extends WorkerHost {
   async wakeupJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Wakeup scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
-      const hasBackup = (await this.hostsQueue.getJobs(['active', 'delayed', 'waiting'])).find(
-        (b) => b.data.host === host,
-      );
-
+      const hasBackup = await this.jobService.shouldBackupHost(host);
       if (!hasBackup) {
-        await this.hostsQueue.add('schedule_host', { host }, { removeOnComplete: true });
+        await this.hostsQueue.add('backup', { host }, { removeOnComplete: true });
       }
     }
   }

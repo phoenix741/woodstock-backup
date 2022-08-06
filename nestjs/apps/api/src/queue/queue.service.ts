@@ -10,6 +10,7 @@ export class QueueService extends QueueEventsHost {
 
   constructor(
     @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
+
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
   ) {
     super();
@@ -58,7 +59,6 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
-      await this.removeHost(job);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
     }
   }
@@ -77,7 +77,6 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
-      await this.removeHost(job);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
     }
   }
@@ -88,7 +87,6 @@ export class QueueService extends QueueEventsHost {
     if (job) {
       this.logger.error(`Error when processing the job ${job.id} with the error ${failedReason}`);
 
-      await this.removeHost(job);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
       this.pubSub.publish('jobFailed', { jobFailed: job });
     }
@@ -101,22 +99,6 @@ export class QueueService extends QueueEventsHost {
       this.logger.log(`Job ${job.id} was removed from the queue.`);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
       this.pubSub.publish('jobRemoved', { jobRemoved: job });
-    }
-  }
-
-  async removeHost(job: Job<BackupTask>): Promise<void> {
-    this.logger.log(`Removing host ${job.data.host} from the queue.`);
-
-    const backups = await this.backupQueue.getJobs([]);
-    const backupToRemove = backups.filter(
-      (j) =>
-        j && ['backup', 'stats'].includes(j.name) && j.id !== job.id && j.data.host && j.data.host === job.data.host,
-    );
-
-    for (const jobToRemove of backupToRemove) {
-      if (!(await jobToRemove.isActive())) {
-        await jobToRemove.remove();
-      }
     }
   }
 }

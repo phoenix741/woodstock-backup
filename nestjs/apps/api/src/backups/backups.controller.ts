@@ -47,7 +47,7 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    await this.hostsQueue.add('backup', { host: name }, { removeOnComplete: false });
+    await this.hostsQueue.add('backup', { host: name });
   }
 
   @Delete(':number')
@@ -59,7 +59,7 @@ export class BackupController {
       throw new NotFoundException(`Can't find the host with the name ${name}`);
     }
 
-    await this.hostsQueue.add('remove_backup', { host: name, number }, { removeOnComplete: true });
+    await this.hostsQueue.add('remove_backup', { host: name, number });
   }
 
   @Get(':number/log/backup.log')

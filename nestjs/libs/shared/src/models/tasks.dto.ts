@@ -1,4 +1,4 @@
-import { Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { Field, Float, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { HostConfiguration } from './host-configuration.dto';
@@ -118,16 +118,13 @@ export class BackupTask {
 
 @ObjectType()
 export class Job {
-  @Field(() => Int)
   id!: string;
 
   name!: string;
   data!: BackupTask;
 
-  @Field(() => Int)
   delay!: number;
 
-  @Field(() => Int)
   timestamp!: number;
 
   @Field(() => Int)
@@ -136,9 +133,6 @@ export class Job {
   failedReason?: string;
   stacktrace?: string[];
 
-  @Field(() => Int)
   finishedOn?: number;
-
-  @Field(() => Int)
   processedOn?: number;
 }

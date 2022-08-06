@@ -35,6 +35,7 @@ export class QueueResolver {
 
     return {
       waiting: await this.backupQueue.getWaitingCount(),
+      waitingChildren: await this.backupQueue.getWaitingChildrenCount(),
       active: await this.backupQueue.getActiveCount(),
       failed: await this.backupQueue.getFailedCount(),
       delayed: await this.backupQueue.getDelayedCount(),
