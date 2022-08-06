@@ -14,28 +14,22 @@ export class Backup {
   newFileCount!: number;
   existingFileCount!: number;
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   fileSize!: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   existingFileSize!: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newFileSize!: bigint;
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   compressedFileSize!: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   existingCompressedFileSize!: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newCompressedFileSize!: bigint;

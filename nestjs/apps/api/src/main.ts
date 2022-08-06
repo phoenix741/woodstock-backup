@@ -10,7 +10,15 @@ async function bootstrap() {
     logger: new ApplicationLogger('main'),
   });
   app.setGlobalPrefix('/api', { exclude: [{ path: 'metrics', method: RequestMethod.GET }] });
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      forbidUnknownValues: true,
+      skipMissingProperties: true,
+      skipNullProperties: true,
+      skipUndefinedProperties: true,
+    }),
+  );
 
   const options = new DocumentBuilder()
     .setTitle('Woodstock Backup')

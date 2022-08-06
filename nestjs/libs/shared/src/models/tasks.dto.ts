@@ -34,20 +34,16 @@ export class TaskProgression {
     Object.assign(this, s);
   }
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   compressedFileSize: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newCompressedFileSize: bigint;
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   fileSize: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newFileSize: bigint;
@@ -71,11 +67,9 @@ export class TaskProgression {
     this.progressCurrent = (BigInt(v) * this.progressMax) / 100n;
   }
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   progressCurrent: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   progressMax: bigint;
