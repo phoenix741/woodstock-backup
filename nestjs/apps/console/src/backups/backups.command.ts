@@ -4,7 +4,6 @@ import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { promises as fs } from 'fs';
 import { Command, Console, createSpinner } from 'nestjs-console';
-import * as ora from 'ora';
 import { join } from 'path';
 
 interface BackupPCSlot {
@@ -19,7 +18,7 @@ const DATEISO8601 = /\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}/;
 })
 @QueueEventsListener('queue')
 export class BackupsCommand extends QueueEventsHost {
-  private spinner?: ora.Ora;
+  private spinner?: ReturnType<typeof createSpinner>;
   private jobId?: string;
 
   constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService) {

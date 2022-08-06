@@ -101,7 +101,7 @@ export class JobService {
     if (lastBackup?.complete) {
       return { number: lastBackup.number + 1, previousNumber: lastBackup.number };
     } else {
-      return { number: 0, previousNumber: undefined };
+      return { number: lastBackup?.number || 0, previousNumber: undefined };
     }
   }
 }

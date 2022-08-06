@@ -3,14 +3,13 @@ import { BackupTask } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { Command, Console, createSpinner } from 'nestjs-console';
-import * as ora from 'ora';
 
 @Console({
   command: 'stats',
 })
 @QueueEventsListener('queue')
 export class StatsCommand extends QueueEventsHost {
-  private spinner?: ora.Ora;
+  private spinner?: ReturnType<typeof createSpinner>;
   private jobId?: string;
 
   constructor(
