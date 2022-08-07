@@ -32,7 +32,7 @@ import {
   range as rangeIx,
   reduce as reduceIx,
 } from 'ix/asynciterable';
-import { concatAll, finalize, flatMap, map, map as mapIx } from 'ix/asynciterable/operators';
+import { concatAll, concatMap, finalize, map, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
@@ -348,8 +348,8 @@ export class BackupClient {
 
     // Complete the refcnt with the real refcount
     const manifests = from(this.backupService.getManifests(context.host, context.currentBackupId)).pipe(
-      flatMap((manifests) => from(manifests)),
-      flatMap((manifest) => {
+      concatMap((manifests) => from(manifests)),
+      concatMap((manifest) => {
         this.logger.log(`Counting reference for ${manifest.manifestPath}`);
         return from(this.manifestService.generateRefcntFromManifest(manifest));
       }),

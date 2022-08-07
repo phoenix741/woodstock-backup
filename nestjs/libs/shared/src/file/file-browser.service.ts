@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { constants as constantsFs, Dirent } from 'fs';
 import { access, lstat, opendir, readlink } from 'fs/promises';
 import { AsyncIterableX, from, of } from 'ix/asynciterable';
-import { filter, flatMap, map, startWith } from 'ix/asynciterable/operators';
+import { concatMap, filter, map, startWith } from 'ix/asynciterable/operators';
 import { IMinimatch } from 'minimatch';
 import { FileManifest } from '../models/woodstock';
 import { notUndefined } from '../utils/iterator.utils';
@@ -13,29 +13,33 @@ import { joinBuffer } from '../utils/path.utils';
 export class FileBrowserService {
   private logger = new Logger(FileBrowserService.name);
 
-  public getFilesFromDirectory(
-    path: Buffer,
-    filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
-  ): AsyncIterableX<Dirent> {
+  #readDirSync(path: Buffer): AsyncIterableX<Dirent> {
     return from(
       opendir(path, { encoding: 'buffer' as any }).catch((err) => {
         this.logger.error(err);
-        return from([] as Dirent[]);
+        return from([]);
       }),
-    ).pipe(
-      flatMap((dir) => dir),
-      filter((dirEntry) => !filterCallback || filterCallback(path, dirEntry)),
+    ).pipe(concatMap((dir) => dir));
+  }
+
+  public getFilesFromDirectory(
+    sharePath: Buffer,
+    backupPath?: Buffer,
+    filterCallback?: (sharePath: Buffer, backupPath: Buffer | undefined, path: Dirent) => boolean,
+  ): AsyncIterableX<Dirent> {
+    const path = backupPath ? joinBuffer(sharePath, backupPath) : sharePath;
+    return this.#readDirSync(path).pipe(
+      filter((dirEntry) => !filterCallback || filterCallback(sharePath, backupPath, dirEntry)),
     );
   }
 
   public getFilesRecursive(
     sharePath: Buffer,
-    filterCallback?: (currentPath: Buffer, path: Dirent) => boolean,
+    filterCallback?: (sharePath: Buffer, backupPath: Buffer | undefined, path: Dirent) => boolean,
   ): (backupPath: Buffer) => AsyncIterableX<Buffer> {
     const forShare = (backupPath: Buffer): AsyncIterableX<Buffer> => {
-      const path = joinBuffer(sharePath, backupPath);
-      const files = this.getFilesFromDirectory(path, filterCallback).pipe(
-        flatMap(async (dirEntry) => {
+      const files = this.getFilesFromDirectory(sharePath, backupPath, filterCallback).pipe(
+        concatMap<Dirent, Buffer>(async (dirEntry) => {
           if (dirEntry.isDirectory()) {
             return forShare(joinBuffer(backupPath, dirEntry.name as unknown as Buffer)).pipe(
               startWith(joinBuffer(backupPath, dirEntry.name as unknown as Buffer)),
@@ -58,9 +62,9 @@ export class FileBrowserService {
       includes: IMinimatch[] = [],
       excludes: IMinimatch[] = [],
     ): AsyncIterableX<FileManifest> => {
-      return this.getFilesRecursive(joinBuffer(sharePath, backupPath), (currentPath, path) =>
+      return this.getFilesRecursive(joinBuffer(sharePath, backupPath), (sharePath, backupPath, path) =>
         FileBrowserService.isFileAuthorized(
-          joinBuffer(currentPath, path.name as unknown as Buffer),
+          joinBuffer(backupPath ?? sharePath, path.name as unknown as Buffer),
           includes,
           excludes,
         ),
@@ -128,6 +132,7 @@ export class FileBrowserService {
 
   private static isFileAuthorized(file: Buffer, includes: IMinimatch[], excludes: IMinimatch[]): boolean {
     const latin1File = file.toString('latin1');
+
     if (includes.length > 0) {
       if (!includes.some((include) => include.match(latin1File))) {
         return false;

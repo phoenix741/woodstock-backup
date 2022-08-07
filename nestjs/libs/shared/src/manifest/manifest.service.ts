@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
-import { catchError, concatAll, filter, flatMap, map } from 'ix/asynciterable/operators';
+import { catchError, concatAll, concatMap, filter, map } from 'ix/asynciterable/operators';
+import { PoolRefCount } from '../models';
+import { ManifestChunk } from '../models/manifest.dto';
 import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufService } from '../services/protobuf.service';
@@ -9,8 +11,6 @@ import { isExists } from '../utils/fs.utils';
 import { notUndefined } from '../utils/iterator.utils';
 import { IndexManifest } from './index-manifest.model';
 import { Manifest } from './manifest.model';
-import { PoolRefCount } from '../models';
-import { ManifestChunk } from '../models/manifest.dto';
 
 @Injectable()
 export class ManifestService {
@@ -179,11 +179,11 @@ export class ManifestService {
       .writeFile(manifest.newPath, ProtoFileManifest, allMessages$.pipe(map(mapping)))
       .then(async () => {
         try {
-          // await Promise.all([
-          //   this.protobufService.rmFile(manifest.journalPath),
-          //   this.protobufService.rmFile(manifest.fileListPath),
-          //   this.protobufService.rmFile(manifest.manifestPath),
-          // ]);
+          await Promise.all([
+            this.protobufService.rmFile(manifest.journalPath),
+            this.protobufService.rmFile(manifest.fileListPath),
+            this.protobufService.rmFile(manifest.manifestPath),
+          ]);
         } catch (err) {
         } finally {
           await rename(manifest.newPath, manifest.manifestPath);
@@ -194,7 +194,7 @@ export class ManifestService {
 
   listChunksFromManifest(manifest: Manifest): AsyncIterableX<ManifestChunk> {
     return this.readManifestEntries(manifest).pipe(
-      flatMap((manifest) => {
+      concatMap((manifest) => {
         const chunks = manifest.chunks || [];
         return from(chunks).pipe(map((sha256) => ({ sha256, manifest })));
       }),

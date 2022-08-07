@@ -31,7 +31,7 @@ export class HostConsumer extends WorkerHost {
       case 'backup':
         await this.launchBackup(job);
         break;
-      case 'remove':
+      case 'remove_backup':
         await this.remove(job);
         break;
       default:
