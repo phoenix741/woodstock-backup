@@ -1,54 +1,48 @@
-FROM node:16-buster as dependencies
+FROM node:16 as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
-WORKDIR /src/server
-COPY server/package.json /src/server
-COPY server/package-lock.json /src/server
+WORKDIR /src/nestjs
+COPY nestjs/package.json /src/nestjs
+COPY nestjs/package-lock.json /src/nestjs
 RUN npm install --production
 
 #
 # -------- Build --------
 FROM dependencies as build
 
-WORKDIR /src/client
-COPY client/package.json /src/client
-COPY client/package-lock.json /src/client
+WORKDIR /src/front
+COPY front/package.json /src/front
+COPY front/package-lock.json /src/front
 RUN npm install
 
-WORKDIR /src/server
+WORKDIR /src/nestjs
 RUN npm install
 
-COPY client/ /src/client/
-COPY server/ /src/server/
+COPY front/ /src/front/
+COPY nestjs/ /src/nestjs/
 
-WORKDIR /src/client
+WORKDIR /src/front
 
 ENV VUE_APP_GRAPHQL_HTTP=/graphql
 
 RUN npm run build -- --prod
 
-WORKDIR /src/server
-RUN npm run build 
+WORKDIR /src/nestjs
+RUN npm run build:all
 
 #
 # -------- Dist -----------
-FROM node:16-buster AS dist
+FROM node:16 AS dist
 
-RUN apt update && apt install -y btrfs-compsize btrfs-progs coreutils samba-common-bin rsync && rm -rf /var/lib/apt/lists/*
+WORKDIR /nestjs
 
-WORKDIR /server
+COPY --from=dependencies /src/nestjs/node_modules /nestjs/node_modules
+COPY --from=build /src/nestjs/config/ /nestjs/config/
+COPY --from=build /src/nestjs/dist/ /nestjs/
+COPY --from=build /src/nestjs/woodstock.proto /nestjs/
+COPY --from=build /src/front/dist /nestjs/front/
 
-RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh 
-RUN echo "IdentityFile /backups/.ssh/id_rsa" >> /root/.ssh/config
-RUN echo "StrictHostKeyChecking=no" >> /root/.ssh/config
-RUN mkdir -p /backups/.ssh && chmod 700 /backups/.ssh
-
-COPY --from=dependencies /src/server/node_modules /server/node_modules
-COPY --from=build /src/server/config/ /server/config/
-COPY --from=build /src/server/dist/ /server/
-COPY --from=build /src/client/dist /server/client/
-
-ENV STATIC_PATH=/server/client/
+ENV STATIC_PATH=/nestjs/front/
 ENV NODE_ENV=production
 ENV BACKUP_PATH=/backups
 ENV LOG_LEVEL=info
@@ -58,5 +52,5 @@ ENV REDIS_PORT=6379
 ENV VUE_APP_GRAPHQL_HTTP=/graphql
 
 ENTRYPOINT [ "node" ]
-CMD [ "/server/main.js" ]
+CMD [ "/nestjs/apps/api/main.js" ]
 EXPOSE 3000
