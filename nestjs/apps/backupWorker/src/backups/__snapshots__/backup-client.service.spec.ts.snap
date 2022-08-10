@@ -464,13 +464,37 @@ Array [
 ]
 `;
 
+exports[`BackupClient countRef: mockPoolChunkRefCnt.addBackupRefcntTo 1`] = `
+[MockFunction] {
+  "calls": Array [
+    Array [
+      "host-1/REFCNT.backup",
+    ],
+    Array [
+      "host/REFCNT.host",
+      "host-1/REFCNT.backup",
+    ],
+  ],
+  "results": Array [
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+    Object {
+      "type": "return",
+      "value": undefined,
+    },
+  ],
+}
+`;
+
 exports[`BackupClient countRef: mockPoolChunkRefCnt.addReferenceCountToRefCnt 1`] = `
 [MockFunction] {
   "calls": Array [
     Array [
-      FlatMapAsyncIterable {
+      ConcatMapAsyncIterable {
         "_selector": [Function],
-        "_source": FlatMapAsyncIterable {
+        "_source": ConcatMapAsyncIterable {
           "_selector": [Function],
           "_source": FromAsyncIterable {
             "_selector": [Function],
@@ -723,26 +747,6 @@ Array [
     "size": 600n,
   },
   Object {
-    "compressedSize": 300n,
-    "sha256": Object {
-      "data": Array [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        54,
-      ],
-      "type": "Buffer",
-    },
-    "size": 600n,
-  },
-  Object {
     "manifest": Object {
       "chunks": Array [
         Object {
@@ -788,6 +792,26 @@ Array [
       },
     },
     "type": 0,
+  },
+  Object {
+    "compressedSize": 300n,
+    "sha256": Object {
+      "data": Array [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        54,
+      ],
+      "type": "Buffer",
+    },
+    "size": 600n,
   },
   Object {
     "manifest": Object {

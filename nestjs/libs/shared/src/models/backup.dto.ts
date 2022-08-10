@@ -1,5 +1,4 @@
 import { Field, ObjectType } from '@nestjs/graphql';
-import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
 @ObjectType()

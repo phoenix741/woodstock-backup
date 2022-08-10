@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises';
-import { count, pipe } from 'ix/asynciterable';
+import { count, from } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
 import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
@@ -40,10 +40,7 @@ describe('ManifestWrapper', () => {
     const outFile = join(__dirname, '..', 'manifest', 'fixtures', 'test.journal.out');
 
     const it = service.loadFile<FileManifestJournalEntry>(inFile, ProtoFileManifestJournalEntry);
-    const manifests = pipe(
-      it,
-      map((obj) => obj.message),
-    );
+    const manifests = from(it).pipe(map((obj) => obj.message));
 
     try {
       await service.writeFile(outFile, ProtoFileManifestJournalEntry, manifests);

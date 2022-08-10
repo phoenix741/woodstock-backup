@@ -1,7 +1,7 @@
 import { Type } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { cp } from 'fs/promises';
-import { count, from, pipe, toArray } from 'ix/asynciterable';
+import { count, from, toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
 import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
@@ -17,10 +17,7 @@ async function atomicToSnapshot(args: [string, Type<any>, AsyncIterable<unknown>
     filename: args[0],
     type: args[1],
     source: await toArray(
-      pipe(
-        args[2],
-        map((v: Record<string, object>) => ({ ...v, sha256: v.sha256.toString() })),
-      ),
+      from(args[2]).pipe(map((v: Record<string, object>) => ({ ...v, sha256: v.sha256.toString() }))),
     ),
     append: args[3],
   };
@@ -97,7 +94,7 @@ describe('RefCntService', () => {
       }
     }, 120_000);
 
-    it('compact', async () => {
+    it('addBackupRefcntTo', async () => {
       // GIVEN
       const refcntFilename = join(__dirname, 'fixtures', 'REFCNT');
       const compactDir = join(__dirname, 'compact');
@@ -108,30 +105,21 @@ describe('RefCntService', () => {
         expect(await count(service.readRefCnt(cnt.backupPath))).toBe(1_000);
 
         // WHEN
-        await service.compactAllRefCnt(cnt);
+        await service.addBackupRefcntTo(cnt.poolPath, cnt.backupPath, cnt.unusedPoolPath);
 
         // THEN
-        for (const [, path] of Object.entries(cnt.getPaths())) {
-          const source = service.readRefCnt(path);
-          const array = await toArray(source);
-          expect(array.length).toBe(936);
-          expect(array.reduce((acc, v) => acc + v.refCount, 0)).toBe(1_000);
-        }
+        const source = service.readRefCnt(cnt.poolPath);
+        const array = await toArray(source);
+        expect(array.length).toBe(936);
+        expect(array.reduce((acc, v) => acc + v.refCount, 0)).toBe(1_000);
 
-        expect(statsService.writeStatistics).toBeCalledTimes(3);
+        expect(statsService.writeStatistics).toBeCalledTimes(1);
         expect(
           (statsService.writeStatistics as jest.Mock<Promise<void>, [object[], string]>).mock.calls[0][0],
-        ).toMatchSnapshot('statsService.writeStatistics 1');
-        expect(
-          (statsService.writeStatistics as jest.Mock<Promise<void>, [object[], string]>).mock.calls[1][0],
-        ).toMatchSnapshot('statsService.writeStatistics 2');
-        expect(
-          (statsService.writeStatistics as jest.Mock<Promise<void>, [object[], string]>).mock.calls[2][0],
-        ).toMatchSnapshot('statsService.writeStatistics 3');
+        ).toMatchSnapshot('statsService.writeStatistics');
       } finally {
         await service.deleteRefcnt(cnt.backupPath).catch(() => void 0);
         await service.deleteRefcnt(cnt.poolPath).catch(() => void 0);
-        await service.deleteRefcnt(cnt.hostPath).catch(() => void 0);
       }
     }, 240_000);
 

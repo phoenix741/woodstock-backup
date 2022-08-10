@@ -177,7 +177,7 @@ export class BackupClient {
         } else {
           // Create the chunk
           const readable = this.clientGrpc.copyChunk(context, chunk);
-          return await wrapper.write(readable);
+          return await wrapper.write(readable, joinBuffer(sharePath, fileManifest.path).toString());
         }
       }
 
@@ -358,8 +358,17 @@ export class BackupClient {
     await this.poolChunkRefCnt.addReferenceCountToRefCnt(manifests, refcnt.backupPath);
 
     this.logger.log('Compact the reference to host and pool');
+
     // Compact the refcnt files
-    await this.poolChunkRefCnt.compactAllRefCnt(refcnt);
+    this.logger.debug(`Compact ref count from ${refcnt.backupPath}`);
+    try {
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
+
+      // FIXME: wait refcnt
+    } finally {
+      this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
+    }
   }
 
   refreshCache(context: BackupsGrpcContext, shares: string[]): Promise<RefreshCacheReply> {

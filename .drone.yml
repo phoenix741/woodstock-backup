@@ -10,7 +10,7 @@ steps:
       - npm install
       - npm run lint
       - npm run test
-      - npm run build:all
+      - npm run buildall
 
   - name: app:build
     image: plugins/docker
@@ -23,7 +23,6 @@ steps:
       auto_tag: true
 
 ---
-
 kind: pipeline
 type: docker
 name: frontend
@@ -54,7 +53,6 @@ steps:
       auto_tag: true
 
 ---
-
 kind: pipeline
 type: docker
 name: website
@@ -73,7 +71,6 @@ steps:
       auto_tag: true
 
 ---
-
 kind: pipeline
 type: docker
 name: final

@@ -1,4 +1,4 @@
-import { Field, Float, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { HostConfiguration } from './host-configuration.dto';
@@ -99,6 +99,8 @@ export class BackupTask {
   ip?: string;
   startDate?: number;
   originalStartDate?: number;
+
+  force?: boolean;
 
   subtasks?: BackupSubTask[];
 

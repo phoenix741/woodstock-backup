@@ -94,7 +94,7 @@ export class PoolChunkWrapper {
     return { sha256: hashCalculator.hash, compressedSize: chunkStatistics.size, size: hashCalculator.length };
   }
 
-  async write(inputStream: Readable): Promise<PoolChunkInformation> {
+  async write(inputStream: Readable, debugFilename: string): Promise<PoolChunkInformation> {
     await mkdirp(this.chunkDir);
 
     const tempfilename = join(this.chunkDir, getTemporaryFileName());
@@ -108,7 +108,9 @@ export class PoolChunkWrapper {
 
       if (this.sha256 && !hashCalculator.hash?.equals(this.sha256)) {
         this.logger.error(
-          `When writing chunk, the hash should be ${this.sha256Str} but is ${hashCalculator.hash?.toString('hex')}`,
+          `When writing chunk (for file ${debugFilename}), the hash should be ${
+            this.sha256Str
+          } but is ${hashCalculator.hash?.toString('hex')}`,
         );
       }
 

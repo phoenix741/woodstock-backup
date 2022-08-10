@@ -41,7 +41,7 @@ export class HostConsumer extends WorkerHost {
 
   async launchBackup(job: Job<BackupTask>): Promise<void> {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
-    const shouldBackupHost = await this.jobService.shouldBackupHost(job.data.host, job.id);
+    const shouldBackupHost = await this.jobService.shouldBackupHost(job.data.host, job.id, job.data.force);
     if (!shouldBackupHost) {
       this.logger.log(`STOP: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
       return;
@@ -69,7 +69,7 @@ export class HostConsumer extends WorkerHost {
       const backupLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number);
 
       const task = new InternalBackupTask(backupTask);
-      this.tasksService.prepareBackup(task);
+      this.tasksService.prepareBackup(job, task);
 
       await lastValueFrom(
         this.tasksService.launchBackup(backupLogger, task).pipe(
@@ -109,6 +109,14 @@ export class HostConsumer extends WorkerHost {
 
     await this.hostConsumerUtilService.lock(job);
     try {
+      await this.jobService.launchRefcntJob(
+        job.id || '',
+        `${job.prefix}:${job.queueName}`,
+        job.data.host,
+        job.data.number,
+        'remove_backup',
+      );
+
       await this.removeService.remove(job.data.host, job.data.number);
     } catch (err) {
       this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);

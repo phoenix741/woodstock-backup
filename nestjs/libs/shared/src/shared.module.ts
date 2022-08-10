@@ -32,6 +32,9 @@ export const WoodstockQueueModule = [
       name: 'queue',
     },
     {
+      name: 'refcnt',
+    },
+    {
       name: 'schedule',
     },
     {

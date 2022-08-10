@@ -188,7 +188,7 @@ export class FsckService {
             compressedSize: 0,
           })),
         );
-        this.refCntService.fixRefcnt(source, refcnt.backupPath);
+        await this.refCntService.fixRefcnt(source, refcnt.backupPath);
       }
 
       errorCount += integrity;
@@ -226,7 +226,7 @@ export class FsckService {
             compressedSize: 0,
           })),
         );
-        this.refCntService.fixRefcnt(source, refcnt.hostPath);
+        await this.refCntService.fixRefcnt(source, refcnt.hostPath);
       }
 
       errorCount += integrity;
@@ -262,7 +262,7 @@ export class FsckService {
           compressedSize: 0,
         })),
       );
-      this.refCntService.fixRefcnt(source, refcnt.poolPath);
+      await this.refCntService.fixRefcnt(source, refcnt.poolPath);
     }
 
     errorCount += integrity;

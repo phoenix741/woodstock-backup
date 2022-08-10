@@ -10,6 +10,7 @@ export enum WorkerType {
   api = 'api',
   console = 'console',
   backupWorker = 'backupWorker',
+  refcntWorker = 'refcntWorker',
   scheduleWorker = 'scheduleWorker',
   statsWorker = 'statsWorker',
   client = 'client',

@@ -83,27 +83,7 @@ Array [
 ]
 `;
 
-exports[`RefCntService With real file compact: statsService.writeStatistics 1 1`] = `
-PoolStatistics {
-  "compressedSize": 3744000000n,
-  "longestChain": 10,
-  "nbChunk": 936,
-  "nbRef": 1000,
-  "size": 3744000000n,
-}
-`;
-
-exports[`RefCntService With real file compact: statsService.writeStatistics 2 1`] = `
-PoolStatistics {
-  "compressedSize": 3744000000n,
-  "longestChain": 10,
-  "nbChunk": 936,
-  "nbRef": 1000,
-  "size": 3744000000n,
-}
-`;
-
-exports[`RefCntService With real file compact: statsService.writeStatistics 3 1`] = `
+exports[`RefCntService With real file addBackupRefcntTo: statsService.writeStatistics 1`] = `
 PoolStatistics {
   "compressedSize": 3744000000n,
   "longestChain": 10,

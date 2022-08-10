@@ -65,6 +65,15 @@
         "tsConfigPath": "apps/statsWorker/tsconfig.app.json"
       }
     },
+    "refcntWorker": {
+      "type": "application",
+      "root": "apps/refcntWorker",
+      "entryFile": "main",
+      "sourceRoot": "apps/refcntWorker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/refcntWorker/tsconfig.app.json"
+      }
+    },
     "client": {
       "type": "application",
       "root": "apps/client",

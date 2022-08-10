@@ -1,7 +1,7 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { BackupTask } from '@woodstock/shared';
-import { Job, Queue } from 'bullmq';
+import { Queue } from 'bullmq';
 import { PubSub } from 'graphql-subscriptions';
 
 @QueueEventsListener('queue')

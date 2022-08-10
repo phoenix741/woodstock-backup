@@ -1,7 +1,7 @@
-import { InjectQueue } from '@nestjs/bullmq';
+import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { JobState, Queue } from 'bullmq';
-import { BackupTask } from '../models';
+import { BackupTask, RefcntJobData } from '../models';
 import { BackupsService } from './backups.service';
 import { PingService } from './commands/ping.service';
 import { HostsService } from './hosts.service';
@@ -10,16 +10,20 @@ import { SchedulerConfigService } from './scheduler-config.service';
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
 
 @Injectable()
-export class JobService {
+@QueueEventsListener('refcnt')
+export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);
 
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('refcnt') private refcnQueue: Queue<RefcntJobData>,
     private hostsService: HostsService,
     private backupsService: BackupsService,
     private schedulerConfigService: SchedulerConfigService,
     private pingService: PingService,
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * This service is used to check if a backup should be launch.
@@ -32,7 +36,7 @@ export class JobService {
    * @param host The host to check
    * @returns true if the backup should be launch, false otherwise
    */
-  async shouldBackupHost(host: string, jobId?: string): Promise<boolean> {
+  async shouldBackupHost(host: string, jobId?: string, force = false): Promise<boolean> {
     // Have already backup
     const runningJob = await this.hostsQueue.getJobs(RUN_JOB_STATE);
     const runningJobForHost = runningJob.find((b) => b.data.host === host && b.id !== jobId);
@@ -67,9 +71,11 @@ export class JobService {
       } hours past (should be made after ${backupPeriod / 3600} hour)`,
     );
 
-    // TODO: Check period of inactivity vs period of activity
-    if (!(schedule.activated && (!lastBackup?.complete || timeSinceLastBackup > backupPeriod))) {
-      return false;
+    if (!force) {
+      // TODO: Check period of inactivity vs period of activity
+      if (!(schedule.activated && (!lastBackup?.complete || timeSinceLastBackup > backupPeriod))) {
+        return false;
+      }
     }
 
     return true;
@@ -103,5 +109,34 @@ export class JobService {
     } else {
       return { number: lastBackup?.number || 0, previousNumber: undefined };
     }
+  }
+
+  /**
+   * Launch on refcnt queue the children to delete or create a backup.
+   */
+  async launchRefcntJob(
+    jobid: string,
+    jobname: string,
+    hostname: string,
+    backupNumber: number,
+    operation: 'add_backup' | 'remove_backup',
+  ): Promise<void> {
+    this.logger.log(`Launch ${operation} for ${hostname}`);
+    const job = await this.refcnQueue.add(
+      operation,
+      {
+        hostname,
+        backupNumber,
+      },
+      {
+        parent: {
+          id: jobid,
+          queue: jobname,
+        },
+      },
+    );
+
+    await job.waitUntilFinished(this.queueEvents);
+    this.logger.log(`${operation} for ${hostname} finished`);
   }
 }

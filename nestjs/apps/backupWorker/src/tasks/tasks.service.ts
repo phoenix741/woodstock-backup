@@ -1,8 +1,17 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { BackupLogger, BackupsService, BackupState, Operation, TaskProgression } from '@woodstock/shared';
+import {
+  BackupLogger,
+  BackupsService,
+  BackupState,
+  BackupTask,
+  JobService,
+  Operation,
+  TaskProgression,
+} from '@woodstock/shared';
+import { Job } from 'bullmq';
 import * as mkdirp from 'mkdirp';
 import { defer, from, Observable, of, throwError } from 'rxjs';
-import { catchError, concatMap, map, startWith, switchMap, tap } from 'rxjs/operators';
+import { catchError, concatMap, endWith, map, startWith, switchMap, tap } from 'rxjs/operators';
 import { BackupClientGrpc, BackupsGrpcContext } from '../backups/backup-client-grpc.class';
 import { BackupClientProgress } from '../backups/backup-client-progress.service';
 import { InternalBackupSubTask, InternalBackupTask } from './tasks.class';
@@ -13,9 +22,10 @@ export class TasksService {
     private backupsService: BackupsService,
     private backupsClient: BackupClientProgress,
     private backupGrpcClient: BackupClientGrpc,
+    private jobService: JobService,
   ) {}
 
-  prepareBackup(task: InternalBackupTask): void {
+  prepareBackup(job: Job<BackupTask>, task: InternalBackupTask): void {
     // Step 1: Clone previous backup
     task.addSubtask(
       new InternalBackupSubTask('storage', `Initialisation`, false, false, () =>
@@ -44,13 +54,13 @@ export class TasksService {
     );
 
     // Step 4: Launch all operation
-    task.addSubtask(...this.createSubtask(task.config.operations?.tasks || []));
+    task.addSubtask(...this.createSubtask(job, task.config.operations?.tasks || []));
 
     // Step 5: Même chose mais avec les posts tasks (but always run)
-    task.addSubtask(...this.createSubtask(task.config.operations?.finalizeTasks || [], true));
+    task.addSubtask(...this.createSubtask(job, task.config.operations?.finalizeTasks || [], true));
   }
 
-  private createSubtask(tasks: Operation[], finalize = false): InternalBackupSubTask[] {
+  private createSubtask(job: Job<BackupTask>, tasks: Operation[], finalize = false): InternalBackupSubTask[] {
     return tasks
       .map((task) => {
         switch (task.name) {
@@ -116,8 +126,33 @@ export class TasksService {
                     return this.backupsClient.compact(connection, sharePath);
                   }),
               ),
-              new InternalBackupSubTask('backup', `Ref count`, false, false, (connection) => {
+              new InternalBackupSubTask('backup', `Host Ref count`, false, false, (connection) => {
                 return this.backupsClient.countRef(connection);
+              }),
+              new InternalBackupSubTask('backup', `Pool Ref count`, false, false, () => {
+                // fixme
+                const countRef$ = defer(() => {
+                  if (!job.id) {
+                    throw new InternalServerErrorException("Can't count ref without job id");
+                  }
+                  if (!job.data.number) {
+                    throw new InternalServerErrorException("Can't count ref without job number");
+                  }
+
+                  return this.jobService.launchRefcntJob(
+                    job.id,
+                    `${job.prefix}:${job.queueName}`,
+                    job.data.host,
+                    job.data.number,
+                    'add_backup',
+                  );
+                });
+
+                return countRef$.pipe(
+                  startWith(new TaskProgression({ percent: 0 })),
+                  map(() => new TaskProgression()),
+                  endWith(new TaskProgression({ percent: 100 })),
+                );
               }),
             ];
         }

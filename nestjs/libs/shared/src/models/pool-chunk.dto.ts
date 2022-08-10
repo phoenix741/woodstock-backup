@@ -1,5 +1,10 @@
 import { ChunkInformation } from './woodstock';
 
+export interface RefcntJobData {
+  hostname: string;
+  backupNumber: number;
+}
+
 export interface PoolChunkInformation {
   originalInformation?: ChunkInformation;
   sha256: Buffer;

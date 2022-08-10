@@ -70,7 +70,7 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const { id } = await this.hostsQueue.add('backup', { host: hostname });
+    const { id } = await this.hostsQueue.add('backup', { host: hostname, force: true });
     if (!id) {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
