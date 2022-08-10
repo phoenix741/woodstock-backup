@@ -52,13 +52,8 @@ export class ToolsService {
 
   async getCommand(command: string, params: CommandParameters): Promise<string> {
     const tools = await this.loadToolsOnlyOneTime();
-    const replacementParams = Object.assign(
-      {},
-      params,
-      this.configService.toJSON(),
-      tools.tools,
-      await this.getPaths(params),
-    );
+    const paths = await this.getPaths(params);
+    const replacementParams = Object.assign({}, params, this.configService.toJSON(), tools.tools, paths);
     return rendering(tools.command[command], replacementParams);
   }
 

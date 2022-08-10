@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -76,4 +76,10 @@ import { BigIntScalar } from './utils/bigint.scalar';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationBootstrap {
+  constructor(private readonly serverService: ServerService) {}
+
+  async onApplicationBootstrap() {
+    await this.serverService.check();
+  }
+}

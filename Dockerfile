@@ -28,7 +28,7 @@ ENV VUE_APP_GRAPHQL_HTTP=/graphql
 RUN npm run build -- --prod
 
 WORKDIR /src/nestjs
-RUN npm run build:all
+RUN npm run buildall
 
 #
 # -------- Dist -----------

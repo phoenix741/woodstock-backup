@@ -59,7 +59,6 @@ describe('Tools Service', () => {
     expect(await service.getPaths({ hostname: 'pc-test', srcBackupNumber: 14, destBackupNumber: 33 })).toEqual({
       destBackupPath: 'hostPath/pc-test/33',
       hostnamePath: 'hostPath/pc-test',
-      qgroupHostPath: 'hostPath/pc-test/qgroup',
       srcBackupPath: 'hostPath/pc-test/14',
       backupPath: 'backupPath',
       configPath: 'configPath',
