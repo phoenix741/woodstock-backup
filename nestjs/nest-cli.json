@@ -12,7 +12,7 @@
       {
         "name": "@nestjs/graphql",
         "options": {
-          "typeFileNameSuffix": [".input.ts", ".args.ts", ".entity.ts", ".model.ts", ".dto.ts"],
+          "typeFileNameSuffix": [".input.ts", ".args.ts", ".types.ts", ".entity.ts", ".model.ts", ".dto.ts"],
           "introspectComments": true
         }
       },
@@ -63,6 +63,15 @@
       "sourceRoot": "apps/statsWorker/src",
       "compilerOptions": {
         "tsConfigPath": "apps/statsWorker/tsconfig.app.json"
+      }
+    },
+    "refcntWorker": {
+      "type": "application",
+      "root": "apps/refcntWorker",
+      "entryFile": "main",
+      "sourceRoot": "apps/refcntWorker/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/refcntWorker/tsconfig.app.json"
       }
     },
     "client": {

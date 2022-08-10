@@ -10,23 +10,18 @@ import {
   ProtoFileManifestJournalEntry,
   ProtoPoolRefCount,
   ProtoPoolUnused,
-  ReferenceCount,
   YAML_SCHEMA,
 } from '@woodstock/shared';
-import { pipe } from 'ix/asynciterable';
+import { from } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
 import * as yaml from 'js-yaml';
 import { Command, Console } from 'nestjs-console';
-import * as ora from 'ora';
-import { basename } from 'path';
 import { Type } from 'protobufjs';
 
 @Console({
   command: 'protobuf',
 })
 export class ProtobufCommand {
-  private spinner?: ora.Ora;
-
   constructor(private protobufService: ProtobufService) {}
 
   @Command({
@@ -80,8 +75,7 @@ export class ProtobufCommand {
     const chunks = options.filterChunks && Buffer.from(options.filterChunks, 'hex');
     const name = options.filterName && Buffer.from(options.filterName);
 
-    const file = pipe(
-      this.protobufService.loadFile(path, type),
+    const file = from(this.protobufService.loadFile(path, type)).pipe(
       map((m) => m.message),
       filter((m) => {
         if (!chunks && !name) {

@@ -20,8 +20,8 @@ import {
 } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
-import { AsyncIterableX, from, pipe } from 'ix/asynciterable';
-import { filter, map, tap } from 'ix/asynciterable/operators';
+import { AsyncIterableX, from } from 'ix/asynciterable';
+import { filter, map } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { Readable } from 'stream';
@@ -168,8 +168,7 @@ export class BackupClientGrpc implements BackupClientInterface {
   copyChunk(context: BackupsGrpcContext, chunk: ChunkInformation): Readable {
     const chunkResult = context.service.getChunk({ chunk }, this.getMetadata(context));
     return Readable.from(
-      pipe(
-        chunkResult,
+      from(chunkResult).pipe(
         map<GetChunkReply, GetChunkReply>((pieceOfChunk) => {
           if (pieceOfChunk.status === ChunkStatus.ERROR) {
             throw new Error(`Can't read the chunk ${chunk.sha256}`);

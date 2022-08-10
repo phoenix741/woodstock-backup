@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { from, reduce } from 'ix/asynciterable';
-import { flatMap } from 'ix/asynciterable/operators';
+import { concatMap } from 'ix/asynciterable/operators';
 import { PoolStatistics } from '../models';
 import { HostsStatsUsage, StatsDiskUsage } from '../models/stats.model';
 import { BackupsService } from '../services/backups.service';
@@ -30,7 +30,7 @@ export class StatsInstantService {
   }
 
   async getHostsStatsUsage(): Promise<HostsStatsUsage> {
-    return await reduce(from(this.hostsService.getHosts()).pipe(flatMap((hosts) => from(hosts))), {
+    return await reduce(from(this.hostsService.getHosts()).pipe(concatMap((hosts) => from(hosts))), {
       callback: async (acc, host) => {
         const backups = await this.backupsService.getBackups(host);
         const hostStats = await this.statsService.readHostStatistics(host);

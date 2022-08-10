@@ -10,14 +10,13 @@ import {
   LogLevel,
   Manifest,
   ManifestService,
-  RefCntService,
-  PoolService,
-  ReferenceCount,
   PoolRefCount,
+  PoolService,
+  RefCntService,
 } from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';
-import { AsyncSink, from, pipe, toArray as toArrayIx } from 'ix/asynciterable';
+import { AsyncSink, from, toArray as toArrayIx } from 'ix/asynciterable';
 import * as Long from 'long';
 import { lastValueFrom, toArray } from 'rxjs';
 import { Readable } from 'stream';
@@ -61,6 +60,7 @@ describe('BackupClient', () => {
   const mockPoolChunkRefCnt = {
     addChunkInformationToRefCnt: async (_s: AsyncIterable<PoolRefCount>, _f: string) => void 0,
     addReferenceCountToRefCnt: async (_s: AsyncIterable<PoolRefCount>, _f: string) => void 0,
+    addBackupRefcntTo: async (_hostpath: string, _backupPath: string) => void 0,
     compactAllRefCnt: () => 0,
   };
 
@@ -103,7 +103,7 @@ describe('BackupClient', () => {
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
     mockCientGrpc.authenticate = jest.fn().mockResolvedValue({ sessionId: 'sessionId' });
-    mockCientGrpc.streamLog = jest.fn().mockReturnValue(pipe(streamLog));
+    mockCientGrpc.streamLog = jest.fn().mockReturnValue(from(streamLog));
     fakeClient.close = jest.fn();
 
     // WHEN
@@ -374,6 +374,7 @@ describe('BackupClient', () => {
       }));
     });
     mockPoolChunkRefCnt.compactAllRefCnt = jest.fn();
+    mockPoolChunkRefCnt.addBackupRefcntTo = jest.fn();
 
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
@@ -384,6 +385,6 @@ describe('BackupClient', () => {
     expect(mockPoolChunkRefCnt.addReferenceCountToRefCnt).toMatchSnapshot(
       'mockPoolChunkRefCnt.addReferenceCountToRefCnt',
     );
-    expect(mockPoolChunkRefCnt.compactAllRefCnt).toHaveBeenCalledWith(new ReferenceCount('host', 'host-1', 'poolPath'));
+    expect(mockPoolChunkRefCnt.addBackupRefcntTo).toMatchSnapshot('mockPoolChunkRefCnt.addBackupRefcntTo');
   });
 });

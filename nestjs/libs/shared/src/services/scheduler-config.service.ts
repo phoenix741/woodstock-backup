@@ -6,7 +6,17 @@ import { YamlService } from './yaml.service';
 const DEFAULT_SCHEDULER = new ApplicationScheduler({
   wakeupSchedule: '0 0 * * *',
   nightlySchedule: '0 0 * * *',
-  defaultSchedule: new Schedule(),
+  defaultSchedule: new Schedule({
+    activated: true,
+    backupPeriod: 86400,
+    backupToKeep: {
+      hourly: 24,
+      daily: 7,
+      weekly: 4,
+      monthly: 12,
+      yearly: 1,
+    },
+  }),
 });
 
 /**

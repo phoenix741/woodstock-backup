@@ -1,8 +1,8 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/shared';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service';
 import { JobResponse } from './backups.model';
 
@@ -70,9 +70,13 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const job = await this.hostsQueue.add('backup', { host: hostname }, { removeOnComplete: false });
+    const { id } = await this.hostsQueue.add('backup', { host: hostname, force: true });
+    if (!id) {
+      throw new NotFoundException(`Can't find the host with the name ${hostname}`);
+    }
+
     return {
-      id: job.id as number,
+      id,
     };
   }
 
@@ -85,9 +89,13 @@ export class BackupsResolver {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
     }
 
-    const job = await this.hostsQueue.add('remove_backup', { host: hostname, number }, { removeOnComplete: true });
+    const { id } = await this.hostsQueue.add('remove_backup', { host: hostname, number });
+    if (!id) {
+      throw new NotFoundException(`Can't find the host with the name ${hostname}`);
+    }
+
     return {
-      id: job.id as number,
+      id,
     };
   }
 }

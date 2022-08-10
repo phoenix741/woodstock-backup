@@ -1,52 +1,70 @@
-import {
-  InjectQueue,
-  OnGlobalQueueCleaned,
-  OnGlobalQueueCompleted,
-  OnGlobalQueueError,
-  OnGlobalQueueFailed,
-  OnGlobalQueueProgress,
-  OnGlobalQueueRemoved,
-  OnGlobalQueueStalled,
-  OnGlobalQueueWaiting,
-  Processor,
-} from '@nestjs/bull';
+import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
 import { BackupTask } from '@woodstock/shared';
-import { Job, JobId, Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { PubSub } from 'graphql-subscriptions';
 
-@Processor('queue')
-export class QueueService {
+@QueueEventsListener('queue')
+export class QueueService extends QueueEventsHost {
   private logger = new Logger(QueueService.name);
 
   constructor(
     @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
+
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
-  ) {}
-
-  @OnGlobalQueueError()
-  onError(err: Error): void {
-    this.logger.error(`Error while processing the queue: ${err.message}`, err.stack);
+  ) {
+    super();
   }
 
-  @OnGlobalQueueWaiting()
-  onWaiting(jobId: number | string): void {
-    this.logger.log(`Job ${jobId} is waiting`);
-    this.pubSub.publish('jobWaiting', { jobWaiting: jobId });
-  }
-
-  @OnGlobalQueueCompleted()
-  async onCompleted(jobId: JobId): Promise<void> {
+  @OnQueueEvent('active')
+  async onActive({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
-      this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
-      await this.removeHost(job);
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} was active.`);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
     }
   }
 
-  @OnGlobalQueueProgress()
-  async onProgress(jobId: JobId): Promise<void> {
+  @OnQueueEvent('added')
+  async onAdded({ jobId }: { jobId: string }): Promise<void> {
+    const job = await this.backupQueue.getJob(jobId);
+    if (job) {
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} was added.`);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
+  }
+
+  @OnQueueEvent('delayed')
+  async onDelayed({ jobId }: { jobId: string }): Promise<void> {
+    const job = await this.backupQueue.getJob(jobId);
+    if (job) {
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} was delayed.`);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
+  }
+
+  @OnQueueEvent('error')
+  onError(err: Error): void {
+    this.logger.error(`Error while processing the queue: ${err.message}`, err.stack);
+  }
+
+  @OnQueueEvent('waiting')
+  onWaiting({ jobId }: { jobId: string }): void {
+    this.logger.log(`Job ${jobId} is waiting`);
+    this.pubSub.publish('jobWaiting', { jobWaiting: jobId });
+  }
+
+  @OnQueueEvent('completed')
+  async onCompleted({ jobId }: { jobId: string }): Promise<void> {
+    const job = await this.backupQueue.getJob(jobId);
+    if (job) {
+      this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
+      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+    }
+  }
+
+  @OnQueueEvent('progress')
+  async onProgress({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} is in progress.`);
@@ -54,61 +72,33 @@ export class QueueService {
     }
   }
 
-  @OnGlobalQueueStalled()
-  async onStalled(jobId: JobId): Promise<void> {
+  @OnQueueEvent('stalled')
+  async onStalled({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
-      await this.removeHost(job);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
     }
   }
 
-  @OnGlobalQueueFailed()
-  async onFailed(jobId: JobId, err: Error): Promise<void> {
+  @OnQueueEvent('failed')
+  async onFailed({ jobId, failedReason }: { jobId: string; failedReason: string }): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
-      this.logger.error(`Error when processing the job ${job.id} with the error ${err.message}`, err.stack);
-      await this.removeHost(job);
+      this.logger.error(`Error when processing the job ${job.id} with the error ${failedReason}`);
+
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
       this.pubSub.publish('jobFailed', { jobFailed: job });
     }
   }
 
-  @OnGlobalQueueCleaned()
-  async onCleaned(jobIds: JobId[]): Promise<void> {
-    this.logger.log(`${jobIds.length} jobs were removed from the queue.`);
-    for (const jobId of jobIds) {
-      const job = await this.backupQueue.getJob(jobId);
-
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
-      this.pubSub.publish('jobRemoved', { jobRemoved: job });
-    }
-  }
-
-  @OnGlobalQueueRemoved()
-  async onRemoved(jobId: JobId): Promise<void> {
+  @OnQueueEvent('removed')
+  async onRemoved({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} was removed from the queue.`);
       this.pubSub.publish('jobUpdated', { jobUpdated: job });
       this.pubSub.publish('jobRemoved', { jobRemoved: job });
-    }
-  }
-
-  async removeHost(job: Job<BackupTask>): Promise<void> {
-    this.logger.log(`Removing host ${job.data.host} from the queue.`);
-
-    const backups = await this.backupQueue.getJobs([]);
-    const backupToRemove = backups.filter(
-      (j) =>
-        j && ['backup', 'stats'].includes(j.name) && j.id !== job.id && j.data.host && j.data.host === job.data.host,
-    );
-
-    for (const jobToRemove of backupToRemove) {
-      if (!(await jobToRemove.isActive())) {
-        await jobToRemove.remove();
-      }
     }
   }
 }

@@ -29,11 +29,10 @@ import {
   from,
   from as fromIx,
   of as ofIx,
-  pipe,
   range as rangeIx,
   reduce as reduceIx,
 } from 'ix/asynciterable';
-import { concatAll, finalize, flatMap, map, map as mapIx } from 'ix/asynciterable/operators';
+import { concatAll, concatMap, finalize, map, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
@@ -178,7 +177,7 @@ export class BackupClient {
         } else {
           // Create the chunk
           const readable = this.clientGrpc.copyChunk(context, chunk);
-          return await wrapper.write(readable);
+          return await wrapper.write(readable, joinBuffer(sharePath, fileManifest.path).toString());
         }
       }
 
@@ -286,8 +285,7 @@ export class BackupClient {
         this.applicationConfig.poolPath,
       );
       const refCntEntry = this.poolChunkRefCnt.addChunkInformationToRefCnt(
-        pipe(
-          chunkSink,
+        fromIx(chunkSink).pipe(
           map(async (entry) => {
             if (entry) {
               subscriber.next(entry);
@@ -350,8 +348,8 @@ export class BackupClient {
 
     // Complete the refcnt with the real refcount
     const manifests = from(this.backupService.getManifests(context.host, context.currentBackupId)).pipe(
-      flatMap((manifests) => from(manifests)),
-      flatMap((manifest) => {
+      concatMap((manifests) => from(manifests)),
+      concatMap((manifest) => {
         this.logger.log(`Counting reference for ${manifest.manifestPath}`);
         return from(this.manifestService.generateRefcntFromManifest(manifest));
       }),
@@ -360,8 +358,17 @@ export class BackupClient {
     await this.poolChunkRefCnt.addReferenceCountToRefCnt(manifests, refcnt.backupPath);
 
     this.logger.log('Compact the reference to host and pool');
+
     // Compact the refcnt files
-    await this.poolChunkRefCnt.compactAllRefCnt(refcnt);
+    this.logger.debug(`Compact ref count from ${refcnt.backupPath}`);
+    try {
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
+
+      // FIXME: wait refcnt
+    } finally {
+      this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
+    }
   }
 
   refreshCache(context: BackupsGrpcContext, shares: string[]): Promise<RefreshCacheReply> {

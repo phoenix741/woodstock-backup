@@ -1,6 +1,6 @@
-import { SharedBullConfigurationFactory } from '@nestjs/bull';
+import { SharedBullConfigurationFactory } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import Bull from 'bull';
+import Bull from 'bullmq';
 import { ApplicationConfigService } from './application-config.service';
 
 @Injectable()
@@ -9,7 +9,7 @@ export class BullConfigService implements SharedBullConfigurationFactory {
 
   createSharedConfiguration(): Bull.QueueOptions {
     return {
-      redis: this.configService.redis,
+      connection: this.configService.redis,
       prefix: 'woodstock-backup',
     };
   }

@@ -6,6 +6,9 @@ export class QueueStats {
   waiting!: number;
 
   @Field(() => Int)
+  waitingChildren!: number;
+
+  @Field(() => Int)
   active!: number;
 
   @Field(() => Int)

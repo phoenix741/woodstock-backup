@@ -1,23 +1,24 @@
-import { InjectQueue, OnGlobalQueueProgress, Processor } from '@nestjs/bull';
+import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { BackupTask } from '@woodstock/shared';
-import { JobId, Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { Command, Console, createSpinner } from 'nestjs-console';
-import * as ora from 'ora';
 
 @Console({
   command: 'stats',
 })
-@Processor('queue')
-export class StatsCommand {
-  private spinner?: ora.Ora;
-  private jobId?: JobId;
+@QueueEventsListener('queue')
+export class StatsCommand extends QueueEventsHost {
+  private spinner?: ReturnType<typeof createSpinner>;
+  private jobId?: string;
 
   constructor(
     @InjectQueue('stats') private statsQueue: Queue<BackupTask>,
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
     @InjectQueue('schedule') private scheduleQueue: Queue<unknown>,
-  ) {}
+  ) {
+    super();
+  }
 
   @Command({
     command: 'host <hostname>',
@@ -35,10 +36,14 @@ export class StatsCommand {
     this.spinner = createSpinner();
     this.spinner.start(`[Stats] ${host}/${number || 'NA'}: Progress 0%`);
 
-    let job = await this.statsQueue.add({ host, number }, { removeOnComplete: true });
+    let job = await this.statsQueue.add('stats', { host, number }, { removeOnComplete: true });
     this.jobId = job.id;
-    await job.finished();
-    job = (await this.statsQueue.getJob(job.id)) || job;
+    if (!this.jobId) {
+      throw new Error('Job ID is not defined');
+    }
+
+    await job.waitUntilFinished(this.queueEvents);
+    job = (await this.statsQueue.getJob(this.jobId)) || job;
 
     this.spinner.succeed(`[Stats] ${host}/${job.data.number || 'NA'}: Progress 100%`);
   }
@@ -55,11 +60,13 @@ export class StatsCommand {
     this.spinner.succeed('[Stats] In progress');
   }
 
-  @OnGlobalQueueProgress()
-  async handler(jobId: number, progress: number): Promise<void> {
+  @OnQueueEvent('progress')
+  async handler({ jobId }: { jobId: string }): Promise<void> {
     const job = await this.hostsQueue.getJob(jobId);
     if (job && job.id === this.jobId && this.spinner) {
-      this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(progress * 100)}%`;
+      this.spinner.text = `[Stats] ${job.data.host}/${job.data.number}: Progress ${Math.round(
+        (job.progress as number) * 100,
+      )}%`;
     }
   }
 }

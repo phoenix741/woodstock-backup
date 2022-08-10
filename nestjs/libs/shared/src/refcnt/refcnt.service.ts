@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { concat, from, pipe, reduce, toSet } from 'ix/asynciterable';
+import { concat, from, reduce, toSet } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
 import { lock } from 'proper-lockfile';
@@ -7,7 +7,6 @@ import { PoolRefCount, PoolStatistics, PoolUnused } from '../models';
 import { ProtoPoolRefCount, ProtoPoolUnused } from '../models/object-proto.model';
 import { ProtobufService } from '../services/protobuf.service';
 import { PoolStatisticsService } from '../statistics/pool-statistics.service';
-import { ReferenceCount } from './refcnt.model';
 
 @Injectable()
 export class RefCntService {
@@ -36,13 +35,7 @@ export class RefCntService {
     this.logger.debug(`Write empty ref count into ${filename}`);
     const originRefcnt = this.readRefCnt(filename);
 
-    await this.writeRefCnt(
-      pipe(
-        concat(originRefcnt, source),
-        map((v) => ({ ...v, refCount: 0 })),
-      ),
-      filename,
-    );
+    await this.writeRefCnt(from(concat(originRefcnt, source)).pipe(map((v) => ({ ...v, refCount: 0 }))), filename);
   }
 
   /**
@@ -60,25 +53,15 @@ export class RefCntService {
     this.logger.debug(`Merge reference count to ${filename}`);
     const originRefcnt = this.readRefCnt(filename);
 
-    await this.writeRefCnt(
-      concat(
-        pipe(
-          originRefcnt,
-          map((v) => ({ ...v, refCount: 0 })),
-        ),
-        source,
-      ),
-      filename,
-    );
+    await this.writeRefCnt(concat(from(originRefcnt).pipe(map((v) => ({ ...v, refCount: 0 }))), source), filename);
 
     // And compact
-    await this.#addBackupRefcntTo(filename);
+    await this.addBackupRefcntTo(filename);
   }
 
   readRefCnt(filename: string, compress = true): AsyncIterable<PoolRefCount> {
     this.logger.debug(`Read ref count from ${filename}`);
-    return pipe(
-      this.protobufService.loadFile<PoolRefCount>(filename, ProtoPoolRefCount, compress),
+    return from(this.protobufService.loadFile<PoolRefCount>(filename, ProtoPoolRefCount, compress)).pipe(
       map((v) => v.message),
       catchError((err) => {
         this.logger.warn("Can't read the file :" + err.message);
@@ -110,8 +93,7 @@ export class RefCntService {
 
   readUnused(filename: string): AsyncIterable<PoolUnused> {
     this.logger.debug(`Read unused from ${filename}`);
-    return pipe(
-      this.protobufService.loadFile<PoolUnused>(filename, ProtoPoolUnused),
+    return from(this.protobufService.loadFile<PoolUnused>(filename, ProtoPoolUnused)).pipe(
       map((v) => v.message),
       catchError((err) => {
         this.logger.warn("Can't read the file :" + err.message);
@@ -121,18 +103,6 @@ export class RefCntService {
   }
 
   /** ************************* Add reference counting in host and pool file ******************** */
-
-  async compactAllRefCnt(refcnt: ReferenceCount): Promise<void> {
-    this.logger.debug(`Compact ref count from ${refcnt.backupPath}`);
-
-    try {
-      await this.#addBackupRefcntTo(refcnt.backupPath);
-      await this.#addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
-      await this.#addBackupRefcntTo(refcnt.poolPath, refcnt.backupPath, refcnt.unusedPoolPath);
-    } finally {
-      this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
-    }
-  }
 
   async #calculateRefCount(
     it: AsyncIterable<PoolRefCount>,
@@ -195,7 +165,7 @@ export class RefCntService {
     return reducedRefCount;
   }
 
-  async #addBackupRefcntTo(fileToChangePath: string, backupRefcntPath?: string, unusedPath?: string): Promise<void> {
+  async addBackupRefcntTo(fileToChangePath: string, backupRefcntPath?: string, unusedPath?: string): Promise<void> {
     this.logger.debug(`Add ${backupRefcntPath} ref count to ${fileToChangePath}`);
     const unlock = await lock(fileToChangePath, { realpath: false });
     try {
@@ -205,12 +175,7 @@ export class RefCntService {
 
       const statistics = new PoolStatistics();
 
-      const unusedArray = await toSet(
-        pipe(
-          unused,
-          map((v) => v.sha256.toString('base64')),
-        ),
-      );
+      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
 
       const rrefcnt = await this.#calculateRefCount(concat(fileToUpdate, backupRefcnt), statistics, unusedArray);
 
@@ -226,29 +191,21 @@ export class RefCntService {
       this.logger.log(`Error while compacting ref count from ${fileToChangePath} : ${err.message}`, err);
     } finally {
       await unlock();
-      this.logger.log(`[END] Compact ref count from ${fileToChangePath}`);
+      this.logger.debug(`[END] Compact ref count from ${fileToChangePath}`);
     }
   }
 
   /** ************** File removing ************************* */
 
   async removeBackupRefcntTo(fileToChangePath: string, backupRefcntPath: string, unusedPath?: string): Promise<void> {
-    this.logger.log(`Remove ${backupRefcntPath} ref count to ${fileToChangePath}`);
+    this.logger.debug(`Remove ${backupRefcntPath} ref count to ${fileToChangePath}`);
     const unlock = await lock(fileToChangePath, { realpath: false });
     try {
       const fileToChange = this.readRefCnt(fileToChangePath);
-      const backupRefcnt = pipe(
-        this.readRefCnt(backupRefcntPath),
-        map((v) => ({ ...v, refCount: -v.refCount })),
-      );
+      const backupRefcnt = from(this.readRefCnt(backupRefcntPath)).pipe(map((v) => ({ ...v, refCount: -v.refCount })));
       const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
-      const unusedArray = await toSet(
-        pipe(
-          unused,
-          map((v) => v.sha256.toString('base64')),
-        ),
-      );
+      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
 
       const originalCount = await this.#calculateRefCount(fileToChange, new PoolStatistics(), unusedArray);
 
@@ -267,7 +224,7 @@ export class RefCntService {
       this.logger.error(`Error while cleaning up ref count : ${err.message}`, err);
     } finally {
       await unlock();
-      this.logger.log(`[END] Cleanup ref count from ${fileToChangePath} done`);
+      this.logger.debug(`[END] Cleanup ref count from ${fileToChangePath} done`);
     }
   }
 

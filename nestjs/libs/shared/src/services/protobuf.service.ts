@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { createReadStream, createWriteStream } from 'fs';
-import { cp, rename, unlink } from 'fs/promises';
-import { never, pipe } from 'ix/asynciterable';
+import { rename, unlink } from 'fs/promises';
+import { from, never } from 'ix/asynciterable';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
 import { Type } from 'protobufjs';
@@ -63,7 +63,7 @@ export class ProtobufService {
     const stream = createWriteStream(path, { flags: 'a' });
     const transform = new ProtobufMessageWriter<O>(type);
 
-    const allDefinedSource = pipe(source, notUndefined());
+    const allDefinedSource = from(source).pipe(notUndefined());
 
     const streams = [Readable.from(allDefinedSource), transform, ...(compress ? [createDeflate()] : []), stream];
 

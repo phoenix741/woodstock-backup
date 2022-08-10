@@ -1,16 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { AsyncIterableX, concat, count, from, pipe, reduce, toSet } from 'ix/asynciterable';
-import { filter, flatMap, map, tap } from 'ix/asynciterable/operators';
+import { AsyncIterableX, concat, count, from, reduce, toSet } from 'ix/asynciterable';
+import { concatMap, filter, map, tap } from 'ix/asynciterable/operators';
+import { basename } from 'path';
 import { ApplicationConfigService } from '../config';
+import { FileBrowserService } from '../file';
 import { ManifestService } from '../manifest';
 import { FileManifest, PoolRefCount } from '../models';
 import { ManifestChunk } from '../models/manifest.dto';
-import { BackupsService } from './backups.service';
-import { HostsService } from './hosts.service';
 import { ReferenceCount } from '../refcnt/refcnt.model';
 import { RefCntService } from '../refcnt/refcnt.service';
-import { FileBrowserService } from '../file';
-import { basename } from 'path';
+import { BackupsService } from './backups.service';
+import { HostsService } from './hosts.service';
 
 interface ManifestChunkCount {
   count: number;
@@ -73,8 +73,8 @@ export class FsckService {
   async #refcntFromBackup(host: string, backupNumber: number): Promise<Map<string, ManifestChunkCount>> {
     // Read backup
     const chunks = from(this.backupsService.getManifests(host, backupNumber)).pipe(
-      flatMap((manifest) => from(manifest)),
-      flatMap(async (manifest) => this.manifestService.listChunksFromManifest(manifest)),
+      concatMap((manifest) => from(manifest)),
+      concatMap(async (manifest) => this.manifestService.listChunksFromManifest(manifest)),
     );
 
     return await this.#reduceChunk(chunks);
@@ -82,8 +82,8 @@ export class FsckService {
 
   async #hostRefcntFromBackup(host: string): Promise<Map<string, ManifestChunkCount>> {
     const chunks = from(this.backupsService.getBackups(host)).pipe(
-      flatMap((backup) => from(backup)),
-      flatMap(async (backup) => {
+      concatMap((backup) => from(backup)),
+      concatMap(async (backup) => {
         const refcnt = new ReferenceCount(
           this.backupsService.getHostDirectory(host),
           this.backupsService.getDestinationDirectory(host, backup.number),
@@ -99,8 +99,8 @@ export class FsckService {
 
   async #poolRefcntFromHost(): Promise<Map<string, ManifestChunkCount>> {
     const chunks = from(this.hostService.getHosts()).pipe(
-      flatMap((host) => from(host)),
-      flatMap(async (host) => {
+      concatMap((host) => from(host)),
+      concatMap(async (host) => {
         const refcnt = new ReferenceCount(this.backupsService.getHostDirectory(host), '', this.configService.poolPath);
 
         return await this.refCntService.readRefCnt(refcnt.hostPath);
@@ -112,7 +112,7 @@ export class FsckService {
 
   #checkIntegrity(path: string, refcnt: Map<string, ManifestChunkCount>): AsyncIterableX<RefcntError> {
     return from(this.refCntService.readAllRefCnt(path)).pipe(
-      flatMap((originalReferenceCount) => {
+      concatMap((originalReferenceCount) => {
         const wrongReferenceCount = from(refcnt.entries()).pipe(
           map(([sha256, ref]) => ({
             sha256,
@@ -188,7 +188,7 @@ export class FsckService {
             compressedSize: 0,
           })),
         );
-        this.refCntService.fixRefcnt(source, refcnt.backupPath);
+        await this.refCntService.fixRefcnt(source, refcnt.backupPath);
       }
 
       errorCount += integrity;
@@ -226,7 +226,7 @@ export class FsckService {
             compressedSize: 0,
           })),
         );
-        this.refCntService.fixRefcnt(source, refcnt.hostPath);
+        await this.refCntService.fixRefcnt(source, refcnt.hostPath);
       }
 
       errorCount += integrity;
@@ -262,7 +262,7 @@ export class FsckService {
           compressedSize: 0,
         })),
       );
-      this.refCntService.fixRefcnt(source, refcnt.poolPath);
+      await this.refCntService.fixRefcnt(source, refcnt.poolPath);
     }
 
     errorCount += integrity;
@@ -275,10 +275,7 @@ export class FsckService {
     // Read unused file
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
     const unusedPool = await toSet(
-      pipe(
-        this.refCntService.readUnused(refcnt.unusedPoolPath),
-        map((chunk) => chunk.sha256.toString('base64')),
-      ),
+      from(this.refCntService.readUnused(refcnt.unusedPoolPath)).pipe(map((chunk) => chunk.sha256.toString('base64'))),
     );
 
     logger.log(0, 1, `Read Refcnt`);

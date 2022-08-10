@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
 import { HistoricalPoolStatistics, PoolStatistics } from '../models';
-import { YamlService } from '../services/yaml.service';
 import { BackupsService } from '../services/backups.service';
+import { YamlService } from '../services/yaml.service';
 
 export const DEFAULT_STATISTICS: PoolStatistics = {
   longestChain: 0,

@@ -8,6 +8,7 @@ export * from './commands/tools.service';
 export * from './files.service';
 export * from './fsck.service';
 export * from './hosts.service';
+export * from './job.service';
 export * from './lock.service';
 export * from './pool/pool.service';
 export * from './protobuf.service';

@@ -1,4 +1,4 @@
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ApplicationConfigModule, BullConfigService } from './config';
@@ -12,6 +12,7 @@ import {
   FilesService,
   FsckService,
   HostsService,
+  JobService,
   LockService,
   PingService,
   PoolService,
@@ -29,6 +30,9 @@ export const WoodstockQueueModule = [
   BullModule.registerQueue(
     {
       name: 'queue',
+    },
+    {
+      name: 'refcnt',
     },
     {
       name: 'schedule',
@@ -70,6 +74,7 @@ const PROVIDERS = [
   StatsInstantService,
   ToolsService,
   YamlService,
+  JobService,
 ];
 
 @Module({

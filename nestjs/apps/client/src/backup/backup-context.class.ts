@@ -1,4 +1,4 @@
-import { BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import {
   ChunkInformation,
   FileChunk,
@@ -18,7 +18,7 @@ import {
 } from '@woodstock/shared';
 import { createReadStream, ReadStream } from 'fs';
 import { throwIfAborted } from 'ix/aborterror';
-import { AsyncIterableX, concat, create, from, of, pipe } from 'ix/asynciterable';
+import { AsyncIterableX, concat, create, from, of } from 'ix/asynciterable';
 import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/operators';
 
 export class BackupContext {
@@ -30,8 +30,7 @@ export class BackupContext {
     const manifest = new Manifest(`backups.${mangle(sharePath)}`, '/tmp/');
     await this.manifestService.deleteManifest(manifest);
 
-    const entries$ = pipe(
-      source,
+    const entries$ = from(source).pipe(
       notUndefined<FileManifest>(),
       map((fileManifest) => ManifestService.toAddJournalEntry(fileManifest, true)),
     );

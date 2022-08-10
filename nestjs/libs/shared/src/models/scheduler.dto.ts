@@ -14,6 +14,10 @@ export class Schedule {
   activated?: boolean;
   backupPeriod?: number;
   backupToKeep?: ScheduledBackupToKeep;
+
+  constructor(s: Partial<Schedule> = {}) {
+    Object.assign(this, s);
+  }
 }
 
 export class ApplicationScheduler {

@@ -1,8 +1,8 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
 import { BackupTask } from '@woodstock/shared';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 
 @Controller('queue')
 export class QueueController {

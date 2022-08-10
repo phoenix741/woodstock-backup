@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { JobId } from 'bull';
 import { copy } from 'fs-extra';
-import { readdir, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
 import { Manifest } from '../manifest';
@@ -151,15 +150,15 @@ export class BackupsService {
     }
   }
 
-  async lock(hostname: string, jobId: JobId, force = false): Promise<JobId | null> {
+  async lock(hostname: string, jobId: string, force = false): Promise<string | null> {
     return await this.lockService.lock(this.getLockFile(hostname), jobId, force);
   }
 
-  async isLocked(hostname: string): Promise<JobId | null> {
+  async isLocked(hostname: string): Promise<string | null> {
     return await this.lockService.isLocked(this.getLockFile(hostname));
   }
 
-  async unlock(hostname: string, jobId: JobId, force = false): Promise<JobId | null> {
+  async unlock(hostname: string, jobId: string, force = false): Promise<string | null> {
     return await this.lockService.unlock(this.getLockFile(hostname), jobId, force);
   }
 }

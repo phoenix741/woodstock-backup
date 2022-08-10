@@ -1,7 +1,7 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { SchedulerConfigService } from '@woodstock/shared';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit {
@@ -46,7 +46,7 @@ export class SchedulerService implements OnModuleInit {
   async removeAll(): Promise<void> {
     const jobs = await this.scheduleQueue.getRepeatableJobs();
     for (const job of jobs) {
-      await this.scheduleQueue.removeRepeatable(job);
+      await this.scheduleQueue.removeRepeatableByKey(job.key);
     }
   }
 

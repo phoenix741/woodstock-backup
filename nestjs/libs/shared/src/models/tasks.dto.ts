@@ -34,20 +34,16 @@ export class TaskProgression {
     Object.assign(this, s);
   }
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   compressedFileSize: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newCompressedFileSize: bigint;
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   fileSize: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   newFileSize: bigint;
@@ -71,11 +67,9 @@ export class TaskProgression {
     this.progressCurrent = (BigInt(v) * this.progressMax) / 100n;
   }
 
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   progressCurrent: bigint;
-  @ApiProperty({ type: 'integer' })
   @Transform((v) => BigInt(v.value))
   @Field(() => BigInt)
   progressMax: bigint;
@@ -106,6 +100,8 @@ export class BackupTask {
   startDate?: number;
   originalStartDate?: number;
 
+  force?: boolean;
+
   subtasks?: BackupSubTask[];
 
   state?: BackupState;
@@ -118,16 +114,13 @@ export class BackupTask {
 
 @ObjectType()
 export class Job {
-  @Field(() => Int)
-  id!: number;
+  id!: string;
 
   name!: string;
   data!: BackupTask;
 
-  @Field(() => Int)
   delay!: number;
 
-  @Field(() => Int)
   timestamp!: number;
 
   @Field(() => Int)
@@ -136,9 +129,6 @@ export class Job {
   failedReason?: string;
   stacktrace?: string[];
 
-  @Field(() => Int)
   finishedOn?: number;
-
-  @Field(() => Int)
   processedOn?: number;
 }

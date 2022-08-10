@@ -1,8 +1,8 @@
-import { InjectQueue } from '@nestjs/bull';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
 import { BackupTask, Job, SchedulerConfigService } from '@woodstock/shared';
-import Bull, { Job as BullJob, JobStatus, Queue } from 'bull';
+import Bull, { Job as BullJob, JobState, Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.model';
@@ -17,7 +17,7 @@ export class QueueResolver {
 
   @Query(() => [Job])
   async queue(
-    @Args('state', { type: () => [String], defaultValue: [] }) states: JobStatus[],
+    @Args('state', { type: () => [String], defaultValue: [] }) states: JobState[],
   ): Promise<Bull.Job<BackupTask>[]> {
     return await this.backupQueue.getJobs(states);
   }
@@ -35,6 +35,7 @@ export class QueueResolver {
 
     return {
       waiting: await this.backupQueue.getWaitingCount(),
+      waitingChildren: await this.backupQueue.getWaitingChildrenCount(),
       active: await this.backupQueue.getActiveCount(),
       failed: await this.backupQueue.getFailedCount(),
       delayed: await this.backupQueue.getDelayedCount(),

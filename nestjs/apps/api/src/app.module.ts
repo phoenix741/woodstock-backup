@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
@@ -29,7 +30,8 @@ import { BigIntScalar } from './utils/bigint.scalar';
     ApplicationConfigModule,
     ...WoodstockBullModules,
     ConfigModule.forRoot(),
-    GraphQLModule.forRoot({
+    GraphQLModule.forRoot<ApolloDriverConfig>({
+      driver: ApolloDriver,
       fieldResolverEnhancers: ['interceptors'],
       installSubscriptionHandlers: true,
       autoSchemaFile: true,
