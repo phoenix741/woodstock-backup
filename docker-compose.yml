@@ -24,6 +24,7 @@ services:
       - APOLLO_KEY=service:woodstock-backup:iqaZyc66gS4JhesQlqnXvw
       - APOLLO_GRAPH_REF=woodstock@develop
       - NODE_ENV=development
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
   woodstock_backup:
@@ -37,6 +38,7 @@ services:
       - LOG_LEVEL=debug
       - MAX_BACKUP_TASK=2
       - NODE_ENV=development
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
   woodstock_refcnt:
@@ -50,6 +52,7 @@ services:
       - LOG_LEVEL=debug
       - MAX_BACKUP_TASK=2
       - NODE_ENV=development
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
   woodstock_schedule:
@@ -63,6 +66,7 @@ services:
       - LOG_LEVEL=debug
       - MAX_BACKUP_TASK=2
       - NODE_ENV=development
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
   woodstock_stats:
@@ -76,6 +80,7 @@ services:
       - LOG_LEVEL=debug
       - MAX_BACKUP_TASK=2
       - NODE_ENV=development
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
   woodstock_client:
