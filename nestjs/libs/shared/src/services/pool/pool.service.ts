@@ -18,18 +18,22 @@ export class PoolService {
     return PoolChunkWrapper.get(this, this.applicationConfig.poolPath, sha256);
   }
 
-  removeUnusedFiles(): Observable<PoolUnused> {
+  removeUnusedFiles(targetPath?: string): Observable<PoolUnused> {
     return new Observable<PoolUnused>((observable) => {
       (async () => {
         const refcnt = new ReferenceCount('', '', this.applicationConfig.poolPath);
         const unused = this.refcntService.readUnused(refcnt.unusedPoolPath);
 
         for await (const chunk of unused) {
-          await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).remove();
+          if (targetPath) {
+            await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).mv(targetPath);
+          } else {
+            await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).remove();
+          }
           observable.next(chunk);
         }
 
-        await rm(refcnt.unusedPoolPath);
+        // await rm(refcnt.unusedPoolPath);
         observable.complete();
       })();
     });

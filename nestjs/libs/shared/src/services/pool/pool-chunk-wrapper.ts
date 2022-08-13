@@ -143,6 +143,17 @@ export class PoolChunkWrapper {
     await rm(this.chunkPath);
   }
 
+  async mv(targetPath: string): Promise<void> {
+    try {
+      if (this.sha256Str) {
+        await pipeline(this.read(), createWriteStream(join(targetPath, this.sha256Str)));
+      }
+      await rm(this.chunkPath);
+    } catch (err) {
+      this.logger.error(`Can't move chunk ${this.sha256Str} to ${targetPath}`);
+    }
+  }
+
   private get chunkDir() {
     if (this.sha256Str) {
       return calculateChunkDir(this.poolPath, this.sha256Str);

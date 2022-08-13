@@ -131,14 +131,21 @@ export class PoolCommand {
   @Command({
     command: 'remove-unused',
     description: 'Remove unused chunks',
+    options: [
+      {
+        flags: '--target <path>',
+        required: false,
+        description: 'Target path to move file instead of deleting',
+      },
+    ],
   })
-  async removeUnused() {
+  async removeUnused({ target }: { target?: string }) {
     const spinner = createSpinner();
     let count = 0;
     spinner.start(`[Unused]: Progress 0 chunk(s)`);
 
     await new Promise<void>((resolve, reject) => {
-      this.poolService.removeUnusedFiles().subscribe({
+      this.poolService.removeUnusedFiles(target).subscribe({
         next: (chunk) => {
           spinner.text = `[Unused] - Progress ${++count} chunk(s) : ${chunk.sha256.toString('hex')}`;
         },
@@ -162,5 +169,53 @@ export class PoolCommand {
     const buffChunk = Buffer.from(chunk, 'hex');
     const readable = this.poolService.getChunk(buffChunk).read();
     await pipeline(readable, process.stdout);
+  }
+
+  @Command({
+    command: 'verify-chunk',
+    description: 'Verify the integrity of all chunk',
+  })
+  async verifyChunks() {
+    const spinner = createSpinner();
+    spinner.start(`[Pool]: Progress 0%`);
+    try {
+      const { chunkOk, chunkKo } = await this.refCntFsckService.processVerifyChunk({
+        log: (progress, count, message) => {
+          spinner.text = `[Pool] - Progress ${Math.round((progress * 100) / count)} - ${message}`;
+        },
+        error: (message) => {
+          spinner.fail('[Pool] - ' + message);
+        },
+      });
+
+      spinner.succeed(`[Pool]: There is ${chunkOk} chunk validated and ${chunkKo} with the wrong sha256.`);
+    } catch (err) {
+      spinner.fail(`[Pool]: ${(err as Error).message}`);
+      console.log(err);
+    }
+  }
+
+  @Command({
+    command: 'check-compression',
+    description: 'Check the compression of all chunk',
+  })
+  async checkCompression() {
+    const spinner = createSpinner();
+    spinner.start(`[Pool]: Progress 0%`);
+    try {
+      const { compressedSize, uncompressedSize } = await this.refCntFsckService.checkCompression({
+        log: (progress, count, message) => {
+          spinner.text = `[Pool] - Progress ${Math.round(Number((progress * 100n) / count))} - ${message}`;
+        },
+        error: (message) => {
+          spinner.fail('[Pool] - ' + message);
+        },
+      });
+
+      spinner.succeed(`[Pool]: There is ${compressedSize} compressed and ${uncompressedSize} uncompressed.`);
+    } catch (err) {
+      spinner.fail(`[Pool]: ${(err as Error).message}`);
+      console.log(err);
+    }
   }
 }
