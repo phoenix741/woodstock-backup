@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { from, reduce } from 'ix/asynciterable';
 import { concatMap } from 'ix/asynciterable/operators';
 import { PoolStatistics } from '../models';
-import { HostsStatsUsage, StatsDiskUsage } from '../models/stats.model';
-import { BackupsService } from '../services/backups.service';
-import { ExecuteCommandService } from '../services/commands/execute-command.service';
-import { HostsService } from '../services/hosts.service';
-import { PoolStatisticsService } from '../statistics/pool-statistics.service';
+import { HostsStatsUsage, StatsDiskUsage } from '../models/stats.model.js';
+import { BackupsService } from '../services/backups.service.js';
+import { ExecuteCommandService } from '../services/commands/execute-command.service.js';
+import { HostsService } from '../services/hosts.service.js';
+import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
 
 @Injectable()
 export class StatsInstantService {

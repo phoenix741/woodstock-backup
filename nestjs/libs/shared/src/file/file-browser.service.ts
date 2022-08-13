@@ -3,11 +3,11 @@ import { constants as constantsFs, Dirent } from 'fs';
 import { access, lstat, opendir, readlink } from 'fs/promises';
 import { AsyncIterableX, from, of } from 'ix/asynciterable';
 import { concatMap, filter, map, startWith } from 'ix/asynciterable/operators';
-import { IMinimatch } from 'minimatch';
+import type { IMinimatch } from 'minimatch';
 import { FileManifest } from '../models/woodstock';
-import { notUndefined } from '../utils/iterator.utils';
-import { bigIntToLong } from '../utils/number.utils';
-import { joinBuffer } from '../utils/path.utils';
+import { notUndefined } from '../utils/iterator.utils.js';
+import { bigIntToLong } from '../utils/number.utils.js';
+import { joinBuffer } from '../utils/path.utils.js';
 
 @Injectable()
 export class FileBrowserService {

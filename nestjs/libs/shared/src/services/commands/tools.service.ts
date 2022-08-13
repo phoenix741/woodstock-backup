@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { resolve } from 'path';
 import { ApplicationConfigService } from '../../config';
 import { rendering } from '../../utils';
-import { YamlService } from '../yaml.service';
+import { YamlService } from '../yaml.service.js';
 
 class Tools {
   tools!: Record<string, string>;

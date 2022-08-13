@@ -5,6 +5,7 @@
   "root": "apps/api",
   "compilerOptions": {
     "webpack": true,
+    "webpackConfigPath": "webpack.config.cjs",
     "tsConfigPath": "apps/api/tsconfig.app.json",
     "assets": ["**/*.proto"],
     "watchAssets": true,

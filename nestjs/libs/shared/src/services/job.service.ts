@@ -2,10 +2,10 @@ import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullm
 import { Injectable, Logger } from '@nestjs/common';
 import { JobState, Queue } from 'bullmq';
 import { BackupTask, RefcntJobData } from '../models';
-import { BackupsService } from './backups.service';
-import { PingService } from './commands/ping.service';
-import { HostsService } from './hosts.service';
-import { SchedulerConfigService } from './scheduler-config.service';
+import { BackupsService } from './backups.service.js';
+import { PingService } from './commands/ping.service.js';
+import { HostsService } from './hosts.service.js';
+import { SchedulerConfigService } from './scheduler-config.service.js';
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
 

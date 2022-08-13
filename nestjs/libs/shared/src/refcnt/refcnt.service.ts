@@ -4,9 +4,9 @@ import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
 import { lock } from 'proper-lockfile';
 import { PoolRefCount, PoolStatistics, PoolUnused } from '../models';
-import { ProtoPoolRefCount, ProtoPoolUnused } from '../models/object-proto.model';
-import { ProtobufService } from '../services/protobuf.service';
-import { PoolStatisticsService } from '../statistics/pool-statistics.service';
+import { ProtoPoolRefCount, ProtoPoolUnused } from '../models/object-proto.model.js';
+import { ProtobufService } from '../services/protobuf.service.js';
+import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
 
 @Injectable()
 export class RefCntService {

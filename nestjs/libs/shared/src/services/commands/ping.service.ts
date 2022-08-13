@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HostConfiguration } from '../../models/host-configuration.dto';
-import { ExecuteCommandService } from './execute-command.service';
-import { ResolveService } from './resolve.service';
-import { CommandParameters } from './tools.service';
+import { HostConfiguration } from '../../models/host-configuration.dto.js';
+import { ExecuteCommandService } from './execute-command.service.js';
+import { ResolveService } from './resolve.service.js';
+import { CommandParameters } from './tools.service.js';
 
 @Injectable()
 export class PingService {

@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@woodstock/shared';
-import { BackupClientGrpc } from './backups/backup-client-grpc.class';
-import { BackupClientProgress } from './backups/backup-client-progress.service';
-import { BackupClient } from './backups/backup-client.service';
-import { GlobalModule } from './global.module';
-import { HostConsumer } from './tasks/host.consumer';
-import { RemoveService } from './tasks/remove.service';
-import { TasksService } from './tasks/tasks.service';
-import { HostConsumerUtilService } from './utils/host-consumer-util.service';
+import { BackupClientGrpc } from './backups/backup-client-grpc.class.js';
+import { BackupClientProgress } from './backups/backup-client-progress.service.js';
+import { BackupClient } from './backups/backup-client.service.js';
+import { GlobalModule } from './global.module.js';
+import { HostConsumer } from './tasks/host.consumer.js';
+import { RemoveService } from './tasks/remove.service.js';
+import { TasksService } from './tasks/tasks.service.js';
+import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
 
 @Module({
   imports: [GlobalModule, ApplicationConfigModule, ...WoodstockBullModules, SharedModule],

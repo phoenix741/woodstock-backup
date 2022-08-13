@@ -11,8 +11,8 @@ import { FileBrowserService } from '../file';
 import { ManifestService } from '../manifest';
 import { FileManifest } from '../models';
 import { longToBigInt, splitBuffer, unmangle } from '../utils';
-import { BackupsService } from './backups.service';
-import { PoolService } from './pool/pool.service';
+import { BackupsService } from './backups.service.js';
+import { PoolService } from './pool/pool.service.js';
 
 @Injectable()
 export class FilesService {

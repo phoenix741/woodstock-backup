@@ -4,16 +4,16 @@ import { rename, unlink } from 'fs/promises';
 import { from, never } from 'ix/asynciterable';
 import * as mkdirp from 'mkdirp';
 import { dirname } from 'path';
-import { Type } from 'protobufjs';
+import type { Type } from 'protobufjs';
 import * as stream from 'stream';
 import { Duplex, Readable, Stream } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createDeflate, createInflate } from 'zlib';
 import { notUndefined } from '../utils';
-import { fromNodeStream } from '../utils/fromnodestream';
-import { tmpNameAsync } from '../utils/path.utils';
-import { ProtobufMessageReader, ProtobufMessageWithPosition } from './transform/protobuf-message-reader.utils';
-import { ProtobufMessageWriter } from './transform/protobuf-message-writer.utils';
+import { fromNodeStream } from '../utils/fromnodestream.js';
+import { tmpNameAsync } from '../utils/path.utils.js';
+import { ProtobufMessageReader, ProtobufMessageWithPosition } from './transform/protobuf-message-reader.utils.js';
+import { ProtobufMessageWriter } from './transform/protobuf-message-writer.utils.js';
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 const compose: (...streams: Array<Stream | Iterable<unknown> | AsyncIterable<unknown> | Function>) => Duplex = (

@@ -1,10 +1,10 @@
 import { copyFile, unlink } from 'fs/promises';
 import { count } from 'ix/asynciterable';
 import { join } from 'path';
-import { ProtoFileManifest } from '../models/object-proto.model';
-import { ProtobufService } from '../services/protobuf.service';
-import { Manifest } from './manifest.model';
-import { ManifestService } from './manifest.service';
+import { ProtoFileManifest } from '../models/object-proto.model.js';
+import { ProtobufService } from '../services/protobuf.service.js';
+import { Manifest } from './manifest.model.js';
+import { ManifestService } from './manifest.service.js';
 
 async function deleteTest(filename: string) {
   const journal = join(__dirname, 'fixtures', `${filename}.journal`);

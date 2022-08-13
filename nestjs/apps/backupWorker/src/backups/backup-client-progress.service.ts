@@ -2,8 +2,8 @@ import { Injectable, LoggerService } from '@nestjs/common';
 import { EntryType, isPoolChunkInformation, longToBigInt, Share, TaskProgression } from '@woodstock/shared';
 import * as Long from 'long';
 import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
-import { BackupsGrpcContext } from './backup-client-grpc.class';
-import { BackupClient } from './backup-client.service';
+import { BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { BackupClient } from './backup-client.service.js';
 
 @Injectable()
 export class BackupClientProgress {

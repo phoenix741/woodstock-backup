@@ -14,9 +14,9 @@ import {
 } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Observable } from 'rxjs';
-import { BackupService } from './backup/backup.service';
-import { ClientConfigService } from './config/client.config';
-import { LogService } from './logger/log.service';
+import { BackupService } from './backup/backup.service.js';
+import { ClientConfigService } from './config/client.config.js';
+import { LogService } from './logger/log.service.js';
 
 @Injectable()
 export class AppService {

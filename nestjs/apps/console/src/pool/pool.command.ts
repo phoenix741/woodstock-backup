@@ -177,11 +177,11 @@ export class PoolCommand {
   })
   async verifyChunks() {
     const spinner = createSpinner();
-    spinner.start(`[Pool]: Progress 0%`);
+    spinner.start(`[Pool]`);
     try {
       const { chunkOk, chunkKo } = await this.refCntFsckService.processVerifyChunk({
         log: (progress, count, message) => {
-          spinner.text = `[Pool] - Progress ${Math.round((progress * 100) / count)} - ${message}`;
+          spinner.text = `[Pool] - ${progress} - ${message}`;
         },
         error: (message) => {
           spinner.fail('[Pool] - ' + message);
@@ -198,21 +198,35 @@ export class PoolCommand {
   @Command({
     command: 'check-compression',
     description: 'Check the compression of all chunk',
+    options: [
+      {
+        flags: '--all',
+        required: false,
+        description: 'Check the whole pool',
+      },
+    ],
   })
-  async checkCompression() {
+  async checkCompression({ all }: { all?: boolean }) {
     const spinner = createSpinner();
     spinner.start(`[Pool]: Progress 0%`);
     try {
-      const { compressedSize, uncompressedSize } = await this.refCntFsckService.checkCompression({
-        log: (progress, count, message) => {
-          spinner.text = `[Pool] - Progress ${Math.round(Number((progress * 100n) / count))} - ${message}`;
+      const { compressedSize, uncompressedSize } = await this.refCntFsckService.checkCompression(
+        {
+          log: (progress, count, message) => {
+            spinner.text = `[Pool] - Compression at ${Math.round(Number((progress * 100n) / count))}% - ${message}`;
+          },
+          error: (message) => {
+            spinner.fail('[Pool] - ' + message);
+          },
         },
-        error: (message) => {
-          spinner.fail('[Pool] - ' + message);
-        },
-      });
+        all,
+      );
 
-      spinner.succeed(`[Pool]: There is ${compressedSize} compressed and ${uncompressedSize} uncompressed.`);
+      spinner.succeed(
+        `[Pool]: Compression at ${Math.round(
+          Number((100n * compressedSize) / uncompressedSize),
+        )}% - There is ${compressedSize.toLocaleString()} compressed and ${uncompressedSize.toLocaleString()} uncompressed.`,
+      );
     } catch (err) {
       spinner.fail(`[Pool]: ${(err as Error).message}`);
       console.log(err);

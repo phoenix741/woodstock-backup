@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthenticateRequest, FileReader, ManifestService } from '@woodstock/shared';
 import { v4 as uuidv4 } from 'uuid';
-import { BackupContext } from './backup-context.class';
+import { BackupContext } from './backup-context.class.js';
 
 @Injectable()
 export class BackupService {

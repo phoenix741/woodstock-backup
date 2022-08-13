@@ -1,4 +1,4 @@
-import { StatsDiskUsage } from './stats.model';
+import { StatsDiskUsage } from './stats.model.js';
 
 export interface HistoricalDiskStatistics extends StatsDiskUsage {
   date: number;

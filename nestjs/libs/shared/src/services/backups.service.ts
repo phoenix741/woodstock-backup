@@ -4,10 +4,10 @@ import { rm } from 'fs/promises';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
 import { Manifest } from '../manifest';
-import { Backup } from '../models/backup.dto';
+import { Backup } from '../models/backup.dto.js';
 import { mangle, unmangle } from '../utils';
-import { LockService } from './lock.service';
-import { YamlService } from './yaml.service';
+import { LockService } from './lock.service.js';
+import { YamlService } from './yaml.service.js';
 
 @Injectable()
 export class BackupsService {

@@ -1,7 +1,7 @@
 import { Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { HostConfiguration } from './host-configuration.dto';
+import { HostConfiguration } from './host-configuration.dto.js';
 
 export enum BackupState {
   WAITING = 'WAITING',

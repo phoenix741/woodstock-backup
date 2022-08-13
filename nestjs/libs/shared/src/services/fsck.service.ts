@@ -6,12 +6,12 @@ import { ApplicationConfigService } from '../config';
 import { FileBrowserService } from '../file';
 import { ManifestService } from '../manifest';
 import { FileManifest, PoolRefCount } from '../models';
-import { ManifestChunk } from '../models/manifest.dto';
-import { ReferenceCount } from '../refcnt/refcnt.model';
-import { RefCntService } from '../refcnt/refcnt.service';
-import { BackupsService } from './backups.service';
-import { HostsService } from './hosts.service';
-import { PoolService } from './pool/pool.service';
+import { ManifestChunk } from '../models/manifest.dto.js';
+import { ReferenceCount } from '../refcnt/refcnt.model.js';
+import { RefCntService } from '../refcnt/refcnt.service.js';
+import { BackupsService } from './backups.service.js';
+import { HostsService } from './hosts.service.js';
+import { PoolService } from './pool/pool.service.js';
 
 interface ManifestChunkCount {
   count: number;
@@ -343,7 +343,7 @@ export class FsckService {
     let chunkKo = 0;
 
     // Search all file pool directory
-    const files = await this.fileBrowserService
+    const files = this.fileBrowserService
       .getFilesRecursive(Buffer.from(this.configService.poolPath))(Buffer.from(''))
       .pipe(
         map((file) => basename(file.toString())),
@@ -352,7 +352,7 @@ export class FsckService {
       );
 
     for await (const file of files) {
-      const chunk = await this.poolService.getChunk(file);
+      const chunk = this.poolService.getChunk(file);
       const chunkInformation = await chunk.getChunkInformation();
       if (!chunk.sha256) {
         chunkKo++;
@@ -372,26 +372,49 @@ export class FsckService {
     return { chunkOk, chunkKo };
   }
 
-  async checkCompression(logger: RefcntLoggger<bigint>) {
+  async checkCompression(logger: RefcntLoggger<bigint>, all?: boolean) {
     const { fileTypeFromStream } = await import('file-type');
     // Read unused file
     let compressedSize = 0n;
     let uncompressedSize = 0n;
 
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
-    const poolRefcnt = this.refCntService.readRefCnt(refcnt.poolPath);
+    const poolRefcnt = !all
+      ? this.refCntService.readRefCnt(refcnt.poolPath)
+      : this.fileBrowserService
+          .getFilesRecursive(Buffer.from(this.configService.poolPath))(Buffer.from(''))
+          .pipe(
+            map((file) => basename(file.toString())),
+            filter((file) => file.endsWith('-sha256.zz')),
+            map((file) => Buffer.from(file.substring(0, file.length - 10), 'hex')),
+            map(async (file) => {
+              const chunk = this.poolService.getChunk(file);
+              return await chunk.getChunkInformation();
+            }),
+            map(async (chunkInformation) => ({
+              sha256: chunkInformation.sha256,
+              refCount: 0,
+              size: Number(chunkInformation.size),
+              compressedSize: Number(chunkInformation.compressedSize),
+            })),
+          );
 
     for await (const r of poolRefcnt) {
-      fileTypeFromStream;
       compressedSize += BigInt(r.compressedSize);
       uncompressedSize += BigInt(r.size);
 
       if (compressedSize > uncompressedSize) {
-        const fileType = fileTypeFromStream(this.poolService.getChunk(r.sha256).read());
-        logger.error(`${r.sha256.toString('hex')}: compressed size is greater than uncompressed size: ${fileType}`);
+        const fileType = await fileTypeFromStream(this.poolService.getChunk(r.sha256).read());
+        logger.error(
+          `${r.sha256.toString('hex')}: compressed size is greater than uncompressed size: ${fileType?.mime}`,
+        );
       }
 
-      logger.log(compressedSize, uncompressedSize, `${compressedSize} compressed, ${uncompressedSize} uncompressed`);
+      logger.log(
+        compressedSize,
+        uncompressedSize,
+        `${compressedSize.toLocaleString()} compressed, ${uncompressedSize.toLocaleString()} uncompressed`,
+      );
     }
 
     return { compressedSize, uncompressedSize };

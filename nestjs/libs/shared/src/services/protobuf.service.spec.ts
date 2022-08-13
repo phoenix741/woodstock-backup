@@ -2,9 +2,9 @@ import { readFile } from 'fs/promises';
 import { count, from } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
+import { ProtoFileManifestJournalEntry } from '../models/object-proto.model.js';
 import { FileManifestJournalEntry } from '../models/woodstock';
-import { ProtobufService } from '../services/protobuf.service';
+import { ProtobufService } from '../services/protobuf.service.js';
 
 describe('ManifestWrapper', () => {
   let service: ProtobufService;

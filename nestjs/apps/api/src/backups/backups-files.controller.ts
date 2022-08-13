@@ -14,7 +14,7 @@ import { ApiHeader, ApiProduces } from '@nestjs/swagger';
 import { FileDescription } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
-import { BackupsFilesService } from './backups-files.service';
+import { BackupsFilesService } from './backups-files.service.js';
 
 @Controller('hosts/:name/backups/:number/files')
 export class BackupsFilesController {

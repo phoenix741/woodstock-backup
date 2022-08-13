@@ -3,14 +3,14 @@ import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
 import { catchError, concatAll, concatMap, filter, map } from 'ix/asynciterable/operators';
 import { PoolRefCount } from '../models';
-import { ManifestChunk } from '../models/manifest.dto';
-import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model';
+import { ManifestChunk } from '../models/manifest.dto.js';
+import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../models/object-proto.model.js';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
-import { ProtobufService } from '../services/protobuf.service';
-import { isExists } from '../utils/fs.utils';
-import { notUndefined } from '../utils/iterator.utils';
-import { IndexManifest } from './index-manifest.model';
-import { Manifest } from './manifest.model';
+import { ProtobufService } from '../services/protobuf.service.js';
+import { isExists } from '../utils/fs.utils.js';
+import { notUndefined } from '../utils/iterator.utils.js';
+import { IndexManifest } from './index-manifest.model.js';
+import { Manifest } from './manifest.model.js';
 
 @Injectable()
 export class ManifestService {

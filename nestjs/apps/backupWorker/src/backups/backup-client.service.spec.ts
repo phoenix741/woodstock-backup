@@ -21,8 +21,8 @@ import * as Long from 'long';
 import { lastValueFrom, toArray } from 'rxjs';
 import { Readable } from 'stream';
 import { setTimeout } from 'timers/promises';
-import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
-import { BackupClient } from './backup-client.service';
+import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { BackupClient } from './backup-client.service.js';
 
 describe('BackupClient', () => {
   const mockApplicationConfigService = {

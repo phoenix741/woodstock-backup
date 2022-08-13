@@ -35,8 +35,8 @@ import {
 import { concatAll, concatMap, finalize, map, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
-import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class';
-import { LaunchBackupError } from './backup.error';
+import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { LaunchBackupError } from './backup.error.js';
 
 export const SHA256_EMPTYSTRING = Buffer.from(
   'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',

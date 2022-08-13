@@ -188,8 +188,17 @@
       "<rootDir>/apps/",
       "<rootDir>/libs/"
     ],
+    "globals": {
+      "ts-jest": {
+        "useESM": true
+      }
+    },
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
     "moduleNameMapper": {
-      "^@woodstock/shared(|/.*)$": "<rootDir>/libs/shared/src/$1"
+      "^@woodstock/shared(|/.*)$": "<rootDir>/libs/shared/src/$1",
+      "(.+)\\.js": "$1"
     }
   }
 }

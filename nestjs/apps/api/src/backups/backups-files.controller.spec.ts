@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import * as archiver from 'archiver';
 import * as httpMocks from 'node-mocks-http';
-import { BackupsFilesController } from './backups-files.controller';
-import { BackupsFilesService } from './backups-files.service';
+import { BackupsFilesController } from './backups-files.controller.js';
+import { BackupsFilesService } from './backups-files.service.js';
 
 jest.mock('archiver');
 

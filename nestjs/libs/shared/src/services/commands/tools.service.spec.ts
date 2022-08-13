@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationConfigService } from '../../config';
-import { YamlService } from '../yaml.service';
-import { ToolsService } from './tools.service';
+import { YamlService } from '../yaml.service.js';
+import { ToolsService } from './tools.service.js';
 
 jest.mock('child_process');
 

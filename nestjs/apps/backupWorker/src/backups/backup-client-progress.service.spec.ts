@@ -3,9 +3,9 @@ import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { bigIntToLong, EntryType } from '@woodstock/shared';
 import { from, lastValueFrom, toArray } from 'rxjs';
-import { BackupsGrpcContext } from './backup-client-grpc.class';
-import { BackupClientProgress } from './backup-client-progress.service';
-import { BackupClient } from './backup-client.service';
+import { BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { BackupClientProgress } from './backup-client-progress.service.js';
+import { BackupClient } from './backup-client.service.js';
 
 describe('BackupClientProgress', () => {
   const mockBackupClient = {

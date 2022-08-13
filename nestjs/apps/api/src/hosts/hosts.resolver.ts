@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { Args, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, BackupsService, HostConfiguration, HostsService } from '@woodstock/shared';
-import { Host } from './host.model';
+import { Host } from './host.model.js';
 
 @Resolver(() => Host)
 export class HostsResolver {

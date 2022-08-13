@@ -11,7 +11,7 @@ import {
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { join } from 'path';
-import { HostInformation } from './hosts.dto';
+import { HostInformation } from './hosts.dto.js';
 
 @Controller('hosts')
 export class HostController {

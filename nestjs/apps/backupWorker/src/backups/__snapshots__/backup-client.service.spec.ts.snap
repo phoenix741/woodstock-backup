@@ -1396,6 +1396,8 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
+        "logger": undefined,
+        "sessionId": undefined,
       },
       Object {
         "excludes": Array [],
