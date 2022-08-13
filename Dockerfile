@@ -4,7 +4,7 @@ LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 WORKDIR /src/nestjs
 COPY nestjs/package.json /src/nestjs
 COPY nestjs/package-lock.json /src/nestjs
-RUN npm install --production
+RUN npm ci --production
 
 #
 # -------- Build --------
@@ -13,10 +13,10 @@ FROM dependencies as build
 WORKDIR /src/front
 COPY front/package.json /src/front
 COPY front/package-lock.json /src/front
-RUN npm install
+RUN npm ci
 
 WORKDIR /src/nestjs
-RUN npm install
+RUN npm ci
 
 COPY front/ /src/front/
 COPY nestjs/ /src/nestjs/
