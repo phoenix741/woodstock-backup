@@ -139,18 +139,37 @@ export class PoolChunkWrapper {
     }
   }
 
-  async remove(): Promise<void> {
+  async remove(): Promise<PoolChunkInformation> {
+    const chunkStatistics = await stat(this.chunkPath, { bigint: true });
     await rm(this.chunkPath);
+    return {
+      sha256: this.sha256 || Buffer.alloc(0),
+      size: 0n,
+      compressedSize: chunkStatistics.size,
+    };
   }
 
-  async mv(targetPath: string): Promise<void> {
+  async mv(targetPath: string): Promise<PoolChunkInformation> {
     try {
+      const chunkStatistics = await stat(this.chunkPath, { bigint: true });
       if (this.sha256Str) {
         await pipeline(this.read(), createWriteStream(join(targetPath, this.sha256Str)));
       }
       await rm(this.chunkPath);
+
+      return {
+        sha256: this.sha256 || Buffer.alloc(0),
+        size: 0n,
+        compressedSize: chunkStatistics.size,
+      };
     } catch (err) {
       this.logger.error(`Can't move chunk ${this.sha256Str} to ${targetPath}`);
+
+      return {
+        sha256: this.sha256 || Buffer.alloc(0),
+        size: 0n,
+        compressedSize: 0n,
+      };
     }
   }
 

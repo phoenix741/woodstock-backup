@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PoolUnused } from '@woodstock/shared/models';
+import { PoolChunkInformation } from '@woodstock/shared/models';
 import { Observable } from 'rxjs';
 import { ApplicationConfigService } from '../../config';
 import { RefCntService, ReferenceCount } from '../../refcnt';
@@ -18,22 +18,25 @@ export class PoolService {
     return PoolChunkWrapper.get(this, this.applicationConfig.poolPath, sha256);
   }
 
-  removeUnusedFiles(targetPath?: string): Observable<PoolUnused> {
-    return new Observable<PoolUnused>((observable) => {
+  removeUnusedFiles(targetPath?: string): Observable<PoolChunkInformation> {
+    return new Observable<PoolChunkInformation>((observable) => {
       (async () => {
         const refcnt = new ReferenceCount('', '', this.applicationConfig.poolPath);
         const unused = this.refcntService.readUnused(refcnt.unusedPoolPath);
 
         for await (const chunk of unused) {
+          let removedChunk: PoolChunkInformation;
           if (targetPath) {
-            await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).mv(targetPath);
+            removedChunk = await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).mv(
+              targetPath,
+            );
           } else {
-            await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).remove();
+            removedChunk = await PoolChunkWrapper.get(this, this.applicationConfig.poolPath, chunk.sha256).remove();
           }
-          observable.next(chunk);
+          observable.next(removedChunk);
         }
 
-        // await rm(refcnt.unusedPoolPath);
+        await rm(refcnt.unusedPoolPath);
         observable.complete();
       })();
     });

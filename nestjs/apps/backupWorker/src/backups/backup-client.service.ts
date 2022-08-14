@@ -244,7 +244,7 @@ export class BackupClient {
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
-        // FIXME: Define the concurrency
+        // TODO: Define the concurrency
         concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | undefined>(20, async (entry) => {
           try {
             if (
@@ -364,8 +364,6 @@ export class BackupClient {
     try {
       await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath);
       await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
-
-      // FIXME: wait refcnt
     } finally {
       this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
     }

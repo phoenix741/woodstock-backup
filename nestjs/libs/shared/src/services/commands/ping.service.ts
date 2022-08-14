@@ -24,7 +24,7 @@ export class PingService {
     }
   }
 
-  // FIXME: IPv6
+  // TODO: IPv6
   async ping(params: CommandParameters): Promise<boolean> {
     try {
       await this.executeCommandService.executeTool('ping', params);

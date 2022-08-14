@@ -39,15 +39,11 @@ export class BackupsCommand extends QueueEventsHost {
     config.operations.finalizeTasks = [];
     config.operations.tasks = config.operations.tasks?.filter((operation) => operation.name !== 'ExecuteCommand');
 
-    let job = await this.hostsQueue.add(
-      'backup',
-      {
-        config,
-        host,
-        originalStartDate: typeof date === 'string' ? parseInt(date) : date,
-      },
-      { removeOnComplete: true },
-    );
+    let job = await this.hostsQueue.add('backup', {
+      config,
+      host,
+      originalStartDate: typeof date === 'string' ? parseInt(date) : date,
+    });
     try {
       this.jobId = job.id;
       if (!this.jobId) {

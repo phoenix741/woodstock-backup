@@ -36,7 +36,7 @@ export class StatsCommand extends QueueEventsHost {
     this.spinner = createSpinner();
     this.spinner.start(`[Stats] ${host}/${number || 'NA'}: Progress 0%`);
 
-    let job = await this.statsQueue.add('stats', { host, number }, { removeOnComplete: true });
+    let job = await this.statsQueue.add('stats', { host, number });
     this.jobId = job.id;
     if (!this.jobId) {
       throw new Error('Job ID is not defined');
@@ -56,7 +56,7 @@ export class StatsCommand extends QueueEventsHost {
     this.spinner = createSpinner();
     this.spinner.start('[Stats] Start');
 
-    await this.scheduleQueue.add('nightly', {}, { removeOnComplete: true });
+    await this.scheduleQueue.add('nightly', {});
     this.spinner.succeed('[Stats] In progress');
   }
 

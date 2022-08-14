@@ -24,7 +24,6 @@ export class SchedulerService implements OnModuleInit {
           repeat: {
             cron: wakeupSchedule,
           },
-          removeOnComplete: true,
         },
       );
     }
@@ -37,7 +36,6 @@ export class SchedulerService implements OnModuleInit {
           repeat: {
             cron: nightlySchedule,
           },
-          removeOnComplete: true,
         },
       );
     }
