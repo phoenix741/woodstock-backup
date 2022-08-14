@@ -135,7 +135,7 @@ export class TasksService {
                   if (!job.id) {
                     throw new InternalServerErrorException("Can't count ref without job id");
                   }
-                  if (!job.data.number) {
+                  if (job.data.number === undefined || job.data.number === null) {
                     throw new InternalServerErrorException("Can't count ref without job number");
                   }
 
