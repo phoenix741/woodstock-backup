@@ -10,6 +10,7 @@ export class PoolStatistics {
   nbRef = 0;
   size = 0n;
   compressedSize = 0n;
+  unusedSize = 0n;
 }
 
 export interface HistoricalPoolStatistics extends PoolStatistics {

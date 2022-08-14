@@ -34,6 +34,8 @@ export enum ChunkStatus {
 
 export interface PoolUnused {
   sha256: Buffer;
+  size?: number | undefined;
+  compressedSize?: number | undefined;
 }
 
 export interface PoolRefCount {

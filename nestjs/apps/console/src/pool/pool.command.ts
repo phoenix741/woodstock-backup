@@ -142,19 +142,25 @@ export class PoolCommand {
   async removeUnused({ target }: { target?: string }) {
     const spinner = createSpinner();
     let count = 0;
+    let size = 0n;
     spinner.start(`[Unused]: Progress 0 chunk(s)`);
 
     await new Promise<void>((resolve, reject) => {
       this.poolService.removeUnusedFiles(target).subscribe({
         next: (chunk) => {
-          spinner.text = `[Unused] - Progress ${++count} chunk(s) : ${chunk.sha256.toString('hex')}`;
+          size += BigInt(chunk.compressedSize || 0);
+          spinner.text = `[Unused] - Progress ${++count} chunk(s), ${size.toLocaleString()} bytes : ${chunk.sha256.toString(
+            'hex',
+          )}`;
         },
         error: (err) => {
           spinner.fail(`[Unused]: ${(err as Error).message}`);
           reject(err);
         },
         complete: () => {
-          spinner.succeed(`[Unused]: Reference count validation is finished. ${count} chunk removed.`);
+          spinner.succeed(
+            `[Unused]: Reference count validation is finished. ${count} chunk(s) removed, ${size.toLocaleString()} bytes.`,
+          );
           resolve();
         },
       });

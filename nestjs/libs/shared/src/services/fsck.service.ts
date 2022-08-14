@@ -7,7 +7,7 @@ import { FileBrowserService } from '../file';
 import { ManifestService } from '../manifest';
 import { FileManifest, PoolRefCount } from '../models';
 import { ManifestChunk } from '../models/manifest.dto.js';
-import { ReferenceCount } from '../refcnt/refcnt.model.js';
+import { ReferenceCount, SetOfPoolUnused } from '../refcnt/refcnt.model.js';
 import { RefCntService } from '../refcnt/refcnt.service.js';
 import { BackupsService } from './backups.service.js';
 import { HostsService } from './hosts.service.js';
@@ -45,7 +45,6 @@ export class FsckService {
     private backupsService: BackupsService,
     private manifestService: ManifestService,
     private refCntService: RefCntService,
-    private fileBrowserService: FileBrowserService,
     private poolService: PoolService,
   ) {}
 
@@ -276,27 +275,20 @@ export class FsckService {
   async processUnused(logger: RefcntLoggger<number>, dryRun = false) {
     // Read unused file
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
-    const unusedPool = await toSet(
-      from(this.refCntService.readUnused(refcnt.unusedPoolPath)).pipe(map((chunk) => chunk.sha256.toString('base64'))),
-    );
+    const unusedIt = this.refCntService.readUnused(refcnt.unusedPoolPath);
+    const unusedPool = await SetOfPoolUnused.fromIterator(unusedIt);
 
     logger.log(0, 1, `Read Refcnt`);
 
     // Read reference count file
-    const refcntPool = await this.refCntService.readAllRefCnt(refcnt.poolPath);
+    const refcntPool = await SetOfPoolUnused.fromMapPoolRefCount(this.refCntService.readRefCnt(refcnt.poolPath));
 
     const max = refcntPool.size;
 
     logger.log(0, max, `Read all chunks`);
     // Search all file pool directory
-    const files = await this.fileBrowserService
-      .getFilesRecursive(Buffer.from(this.configService.poolPath))(Buffer.from(''))
-      .pipe(
-        map((file) => basename(file.toString())),
-        filter((file) => file.endsWith('-sha256.zz')),
-        map((file) => Buffer.from(file.substring(0, file.length - 10), 'hex').toString('base64')),
-      );
-    const filesSet = new Set<string>();
+    const files = this.poolService.readAllChunks();
+    const filesSet = new SetOfPoolUnused();
 
     logger.log(2, max, `Checking chunk in unused files`);
     //     If file is not in reference count file add it to unused file (and warn if not already)
@@ -305,33 +297,34 @@ export class FsckService {
     let inNothing = 0;
     let missing = 0;
     for await (const file of files) {
-      filesSet.add(file);
-      if (unusedPool.has(file)) {
+      const { sha256, compressedSize } = await file.getChunkInformation(false);
+      const chunk = { sha256, compressedSize: Number(compressedSize), size: 0 };
+      filesSet.add(chunk);
+      if (unusedPool.has(chunk)) {
         inUnused++;
-        if (refcntPool.has(file)) {
+        if (refcntPool.has(chunk)) {
           inRefcnt++;
-          unusedPool.delete(file);
-          logger.error(Buffer.from(file, 'base64').toString('hex') + ' is in unused and in refcnt');
+          unusedPool.delete(chunk);
+          logger.error(file.sha256Str + ' is in unused and in refcnt');
         }
-      } else if (refcntPool.has(file)) {
+      } else if (refcntPool.has(chunk)) {
         inRefcnt++;
       } else {
         inNothing++;
-        unusedPool.add(file);
-        logger.error(Buffer.from(file, 'base64').toString('hex') + ' is not in unused nor in refcnt');
+        unusedPool.add(chunk);
+        logger.error(file.sha256Str + ' is not in unused nor in refcnt');
       }
       logger.log(inRefcnt, max, `Search for unused chunks`);
     }
 
-    for (const file of refcntPool.keys()) {
+    for await (const file of refcntPool.toIterator()) {
       if (!filesSet.has(file)) {
         missing++;
       }
     }
 
     if (!dryRun) {
-      const unusedStream = from(unusedPool.values()).pipe(map((file) => ({ sha256: Buffer.from(file, 'base64') })));
-      await this.refCntService.writeUnused(unusedStream, refcnt.unusedPoolPath);
+      await this.refCntService.writeUnused(unusedPool.toIterator(), refcnt.unusedPoolPath);
     }
 
     return { inUnused, inRefcnt, inNothing, missing };
@@ -343,26 +336,19 @@ export class FsckService {
     let chunkKo = 0;
 
     // Search all file pool directory
-    const files = this.fileBrowserService
-      .getFilesRecursive(Buffer.from(this.configService.poolPath))(Buffer.from(''))
-      .pipe(
-        map((file) => basename(file.toString())),
-        filter((file) => file.endsWith('-sha256.zz')),
-        map((file) => Buffer.from(file.substring(0, file.length - 10), 'hex')),
-      );
+    const files = this.poolService.readAllChunks();
 
-    for await (const file of files) {
-      const chunk = this.poolService.getChunk(file);
+    for await (const chunk of files) {
       const chunkInformation = await chunk.getChunkInformation();
       if (!chunk.sha256) {
         chunkKo++;
-        logger.error(`${file.toString('hex')}: chunk invalid`);
+        logger.error(`${chunk.sha256Str}: chunk invalid`);
       } else {
         if (chunkInformation.sha256.equals(chunk.sha256)) {
           chunkOk++;
         } else {
           chunkKo++;
-          logger.error(`${file.toString('hex')}: chunk is corrupted`);
+          logger.error(`${chunk.sha256Str}: chunk is corrupted`);
         }
       }
 
@@ -381,23 +367,15 @@ export class FsckService {
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
     const poolRefcnt = !all
       ? this.refCntService.readRefCnt(refcnt.poolPath)
-      : this.fileBrowserService
-          .getFilesRecursive(Buffer.from(this.configService.poolPath))(Buffer.from(''))
-          .pipe(
-            map((file) => basename(file.toString())),
-            filter((file) => file.endsWith('-sha256.zz')),
-            map((file) => Buffer.from(file.substring(0, file.length - 10), 'hex')),
-            map(async (file) => {
-              const chunk = this.poolService.getChunk(file);
-              return await chunk.getChunkInformation();
-            }),
-            map(async (chunkInformation) => ({
-              sha256: chunkInformation.sha256,
-              refCount: 0,
-              size: Number(chunkInformation.size),
-              compressedSize: Number(chunkInformation.compressedSize),
-            })),
-          );
+      : this.poolService.readAllChunks().pipe(
+          map(async (chunk) => await chunk.getChunkInformation()),
+          map(async (chunkInformation) => ({
+            sha256: chunkInformation.sha256,
+            refCount: 0,
+            size: Number(chunkInformation.size),
+            compressedSize: Number(chunkInformation.compressedSize),
+          })),
+        );
 
     for await (const r of poolRefcnt) {
       compressedSize += BigInt(r.compressedSize);

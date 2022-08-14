@@ -23,9 +23,8 @@ const compose: (...streams: Array<Stream | Iterable<unknown> | AsyncIterable<unk
 ).compose;
 
 export class PoolChunkWrapper {
-  private logger = new Logger(PoolChunkWrapper.name);
-
-  private sha256Str?: string;
+  #logger = new Logger(PoolChunkWrapper.name);
+  #sha256Str?: string;
 
   constructor(private poolService: PoolService, private poolPath: string, private _sha256?: Buffer) {
     this.sha256 = _sha256;
@@ -37,7 +36,11 @@ export class PoolChunkWrapper {
 
   public set sha256(value: Buffer | undefined) {
     this._sha256 = value;
-    this.sha256Str = value?.toString('hex');
+    this.#sha256Str = value?.toString('hex');
+  }
+
+  public get sha256Str(): string | undefined {
+    return this.#sha256Str;
   }
 
   /**
@@ -73,25 +76,30 @@ export class PoolChunkWrapper {
    * from the pool.
    * @returns
    */
-  async getChunkInformation(): Promise<PoolChunkInformation> {
+  async getChunkInformation(withFullSize = true): Promise<PoolChunkInformation> {
     const chunkStatistics = await stat(this.chunkPath, { bigint: true });
 
-    const nullStream = new Writable({
-      write(_, _2, callback) {
-        setImmediate(callback);
-      },
-    });
+    if (withFullSize) {
+      const nullStream = new Writable({
+        write(_, _2, callback) {
+          setImmediate(callback);
+        },
+      });
 
-    const hashCalculator = new FileHashReader();
-    await pipeline(createReadStream(this.chunkPath), createInflate(), hashCalculator, nullStream);
-    if (!this.sha256 || !hashCalculator.hash?.equals(this.sha256)) {
-      this.logger.error(
-        `When reading chunk, the hash should be ${this.sha256Str} but is ${hashCalculator.hash?.toString('hex')}`,
-      );
+      const hashCalculator = new FileHashReader();
+      await pipeline(createReadStream(this.chunkPath), createInflate(), hashCalculator, nullStream);
+      if (!this.sha256 || !hashCalculator.hash?.equals(this.sha256)) {
+        this.#logger.error(
+          `When reading chunk, the hash should be ${this.#sha256Str} but is ${hashCalculator.hash?.toString('hex')}`,
+        );
+      }
+
+      assert.ok(!!hashCalculator.hash, `Hash of the file ${this.chunkPath} shouldn't be undefined`);
+      return { sha256: hashCalculator.hash, compressedSize: chunkStatistics.size, size: hashCalculator.length };
+    } else {
+      assert.ok(this.sha256, `Hash of the file ${this.chunkPath} shouldn't be undefined`);
+      return { sha256: this.sha256, compressedSize: chunkStatistics.size, size: 0n };
     }
-
-    assert.ok(!!hashCalculator.hash, `Hash of the file ${this.chunkPath} shouldn't be undefined`);
-    return { sha256: hashCalculator.hash, compressedSize: chunkStatistics.size, size: hashCalculator.length };
   }
 
   async write(inputStream: Readable, debugFilename: string): Promise<PoolChunkInformation> {
@@ -103,13 +111,13 @@ export class PoolChunkWrapper {
       const hashCalculator = new FileHashReader();
       await pipeline(inputStream, hashCalculator, createDeflate(), createWriteStream(tempfilename));
       if (CHUNK_SIZE < hashCalculator.length) {
-        this.logger.error(`Chunk ${this.sha256Str} has not the right size length: ${hashCalculator.length}`);
+        this.#logger.error(`Chunk ${this.#sha256Str} has not the right size length: ${hashCalculator.length}`);
       }
 
       if (this.sha256 && !hashCalculator.hash?.equals(this.sha256)) {
-        this.logger.error(
+        this.#logger.error(
           `When writing chunk (for file ${debugFilename}), the hash should be ${
-            this.sha256Str
+            this.#sha256Str
           } but is ${hashCalculator.hash?.toString('hex')}`,
         );
       }
@@ -125,7 +133,7 @@ export class PoolChunkWrapper {
       };
 
       if (await this.exists()) {
-        this.logger.debug(`The chunk ${this.sha256Str} is already present`);
+        this.#logger.debug(`The chunk ${this.#sha256Str} is already present`);
         await rm(tempfilename);
       } else {
         await mkdirp(this.chunkDir);
@@ -139,50 +147,32 @@ export class PoolChunkWrapper {
     }
   }
 
-  async remove(): Promise<PoolChunkInformation> {
-    const chunkStatistics = await stat(this.chunkPath, { bigint: true });
+  async remove(): Promise<void> {
     await rm(this.chunkPath);
-    return {
-      sha256: this.sha256 || Buffer.alloc(0),
-      size: 0n,
-      compressedSize: chunkStatistics.size,
-    };
   }
 
-  async mv(targetPath: string): Promise<PoolChunkInformation> {
+  async mv(targetPath: string): Promise<void> {
+    assert.ok(this.sha256, `Hash of the file ${this.chunkPath} shouldn't be undefined`);
+    assert.ok(this.#sha256Str, `Hash string of the file ${this.chunkPath} shouldn't be undefined`);
+
     try {
-      const chunkStatistics = await stat(this.chunkPath, { bigint: true });
-      if (this.sha256Str) {
-        await pipeline(this.read(), createWriteStream(join(targetPath, this.sha256Str)));
-      }
+      await pipeline(this.read(), createWriteStream(join(targetPath, this.#sha256Str)));
       await rm(this.chunkPath);
-
-      return {
-        sha256: this.sha256 || Buffer.alloc(0),
-        size: 0n,
-        compressedSize: chunkStatistics.size,
-      };
     } catch (err) {
-      this.logger.error(`Can't move chunk ${this.sha256Str} to ${targetPath}`);
-
-      return {
-        sha256: this.sha256 || Buffer.alloc(0),
-        size: 0n,
-        compressedSize: 0n,
-      };
+      this.#logger.error(`Can't move chunk ${this.#sha256Str} to ${targetPath}`);
     }
   }
 
   private get chunkDir() {
-    if (this.sha256Str) {
-      return calculateChunkDir(this.poolPath, this.sha256Str);
+    if (this.#sha256Str) {
+      return calculateChunkDir(this.poolPath, this.#sha256Str);
     } else {
       return join(this.poolPath, '_new');
     }
   }
 
   private get chunkPath() {
-    const filename = this.sha256Str ? this.sha256Str : getTemporaryFileName();
+    const filename = this.#sha256Str ? this.#sha256Str : getTemporaryFileName();
     return join(this.chunkDir, `${filename}-sha256.zz`);
   }
 }

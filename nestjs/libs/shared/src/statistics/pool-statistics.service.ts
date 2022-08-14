@@ -11,6 +11,7 @@ export const DEFAULT_STATISTICS: PoolStatistics = {
   nbChunk: 0,
   compressedSize: 0n,
   size: 0n,
+  unusedSize: 0n,
 };
 
 @Injectable()

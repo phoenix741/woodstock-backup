@@ -98,12 +98,14 @@ export class RefcntConsumer extends WorkerHost {
           (acc, val) => {
             return {
               count: acc.count + 1,
-              size: acc.size + val.size,
+              size: acc.size + BigInt(val.size || 0),
+              compressedSize: acc.compressedSize + BigInt(val.compressedSize || 0),
             };
           },
           {
             count: 0,
             size: 0n,
+            compressedSize: 0n,
           },
         ),
       )
