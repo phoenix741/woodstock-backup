@@ -27,16 +27,6 @@ steps:
       - cd nestjs
       - npm run buildall
 
-  - name: server:build-docker
-    image: plugins/docker
-    settings:
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      repo: phoenix741/woodstock-backup
-      auto_tag: true
-
 ---
 kind: pipeline
 type: docker
@@ -86,6 +76,21 @@ type: docker
 name: final
 
 steps:
+  - name: server:build-docker
+    image: plugins/docker
+    settings:
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      repo: phoenix741/woodstock-backup
+      auto_tag: true
+    when:
+      event:
+        - promote
+      target:
+        - production
+
   - name: notify
     image: plugins/slack
     settings:
