@@ -3,16 +3,31 @@ type: docker
 name: backend
 
 steps:
+  - name: server:install
+    image: node:16
+    commands:
+      - cd nestjs
+      - npm ci
+
+  - name: server:lint
+    image: node:16
+    commands:
+      - cd nestjs
+      - npm run lint
+
   - name: server:unit
     image: node:16
     commands:
       - cd nestjs
-      - npm install
-      - npm run lint
       - npm run test
+
+  - name: server:build
+    image: node:16
+    commands:
+      - cd nestjs
       - npm run buildall
 
-  - name: app:build
+  - name: server:build-docker
     image: plugins/docker
     settings:
       username:
@@ -28,29 +43,24 @@ type: docker
 name: frontend
 
 steps:
-  - name: front:unit
+  - name: front:install
     image: node:16
     commands:
-      #- wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-      #- sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
-      #- apt update && apt install -y google-chrome-stable
       - cd front
-      - npm install
+      - npm ci
+
+  - name: front:lint
+    image: node:16
+    commands:
+      - cd front
       - npm run lint
-      - npm run build
       #- npm run test:unit
 
   - name: front:build
-    image: plugins/docker
-    settings:
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      repo: phoenix741/woodstock-backup-front
-      dockerfile: ./front/Dockerfile
-      context: ./front
-      auto_tag: true
+    image: node:16
+    commands:
+      - cd front
+      - npm run build
 
 ---
 kind: pipeline
@@ -66,8 +76,8 @@ steps:
       password:
         from_secret: docker_password
       repo: phoenix741/woodstock-backup-website
-      dockerfile: ./website/Dockerfile
-      context: ./website
+      dockerfile: ./docs/website/Dockerfile
+      context: ./docs/website
       auto_tag: true
 
 ---
