@@ -1,2 +1,2 @@
-export * from './application.logger';
-export * from './backup.logger';
+export * from './application.logger.js';
+export * from './backup.logger.js';

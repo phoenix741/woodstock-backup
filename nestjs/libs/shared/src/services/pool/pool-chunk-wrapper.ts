@@ -9,11 +9,11 @@ import { Duplex, pipeline as streamPipeline, Readable, Stream, Writable } from '
 import * as util from 'util';
 import { createDeflate, createInflate } from 'zlib';
 import { CHUNK_SIZE } from '../../constants';
-import { FileHashReader } from '../../file/hash-reader.transform';
-import { PoolChunkInformation } from '../../models/pool-chunk.dto';
+import { FileHashReader } from '../../file/hash-reader.transform.js';
+import { PoolChunkInformation } from '../../models/pool-chunk.dto.js';
 import { getTemporaryFileName, isExists, rm } from '../../utils';
-import { calculateChunkDir } from './pool-chunk.utils';
-import { PoolService } from './pool.service';
+import { calculateChunkDir } from './pool-chunk.utils.js';
+import { PoolService } from './pool.service.js';
 
 const pipeline = util.promisify(streamPipeline);
 
@@ -141,6 +141,17 @@ export class PoolChunkWrapper {
 
   async remove(): Promise<void> {
     await rm(this.chunkPath);
+  }
+
+  async mv(targetPath: string): Promise<void> {
+    try {
+      if (this.sha256Str) {
+        await pipeline(this.read(), createWriteStream(join(targetPath, this.sha256Str)));
+      }
+      await rm(this.chunkPath);
+    } catch (err) {
+      this.logger.error(`Can't move chunk ${this.sha256Str} to ${targetPath}`);
+    }
   }
 
   private get chunkDir() {

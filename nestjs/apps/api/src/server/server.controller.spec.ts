@@ -4,8 +4,8 @@ import * as childProcess from 'child_process';
 import { EventEmitter } from 'events';
 import { Response } from 'express';
 import { join } from 'path';
-import { ServerController } from './server.controller';
-import { ServerService } from './server.service';
+import { ServerController } from './server.controller.js';
+import { ServerService } from './server.service.js';
 
 jest.mock('child_process');
 

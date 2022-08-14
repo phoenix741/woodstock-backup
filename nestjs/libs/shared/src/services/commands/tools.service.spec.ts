@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationConfigService } from '../../config';
-import { YamlService } from '../yaml.service';
-import { ToolsService } from './tools.service';
+import { YamlService } from '../yaml.service.js';
+import { ToolsService } from './tools.service.js';
 
 jest.mock('child_process');
 
@@ -59,7 +59,6 @@ describe('Tools Service', () => {
     expect(await service.getPaths({ hostname: 'pc-test', srcBackupNumber: 14, destBackupNumber: 33 })).toEqual({
       destBackupPath: 'hostPath/pc-test/33',
       hostnamePath: 'hostPath/pc-test',
-      qgroupHostPath: 'hostPath/pc-test/qgroup',
       srcBackupPath: 'hostPath/pc-test/14',
       backupPath: 'backupPath',
       configPath: 'configPath',

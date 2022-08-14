@@ -4,13 +4,13 @@ import { cp } from 'fs/promises';
 import { count, from, toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { ProtoFileManifestJournalEntry } from '../models/object-proto.model';
+import { ProtoFileManifestJournalEntry } from '../models/object-proto.model.js';
 import { FileManifestJournalEntry } from '../models/woodstock';
 import { ProtobufMessageWithPosition } from '../services';
-import { ProtobufService } from '../services/protobuf.service';
+import { ProtobufService } from '../services/protobuf.service.js';
 import { PoolStatisticsService } from '../statistics';
-import { ReferenceCount } from './refcnt.model';
-import { RefCntService } from './refcnt.service';
+import { ReferenceCount } from './refcnt.model.js';
+import { RefCntService } from './refcnt.service.js';
 
 async function atomicToSnapshot(args: [string, Type<any>, AsyncIterable<unknown>, boolean]) {
   return {

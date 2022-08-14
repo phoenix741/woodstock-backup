@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AsyncIterableX, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
-import { IndexManifest } from '../manifest/index-manifest.model';
+import { IndexManifest } from '../manifest/index-manifest.model.js';
 import { FileManifest } from '../models/woodstock';
-import { globStringToRegex } from '../utils/global-regexp.utils';
-import { FileBrowserService } from './file-browser.service';
-import { FileReader } from './file-reader.service';
+import { globStringToRegex } from '../utils/global-regexp.utils.js';
+import { FileBrowserService } from './file-browser.service.js';
+import { FileReader } from './file-reader.service.js';
 
 describe('FileReader', () => {
   let service: FileReader;

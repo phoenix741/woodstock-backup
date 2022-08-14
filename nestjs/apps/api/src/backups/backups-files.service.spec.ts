@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BackupsService, FilesService } from '@woodstock/shared';
-import { BackupsFilesService } from './backups-files.service';
+import { BackupsFilesService } from './backups-files.service.js';
 
 describe('Backups File Service', () => {
   let service: BackupsFilesService;

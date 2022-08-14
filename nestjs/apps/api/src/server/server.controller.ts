@@ -3,9 +3,9 @@ import { ApiOkResponse } from '@nestjs/swagger';
 import { ApplicationConfigService } from '@woodstock/shared';
 import { Response } from 'express';
 import { join } from 'path';
-import { getLog, tailLog } from '../utils/log-utils.service';
-import { ServerChecks } from './server.dto';
-import { ServerService } from './server.service';
+import { getLog, tailLog } from '../utils/log-utils.service.js';
+import { ServerChecks } from './server.dto.js';
+import { ServerService } from './server.service.js';
 
 @Controller('server')
 export class ServerController {

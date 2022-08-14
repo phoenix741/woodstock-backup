@@ -16,7 +16,7 @@ import { ApplicationConfigService, Backup, BackupsService, BackupTask, HostsServ
 import { Queue } from 'bullmq';
 import { Response } from 'express';
 import { join } from 'path';
-import { getLog, tailLog } from '../utils/log-utils.service';
+import { getLog, tailLog } from '../utils/log-utils.service.js';
 
 @Controller('hosts/:name/backups')
 export class BackupController {

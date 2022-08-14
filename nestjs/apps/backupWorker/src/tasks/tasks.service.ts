@@ -12,9 +12,9 @@ import { Job } from 'bullmq';
 import * as mkdirp from 'mkdirp';
 import { defer, from, Observable, of, throwError } from 'rxjs';
 import { catchError, concatMap, endWith, map, startWith, switchMap, tap } from 'rxjs/operators';
-import { BackupClientGrpc, BackupsGrpcContext } from '../backups/backup-client-grpc.class';
-import { BackupClientProgress } from '../backups/backup-client-progress.service';
-import { InternalBackupSubTask, InternalBackupTask } from './tasks.class';
+import { BackupClientGrpc, BackupsGrpcContext } from '../backups/backup-client-grpc.class.js';
+import { BackupClientProgress } from '../backups/backup-client-progress.service.js';
+import { InternalBackupSubTask, InternalBackupTask } from './tasks.class.js';
 
 @Injectable()
 export class TasksService {

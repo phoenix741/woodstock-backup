@@ -1,7 +1,7 @@
 import { SharedBullConfigurationFactory } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import Bull from 'bullmq';
-import { ApplicationConfigService } from './application-config.service';
+import { ApplicationConfigService } from './application-config.service.js';
 
 @Injectable()
 export class BullConfigService implements SharedBullConfigurationFactory {

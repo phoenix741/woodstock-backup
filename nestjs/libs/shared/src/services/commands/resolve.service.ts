@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as dns from 'dns';
 import * as util from 'util';
-import { HostConfiguration } from '../../models/host-configuration.dto';
-import { ExecuteCommandService } from './execute-command.service';
-import { CommandParameters } from './tools.service';
+import { HostConfiguration } from '../../models/host-configuration.dto.js';
+import { ExecuteCommandService } from './execute-command.service.js';
+import { CommandParameters } from './tools.service.js';
 
 const dnsLookupPromise = util.promisify(dns.lookup);
 

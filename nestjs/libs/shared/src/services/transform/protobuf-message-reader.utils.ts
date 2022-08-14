@@ -1,4 +1,5 @@
-import { Reader, Type } from 'protobufjs';
+import type { Type } from 'protobufjs';
+import { Reader } from 'protobufjs';
 import { Transform, TransformCallback, TransformOptions } from 'stream';
 
 export interface ProtobufMessageWithPosition<T> {

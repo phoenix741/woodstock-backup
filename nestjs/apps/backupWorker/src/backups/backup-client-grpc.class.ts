@@ -26,8 +26,8 @@ import { join, resolve } from 'path';
 import { defer, Observable } from 'rxjs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
-import { BackupClientContext, BackupClientInterface } from './backup-client.interface';
-import { LaunchBackupError } from './backup.error';
+import { BackupClientContext, BackupClientInterface } from './backup-client.interface.js';
+import { LaunchBackupError } from './backup.error.js';
 
 export class BackupsGrpcContext implements BackupClientContext {
   public sessionId?: string;

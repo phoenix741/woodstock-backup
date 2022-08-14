@@ -9,7 +9,7 @@ import { join } from 'path';
 import { promisify } from 'util';
 import { ApplicationConfigService } from '../../config';
 import { WorkerType, WORKER_TYPE } from '../../constants';
-import { isExists } from '../../utils/fs.utils';
+import { isExists } from '../../utils/fs.utils.js';
 
 const randomBytesAsync = promisify(randomBytes);
 

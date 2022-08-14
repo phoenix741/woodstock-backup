@@ -11,7 +11,7 @@ import {
   TaskProgression,
 } from '@woodstock/shared';
 import { Observable } from 'rxjs';
-import { BackupsGrpcContext } from '../backups/backup-client-grpc.class';
+import { BackupsGrpcContext } from '../backups/backup-client-grpc.class.js';
 
 export class InternalBackupSubTask implements BackupSubTask {
   constructor(

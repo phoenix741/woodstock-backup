@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { resolve } from 'path';
 import { ApplicationConfigService } from '../../config';
 import { rendering } from '../../utils';
-import { YamlService } from '../yaml.service';
+import { YamlService } from '../yaml.service.js';
 
 class Tools {
   tools!: Record<string, string>;
@@ -52,13 +52,8 @@ export class ToolsService {
 
   async getCommand(command: string, params: CommandParameters): Promise<string> {
     const tools = await this.loadToolsOnlyOneTime();
-    const replacementParams = Object.assign(
-      {},
-      params,
-      this.configService.toJSON(),
-      tools.tools,
-      await this.getPaths(params),
-    );
+    const paths = await this.getPaths(params);
+    const replacementParams = Object.assign({}, params, this.configService.toJSON(), tools.tools, paths);
     return rendering(tools.command[command], replacementParams);
   }
 

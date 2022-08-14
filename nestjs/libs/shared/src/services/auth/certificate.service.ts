@@ -3,9 +3,10 @@ import { readFile, writeFile } from 'fs/promises';
 import * as mkdirp from 'mkdirp';
 import { md, pki } from 'node-forge';
 import { join } from 'path';
-import { ApplicationConfigService } from '../../config/application-config.service';
+import { ApplicationConfigService } from '../../config/application-config.service.js';
 import { WorkerType, WORKER_TYPE } from '../../constants';
-import { isExists } from '../../utils/fs.utils';
+import { isExists } from '../../utils/fs.utils.js';
+import type { pki as PKI } from 'node-forge';
 
 const CERTIFICATE_ATTRS = [
   {
@@ -80,7 +81,7 @@ export class CertificateService implements OnModuleInit {
 
   #createCertificate(
     host: string,
-    rootCA?: { privateKey: pki.PrivateKey; certificate: pki.Certificate },
+    rootCA?: { privateKey: PKI.PrivateKey; certificate: PKI.Certificate },
   ): { privateKey: string; publicKey: string } {
     // generate a keypair and create an X.509v3 certificate
     const keys = pki.rsa.generateKeyPair(2048);

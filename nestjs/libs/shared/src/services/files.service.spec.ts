@@ -6,9 +6,9 @@ import * as Long from 'long';
 import { Readable } from 'stream';
 import { FileBrowserService } from '../file';
 import { ManifestService } from '../manifest';
-import { BackupsService } from './backups.service';
-import { FilesService } from './files.service';
-import { PoolService } from './pool/pool.service';
+import { BackupsService } from './backups.service.js';
+import { FilesService } from './files.service.js';
+import { PoolService } from './pool/pool.service.js';
 
 describe('FilesService', () => {
   let service: FilesService;

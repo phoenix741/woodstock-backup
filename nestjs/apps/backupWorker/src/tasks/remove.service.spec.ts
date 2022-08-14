@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ApplicationConfigService, BackupsService, RefCntService } from '@woodstock/shared';
-import { RemoveService } from './remove.service';
+import { RemoveService } from './remove.service.js';
 
 describe('RemoveService', () => {
   let service: RemoveService;

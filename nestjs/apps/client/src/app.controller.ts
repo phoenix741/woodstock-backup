@@ -20,7 +20,7 @@ import {
 import { from as fromIx, of as ofIx } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { from, Observable, of } from 'rxjs';
-import { AppService } from './app.service';
+import { AppService } from './app.service.js';
 
 function getMetadata<T extends string | Buffer>(metadata: Metadata, key: string): T {
   const value = metadata.get(key);

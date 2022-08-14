@@ -10,7 +10,7 @@ import {
 } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Readable } from 'stream';
-import { BackupsGrpcContext } from './backup-client-grpc.class';
+import { BackupsGrpcContext } from './backup-client-grpc.class.js';
 
 export interface BackupClientContext {
   host: string;

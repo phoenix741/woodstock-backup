@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ApplicationConfigService } from '../config';
-import { ApplicationScheduler, Schedule } from '../models/scheduler.dto';
-import { YamlService } from './yaml.service';
+import { ApplicationScheduler, Schedule } from '../models/scheduler.dto.js';
+import { YamlService } from './yaml.service.js';
 
 const DEFAULT_SCHEDULER = new ApplicationScheduler({
   wakeupSchedule: '0 0 * * *',

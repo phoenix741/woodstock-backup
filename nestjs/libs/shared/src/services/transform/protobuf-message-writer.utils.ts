@@ -1,4 +1,5 @@
-import { Type, Writer } from 'protobufjs';
+import type { Type } from 'protobufjs';
+import { Writer } from 'protobufjs';
 import { Transform, TransformCallback, TransformOptions } from 'stream';
 
 const WRITE_BUFFER_SIZE = Math.pow(2, 16);

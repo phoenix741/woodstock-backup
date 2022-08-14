@@ -3,9 +3,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Queue } from 'bullmq';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
-import { HostConfiguration } from '../models/host-configuration.dto';
-import { BackupTask } from '../models/tasks.dto';
-import { YamlService } from './yaml.service';
+import { HostConfiguration } from '../models/host-configuration.dto.js';
+import { BackupTask } from '../models/tasks.dto.js';
+import { YamlService } from './yaml.service.js';
 
 /**
  * Class used to manage configuration file for hosts.

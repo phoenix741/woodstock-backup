@@ -1,19 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExecuteCommandService, ToolsService } from '@woodstock/shared';
+import { ApplicationConfigService, ExecuteCommandService, ToolsService } from '@woodstock/shared';
 import * as mkdirp from 'mkdirp';
-import { CommandCheck, ServerChecks } from './server.dto';
+import { CommandCheck, ServerChecks } from './server.dto.js';
 
 @Injectable()
 export class ServerService {
   private logger = new Logger(ServerService.name);
 
-  constructor(private toolsService: ToolsService, private executeCommandService: ExecuteCommandService) {}
+  constructor(
+    private applicationConfig: ApplicationConfigService,
+    private toolsService: ToolsService,
+    private executeCommandService: ExecuteCommandService,
+  ) {}
 
   async check(): Promise<ServerChecks> {
-    const checks = new ServerChecks();
+    await mkdirp(this.applicationConfig.poolPath);
+    await mkdirp(this.applicationConfig.backupPath);
+    await mkdirp(this.applicationConfig.hostPath);
+    await mkdirp(this.applicationConfig.configPath);
+    await mkdirp(this.applicationConfig.logPath);
 
-    const path = await this.toolsService.getPath('hostPath', {});
-    await mkdirp(path);
+    const checks = new ServerChecks();
 
     checks.push(() => this.checkGetFilesystem());
     checks.push(() => this.checkPing());

@@ -3,8 +3,8 @@ import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '
 import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
-import { BackupsFilesService } from './backups-files.service';
-import { JobResponse } from './backups.model';
+import { BackupsFilesService } from './backups-files.service.js';
+import { JobResponse } from './backups.model.js';
 
 interface ExtendedBackup extends Backup {
   hostname: string;

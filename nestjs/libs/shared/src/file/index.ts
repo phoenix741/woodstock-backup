@@ -1,3 +1,3 @@
-export * from './file-browser.service';
-export * from './file-reader.service';
-export * from './hash-reader.transform';
+export * from './file-browser.service.js';
+export * from './file-reader.service.js';
+export * from './hash-reader.transform.js';

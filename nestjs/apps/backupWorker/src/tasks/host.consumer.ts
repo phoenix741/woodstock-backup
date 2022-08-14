@@ -4,10 +4,10 @@ import { BackupLogger, BackupsService, BackupTask, JobService, ResolveService } 
 import { Job } from 'bullmq';
 import { lastValueFrom } from 'rxjs';
 import { auditTime, map } from 'rxjs/operators';
-import { HostConsumerUtilService } from '../utils/host-consumer-util.service';
-import { RemoveService } from './remove.service';
-import { InternalBackupTask } from './tasks.class';
-import { TasksService } from './tasks.service';
+import { HostConsumerUtilService } from '../utils/host-consumer-util.service.js';
+import { RemoveService } from './remove.service.js';
+import { InternalBackupTask } from './tasks.class.js';
+import { TasksService } from './tasks.service.js';
 
 const maxBackupTask = parseInt(process.env.MAX_BACKUP_TASK || '') || 1;
 

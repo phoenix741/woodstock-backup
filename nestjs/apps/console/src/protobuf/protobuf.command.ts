@@ -16,7 +16,7 @@ import { from } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
 import * as yaml from 'js-yaml';
 import { Command, Console } from 'nestjs-console';
-import { Type } from 'protobufjs';
+import type { Type } from 'protobufjs';
 
 @Console({
   command: 'protobuf',

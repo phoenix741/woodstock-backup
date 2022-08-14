@@ -1,6 +1,6 @@
 #
 # -------- Build --------
-FROM node:14-alpine as build
+FROM node:16 as build
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src

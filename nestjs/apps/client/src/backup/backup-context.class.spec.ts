@@ -11,7 +11,7 @@ import {
 import { count, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
 import { join } from 'path';
-import { BackupContext } from './backup-context.class';
+import { BackupContext } from './backup-context.class.js';
 
 describe('BackupContext', () => {
   let service: BackupContext;

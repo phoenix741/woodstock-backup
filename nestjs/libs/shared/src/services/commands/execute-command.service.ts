@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as shell from 'shelljs';
-import { CommandParameters, ToolsService } from './tools.service';
+import { CommandParameters, ToolsService } from './tools.service.js';
 
 export interface ExecuteCommandOption {
   returnCode?: boolean;

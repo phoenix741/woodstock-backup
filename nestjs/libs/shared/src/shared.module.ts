@@ -2,9 +2,9 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ApplicationConfigModule, BullConfigService } from './config';
-import { FileBrowserService } from './file/file-browser.service';
-import { FileReader } from './file/file-reader.service';
-import { ManifestService } from './manifest/manifest.service';
+import { FileBrowserService } from './file/file-browser.service.js';
+import { FileReader } from './file/file-reader.service.js';
+import { ManifestService } from './manifest/manifest.service.js';
 import { RefCntService } from './refcnt';
 import {
   BackupsService,
@@ -22,8 +22,8 @@ import {
   ToolsService,
   YamlService,
 } from './services';
-import { CertificateService } from './services/auth/certificate.service';
-import { EncryptionService } from './services/auth/encryption.service';
+import { CertificateService } from './services/auth/certificate.service.js';
+import { EncryptionService } from './services/auth/encryption.service.js';
 import { DiskStatisticsService, PoolStatisticsService, StatsInstantService } from './statistics';
 
 export const WoodstockQueueModule = [

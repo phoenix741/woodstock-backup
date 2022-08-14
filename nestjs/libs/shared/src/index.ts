@@ -11,6 +11,6 @@ export * from './manifest';
 export * from './models';
 export * from './refcnt';
 export * from './services';
-export * from './shared.module';
+export * from './shared.module.js';
 export * from './statistics';
 export * from './utils';

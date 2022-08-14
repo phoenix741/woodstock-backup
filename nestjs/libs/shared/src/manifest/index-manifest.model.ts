@@ -1,7 +1,7 @@
 import { from } from 'ix/iterable';
 import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
-import { mangle } from '../utils/path.utils';
-import { IndexFileEntry } from './index-file-entry.model';
+import { mangle } from '../utils/path.utils.js';
+import { IndexFileEntry } from './index-file-entry.model.js';
 
 /**
  * List of manifest of a manifest file (and the journal).

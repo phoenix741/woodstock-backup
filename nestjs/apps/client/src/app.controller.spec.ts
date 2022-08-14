@@ -1,9 +1,9 @@
 import { Metadata } from '@grpc/grpc-js';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatusCode } from '@woodstock/shared';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { LogService } from './logger/log.service';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { LogService } from './logger/log.service.js';
 
 describe('AppController', () => {
   let appController: AppController;

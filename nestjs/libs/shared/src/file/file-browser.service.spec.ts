@@ -1,6 +1,6 @@
 import { toArray } from 'ix/asynciterable';
-import { globStringToRegex } from '../utils/global-regexp.utils';
-import { FileBrowserService } from './file-browser.service';
+import { globStringToRegex } from '../utils/global-regexp.utils.js';
+import { FileBrowserService } from './file-browser.service.js';
 
 describe('FileBrowserService', () => {
   test('Search file in all directories', async () => {

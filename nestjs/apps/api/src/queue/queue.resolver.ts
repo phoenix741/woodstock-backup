@@ -5,7 +5,7 @@ import { BackupTask, Job, SchedulerConfigService } from '@woodstock/shared';
 import Bull, { Job as BullJob, JobState, Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
-import { QueueStats } from './queue.model';
+import { QueueStats } from './queue.model.js';
 
 @Resolver()
 export class QueueResolver {

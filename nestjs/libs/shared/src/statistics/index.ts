@@ -1,3 +1,3 @@
-export * from './stats-instant.service';
-export * from './disk-statistics.service';
-export * from './pool-statistics.service';
+export * from './stats-instant.service.js';
+export * from './disk-statistics.service.js';
+export * from './pool-statistics.service.js';
