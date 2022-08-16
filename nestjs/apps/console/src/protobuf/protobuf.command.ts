@@ -72,8 +72,8 @@ export class ProtobufCommand {
         throw new Error(`Unknown type: ${options.type}`);
     }
 
-    const chunks = options.filterChunks && Buffer.from(options.filterChunks, 'hex');
-    const name = options.filterName && Buffer.from(options.filterName);
+    const chunks = options.filterChunks && options.filterChunks;
+    const name = options.filterName && options.filterName;
 
     const file = from(this.protobufService.loadFile(path, type)).pipe(
       map((m) => m.message),
@@ -84,15 +84,18 @@ export class ProtobufCommand {
 
         switch (options.type) {
           case 'FileManifest':
-            if (chunks) return !!(m as FileManifest).chunks?.includes(chunks);
-            if (name) return !!name.equals(basenameBuffer((m as FileManifest).path));
+            if (chunks) return !!(m as FileManifest).chunks?.map((c) => c.toString('hex'))?.includes(chunks);
+            if (name) return name === basenameBuffer((m as FileManifest).path).toString('utf-8');
           case 'FileManifestJournalEntry':
-            if (chunks) return !!(m as FileManifestJournalEntry).manifest?.chunks?.includes(chunks);
-            if (name) return !!name.equals(basenameBuffer((m as FileManifestJournalEntry).manifest?.path));
+            if (chunks)
+              return !!(m as FileManifestJournalEntry).manifest?.chunks
+                ?.map((c) => c.toString('hex'))
+                ?.includes(chunks);
+            if (name) return name === basenameBuffer((m as FileManifestJournalEntry).manifest?.path).toString('utf-8');
           case 'RefCount':
-            if (chunks) return (m as PoolRefCount).sha256.equals(chunks);
+            if (chunks) return (m as PoolRefCount).sha256.toString('hex') === chunks;
           case 'Unused':
-            if (chunks) return (m as PoolUnused).sha256.equals(chunks);
+            if (chunks) return (m as PoolUnused).sha256.toString('hex') === chunks;
         }
         return false;
       }),
