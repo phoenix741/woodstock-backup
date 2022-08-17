@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { AuthenticateRequest, FileReader, ManifestService } from '@woodstock/shared';
+import { AuthenticateRequest, FileReaderService, ManifestService } from '@woodstock/shared';
 import { v4 as uuidv4 } from 'uuid';
 import { BackupContext } from './backup-context.class.js';
 
@@ -7,7 +7,7 @@ import { BackupContext } from './backup-context.class.js';
 export class BackupService {
   private context = new Map<string, BackupContext>();
 
-  constructor(private fileReader: FileReader, private manifestService: ManifestService) {}
+  constructor(private fileReader: FileReaderService, private manifestService: ManifestService) {}
 
   initializeBackup(request: AuthenticateRequest) {
     if (request.version !== 0) {

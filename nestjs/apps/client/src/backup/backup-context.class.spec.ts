@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   FileBrowserService,
-  FileReader,
+  FileReaderService,
   IndexManifest,
   Manifest,
   ManifestService,
@@ -16,15 +16,15 @@ import { BackupContext } from './backup-context.class.js';
 describe('BackupContext', () => {
   let service: BackupContext;
   let manifestService: ManifestService;
-  let fileReader: FileReader;
+  let fileReader: FileReaderService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ManifestService, ProtobufService, FileReader, FileBrowserService],
+      providers: [ManifestService, ProtobufService, FileReaderService, FileBrowserService],
     }).compile();
 
     manifestService = module.get<ManifestService>(ManifestService);
-    fileReader = module.get<FileReader>(FileReader);
+    fileReader = module.get<FileReaderService>(FileReaderService);
     service = new BackupContext(fileReader, manifestService);
   });
 
@@ -206,7 +206,7 @@ describe('BackupContext', () => {
         filename: Buffer.from(testFile),
         position: Long.fromNumber(0),
         size: Long.fromNumber(100000),
-        sha256: Buffer.from('50eb9a76058101c379d60ffe96006d170d4c01e283a86ec723683c9b56c89319', 'hex'),
+        sha256: Buffer.from('251638a3420a7cf3c9d43c259102dbaa7a1c037950eaf7ae7d1c70f1e7b10fb6', 'hex'),
         failIfWrongHash: true,
       });
 

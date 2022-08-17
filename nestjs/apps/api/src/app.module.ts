@@ -1,9 +1,9 @@
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@woodstock/shared';
+import { ApplicationConfigModule, AuthentificationModule, CoreModule, QueueModule } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller.js';
 import { BackupsFilesService } from './backups/backups-files.service.js';
@@ -26,10 +26,11 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
 
 @Module({
   imports: [
-    GlobalModule,
-    ApplicationConfigModule,
-    ...WoodstockBullModules,
     ConfigModule.forRoot(),
+    GlobalModule,
+    CoreModule,
+    QueueModule,
+    AuthentificationModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       fieldResolverEnhancers: ['interceptors'],
@@ -43,7 +44,6 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
       imports: [ApplicationConfigModule],
       useClass: ServeStaticService,
     }),
-    SharedModule,
   ],
   controllers: [
     QueueController,

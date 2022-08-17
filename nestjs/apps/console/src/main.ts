@@ -6,7 +6,7 @@ const bootstrap = new BootstrapConsole({
   module: AppCommandModule,
   useDecorators: true,
   contextOptions: {
-    logger: new ApplicationLogger('console', false),
+    logger: new ApplicationLogger('console', true),
   },
 });
 bootstrap.init().then(async (app) => {

@@ -1,10 +1,10 @@
 import { sep } from 'path';
 import * as tmp from 'tmp';
-import * as util from 'util';
+import { promisify } from 'util';
 
 export const SEPARATOR = Buffer.from(sep);
 
-export const tmpNameAsync = util.promisify((options: tmp.TmpNameOptions, cb: tmp.TmpNameCallback) =>
+export const tmpNameAsync = promisify((options: tmp.TmpNameOptions, cb: tmp.TmpNameCallback) =>
   tmp.tmpName(options, cb),
 );
 

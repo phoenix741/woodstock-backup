@@ -4,7 +4,7 @@ import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nes
 import { Backup, BackupsService, BackupTask, FileDescription, HostsService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service.js';
-import { JobResponse } from './backups.model.js';
+import { JobResponse } from './backups.dto.js';
 
 interface ExtendedBackup extends Backup {
   hostname: string;

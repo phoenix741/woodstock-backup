@@ -1,6 +1,6 @@
 import { AsyncIterableX } from 'ix/asynciterable';
 import { safeRace } from 'ix/util/safeRace';
-import { Readable } from 'stream';
+import type { Readable } from 'stream';
 
 const NON_FLOWING = 0;
 const READABLE = 1;
@@ -8,91 +8,91 @@ const ENDED = 2;
 const ERRORED = 3;
 
 export class ReadableStreamAsyncIterable<T> extends AsyncIterableX<T> implements AsyncIterator<T> {
-  private _stream: Readable;
-  private _defaultSize?: number;
-  private _state: number;
-  private _error: any;
-  private _rejectFns: Set<(err: any) => void>;
-  private _endPromise: Promise<void> | undefined;
+  #stream: Readable;
+  #defaultSize?: number;
+  #state: number;
+  #error: any;
+  #rejectFns: Set<(err: any) => void>;
+  #endPromise: Promise<void> | undefined;
 
   constructor(stream: Readable, size?: number) {
     super();
-    this._stream = stream;
-    this._defaultSize = size;
-    this._state = NON_FLOWING;
-    this._error = null;
-    this._rejectFns = new Set<(err: any) => void>();
+    this.#stream = stream;
+    this.#defaultSize = size;
+    this.#state = NON_FLOWING;
+    this.#error = null;
+    this.#rejectFns = new Set<(err: any) => void>();
 
     const onError = (err: any) => {
-      this._state = ERRORED;
-      this._error = err;
-      for (const rejectFn of this._rejectFns) {
+      this.#state = ERRORED;
+      this.#error = err;
+      for (const rejectFn of this.#rejectFns) {
         rejectFn(err);
       }
     };
 
     const onEnd = () => {
-      this._state = ENDED;
+      this.#state = ENDED;
     };
 
-    this._stream['once']('error', onError);
-    this._stream['once']('end', onEnd);
+    this.#stream['once']('error', onError);
+    this.#stream['once']('end', onEnd);
   }
 
   [Symbol.asyncIterator](): AsyncIterator<T> {
     return this;
   }
 
-  async next(size = this._defaultSize): Promise<IteratorResult<T>> {
-    if (this._state === NON_FLOWING) {
-      await safeRace([this._waitReadable(), this._waitEnd()]);
+  async next(size = this.#defaultSize): Promise<IteratorResult<T>> {
+    if (this.#state === NON_FLOWING) {
+      await safeRace([this.#waitReadable(), this.#waitEnd()]);
       return await this.next(size);
     }
 
-    if (this._state === ENDED) {
+    if (this.#state === ENDED) {
       return { done: true, value: undefined } as any as IteratorResult<T>;
     }
 
-    if (this._state === ERRORED) {
-      throw this._error;
+    if (this.#state === ERRORED) {
+      throw this.#error;
     }
 
-    const value = this._stream['read'](size);
+    const value = this.#stream['read'](size);
     if (value !== null) {
       return { done: false, value };
     } else {
-      this._state = NON_FLOWING;
+      this.#state = NON_FLOWING;
       return await this.next(size);
     }
   }
 
-  private _waitReadable(): Promise<void> {
+  #waitReadable(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const onReadable = () => {
-        this._state = READABLE;
-        this._rejectFns.delete(reject);
+        this.#state = READABLE;
+        this.#rejectFns.delete(reject);
         resolve();
       };
 
-      this._rejectFns.add(reject);
-      this._stream['once']('readable', onReadable);
+      this.#rejectFns.add(reject);
+      this.#stream['once']('readable', onReadable);
     });
   }
 
-  private _waitEnd(): Promise<void> {
-    if (!this._endPromise) {
-      this._endPromise = new Promise<void>((resolve, reject) => {
+  #waitEnd(): Promise<void> {
+    if (!this.#endPromise) {
+      this.#endPromise = new Promise<void>((resolve, reject) => {
         const onEnd = () => {
-          this._state = ENDED;
-          this._rejectFns.delete(reject);
+          this.#state = ENDED;
+          this.#rejectFns.delete(reject);
           resolve();
         };
 
-        this._rejectFns.add(reject);
-        this._stream['once']('end', onEnd);
+        this.#rejectFns.add(reject);
+        this.#stream['once']('end', onEnd);
       });
     }
-    return this._endPromise;
+    return this.#endPromise;
   }
 }
 

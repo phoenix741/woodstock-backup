@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ApplicationConfigModule, SharedModule } from '@woodstock/shared';
+import { ConfigModule } from '@nestjs/config';
+import { AuthentificationModule, CoreModule } from '@woodstock/shared';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { BackupService } from './backup/backup.service.js';
@@ -8,7 +9,7 @@ import { GlobalModule } from './global.module.js';
 import { LoggerModule } from './logger/log.module.js';
 
 @Module({
-  imports: [GlobalModule, ApplicationConfigModule, SharedModule, LoggerModule],
+  imports: [ConfigModule.forRoot(), GlobalModule, CoreModule, AuthentificationModule, LoggerModule],
   controllers: [AppController],
   providers: [ClientConfigService, AppService, BackupService],
 })

@@ -3,11 +3,12 @@ import { concat, from, reduce } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
 import { lock } from 'proper-lockfile';
-import { PoolRefCount, PoolStatistics, PoolUnused } from '../models';
-import { ProtoPoolRefCount, ProtoPoolUnused } from '../models/object-proto.model.js';
-import { ProtobufService } from '../services/protobuf.service.js';
+import { PoolRefCount, PoolUnused } from '../shared';
+import { ProtoPoolRefCount, ProtoPoolUnused } from '../shared/woodstock.model.js';
+import { ProtobufService } from '../input-output/protobuf.service.js';
 import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
-import { SetOfPoolUnused } from './refcnt.model';
+import { SetOfPoolUnused } from './refcnt.interface';
+import { PoolStatistics } from '../statistics/statistics.interface';
 
 @Injectable()
 export class RefCntService {
@@ -74,15 +75,7 @@ export class RefCntService {
   async readAllRefCnt(filename: string): Promise<Map<string, PoolRefCount>> {
     const fileToChange = this.readRefCnt(filename);
 
-    const statistics: PoolStatistics = {
-      longestChain: 0,
-      nbChunk: 0,
-      nbRef: 0,
-      size: 0n,
-      compressedSize: 0n,
-      unusedSize: 0n,
-    };
-
+    const statistics = new PoolStatistics();
     return await this.#calculateRefCount(fileToChange, statistics);
   }
 

@@ -3,11 +3,11 @@ import { join } from 'path';
 
 @Injectable()
 export class Manifest {
-  public readonly fileListPath: string;
-  public readonly journalPath: string;
-  public readonly manifestPath: string;
-  public readonly newPath: string;
-  public readonly lockPath: string;
+  readonly fileListPath: string;
+  readonly journalPath: string;
+  readonly manifestPath: string;
+  readonly newPath: string;
+  readonly lockPath: string;
 
   constructor(manifestName: string, path: string) {
     this.fileListPath = join(path, `${manifestName}.filelist`);

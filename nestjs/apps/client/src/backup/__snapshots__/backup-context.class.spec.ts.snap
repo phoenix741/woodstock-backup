@@ -33,7 +33,7 @@ import {
   FileChunk,
   FileHashReader,
   FileManifest,
-  FileReader,
+  FileReaderService,
   globStringToRegex,
   LaunchBackupReply,
   mangle,
@@ -53,7 +53,7 @@ import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/o
 export class BackupContext {
   private logger = new Logger(BackupContext.name);
 
-  constructor(private fileReader: FileReader, private manifestService: ManifestService) {}
+  constructor(private fileReader: FileReaderService, private manifestService: ManifestService) {}
 
   private async createManifestForSharePath(sharePath: Buffer, source: AsyncIterable<FileManifest | undefined>) {
     const manifest = new Manifest(\`backups.\${mangle(sharePath)}\`, '/tmp/');

@@ -6,8 +6,8 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "protoc": "protoc --plugin=./node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./libs/shared/src/models ./woodstock.proto -I. --ts_proto_opt=outputServices=none,outputEncodeMethods=false,outputJsonMethods=false,outputClientImpl=false,lowerCaseServiceMethods=false,forceLong=long,unrecognizedEnum=false --ts_proto_opt=env=node --experimental_allow_proto3_optional",
-    "protoc:grpcjs": "protoc --plugin=./node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./libs/shared/src/models ./libs/shared/woodstock.proto -I. --ts_proto_opt=outputServices=none,outputEncodeMethods=false,outputJsonMethods=false,outputClientImpl=false,lowerCaseServiceMethods=false,forceLong=long,unrecognizedEnum=false,outputServices=grpc-js --ts_proto_opt=env=node --experimental_allow_proto3_optional",
+    "protoc": "protoc --plugin=./node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./libs/shared/src/shared ./woodstock.proto -I. --ts_proto_opt=outputServices=none,outputEncodeMethods=false,outputJsonMethods=false,outputClientImpl=false,lowerCaseServiceMethods=false,forceLong=long,unrecognizedEnum=false,onlyTypes=true --ts_proto_opt=env=node --ts_proto_opt=fileSuffix=.interface --experimental_allow_proto3_optional",
+    "protoc:grpcjs": "protoc --plugin=./node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./libs/shared/src/shared ./woodstock.proto -I. --ts_proto_opt=outputServices=none,outputEncodeMethods=false,outputJsonMethods=false,outputClientImpl=false,lowerCaseServiceMethods=false,forceLong=long,unrecognizedEnum=false,outputServices=grpc-js --ts_proto_opt=env=node --ts_proto_opt=fileSuffix=-client.interface --experimental_allow_proto3_optional",
     "prebuild": "rimraf dist",
     "build": "nest build",
     "build:api": "nest build -- api",

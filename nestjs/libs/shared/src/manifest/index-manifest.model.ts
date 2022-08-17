@@ -1,19 +1,23 @@
 import { from } from 'ix/iterable';
-import { EntryType, FileManifest, FileManifestJournalEntry } from '../models/woodstock';
-import { mangle } from '../utils/path.utils.js';
+import { EntryType, FileManifest, FileManifestJournalEntry } from '../shared';
+import { mangle } from '../utils';
 import { IndexFileEntry } from './index-file-entry.model.js';
+
+function isIndexFileEntry(indexOrPath: IndexFileEntry | Buffer): indexOrPath is IndexFileEntry {
+  return (indexOrPath as IndexFileEntry).path !== undefined;
+}
 
 /**
  * List of manifest of a manifest file (and the journal).
  */
 export class IndexManifest {
-  private files = new Map<string, IndexFileEntry>();
+  #files = new Map<string, IndexFileEntry>();
 
   /**
    * Number of element in the index manifest.
    */
   get indexSize(): number {
-    return this.files.size;
+    return this.#files.size;
   }
 
   process(journalEntry: FileManifestJournalEntry): void {
@@ -26,12 +30,12 @@ export class IndexManifest {
 
   add(manifest: FileManifest): void {
     const key = mangle(manifest.path);
-    this.files.set(key, new IndexFileEntry(manifest));
+    this.#files.set(key, new IndexFileEntry(manifest));
   }
 
   remove(filePath: Buffer): void {
     const key = mangle(filePath);
-    this.files.delete(key);
+    this.#files.delete(key);
   }
 
   mark(indexOrPath: IndexFileEntry | Buffer): void {
@@ -46,7 +50,7 @@ export class IndexManifest {
    * @param filter
    */
   walk(): Iterable<IndexFileEntry> {
-    return from(this.files.values());
+    return from(this.#files.values());
   }
 
   /**
@@ -54,10 +58,6 @@ export class IndexManifest {
    */
   getEntry(filePath: Buffer): IndexFileEntry | undefined {
     const key = mangle(filePath);
-    return this.files.get(key);
+    return this.#files.get(key);
   }
-}
-
-function isIndexFileEntry(indexOrPath: IndexFileEntry | Buffer): indexOrPath is IndexFileEntry {
-  return (indexOrPath as IndexFileEntry).path !== undefined;
 }
