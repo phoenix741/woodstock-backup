@@ -4,6 +4,8 @@ package woodstock;
 
 message PoolUnused {
   bytes sha256 = 1;
+  optional int32 size = 3;
+  optional int32 compressedSize = 4;
 }
 
 message PoolRefCount {

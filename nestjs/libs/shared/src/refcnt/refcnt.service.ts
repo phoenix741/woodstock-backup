@@ -1,12 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { concat, from, reduce, toSet } from 'ix/asynciterable';
+import { concat, from, reduce } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
 import { lock } from 'proper-lockfile';
-import { PoolRefCount, PoolStatistics, PoolUnused } from '../models';
-import { ProtoPoolRefCount, ProtoPoolUnused } from '../models/object-proto.model.js';
-import { ProtobufService } from '../services/protobuf.service.js';
+import { PoolRefCount, PoolUnused } from '../shared';
+import { ProtoPoolRefCount, ProtoPoolUnused } from '../shared/woodstock.model.js';
+import { ProtobufService } from '../input-output/protobuf.service.js';
 import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
+import { SetOfPoolUnused } from './refcnt.interface';
+import { PoolStatistics } from '../statistics/statistics.interface';
 
 @Injectable()
 export class RefCntService {
@@ -73,14 +75,7 @@ export class RefCntService {
   async readAllRefCnt(filename: string): Promise<Map<string, PoolRefCount>> {
     const fileToChange = this.readRefCnt(filename);
 
-    const statistics: PoolStatistics = {
-      longestChain: 0,
-      nbChunk: 0,
-      nbRef: 0,
-      size: 0n,
-      compressedSize: 0n,
-    };
-
+    const statistics = new PoolStatistics();
     return await this.#calculateRefCount(fileToChange, statistics);
   }
 
@@ -107,7 +102,7 @@ export class RefCntService {
   async #calculateRefCount(
     it: AsyncIterable<PoolRefCount>,
     statistics: PoolStatistics,
-    unusedArray = new Set<string>(),
+    unusedArray = new SetOfPoolUnused(),
     seed = new Map<string, PoolRefCount>(),
   ) {
     const reducedRefCount = await reduce(it, {
@@ -144,8 +139,8 @@ export class RefCntService {
       }
 
       if (obj.refCount > 0) {
-        if (unusedArray.has(key)) {
-          unusedArray.delete(key);
+        if (unusedArray.has(obj)) {
+          unusedArray.delete(obj);
         }
 
         statistics.size += BigInt(obj.size);
@@ -154,13 +149,21 @@ export class RefCntService {
         if (obj.refCount < 0) {
           this.logger.warn(`Invalid ref count for ${obj.sha256.toString('hex')}: can't be negative`);
         }
-        unusedArray.add(key);
+        unusedArray.add(obj);
 
         reducedRefCount.delete(key);
       }
     }
 
     statistics.nbChunk = reducedRefCount.size;
+
+    statistics.unusedSize = await reduce(unusedArray.toIterator(), {
+      callback: (acc, v) => {
+        acc = acc + BigInt(v.compressedSize || 0);
+        return acc;
+      },
+      seed: 0n,
+    });
 
     return reducedRefCount;
   }
@@ -173,17 +176,13 @@ export class RefCntService {
       const backupRefcnt = backupRefcntPath ? this.readRefCnt(backupRefcntPath) : from([]);
       const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
+      const unusedArray = await SetOfPoolUnused.fromIterator(unused);
+
       const statistics = new PoolStatistics();
-
-      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
-
       const rrefcnt = await this.#calculateRefCount(concat(fileToUpdate, backupRefcnt), statistics, unusedArray);
 
       if (unusedPath) {
-        await this.writeUnused(
-          from(unusedArray).pipe(map(async (v) => ({ sha256: Buffer.from(v, 'base64') }))),
-          unusedPath,
-        );
+        await this.writeUnused(unusedArray.toIterator(), unusedPath);
       }
       await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
       await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
@@ -205,7 +204,7 @@ export class RefCntService {
       const backupRefcnt = from(this.readRefCnt(backupRefcntPath)).pipe(map((v) => ({ ...v, refCount: -v.refCount })));
       const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
-      const unusedArray = await toSet(from(unused).pipe(map((v) => v.sha256.toString('base64'))));
+      const unusedArray = await SetOfPoolUnused.fromIterator(unused);
 
       const originalCount = await this.#calculateRefCount(fileToChange, new PoolStatistics(), unusedArray);
 
@@ -213,10 +212,7 @@ export class RefCntService {
       const rrefcnt = await this.#calculateRefCount(backupRefcnt, statistics, unusedArray, originalCount);
 
       if (unusedPath) {
-        await this.writeUnused(
-          from(unusedArray).pipe(map(async (v) => ({ sha256: Buffer.from(v, 'base64') }))),
-          unusedPath,
-        );
+        await this.writeUnused(unusedArray.toIterator(), unusedPath);
       }
       await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
       await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));

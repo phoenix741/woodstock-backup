@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { join } from 'path';
 import { ApplicationConfigService } from '../config';
-import { HistoricalDiskStatistics, StatsDiskUsage } from '../models';
-import { YamlService } from '../services';
+import { YamlService } from '../input-output';
+import { HistoricalDiskStatistics, StatsDiskUsage } from './statistics.interface';
 
 @Injectable()
 export class DiskStatisticsService {

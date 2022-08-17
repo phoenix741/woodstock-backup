@@ -1,23 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ApplicationConfigModule, SharedModule, WoodstockBullModules } from '@woodstock/shared';
+import { CoreModule } from '@woodstock/shared';
 import { ConsoleModule } from 'nestjs-console';
-import { BackupsCommand } from './backups/backups.command.js';
-import { BrowserCommand } from './backups/browser.command.js';
 import { GlobalModule } from './global.module.js';
-import { PoolCommand } from './pool/pool.command.js';
-import { ProtobufCommand } from './protobuf/protobuf.command.js';
-import { StatsCommand } from './stats/stats.command.js';
+import { QueueCommandModule } from './queue-command/queue-command.module.js';
+import { StdCommandModule } from './std-command/std-command.module.js';
 
 @Module({
-  imports: [
-    GlobalModule,
-    ApplicationConfigModule,
-    ...WoodstockBullModules,
-    ConfigModule.forRoot(),
-    ConsoleModule,
-    SharedModule,
-  ],
-  providers: [BackupsCommand, StatsCommand, PoolCommand, ProtobufCommand, BrowserCommand],
+  imports: [ConfigModule.forRoot(), GlobalModule, CoreModule, ConsoleModule, StdCommandModule, QueueCommandModule],
 })
 export class AppCommandModule {}

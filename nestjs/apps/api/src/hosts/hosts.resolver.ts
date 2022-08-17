@@ -1,11 +1,17 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import { NotFoundException } from '@nestjs/common';
 import { Args, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, BackupsService, HostConfiguration, HostsService } from '@woodstock/shared';
-import { Host } from './host.model.js';
+import { Backup, BackupsService, BackupTask, HostConfiguration, HostsService } from '@woodstock/shared';
+import { Queue } from 'bullmq';
+import { Host } from './hosts.dto.js';
 
 @Resolver(() => Host)
 export class HostsResolver {
-  constructor(private hostsService: HostsService, private backupsService: BackupsService) {}
+  constructor(
+    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    private hostsService: HostsService,
+    private backupsService: BackupsService,
+  ) {}
 
   @Query(() => [Host])
   async hosts(): Promise<Host[]> {
@@ -40,6 +46,11 @@ export class HostsResolver {
 
   @ResolveField(() => String, { nullable: true })
   async lastBackupState(@Parent() host: Host): Promise<string | undefined> {
-    return await this.hostsService.lastBackupState(host.name);
+    const jobs = await this.hostsQueue.getJobs([]);
+    const backupJobs = jobs.filter((j) => j.data.host === host.name).sort((j1, j2) => j2.timestamp - j1.timestamp);
+    if (backupJobs[0]) {
+      return await backupJobs[0].getState();
+    }
+    return undefined;
   }
 }

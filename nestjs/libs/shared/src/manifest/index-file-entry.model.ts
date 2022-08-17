@@ -1,12 +1,12 @@
-import { FileManifest } from '../models/woodstock';
+import { FileManifest } from '../shared';
 
 /**
  * Used to represent a manifest in the index manifest.
  */
 export class IndexFileEntry {
-  public markViewed = false;
+  markViewed = false;
 
-  constructor(public manifest: FileManifest) {}
+  constructor(public readonly manifest: FileManifest) {}
 
   get path(): Buffer {
     return this.manifest.path;

@@ -1,8 +1,7 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, NotFoundException } from '@nestjs/common';
-import { BackupTask, HostsService, JobService, PoolService } from '@woodstock/shared';
+import { BackupTask, HostsService, JobService, RefcntJobData } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
-import { count } from 'rxjs';
 
 @Processor('schedule')
 export class SchedulerConsumer extends WorkerHost {
@@ -10,8 +9,8 @@ export class SchedulerConsumer extends WorkerHost {
 
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('refcnt') private refcntQueue: Queue<RefcntJobData>,
     private hostsService: HostsService,
-    private poolService: PoolService,
     private jobService: JobService,
   ) {
     super();
@@ -35,20 +34,13 @@ export class SchedulerConsumer extends WorkerHost {
     for (const host of await this.hostsService.getHosts()) {
       const hasBackup = await this.jobService.shouldBackupHost(host);
       if (!hasBackup) {
-        await this.hostsQueue.add('backup', { host }, { removeOnComplete: true });
+        await this.hostsQueue.add('backup', { host });
       }
     }
   }
 
   async nightlyJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Nightly scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
-    this.poolService
-      .removeUnusedFiles()
-      .pipe(count())
-      .subscribe({
-        next: (count) => {
-          this.logger.log(`Removed ${count} unused chunks`);
-        },
-      });
+    this.refcntQueue.add('unused', {});
   }
 }

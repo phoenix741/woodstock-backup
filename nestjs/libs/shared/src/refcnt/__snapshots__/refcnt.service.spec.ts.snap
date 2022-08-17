@@ -47,23 +47,57 @@ Object {
   "filename": "unusedPath",
   "source": Array [
     Object {
+      "compressedSize": undefined,
       "sha256": "sha256_4",
+      "size": undefined,
     },
     Object {
+      "compressedSize": undefined,
       "sha256": "sha256_5",
+      "size": undefined,
     },
     Object {
+      "compressedSize": 4000000,
       "sha256": "sha256_3",
+      "size": 4000000,
     },
     Object {
+      "compressedSize": 4000000,
       "sha256": "sha256_10",
+      "size": 4000000,
     },
   ],
   "type": Object {
     "fields": Object {
+      "compressedSize": Object {
+        "id": 4,
+        "options": Object {
+          "proto3_optional": true,
+        },
+        "type": "int32",
+      },
       "sha256": Object {
         "id": 1,
         "type": "bytes",
+      },
+      "size": Object {
+        "id": 3,
+        "options": Object {
+          "proto3_optional": true,
+        },
+        "type": "int32",
+      },
+    },
+    "oneofs": Object {
+      "_compressedSize": Object {
+        "oneof": Array [
+          "compressedSize",
+        ],
+      },
+      "_size": Object {
+        "oneof": Array [
+          "size",
+        ],
       },
     },
   },
@@ -78,6 +112,7 @@ Array [
     "nbChunk": 2,
     "nbRef": 7,
     "size": 8000000n,
+    "unusedSize": 8000000n,
   },
   ".",
 ]
@@ -90,5 +125,6 @@ PoolStatistics {
   "nbChunk": 936,
   "nbRef": 1000,
   "size": 3744000000n,
+  "unusedSize": 0n,
 }
 `;

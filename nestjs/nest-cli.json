@@ -13,7 +13,7 @@
       {
         "name": "@nestjs/graphql",
         "options": {
-          "typeFileNameSuffix": [".input.ts", ".args.ts", ".types.ts", ".entity.ts", ".model.ts", ".dto.ts"],
+          "typeFileNameSuffix": [".input.ts", ".args.ts", ".dto.ts"],
           "introspectComments": true
         }
       },

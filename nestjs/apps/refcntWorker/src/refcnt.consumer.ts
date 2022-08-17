@@ -1,13 +1,15 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import {
   ApplicationConfigService,
   BackupsService,
+  PoolService,
   RefcntJobData,
   RefCntService,
   ReferenceCount,
 } from '@woodstock/shared';
 import { Job } from 'bullmq';
+import { scan } from 'rxjs';
 
 @Processor('refcnt', { concurrency: 1 })
 export class RefcntConsumer extends WorkerHost {
@@ -17,6 +19,7 @@ export class RefcntConsumer extends WorkerHost {
     private applicationConfig: ApplicationConfigService,
     private backupsService: BackupsService,
     private refcntService: RefCntService,
+    private poolService: PoolService,
   ) {
     super();
   }
@@ -27,10 +30,27 @@ export class RefcntConsumer extends WorkerHost {
     );
     switch (job.name) {
       case 'add_backup':
+        if (!job.data.hostname) {
+          throw new InternalServerErrorException('Missing hostname in job data');
+        }
+        if (job.data.backupNumber === undefined || job.data.backupNumber === null) {
+          throw new InternalServerErrorException('Missing backupNumber in job data');
+        }
+
         await this.#processAddBackup(job.data.hostname, job.data.backupNumber);
         break;
       case 'remove_backup':
+        if (!job.data.hostname) {
+          throw new InternalServerErrorException('Missing hostname in job data');
+        }
+        if (job.data.backupNumber === undefined || job.data.backupNumber === null) {
+          throw new InternalServerErrorException('Missing backupNumber in job data');
+        }
+
         await this.#processRemove(job.data.hostname, job.data.backupNumber);
+        break;
+      case 'unused':
+        await this.#processUnused(job);
         break;
       default:
         throw new NotFoundException(`Unknown job name ${job.name}`);
@@ -68,5 +88,31 @@ export class RefcntConsumer extends WorkerHost {
     } finally {
       this.#logger.log(`[END] - Removed backup ${n} of host ${hostname} from the reference count of the pool`);
     }
+  }
+
+  async #processUnused(job: Job<RefcntJobData>): Promise<void> {
+    this.poolService
+      .removeUnusedFiles()
+      .pipe(
+        scan(
+          (acc, val) => {
+            return {
+              count: acc.count + 1,
+              size: acc.size + BigInt(val.size || 0),
+              compressedSize: acc.compressedSize + BigInt(val.compressedSize || 0),
+            };
+          },
+          {
+            count: 0,
+            size: 0n,
+            compressedSize: 0n,
+          },
+        ),
+      )
+      .subscribe({
+        next: (count) => {
+          job.updateProgress(count);
+        },
+      });
   }
 }

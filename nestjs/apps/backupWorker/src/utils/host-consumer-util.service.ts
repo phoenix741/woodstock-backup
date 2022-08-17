@@ -1,12 +1,13 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { BackupsService, BackupTask, HostConfiguration, HostsService } from '@woodstock/shared';
+import { BackupsService, BackupTask, HostConfiguration, HostsService, LockService } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 
 @Injectable()
 export class HostConsumerUtilService {
   constructor(
     @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    private lockService: LockService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
   ) {}
@@ -16,11 +17,12 @@ export class HostConsumerUtilService {
       throw new NotFoundException('Job ID not found');
     }
     /* *********** LOCK ************ */
-    const previousLock = await this.backupsService.lock(job.data.host, job.id);
+    const lockFile = this.backupsService.getLockFile(job.data.host);
+    const previousLock = await this.lockService.lock(lockFile, job.id);
     if (previousLock) {
       const previousJob = await this.hostsQueue.getJob(previousLock);
       if (!previousJob || !(await previousJob.isActive())) {
-        await this.backupsService.lock(job.data.host, job.id, true);
+        await this.lockService.lock(lockFile, job.id, true);
       } else {
         throw new Error(`Host ${job.data.host} already locked by ${previousLock}`);
       }
@@ -33,7 +35,8 @@ export class HostConsumerUtilService {
       throw new NotFoundException('Job ID not found');
     }
     /* ************** UNLOCK ************ */
-    await this.backupsService.unlock(job.data.host, job.id);
+    const lockFile = this.backupsService.getLockFile(job.data.host);
+    await this.lockService.unlock(lockFile, job.id);
     /* ************** END UNLOCK ************ */
   }
 
