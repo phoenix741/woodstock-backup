@@ -53,10 +53,11 @@ describe('BackupClientProgress', () => {
     mockBackupClient.authenticate = jest.fn().mockResolvedValue(undefined);
 
     const logger = new Logger('FakeLogger');
+    const clientLogger = new Logger('FakeClientLogger');
     const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
 
     // WHEN
-    const observable = backupClientProgress.authenticate(ctxt, logger, 'password');
+    const observable = backupClientProgress.authenticate(ctxt, logger, clientLogger, 'password');
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN
@@ -168,6 +169,8 @@ describe('BackupClientProgress', () => {
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN
-    expect(result).toMatchSnapshot(new Array(result.length).fill({ speed: expect.any(Number) }), 'result');
+    for (const r of result) {
+      expect(r).toMatchSnapshot({ speed: expect.any(Number) }, 'result');
+    }
   });
 });

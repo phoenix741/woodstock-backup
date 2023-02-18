@@ -1,7 +1,7 @@
 subscription RunningTasksMenuJobUpdated {
   jobUpdated {
     id
-    progress
+    name
     state
     data {
       host

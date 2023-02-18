@@ -91,7 +91,7 @@ services:
       - NODE_ENV=development
 
   redis:
-    image: "bitnami/redis:5.0"
+    image: "bitnami/redis:6.2"
     environment:
       # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes

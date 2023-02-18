@@ -1,22 +1,37 @@
+fragment Groups on SubTaskOrGroupTasks {
+  __typename
+  ... on JobSubTask {
+    taskName
+    state
+    description
+  }
+  ... on JobGroupTasks {
+    groupName
+    state
+    description
+    subtasks {
+      __typename
+    }
+  }
+}
+
 fragment FragmentJob on Job {
   id
+  name
   state
-  failedReason
   data {
     host
     number
+    ip
     startDate
-    state
     progression {
       percent
       speed
       newFileCount
       fileCount
     }
-    subtasks {
-      context
-      description
-      state
+    groups: subtasks {
+      ...Groups
     }
   }
 }

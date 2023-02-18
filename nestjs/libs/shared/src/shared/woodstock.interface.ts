@@ -102,8 +102,8 @@ export interface RefreshCacheHeader {
 }
 
 export interface RefreshCacheRequest {
-  header: RefreshCacheHeader | undefined;
-  fileManifest: FileManifest | undefined;
+  header?: RefreshCacheHeader | undefined;
+  fileManifest?: FileManifest | undefined;
 }
 
 export interface RefreshCacheReply {

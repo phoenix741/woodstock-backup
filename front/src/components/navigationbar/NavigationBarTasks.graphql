@@ -1,6 +1,15 @@
 query NavigationBarTasks($state: [String!]) {
   queue(state: $state) {
     id
+    name
     state
+    data {
+      startDate
+      host
+      ip
+      number
+      groupName
+      description
+    }
   }
 }

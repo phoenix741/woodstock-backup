@@ -1,6 +1,7 @@
 subscription NavigationBarTasksJobUpdated {
   jobUpdated {
     id
+    name
     state
   }
 }

@@ -2,6 +2,7 @@ import { LoggerService } from '@nestjs/common';
 import {
   AuthenticateReply,
   ChunkInformation,
+  ExecuteCommandReply,
   FileManifestJournalEntry,
   LogEntry,
   RefreshCacheReply,
@@ -22,7 +23,7 @@ export interface BackupClientContext {
 export interface BackupClientInterface {
   authenticate(context: BackupClientContext, password: string): Promise<AuthenticateReply>;
   streamLog(context: BackupClientContext): AsyncIterable<LogEntry>;
-  executeCommand(context: BackupClientContext, command: string): Promise<void>;
+  executeCommand(context: BackupClientContext, command: string): Promise<ExecuteCommandReply>;
   refreshCache(context: BackupClientContext, request: AsyncIterable<RefreshCacheRequest>): Promise<RefreshCacheReply>;
   downloadFileList(context: BackupClientContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry>;
   copyChunk(context: BackupsGrpcContext, chunk: ChunkInformation): Readable;

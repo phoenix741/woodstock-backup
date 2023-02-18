@@ -1,32 +1,32 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`BackupContext #RefreshCache #RefreshCache should create error: RefreshCacheReply 1`] = `
-Object {
+{
   "code": 1,
   "message": "Should be return error",
 }
 `;
 
 exports[`BackupContext #RefreshCache #RefreshCache should create one manifest from scratch : RefreshCacheReply 1`] = `
-Object {
+{
   "code": 0,
 }
 `;
 
 exports[`BackupContext #RefreshCache #RefreshCache should create two manifest from scratch : RefreshCacheReply 1`] = `
-Object {
+{
   "code": 0,
 }
 `;
 
 exports[`BackupContext #getChunk download a file, piece of file: getChunk 1`] = `
-Array [
+[
   "adRequestException, Logger } f",
 ]
 `;
 
 exports[`BackupContext #getChunk download a file: getChunk 1`] = `
-Array [
+[
   "import { BadRequestException, Logger } from '@nestjs/common';
 import {
   ChunkInformation,
@@ -43,12 +43,12 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
+  split,
   StatusCode,
 } from '@woodstock/shared';
 import { createReadStream, ReadStream } from 'fs';
-import { throwIfAborted } from 'ix/aborterror';
-import { AsyncIterableX, concat, create, from, of } from 'ix/asynciterable';
-import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/operators';
+import { AsyncIterableX, concat, from, of } from 'ix/asynciterable';
+import { catchError, concatAll, filter, finalize, map, tap } from 'ix/asynciterable/operators';
 
 export class BackupContext {
   private logger = new Logger(BackupContext.name);
@@ -71,56 +71,17 @@ export class BackupContext {
   private async createManifestsFromSource(request: AsyncIterableX<RefreshCacheRequest>) {
     this.logger.log(\`Start creating manifests from source\`);
 
-    // First search the first header
-    const it = request[Symbol.asyncIterator]();
-    let next: IteratorResult<RefreshCacheRequest, RefreshCacheRequest>;
-    let sharePath: Buffer | undefined;
-    let firstManifest: FileManifest | undefined;
+    const isHeader = (v: RefreshCacheRequest) => v.header?.sharePath;
+    const groupOfManifest = request.pipe(split(isHeader));
 
-    while (!(next = await it.next()).done) {
-      const { header, fileManifest } = next.value;
-      sharePath = header?.sharePath;
-      firstManifest = fileManifest;
-      if (sharePath) {
-        break;
-      }
-    }
+    for await (const group of groupOfManifest) {
+      const sharePath = group.key;
+      const manifests = group.iterable.pipe(
+        map((v) => v.fileManifest),
+        notUndefined(),
+      );
 
-    if (!sharePath) {
-      this.logger.warn(\`No content from the source\`);
-      return;
-    }
-    this.logger.log(\`Starting backup for share \${sharePath.toString('utf8')}\`);
-    const logger = this.logger;
-
-    while (!next.done) {
-      // Then create an iterator for the rest
-      const dataIt = create<FileManifest | undefined>((signal) => {
-        return {
-          async next() {
-            throwIfAborted(signal);
-
-            next = await it.next();
-
-            if (next.done) {
-              return { done: true, value: undefined };
-            }
-
-            const { header, fileManifest } = next.value;
-            if (header?.sharePath) {
-              logger.log(\`Starting backup for share \${header.sharePath.toString('utf8')}\`);
-              sharePath = header.sharePath;
-              firstManifest = fileManifest;
-              return { done: true, value: undefined };
-            }
-
-            return { value: fileManifest };
-          },
-        };
-      });
-
-      // Then create the manifest
-      await this.createManifestForSharePath(sharePath, firstManifest ? concat(of(firstManifest), dataIt) : dataIt);
+      await this.createManifestForSharePath(sharePath, manifests);
     }
   }
 
@@ -215,10 +176,10 @@ export class BackupContext {
 `;
 
 exports[`BackupContext LaunchBackup but return an error: Launch backup (normal) 1`] = `
-Array [
-  Object {
+[
+  {
     "entry": undefined,
-    "response": Object {
+    "response": {
       "code": 1,
       "message": "Can't read files",
     },
@@ -227,12 +188,12 @@ Array [
 `;
 
 exports[`BackupContext LaunchBackup should make backup with index (remove elements): Launch backup (normal) 1`] = `
-Array [
-  Object {
-    "entry": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
+[
+  {
+    "entry": {
+      "chunks": [
+        {
+          "data": [
             120,
             33,
             153,
@@ -268,8 +229,8 @@ Array [
           ],
           "type": "Buffer",
         },
-        Object {
-          "data": Array [
+        {
+          "data": [
             74,
             134,
             2,
@@ -306,8 +267,8 @@ Array [
           "type": "Buffer",
         },
       ],
-      "path": Object {
-        "data": Array [
+      "path": {
+        "data": [
           47,
           52,
           50,
@@ -331,8 +292,8 @@ Array [
         ],
         "type": "Buffer",
       },
-      "sha256": Object {
-        "data": Array [
+      "sha256": {
+        "data": [
           70,
           180,
           117,
@@ -368,7 +329,7 @@ Array [
         ],
         "type": "Buffer",
       },
-      "stats": Object {
+      "stats": {
         "created": Long {
           "high": 376,
           "low": 1271037455,
@@ -408,13 +369,13 @@ Array [
     },
     "response": undefined,
   },
-  Object {
-    "entry": Object {
-      "manifest": Object {
-        "acl": Array [],
-        "chunks": Array [],
-        "path": Object {
-          "data": Array [
+  {
+    "entry": {
+      "manifest": {
+        "acl": [],
+        "chunks": [],
+        "path": {
+          "data": [
             47,
             102,
             105,
@@ -441,15 +402,15 @@ Array [
           "type": "Buffer",
         },
         "stats": undefined,
-        "xattr": Object {},
+        "xattr": {},
       },
       "type": 2,
     },
     "response": undefined,
   },
-  Object {
+  {
     "entry": undefined,
-    "response": Object {
+    "response": {
       "code": 0,
     },
   },
@@ -457,12 +418,12 @@ Array [
 `;
 
 exports[`BackupContext LaunchBackup should make backup: Launch backup (normal) 1`] = `
-Array [
-  Object {
-    "entry": Object {
-      "chunks": Array [
-        Object {
-          "data": Array [
+[
+  {
+    "entry": {
+      "chunks": [
+        {
+          "data": [
             120,
             33,
             153,
@@ -498,8 +459,8 @@ Array [
           ],
           "type": "Buffer",
         },
-        Object {
-          "data": Array [
+        {
+          "data": [
             74,
             134,
             2,
@@ -536,8 +497,8 @@ Array [
           "type": "Buffer",
         },
       ],
-      "path": Object {
-        "data": Array [
+      "path": {
+        "data": [
           47,
           52,
           50,
@@ -561,8 +522,8 @@ Array [
         ],
         "type": "Buffer",
       },
-      "sha256": Object {
-        "data": Array [
+      "sha256": {
+        "data": [
           70,
           180,
           117,
@@ -598,7 +559,7 @@ Array [
         ],
         "type": "Buffer",
       },
-      "stats": Object {
+      "stats": {
         "created": Long {
           "high": 376,
           "low": 1271037455,
@@ -638,9 +599,9 @@ Array [
     },
     "response": undefined,
   },
-  Object {
+  {
     "entry": undefined,
-    "response": Object {
+    "response": {
       "code": 0,
     },
   },

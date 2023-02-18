@@ -9,7 +9,7 @@ export type Scalars = {
   Boolean: boolean;
   Int: number;
   Float: number;
-  /** The `BigInt` scalar type represents non-fractional signed whole numeric values.BigInt can represent values between -(2^63) + 1 and 2^63 - 1. */
+  /** The `BigInt` scalar type represents non-fractional signed whole numeric values. BigInt can represent values between -(2^63) + 1 and 2^63 - 1. */
   BigInt: any;
 };
 
@@ -34,55 +34,34 @@ export type Backup = {
 
 
 export type BackupFilesArgs = {
-  path: Scalars['String'];
   sharePath: Scalars['String'];
+  path: Scalars['String'];
 };
 
 export type BackupOperation = {
-  name: Scalars['String'];
   shares: Array<BackupTaskShare>;
   includes?: Maybe<Array<Scalars['String']>>;
   excludes?: Maybe<Array<Scalars['String']>>;
   timeout?: Maybe<Scalars['Float']>;
 };
 
-export type BackupQuota = {
-  host: Scalars['String'];
-  number: Scalars['Float'];
-  refr: Scalars['Float'];
-  excl: Scalars['Float'];
-  total: Scalars['Float'];
-};
-
-export enum BackupState {
-  Waiting = 'WAITING',
-  Running = 'RUNNING',
-  Success = 'SUCCESS',
-  Aborted = 'ABORTED',
-  Failed = 'FAILED'
-}
-
-export type BackupSubTask = {
-  context: Scalars['String'];
-  description: Scalars['String'];
-  state: BackupState;
-  progression?: Maybe<TaskProgression>;
-};
-
 export type BackupTask = {
-  complete?: Maybe<Scalars['Boolean']>;
+  subtasks: Array<SubTaskOrGroupTasks>;
+  groupName?: Maybe<Scalars['String']>;
+  state: QueueTaskState;
+  progression?: Maybe<JobProgression>;
+  description?: Maybe<Scalars['String']>;
   host: Scalars['String'];
-  config?: Maybe<HostConfiguration>;
-  previousNumber?: Maybe<Scalars['Float']>;
   number?: Maybe<Scalars['Float']>;
   ip?: Maybe<Scalars['String']>;
   startDate?: Maybe<Scalars['Float']>;
-  originalStartDate?: Maybe<Scalars['Float']>;
-  subtasks?: Maybe<Array<BackupSubTask>>;
-  state?: Maybe<BackupState>;
-  progression?: Maybe<TaskProgression>;
 };
 
+/**
+ * Part of config file.
+ *
+ * Store information about a share
+ */
 export type BackupTaskShare = {
   name: Scalars['String'];
   includes?: Maybe<Array<Scalars['String']>>;
@@ -90,23 +69,27 @@ export type BackupTaskShare = {
 };
 
 
-export type CompressionStatistics = {
-  timestamp: Scalars['Float'];
-  diskUsage: Scalars['Float'];
-  uncompressed: Scalars['Float'];
-};
-
+/**
+ * Part of config file
+ *
+ * Store information about a DHCP Address
+ */
 export type DhcpAddress = {
   address: Scalars['String'];
   start: Scalars['Float'];
   end: Scalars['Float'];
 };
 
-export type DiskUsageStats = {
-  quotas: Array<TimestampBackupQuota>;
-  currentSpace: SpaceStatistics;
-  currentRepartition?: Maybe<Array<HostQuota>>;
-  compressionStats: Array<CompressionStatistics>;
+export type DiskUsage = {
+  used?: Maybe<Scalars['Int']>;
+  free?: Maybe<Scalars['Int']>;
+  total?: Maybe<Scalars['Int']>;
+  usedRange?: Maybe<Array<TimeSerie>>;
+  usedLastMonth?: Maybe<Scalars['Float']>;
+  freeRange?: Maybe<Array<TimeSerie>>;
+  freeLastMonth?: Maybe<Scalars['Float']>;
+  totalRange?: Maybe<Array<TimeSerie>>;
+  totalLastMonth?: Maybe<Scalars['Float']>;
 };
 
 export enum EnumFileType {
@@ -122,7 +105,6 @@ export enum EnumFileType {
 }
 
 export type ExecuteCommandOperation = {
-  name: Scalars['String'];
   command: Scalars['String'];
 };
 
@@ -135,9 +117,10 @@ export type FileAcl = {
 
 export type FileDescription = {
   path: Scalars['String'];
+  xattr: Scalars['String'];
   symlink?: Maybe<Scalars['String']>;
   type: EnumFileType;
-  stats: FileStat;
+  stats?: Maybe<FileStat>;
   acl: Array<FileAcl>;
 };
 
@@ -165,42 +148,82 @@ export type Host = {
 };
 
 export type HostConfigOperation = {
-  tasks?: Maybe<Array<Operation>>;
-  finalizeTasks?: Maybe<Array<Operation>>;
+  preCommands?: Maybe<Array<ExecuteCommandOperation>>;
+  operation?: Maybe<BackupOperation>;
+  postCommands?: Maybe<Array<ExecuteCommandOperation>>;
 };
 
+/**
+ * Config file for one Host
+ *
+ * Contains all information that can be used to backup a host.
+ */
 export type HostConfiguration = {
   isLocal?: Maybe<Scalars['Boolean']>;
+  password: Scalars['String'];
   addresses?: Maybe<Array<Scalars['String']>>;
   dhcp?: Maybe<Array<DhcpAddress>>;
   operations?: Maybe<HostConfigOperation>;
   schedule?: Maybe<Schedule>;
 };
 
-export type HostQuota = {
-  host: Scalars['String'];
-  excl: Scalars['Float'];
-  refr: Scalars['Float'];
-  total: Scalars['Float'];
+export type HostStatistics = {
+  longestChain?: Maybe<Scalars['Int']>;
+  nbChunk?: Maybe<Scalars['Int']>;
+  nbRef?: Maybe<Scalars['Int']>;
+  size?: Maybe<Scalars['Int']>;
+  compressedSize?: Maybe<Scalars['Int']>;
+  host?: Maybe<Scalars['String']>;
+  longestChainRange?: Maybe<Array<TimeSerie>>;
+  longestChainLastMonth?: Maybe<Scalars['Float']>;
+  nbChunkRange?: Maybe<Array<TimeSerie>>;
+  nbChunkLastMonth?: Maybe<Scalars['Float']>;
+  nbRefRange?: Maybe<Array<TimeSerie>>;
+  nbRefLastMonth?: Maybe<Scalars['Float']>;
+  sizeRange?: Maybe<Array<TimeSerie>>;
+  sizeLastMonth?: Maybe<Scalars['Float']>;
+  compressedSizeRange?: Maybe<Array<TimeSerie>>;
+  compressedSizeLastMonth?: Maybe<Scalars['Float']>;
 };
 
 export type Job = {
-  id: Scalars['Int'];
-  delay: Scalars['Int'];
-  timestamp: Scalars['Int'];
   attemptsMade: Scalars['Int'];
-  finishedOn?: Maybe<Scalars['Int']>;
-  processedOn?: Maybe<Scalars['Int']>;
+  id?: Maybe<Scalars['String']>;
   name: Scalars['String'];
+  state: Scalars['String'];
   data: BackupTask;
-  failedReason?: Maybe<Scalars['String']>;
-  stacktrace?: Maybe<Array<Scalars['String']>>;
-  state?: Maybe<Scalars['String']>;
-  progress?: Maybe<Scalars['Float']>;
+};
+
+export type JobGroupTasks = {
+  subtasks: Array<SubTaskOrGroupTasks>;
+  groupName?: Maybe<Scalars['String']>;
+  state: QueueTaskState;
+  progression?: Maybe<JobProgression>;
+  description?: Maybe<Scalars['String']>;
+};
+
+export type JobProgression = {
+  compressedFileSize: Scalars['BigInt'];
+  newCompressedFileSize: Scalars['BigInt'];
+  fileSize: Scalars['BigInt'];
+  newFileSize: Scalars['BigInt'];
+  newFileCount: Scalars['Int'];
+  fileCount: Scalars['Int'];
+  progressCurrent: Scalars['BigInt'];
+  progressMax: Scalars['BigInt'];
+  speed: Scalars['Float'];
+  percent: Scalars['Float'];
 };
 
 export type JobResponse = {
-  id: Scalars['Float'];
+  id: Scalars['String'];
+};
+
+export type JobSubTask = {
+  taskName: Scalars['String'];
+  state: QueueTaskState;
+  progression?: Maybe<JobProgression>;
+  description?: Maybe<Scalars['String']>;
 };
 
 export type Mutation = {
@@ -215,11 +238,27 @@ export type MutationCreateBackupArgs = {
 
 
 export type MutationRemoveBackupArgs = {
-  number: Scalars['Int'];
   hostname: Scalars['String'];
+  number: Scalars['Int'];
 };
 
-export type Operation = ExecuteCommandOperation | BackupOperation;
+export type PoolUsage = {
+  longestChain?: Maybe<Scalars['Int']>;
+  nbChunk?: Maybe<Scalars['Int']>;
+  nbRef?: Maybe<Scalars['Int']>;
+  size?: Maybe<Scalars['Int']>;
+  compressedSize?: Maybe<Scalars['Int']>;
+  longestChainRange?: Maybe<Array<TimeSerie>>;
+  longestChainLastMonth?: Maybe<Scalars['Float']>;
+  nbChunkRange?: Maybe<Array<TimeSerie>>;
+  nbChunkLastMonth?: Maybe<Scalars['Float']>;
+  nbRefRange?: Maybe<Array<TimeSerie>>;
+  nbRefLastMonth?: Maybe<Scalars['Float']>;
+  sizeRange?: Maybe<Array<TimeSerie>>;
+  sizeLastMonth?: Maybe<Scalars['Float']>;
+  compressedSizeRange?: Maybe<Array<TimeSerie>>;
+  compressedSizeLastMonth?: Maybe<Scalars['Float']>;
+};
 
 export type Query = {
   backups: Array<Backup>;
@@ -228,7 +267,7 @@ export type Query = {
   host: Host;
   queue: Array<Job>;
   queueStats: QueueStats;
-  diskUsageStats: DiskUsageStats;
+  statistics: Statistics;
 };
 
 
@@ -238,8 +277,8 @@ export type QueryBackupsArgs = {
 
 
 export type QueryBackupArgs = {
-  number: Scalars['Int'];
   hostname: Scalars['String'];
+  number: Scalars['Int'];
 };
 
 
@@ -249,22 +288,31 @@ export type QueryHostArgs = {
 
 
 export type QueryQueueArgs = {
-  state?: Maybe<Array<Scalars['String']>>;
+  state?: Array<Scalars['String']>;
 };
 
 export type QueueStats = {
   waiting: Scalars['Int'];
+  waitingChildren: Scalars['Int'];
   active: Scalars['Int'];
   failed: Scalars['Int'];
   delayed: Scalars['Int'];
   completed: Scalars['Int'];
-  lastExecution: Scalars['Float'];
-  nextWakeup: Scalars['Float'];
+  lastExecution?: Maybe<Scalars['Float']>;
+  nextWakeup?: Maybe<Scalars['Float']>;
 };
+
+export enum QueueTaskState {
+  Waiting = 'WAITING',
+  Running = 'RUNNING',
+  Success = 'SUCCESS',
+  Aborted = 'ABORTED',
+  Failed = 'FAILED'
+}
 
 export type Schedule = {
   activated?: Maybe<Scalars['Boolean']>;
-  backupPerdiod?: Maybe<Scalars['Float']>;
+  backupPeriod?: Maybe<Scalars['Float']>;
   backupToKeep?: Maybe<ScheduledBackupToKeep>;
 };
 
@@ -276,11 +324,13 @@ export type ScheduledBackupToKeep = {
   yearly?: Maybe<Scalars['Float']>;
 };
 
-export type SpaceStatistics = {
-  size: Scalars['Float'];
-  used: Scalars['Float'];
-  free: Scalars['Float'];
+export type Statistics = {
+  diskUsage?: Maybe<DiskUsage>;
+  poolUsage?: Maybe<PoolUsage>;
+  hosts?: Maybe<Array<HostStatistics>>;
 };
+
+export type SubTaskOrGroupTasks = JobSubTask | JobGroupTasks;
 
 export type Subscription = {
   jobUpdated: Job;
@@ -289,41 +339,9 @@ export type Subscription = {
   jobRemoved: Job;
 };
 
-export type TaskProgression = {
-  compressedFileSize: Scalars['BigInt'];
-  newCompressedFileSize: Scalars['BigInt'];
-  fileSize: Scalars['BigInt'];
-  newFileSize: Scalars['BigInt'];
-  percent: Scalars['Int'];
-  progressCurrent: Scalars['BigInt'];
-  progressMax: Scalars['BigInt'];
-  newFileCount: Scalars['Float'];
-  fileCount: Scalars['Float'];
-  speed: Scalars['Float'];
-};
-
-export type TimestampBackupQuota = {
-  timestamp: Scalars['Float'];
-  volumes: Array<BackupQuota>;
-  space: SpaceStatistics;
-  host: Array<HostQuota>;
-  total: TotalQuota;
-};
-
-
-export type TimestampBackupQuotaVolumesArgs = {
-  host?: Maybe<Scalars['String']>;
-};
-
-
-export type TimestampBackupQuotaHostArgs = {
-  host?: Maybe<Scalars['String']>;
-};
-
-export type TotalQuota = {
-  refr: Scalars['Float'];
-  excl: Scalars['Float'];
-  total: Scalars['Float'];
+export type TimeSerie = {
+  time: Scalars['BigInt'];
+  value: Scalars['Float'];
 };
 
 export type NavigationBarTasksQueryVariables = Exact<{
@@ -331,12 +349,15 @@ export type NavigationBarTasksQueryVariables = Exact<{
 }>;
 
 
-export type NavigationBarTasksQuery = { queue: Array<Pick<Job, 'id' | 'state'>> };
+export type NavigationBarTasksQuery = { queue: Array<(
+    Pick<Job, 'id' | 'name' | 'state'>
+    & { data: Pick<BackupTask, 'startDate' | 'host' | 'ip' | 'number' | 'groupName' | 'description'> }
+  )> };
 
 export type NavigationBarTasksJobUpdatedSubscriptionVariables = Exact<{ [key: string]: never; }>;
 
 
-export type NavigationBarTasksJobUpdatedSubscription = { jobUpdated: Pick<Job, 'id' | 'state'> };
+export type NavigationBarTasksJobUpdatedSubscription = { jobUpdated: Pick<Job, 'id' | 'name' | 'state'> };
 
 export type RunningTasksMenuQueryVariables = Exact<{
   state?: Maybe<Array<Scalars['String']> | Scalars['String']>;
@@ -344,10 +365,10 @@ export type RunningTasksMenuQueryVariables = Exact<{
 
 
 export type RunningTasksMenuQuery = { queue: Array<(
-    Pick<Job, 'id' | 'progress' | 'state'>
+    Pick<Job, 'id' | 'name' | 'state'>
     & { data: (
       Pick<BackupTask, 'host'>
-      & { progression?: Maybe<Pick<TaskProgression, 'fileCount'>> }
+      & { progression?: Maybe<Pick<JobProgression, 'fileCount'>> }
     ) }
   )> };
 
@@ -355,10 +376,10 @@ export type RunningTasksMenuJobUpdatedSubscriptionVariables = Exact<{ [key: stri
 
 
 export type RunningTasksMenuJobUpdatedSubscription = { jobUpdated: (
-    Pick<Job, 'id' | 'progress' | 'state'>
+    Pick<Job, 'id' | 'name' | 'state'>
     & { data: (
       Pick<BackupTask, 'host'>
-      & { progression?: Maybe<Pick<TaskProgression, 'fileCount'>> }
+      & { progression?: Maybe<Pick<JobProgression, 'fileCount'>> }
     ) }
   ) };
 
@@ -397,21 +418,31 @@ export type RemoveBackupMutation = { removeBackup: Pick<JobResponse, 'id'> };
 export type DashboardQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type DashboardQuery = { queueStats: Pick<QueueStats, 'waiting' | 'active' | 'failed' | 'lastExecution' | 'nextWakeup'>, diskUsageStats: { currentRepartition?: Maybe<Array<Pick<HostQuota, 'host' | 'total'>>>, compressionStats: Array<Pick<CompressionStatistics, 'timestamp' | 'diskUsage' | 'uncompressed'>>, currentSpace: Pick<SpaceStatistics, 'size' | 'used'>, quotas: Array<(
-      Pick<TimestampBackupQuota, 'timestamp'>
-      & { total: Pick<TotalQuota, 'refr' | 'excl' | 'total'> }
-    )> } };
+export type DashboardQuery = { queueStats: Pick<QueueStats, 'waiting' | 'active' | 'failed' | 'lastExecution' | 'nextWakeup'> };
 
 export type FragmentFileDescriptionFragment = (
   Pick<FileDescription, 'path' | 'type' | 'symlink'>
-  & { stats: Pick<FileStat, 'ownerId' | 'groupId' | 'mode' | 'size' | 'lastModified'> }
+  & { stats?: Maybe<Pick<FileStat, 'ownerId' | 'groupId' | 'mode' | 'size' | 'lastModified'>> }
 );
 
+type Groups_JobSubTask_Fragment = (
+  { __typename: 'JobSubTask' }
+  & Pick<JobSubTask, 'taskName' | 'state' | 'description'>
+);
+
+type Groups_JobGroupTasks_Fragment = (
+  { __typename: 'JobGroupTasks' }
+  & Pick<JobGroupTasks, 'groupName' | 'state' | 'description'>
+  & { subtasks: Array<{ __typename: 'JobSubTask' } | { __typename: 'JobGroupTasks' }> }
+);
+
+export type GroupsFragment = Groups_JobSubTask_Fragment | Groups_JobGroupTasks_Fragment;
+
 export type FragmentJobFragment = (
-  Pick<Job, 'id' | 'state' | 'failedReason'>
+  Pick<Job, 'id' | 'name' | 'state'>
   & { data: (
-    Pick<BackupTask, 'host' | 'number' | 'startDate' | 'state'>
-    & { progression?: Maybe<Pick<TaskProgression, 'percent' | 'speed' | 'newFileCount' | 'fileCount'>>, subtasks?: Maybe<Array<Pick<BackupSubTask, 'context' | 'description' | 'state'>>> }
+    Pick<BackupTask, 'host' | 'number' | 'ip' | 'startDate'>
+    & { progression?: Maybe<Pick<JobProgression, 'percent' | 'speed' | 'newFileCount' | 'fileCount'>>, groups: Array<Groups_JobSubTask_Fragment | Groups_JobGroupTasks_Fragment> }
   ) }
 );
 

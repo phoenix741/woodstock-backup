@@ -97,6 +97,7 @@ export class FileDescription implements FileManifest {
   @Field(() => String)
   path: Buffer;
   stats: FileStat | undefined;
+  @Field(() => String) // FIXME: GraphQL type for JSON
   xattr: { [key: string]: Buffer };
   acl: FileAcl[];
   @Transform(({ value }) => value && mangle(value))

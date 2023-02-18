@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import * as assert from 'assert';
 import { createReadStream, createWriteStream } from 'fs';
 import { rename, stat } from 'fs/promises';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { join } from 'path';
 import * as stream from 'stream';
 import { Duplex, pipeline as streamPipeline, Readable, Stream, Writable } from 'stream';

@@ -12,7 +12,8 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-import { ApplicationConfigService, Backup, BackupsService, BackupTask, HostsService } from '@woodstock/shared';
+import { ApplicationConfigService, Backup, BackupsService, HostsService } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
 import { Queue } from 'bullmq';
 import { Response } from 'express';
 import { join } from 'path';
@@ -21,7 +22,7 @@ import { getLog, tailLog } from '../utils/log-utils.service.js';
 @Controller('hosts/:name/backups')
 export class BackupController {
   constructor(
-    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('queue') private hostsQueue: Queue<JobBackupData>,
     private applicationConfig: ApplicationConfigService,
     private hostsService: HostsService,
     private backupsService: BackupsService,

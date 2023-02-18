@@ -1,13 +1,17 @@
 import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
-import { JobState, Queue } from 'bullmq';
+import { Job, JobState, Queue } from 'bullmq';
+import { RedlockAbortSignal } from 'redlock';
 import { PingService } from '../commands';
 import { BackupsService, HostsService, SchedulerConfigService } from '../config';
 import { RefcntJobData } from '../pool';
 import { BackupTask } from '../shared';
-import { LockService } from './lock.service';
+import { LockService } from '../shared/lock.service';
+import { JobBackupData } from './backuping.model';
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
+
+export const LOCK_TIMEOUT = 5000;
 
 @Injectable()
 @QueueEventsListener('refcnt')
@@ -15,7 +19,7 @@ export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);
 
   constructor(
-    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('queue') private hostsQueue: Queue<JobBackupData>,
     @InjectQueue('refcnt') private refcnQueue: Queue<RefcntJobData>,
     private lockService: LockService,
     private hostsService: HostsService,
@@ -24,6 +28,28 @@ export class JobService extends QueueEventsHost {
     private pingService: PingService,
   ) {
     super();
+  }
+
+  /**
+   * Lock the job during it's execution
+   * @param job The job to lock
+   * @param routine The code to execute
+   * @returns A value to return
+   */
+  using<T>(job: Job<JobBackupData>, routine: (signal: RedlockAbortSignal) => Promise<T>): Promise<T> {
+    return this.lockService.using([job.data.host], LOCK_TIMEOUT, routine);
+  }
+
+  /**
+   * Check if the job is locked
+   * @param job The job to check
+   * @returns A boolean to indicate if the value is locked
+   */
+  async isLocked(job: Job<JobBackupData> | string): Promise<boolean> {
+    if (typeof job === 'string') {
+      return await this.lockService.isLocked([job]);
+    }
+    return await this.lockService.isLocked([job.data.host]);
   }
 
   /**
@@ -51,10 +77,9 @@ export class JobService extends QueueEventsHost {
     }
 
     // Lock
-    const lockedJobId = await this.lockService.isLocked(this.backupsService.getLockFile(host));
-    const isLocked = lockedJobId && (await (await this.hostsQueue.getJob(lockedJobId))?.isActive());
+    const isLocked = await this.isLocked(host);
     if (isLocked) {
-      this.logger.warn(`A job (${lockedJobId}) is already running for ${host}, but is not in the queue`);
+      this.logger.warn(`A job is already running for ${host}, but is not in the queue`);
       return false;
     }
 
@@ -103,12 +128,12 @@ export class JobService extends QueueEventsHost {
    * @param host The host to check
    * @returns The last backup number and the previous backup number
    */
-  async getLastBackup(host: string): Promise<Pick<BackupTask, 'number' | 'previousNumber'>> {
+  async getNextBackup(host: string): Promise<Pick<JobBackupData, 'number' | 'previousNumber'>> {
     const lastBackup = await this.backupsService.getLastBackup(host);
-    if (lastBackup?.complete) {
+    if (lastBackup) {
       return { number: lastBackup.number + 1, previousNumber: lastBackup.number };
     } else {
-      return { number: lastBackup?.number || 0, previousNumber: undefined };
+      return { number: 0, previousNumber: undefined };
     }
   }
 

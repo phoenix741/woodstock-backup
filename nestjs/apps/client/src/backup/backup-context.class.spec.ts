@@ -69,10 +69,8 @@ describe('BackupContext', () => {
         yield { fileManifest: { path: Buffer.from('/test4'), stats: { size: Long.fromNumber(400) } } };
         yield { fileManifest: { path: Buffer.from('/test5'), stats: { size: Long.fromNumber(500) } } };
         yield { fileManifest: { path: Buffer.from('/test6'), stats: { size: Long.fromNumber(600) } } };
-        yield {
-          header: { sharePath: Buffer.from('/etc') },
-          fileManifest: { path: Buffer.from('/test32'), stats: { size: Long.fromNumber(100) } },
-        };
+        yield { header: { sharePath: Buffer.from('/etc') } };
+        yield { fileManifest: { path: Buffer.from('/test32'), stats: { size: Long.fromNumber(100) } } };
         yield { fileManifest: { path: Buffer.from('/test7'), stats: { size: Long.fromNumber(100) } } };
         yield { fileManifest: { path: Buffer.from('/test8'), stats: { size: Long.fromNumber(200) } } };
         yield { fileManifest: { path: Buffer.from('/test9'), stats: { size: Long.fromNumber(300) } } };
@@ -83,11 +81,11 @@ describe('BackupContext', () => {
       expect(manifestService.deleteManifest).toHaveBeenCalledTimes(2);
       expect(manifestService.deleteManifest).toHaveBeenCalledWith(new Manifest('backups.%2Fhome', '/tmp'));
       expect(cnt).toMatchInlineSnapshot(`
-              Object {
-                "/tmp/backups.%2Fetc.journal": 4,
-                "/tmp/backups.%2Fhome.journal": 6,
-              }
-          `);
+        {
+          "/tmp/backups.%2Fetc.journal": 4,
+          "/tmp/backups.%2Fhome.journal": 6,
+        }
+      `);
       expect(reply).toMatchSnapshot('RefreshCacheReply');
     });
 
@@ -108,7 +106,7 @@ describe('BackupContext', () => {
 
       expect(manifestService.deleteManifest).toHaveBeenCalledTimes(1);
       expect(manifestService.deleteManifest).toHaveBeenCalledWith(new Manifest('backups.%2Fhome', '/tmp'));
-      expect(cnt).toMatchInlineSnapshot(`Object {}`);
+      expect(cnt).toMatchInlineSnapshot(`{}`);
       expect(reply).toMatchSnapshot('RefreshCacheReply');
     });
   });
@@ -206,7 +204,7 @@ describe('BackupContext', () => {
         filename: Buffer.from(testFile),
         position: Long.fromNumber(0),
         size: Long.fromNumber(100000),
-        sha256: Buffer.from('251638a3420a7cf3c9d43c259102dbaa7a1c037950eaf7ae7d1c70f1e7b10fb6', 'hex'),
+        sha256: Buffer.from('8498d65d46074fcf1608686044a723699c05af6ef5ea7d2224449d3abca5763f', 'hex'),
         failIfWrongHash: true,
       });
 

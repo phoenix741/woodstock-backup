@@ -107,7 +107,7 @@ describe('BackupClient', () => {
     fakeClient.close = jest.fn();
 
     // WHEN
-    await backupClient.authenticate(ctxt, logger, 'password');
+    await backupClient.authenticate(ctxt, logger, logger, 'password');
 
     streamLog.write({ context: 'context1', level: LogLevel.log, line: 'line1' });
     streamLog.write({ context: 'context2', level: LogLevel.error, line: 'line2' });

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { readFile, writeFile } from 'fs/promises';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import type { pki as PKI } from 'node-forge';
 import { md, pki } from 'node-forge';
 import { join } from 'path';

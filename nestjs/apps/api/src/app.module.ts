@@ -12,10 +12,10 @@ import { BackupsResolver } from './backups/backups.resolver.js';
 import { GlobalModule } from './global.module.js';
 import { HostController } from './hosts/hosts.controller.js';
 import { HostsResolver } from './hosts/hosts.resolver.js';
-import { JobResolver } from './queue/job.resolver.js';
 import { QueueController } from './queue/queue.controller.js';
 import { QueueResolver } from './queue/queue.resolver.js';
 import { QueueService } from './queue/queue.service.js';
+import { QueueUtils } from './queue/queue.utils.js';
 import { ServeStaticService } from './server/serve-static.service.js';
 import { ServerController } from './server/server.controller.js';
 import { ServerService } from './server/server.service.js';
@@ -61,10 +61,10 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     BigIntScalar,
     HostController,
     HostsResolver,
-    JobResolver,
     QueueController,
     QueueResolver,
     QueueService,
+    QueueUtils,
     ServerController,
     ServerService,
     ServeStaticService,

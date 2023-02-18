@@ -1,25 +1,28 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
-import { BackupTask, Job, SchedulerConfigService } from '@woodstock/shared';
-import Bull, { Job as BullJob, JobState, Queue } from 'bullmq';
+import { Job, SchedulerConfigService } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
+import { JobState, Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.dto.js';
+import { QueueUtils } from './queue.utils.js';
 
 @Resolver()
 export class QueueResolver {
   constructor(
-    @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
+    @InjectQueue('queue') private backupQueue: Queue<JobBackupData>,
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
     private scheduler: SchedulerConfigService,
+    private queueUtils: QueueUtils,
   ) {}
 
   @Query(() => [Job])
-  async queue(
-    @Args('state', { type: () => [String], defaultValue: [] }) states: JobState[],
-  ): Promise<Bull.Job<BackupTask>[]> {
-    return await this.backupQueue.getJobs(states);
+  async queue(@Args('state', { type: () => [String], defaultValue: [] }) states: JobState[]): Promise<Job[]> {
+    const jobs = await this.backupQueue.getJobs(states);
+
+    return Promise.all(jobs.map(async (job) => await this.queueUtils.getJob(job)));
   }
 
   @Query(() => QueueStats)
@@ -47,7 +50,7 @@ export class QueueResolver {
   }
 
   @Subscription(() => Job)
-  jobUpdated(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobUpdated(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobUpdated');
   }
 
@@ -57,12 +60,12 @@ export class QueueResolver {
   }
 
   @Subscription(() => Job)
-  jobFailed(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobFailed(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobFailed');
   }
 
   @Subscription(() => Job)
-  jobRemoved(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobRemoved(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobRemoved');
   }
 }

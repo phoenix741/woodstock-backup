@@ -6,27 +6,4 @@ query Dashboard {
     lastExecution
     nextWakeup
   }
-  diskUsageStats {
-    currentRepartition {
-      host
-      total
-    }
-    compressionStats {
-      timestamp
-      diskUsage
-      uncompressed
-    }
-    currentSpace {
-      size
-      used
-    }
-    quotas {
-      timestamp
-      total {
-        refr
-        excl
-        total
-      }
-    }
-  }
 }

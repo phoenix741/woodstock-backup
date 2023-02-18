@@ -3,7 +3,6 @@ import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
 import { catchError, concatAll, concatMap, filter, map } from 'ix/asynciterable/operators';
 import { ProtobufService } from '../input-output/protobuf.service.js';
-import { ManifestChunk } from './manifest.interface.js';
 import {
   EntryType,
   FileManifest,
@@ -14,6 +13,7 @@ import {
 } from '../shared';
 import { isExists, notUndefined } from '../utils';
 import { IndexManifest } from './index-manifest.model.js';
+import { ManifestChunk } from './manifest.interface.js';
 import { Manifest } from './manifest.model.js';
 
 @Injectable()

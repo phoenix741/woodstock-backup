@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ApplicationConfigService, ExecuteCommandService, ToolsService } from '@woodstock/shared';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { CommandCheck, ServerChecks } from './server.dto.js';
 
 @Injectable()

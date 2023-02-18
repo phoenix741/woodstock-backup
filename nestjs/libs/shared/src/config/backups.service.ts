@@ -22,10 +22,6 @@ export class BackupsService {
     return join(this.configService.hostPath, hostname, 'backup.yml');
   }
 
-  getLockFile(hostname: string): string {
-    return join(this.configService.hostPath, hostname, 'LOCK');
-  }
-
   getDestinationDirectory(hostname: string, backupNumber: number): string {
     return join(this.configService.hostPath, hostname, '' + backupNumber);
   }
@@ -98,6 +94,15 @@ export class BackupsService {
   async getLastBackup(hostname: string): Promise<Backup | undefined> {
     const backups = await this.getBackups(hostname);
     return backups.length ? backups[backups.length - 1] : undefined;
+  }
+
+  async getPreviousBackup(hostname: string, number: number): Promise<Backup | undefined> {
+    // Sorted by number desc
+    const backups = (await this.getBackups(hostname)).sort((a, b) => b.number - a.number);
+    // Remove the last backup
+    while (![number, undefined].includes(backups.shift()?.number)) {}
+
+    return backups.shift();
   }
 
   async addOrReplaceBackup(hostname: string, backup: Backup): Promise<void> {

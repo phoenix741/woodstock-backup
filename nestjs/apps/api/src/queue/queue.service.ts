@@ -1,17 +1,18 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
-import { BackupTask } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
 import { Queue } from 'bullmq';
 import { PubSub } from 'graphql-subscriptions';
+import { QueueUtils } from './queue.utils';
 
 @QueueEventsListener('queue')
 export class QueueService extends QueueEventsHost {
   private logger = new Logger(QueueService.name);
 
   constructor(
-    @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
-
+    @InjectQueue('queue') private backupQueue: Queue<JobBackupData>,
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
+    private queueUtils: QueueUtils,
   ) {
     super();
   }
@@ -21,7 +22,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} was active.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -30,7 +31,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} was added.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -39,7 +40,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} was delayed.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -59,7 +60,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} was completed.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -68,7 +69,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} for the host ${job.data.host} is in progress.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -77,7 +78,7 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.warn(`Job ${job.id}, for the host ${job.data.host} was stalled.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -87,8 +88,8 @@ export class QueueService extends QueueEventsHost {
     if (job) {
       this.logger.error(`Error when processing the job ${job.id} with the error ${failedReason}`);
 
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
-      this.pubSub.publish('jobFailed', { jobFailed: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
+      this.pubSub.publish('jobFailed', { jobFailed: await this.queueUtils.getJob(job) });
     }
   }
 
@@ -97,8 +98,8 @@ export class QueueService extends QueueEventsHost {
     const job = await this.backupQueue.getJob(jobId);
     if (job) {
       this.logger.log(`Job ${job.id} was removed from the queue.`);
-      this.pubSub.publish('jobUpdated', { jobUpdated: job });
-      this.pubSub.publish('jobRemoved', { jobRemoved: job });
+      this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
+      this.pubSub.publish('jobRemoved', { jobRemoved: await this.queueUtils.getJob(job) });
     }
   }
 }

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { rename, writeFile } from 'fs/promises';
 import * as yaml from 'js-yaml';
 import * as Long from 'long';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { dirname } from 'path';
 import { compact, tmpNameAsync } from '../utils';
 
@@ -84,7 +84,7 @@ export class YamlService {
   /**
    * Save the object in the file with the filename
    */
-  async writeFile<T>(filename: string, obj: T): Promise<void> {
+  async writeFile<T extends object>(filename: string, obj: T): Promise<void> {
     this.#logger.verbose(`Write the file ${filename} with ${JSON.stringify(obj)}`);
     await mkdirp(dirname(filename));
 
@@ -100,7 +100,7 @@ export class YamlService {
   /**
    * Save the object in the buffer
    */
-  async writeBuffer<T>(obj: T): Promise<string> {
+  async writeBuffer<T extends object>(obj: T): Promise<string> {
     this.#logger.verbose(`Write the buffer with ${JSON.stringify(obj)}`);
 
     return yaml.dump(compact(obj), { schema: YAML_SCHEMA });

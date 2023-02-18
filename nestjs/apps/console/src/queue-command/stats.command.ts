@@ -1,5 +1,5 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
-import { BackupTask } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
 import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { Command, Console, createSpinner } from 'nestjs-console';
@@ -13,8 +13,8 @@ export class StatsCommand extends QueueEventsHost {
   private jobId?: string;
 
   constructor(
-    @InjectQueue('stats') private statsQueue: Queue<BackupTask>,
-    @InjectQueue('queue') private hostsQueue: Queue<BackupTask>,
+    @InjectQueue('stats') private statsQueue: Queue<JobBackupData>,
+    @InjectQueue('queue') private hostsQueue: Queue<JobBackupData>,
     @InjectQueue('schedule') private scheduleQueue: Queue<unknown>,
   ) {
     super();

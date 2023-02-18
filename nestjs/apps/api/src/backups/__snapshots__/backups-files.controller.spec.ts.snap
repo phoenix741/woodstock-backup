@@ -2,16 +2,16 @@
 
 exports[`Backups File Controller should download zip file: append 1`] = `
 [MockFunction] {
-  "calls": Array [
-    Array [
+  "calls": [
+    [
       "test",
-      Object {
+      {
         "name": "test",
       },
     ],
   ],
-  "results": Array [
-    Object {
+  "results": [
+    {
       "type": "return",
       "value": undefined,
     },
@@ -21,16 +21,16 @@ exports[`Backups File Controller should download zip file: append 1`] = `
 
 exports[`Backups File Controller should download zip file: append 2`] = `
 [MockFunction] {
-  "calls": Array [
-    Array [
+  "calls": [
+    [
       "test",
-      Object {
+      {
         "name": "test",
       },
     ],
   ],
-  "results": Array [
-    Object {
+  "results": [
+    {
       "type": "return",
       "value": undefined,
     },
@@ -51,8 +51,8 @@ EventEmitter {
   "_getRenderView": [Function],
   "_getStatusCode": [Function],
   "_getStatusMessage": [Function],
-  "_headers": Object {
-    "content-disposition": "attachment; filename=\\"download.zip\\"",
+  "_headers": {
+    "content-disposition": "attachment; filename="download.zip"",
     "content-type": "application/zip",
   },
   "_isDataLengthValid": [Function],
@@ -64,7 +64,7 @@ EventEmitter {
   "clearCookie": [Function],
   "contentType": [Function],
   "cookie": [Function],
-  "cookies": Object {},
+  "cookies": {},
   "destroy": [Function],
   "destroySoon": [Function],
   "end": [Function],
@@ -80,7 +80,7 @@ EventEmitter {
   "headersSent": false,
   "json": [Function],
   "jsonp": [Function],
-  "locals": Object {},
+  "locals": {},
   "location": [Function],
   "redirect": [Function],
   "removeHeader": [Function],
@@ -115,8 +115,8 @@ EventEmitter {
   "_getRenderView": [Function],
   "_getStatusCode": [Function],
   "_getStatusMessage": [Function],
-  "_headers": Object {
-    "content-disposition": "attachment; filename=\\"download.zip\\"",
+  "_headers": {
+    "content-disposition": "attachment; filename="download.zip"",
     "content-type": "application/zip",
   },
   "_isDataLengthValid": [Function],
@@ -128,7 +128,7 @@ EventEmitter {
   "clearCookie": [Function],
   "contentType": [Function],
   "cookie": [Function],
-  "cookies": Object {},
+  "cookies": {},
   "destroy": [Function],
   "destroySoon": [Function],
   "end": [Function],
@@ -144,7 +144,7 @@ EventEmitter {
   "headersSent": false,
   "json": [Function],
   "jsonp": [Function],
-  "locals": Object {},
+  "locals": {},
   "location": [Function],
   "redirect": [Function],
   "removeHeader": [Function],

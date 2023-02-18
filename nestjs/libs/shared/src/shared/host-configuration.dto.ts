@@ -1,5 +1,5 @@
-import { createUnionType, Field, ObjectType } from '@nestjs/graphql';
-import { ApiExtraModels, ApiProperty, getSchemaPath } from '@nestjs/swagger';
+import { Field, ObjectType } from '@nestjs/graphql';
+import { ApiExtraModels, ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
 import { IsNumber, Matches, Max, Min, ValidateNested } from 'class-validator';
 import { Schedule } from './scheduler.dto.js';
@@ -45,20 +45,12 @@ export class DhcpAddress {
 
 @ObjectType()
 export class ExecuteCommandOperation {
-  @ApiProperty({ type: String, enum: ['ExecuteCommand'] })
-  @Field(() => String)
-  name!: 'ExecuteCommand';
-
   @ApiProperty({ example: '/bin/true' })
   command!: string;
 }
 
 @ObjectType()
 export class BackupOperation {
-  @ApiProperty({ type: String, enum: ['Backup'] })
-  @Field(() => String)
-  name!: 'Backup';
-
   @ValidateNested()
   shares!: Array<BackupTaskShare>;
 
@@ -73,43 +65,23 @@ export class BackupOperation {
   timeout?: number;
 }
 
-export type Operation = ExecuteCommandOperation | BackupOperation;
-
-export const OperationUnion = createUnionType({
-  name: 'Operation',
-  types: () => [ExecuteCommandOperation, BackupOperation],
-  resolveType(value) {
-    if (value.command) {
-      return ExecuteCommandOperation;
-    } else if (value.share) {
-      return BackupOperation;
-    }
-    return null;
-  },
-});
-
 @ApiExtraModels(BackupOperation, ExecuteCommandOperation)
 @ObjectType()
 export class HostConfigOperation {
-  @ApiProperty({
-    type: 'array',
-    items: {
-      oneOf: [{ $ref: getSchemaPath(ExecuteCommandOperation) }, { $ref: getSchemaPath(BackupOperation) }],
-    },
-  })
+  @ApiProperty({ type: [ExecuteCommandOperation] })
   @ValidateNested()
-  @Field(() => [OperationUnion])
-  tasks?: Operation[];
+  @Field(() => [ExecuteCommandOperation])
+  preCommands?: ExecuteCommandOperation[];
 
-  @ApiProperty({
-    type: 'array',
-    items: {
-      oneOf: [{ $ref: getSchemaPath(ExecuteCommandOperation) }, { $ref: getSchemaPath(BackupOperation) }],
-    },
-  })
+  @ApiProperty({ type: BackupOperation })
   @ValidateNested()
-  @Field(() => [OperationUnion])
-  finalizeTasks?: Operation[];
+  @Field(() => BackupOperation)
+  operation?: BackupOperation;
+
+  @ApiProperty({ type: [ExecuteCommandOperation] })
+  @ValidateNested()
+  @Field(() => [ExecuteCommandOperation])
+  postCommands?: ExecuteCommandOperation[];
 }
 
 /**

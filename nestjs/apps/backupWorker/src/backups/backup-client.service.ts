@@ -6,6 +6,7 @@ import {
   ChunkInformation,
   concurrentMap,
   EntryType,
+  ExecuteCommandReply,
   FileBrowserService,
   FileManifest,
   FileManifestJournalEntry,
@@ -56,7 +57,12 @@ export class BackupClient {
     private poolChunkRefCnt: RefCntService,
   ) {}
 
-  async authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Promise<void> {
+  async authenticate(
+    context: BackupsGrpcContext,
+    logger: LoggerService,
+    clientLogger: LoggerService,
+    password: string,
+  ): Promise<void> {
     this.logger.log(`Authenticate to ${context.host} (${context.ip})`);
 
     const reply = await this.clientGrpc.authenticate(context, password);
@@ -75,40 +81,40 @@ export class BackupClient {
         (log) => {
           switch (log.level) {
             case LogLevel.verbose:
-              logger.debug?.(log.line, log.context);
+              clientLogger.debug?.(log.line, log.context);
               break;
             case LogLevel.debug:
-              logger.debug?.(log.line, log.context);
+              clientLogger.debug?.(log.line, log.context);
               break;
             case LogLevel.error:
-              logger.error(log.line, log.context);
+              clientLogger.error(log.line, log.context);
               break;
             case LogLevel.warn:
-              logger.warn(log.line, log.context);
+              clientLogger.warn(log.line, log.context);
               break;
             default:
-              logger.log(log.line, log.context);
+              clientLogger.log(log.line, log.context);
               break;
           }
         },
         { signal: ac.signal },
       )
       .then(() => {
-        logger.log('The backup process has been completed', 'logger');
+        clientLogger.log('The backup process has been completed', 'logger');
       })
       .catch((err) => {
-        logger.error(`The backup process has been failed: ${err.message}`, 'logger');
+        clientLogger.error(`The backup process has been failed: ${err.message}`, 'logger');
       });
 
     this.logger.log(`Authentication has been completed: ${context.sessionId}`);
   }
 
-  executeCommand(context: BackupsGrpcContext, command: string): Promise<void> {
+  async executeCommand(context: BackupsGrpcContext, command: string): Promise<ExecuteCommandReply> {
     this.logger.log(`Execute command (${context.sessionId}): ${command}`);
 
     context.logger?.log(`Execute command: ${command}`, 'executeCommand');
 
-    return this.clientGrpc.executeCommand(context, command);
+    return await this.clientGrpc.executeCommand(context, command);
   }
 
   getFileList(context: BackupsGrpcContext, backupShare: Share): Observable<FileManifestJournalEntry> {
@@ -242,10 +248,11 @@ export class BackupClient {
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
+      let errorCount = 0;
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
         // TODO: Define the concurrency
-        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | undefined>(20, async (entry) => {
+        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | Error>(20, async (entry) => {
           try {
             if (
               entry?.type !== EntryType.REMOVE &&
@@ -263,20 +270,27 @@ export class BackupClient {
               return entry;
             }
           } catch (err) {
-            // FIXME: Gérer l'erreur
-            console.log(err.stack);
-            this.logger.error(`${entry.manifest?.path.toString()}: ${(err as Error).message}`, err);
-            return undefined;
+            // FIXME: Gérer l'erreur, quelle erreur quand le fichier change ou est supprimé???
+            errorCount++;
+            this.logger.verbose(
+              `Can't download chunk for ${entry.manifest?.path.toString()}: '${(err as Error).message}'`,
+            );
+            return err;
           }
         }),
-        finalize(() => chunkSink.end()),
+        finalize(() => {
+          this.logger.verbose('All chunks are downloaded');
+          chunkSink.end();
+        }),
       );
 
       const journalEntry = this.manifestService.writeJournalEntry(entries, manifest, async (entry) => {
-        if (entry) {
+        const isError = entry instanceof Error;
+        if (!isError) {
           subscriber.next(entry);
+          return entry;
         }
-        return entry;
+        return undefined;
       });
 
       const referenceCountFiles = new ReferenceCount(
@@ -287,6 +301,11 @@ export class BackupClient {
       const refCntEntry = this.poolChunkRefCnt.addChunkInformationToRefCnt(
         fromIx(chunkSink).pipe(
           map(async (entry) => {
+            this.logger.verbose(
+              `Add chunk to refcnt: ${entry.sha256.toString('hex')} (size = ${entry.size}, compressedSize = ${
+                entry.compressedSize
+              }))`,
+            );
             if (entry) {
               subscriber.next(entry);
             }
@@ -303,7 +322,11 @@ export class BackupClient {
 
       Promise.all([journalEntry, refCntEntry])
         .then(() => {
-          subscriber.complete();
+          if (errorCount === 0) {
+            subscriber.complete();
+          } else {
+            subscriber.error(new Error(`Can't download ${errorCount} chunks`));
+          }
         })
         .catch((err) => {
           subscriber.error(err);
@@ -403,7 +426,8 @@ export class BackupClient {
 
       // Close connection
       context.sessionId = undefined;
-      context.client.close();
+
+      this.clientGrpc.close(context);
 
       this.logger.log(`Connection closed (${context.sessionId})`);
     } catch (err) {

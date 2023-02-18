@@ -1,7 +1,7 @@
 query RunningTasksMenu($state: [String!]) {
   queue(state: $state) {
     id
-    progress
+    name
     state
     data {
       host

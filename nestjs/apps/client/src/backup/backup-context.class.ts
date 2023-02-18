@@ -14,12 +14,12 @@ import {
   RefreshCacheReply,
   RefreshCacheRequest,
   Share,
+  split,
   StatusCode,
 } from '@woodstock/shared';
 import { createReadStream, ReadStream } from 'fs';
-import { throwIfAborted } from 'ix/aborterror';
-import { AsyncIterableX, concat, create, from, of } from 'ix/asynciterable';
-import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/operators';
+import { AsyncIterableX, concat, from, of } from 'ix/asynciterable';
+import { catchError, concatAll, filter, finalize, map, tap } from 'ix/asynciterable/operators';
 
 export class BackupContext {
   private logger = new Logger(BackupContext.name);
@@ -42,56 +42,17 @@ export class BackupContext {
   private async createManifestsFromSource(request: AsyncIterableX<RefreshCacheRequest>) {
     this.logger.log(`Start creating manifests from source`);
 
-    // First search the first header
-    const it = request[Symbol.asyncIterator]();
-    let next: IteratorResult<RefreshCacheRequest, RefreshCacheRequest>;
-    let sharePath: Buffer | undefined;
-    let firstManifest: FileManifest | undefined;
+    const isHeader = (v: RefreshCacheRequest) => v.header?.sharePath;
+    const groupOfManifest = request.pipe(split(isHeader));
 
-    while (!(next = await it.next()).done) {
-      const { header, fileManifest } = next.value;
-      sharePath = header?.sharePath;
-      firstManifest = fileManifest;
-      if (sharePath) {
-        break;
-      }
-    }
+    for await (const group of groupOfManifest) {
+      const sharePath = group.key;
+      const manifests = group.iterable.pipe(
+        map((v) => v.fileManifest),
+        notUndefined(),
+      );
 
-    if (!sharePath) {
-      this.logger.warn(`No content from the source`);
-      return;
-    }
-    this.logger.log(`Starting backup for share ${sharePath.toString('utf8')}`);
-    const logger = this.logger;
-
-    while (!next.done) {
-      // Then create an iterator for the rest
-      const dataIt = create<FileManifest | undefined>((signal) => {
-        return {
-          async next() {
-            throwIfAborted(signal);
-
-            next = await it.next();
-
-            if (next.done) {
-              return { done: true, value: undefined };
-            }
-
-            const { header, fileManifest } = next.value;
-            if (header?.sharePath) {
-              logger.log(`Starting backup for share ${header.sharePath.toString('utf8')}`);
-              sharePath = header.sharePath;
-              firstManifest = fileManifest;
-              return { done: true, value: undefined };
-            }
-
-            return { value: fileManifest };
-          },
-        };
-      });
-
-      // Then create the manifest
-      await this.createManifestForSharePath(sharePath, firstManifest ? concat(of(firstManifest), dataIt) : dataIt);
+      await this.createManifestForSharePath(sharePath, manifests);
     }
   }
 

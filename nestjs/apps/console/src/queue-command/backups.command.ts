@@ -1,5 +1,6 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
-import { BackupTask, HostsService } from '@woodstock/shared';
+import { HostsService } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
 import { Queue } from 'bullmq';
 import { Command as Cmd } from 'commander';
 import { promises as fs } from 'fs';
@@ -21,7 +22,7 @@ export class BackupsCommand extends QueueEventsHost {
   private spinner?: ReturnType<typeof createSpinner>;
   private jobId?: string;
 
-  constructor(@InjectQueue('queue') private hostsQueue: Queue<BackupTask>, private hostsService: HostsService) {
+  constructor(@InjectQueue('queue') private hostsQueue: Queue<JobBackupData>, private hostsService: HostsService) {
     super();
   }
 
@@ -36,8 +37,7 @@ export class BackupsCommand extends QueueEventsHost {
     const config = await this.hostsService.getHostConfiguration(host);
     config.isLocal = true;
     config.operations = config.operations || {};
-    config.operations.finalizeTasks = [];
-    config.operations.tasks = config.operations.tasks?.filter((operation) => operation.name !== 'ExecuteCommand');
+    config.operations.operation = config.operations.operation;
 
     let job = await this.hostsQueue.add('backup', {
       config,

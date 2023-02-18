@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { createReadStream, createWriteStream } from 'fs';
 import { rename, unlink } from 'fs/promises';
 import { from, never } from 'ix/asynciterable';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { dirname } from 'path';
 import type { Type } from 'protobufjs';
 import * as stream from 'stream';
@@ -54,7 +54,12 @@ export class ProtobufService {
    * @param source - The source of the data to write.
    * @returns A promise that resolves to the real filename.
    */
-  async writeFile<O>(path: string, type: Type, source: AsyncIterable<O>, compress = true): Promise<void> {
+  async writeFile<O extends object>(
+    path: string,
+    type: Type,
+    source: AsyncIterable<O>,
+    compress = true,
+  ): Promise<void> {
     this.#logger.debug(`Write the file ${path} with type ${type.name}`);
 
     await mkdirp(dirname(path));
@@ -80,7 +85,12 @@ export class ProtobufService {
    * @param source - The source of the data to write.
    * @returns None
    */
-  async atomicWriteFile<O>(path: string, type: Type, source: AsyncIterable<O>, compress = true): Promise<void> {
+  async atomicWriteFile<O extends object>(
+    path: string,
+    type: Type,
+    source: AsyncIterable<O>,
+    compress = true,
+  ): Promise<void> {
     this.#logger.debug(`Atomic write the file ${path} with type ${type.name}`);
 
     const tmpFilename = await tmpNameAsync({

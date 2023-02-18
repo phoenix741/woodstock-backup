@@ -30,24 +30,21 @@ export class BrowserCommand {
 
     spinner.text = `Get shares for ${host} - ${path}`;
     // Search the shares that matches the path
-    const shares = [...(config.operations?.tasks || []), ...(config.operations?.finalizeTasks || [])]
-      .filter((task): task is BackupOperation => task.name === 'Backup')
-      .flatMap((task) => {
-        return task.shares.map((share) => ({
-          name: share.name,
-          includes: [...(share.includes || []), ...(task.includes || [])],
-          excludes: [...(share.excludes || []), ...(task.excludes || [])],
-        }));
-      })
+    const shares = config.operations?.operation?.shares
+      .map((share) => ({
+        name: share.name,
+        includes: [...(share.includes || []), ...(config.operations?.operation?.includes || [])],
+        excludes: [...(share.excludes || []), ...(config.operations?.operation?.excludes || [])],
+      }))
       .filter((share) => path.startsWith(share.name));
 
     // Browser each shares
-    for (const share of shares) {
+    for (const share of shares || []) {
       spinner.text = `Browse ${host} - ${path}`;
       const files = this.browser.getFiles(Buffer.from(path))(
         Buffer.from(''),
-        share.includes?.map((s) => globStringToRegex(s)),
-        share.excludes?.map((s) => globStringToRegex(s)),
+        share.includes?.map((s) => globStringToRegex(s)) || [],
+        share.excludes?.map((s) => globStringToRegex(s)) || [],
       );
 
       let fileCount = 0;

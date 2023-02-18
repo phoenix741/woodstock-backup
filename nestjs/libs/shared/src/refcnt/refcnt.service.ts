@@ -2,19 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import { concat, from, reduce } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
-import { lock } from 'proper-lockfile';
-import { PoolRefCount, PoolUnused } from '../shared';
+import { LockService, PoolRefCount, PoolUnused } from '../shared';
 import { ProtoPoolRefCount, ProtoPoolUnused } from '../shared/woodstock.model.js';
 import { ProtobufService } from '../input-output/protobuf.service.js';
 import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
 import { SetOfPoolUnused } from './refcnt.interface';
 import { PoolStatistics } from '../statistics/statistics.interface';
 
+const REFCNT_LOCK_TIMEOUT = 60 * 1000;
+
 @Injectable()
 export class RefCntService {
   private logger = new Logger(RefCntService.name);
 
   constructor(
+    private readonly lockService: LockService,
     private readonly protobufService: ProtobufService,
     private readonly statsService: PoolStatisticsService,
   ) {}
@@ -170,58 +172,76 @@ export class RefCntService {
 
   async addBackupRefcntTo(fileToChangePath: string, backupRefcntPath?: string, unusedPath?: string): Promise<void> {
     this.logger.debug(`Add ${backupRefcntPath} ref count to ${fileToChangePath}`);
-    const unlock = await lock(fileToChangePath, { realpath: false });
-    try {
-      const fileToUpdate = this.readRefCnt(fileToChangePath);
-      const backupRefcnt = backupRefcntPath ? this.readRefCnt(backupRefcntPath) : from([]);
-      const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
+    await this.lockService.using(
+      [fileToChangePath, backupRefcntPath, unusedPath].filter((v): v is string => !!v),
+      REFCNT_LOCK_TIMEOUT,
+      async (signal) => {
+        try {
+          const fileToUpdate = this.readRefCnt(fileToChangePath);
+          const backupRefcnt = backupRefcntPath ? this.readRefCnt(backupRefcntPath) : from([]);
+          const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
-      const unusedArray = await SetOfPoolUnused.fromIterator(unused);
+          const unusedArray = await SetOfPoolUnused.fromIterator(unused);
 
-      const statistics = new PoolStatistics();
-      const rrefcnt = await this.#calculateRefCount(concat(fileToUpdate, backupRefcnt), statistics, unusedArray);
+          const statistics = new PoolStatistics();
+          const rrefcnt = await this.#calculateRefCount(concat(fileToUpdate, backupRefcnt), statistics, unusedArray);
 
-      if (unusedPath) {
-        await this.writeUnused(unusedArray.toIterator(), unusedPath);
-      }
-      await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
-      await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
-    } catch (err) {
-      this.logger.log(`Error while compacting ref count from ${fileToChangePath} : ${err.message}`, err);
-    } finally {
-      await unlock();
-      this.logger.debug(`[END] Compact ref count from ${fileToChangePath}`);
-    }
+          if (signal.aborted) {
+            throw signal.error;
+          }
+
+          if (unusedPath) {
+            await this.writeUnused(unusedArray.toIterator(), unusedPath);
+          }
+          await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
+          await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
+        } catch (err) {
+          this.logger.log(`Error while compacting ref count from ${fileToChangePath} : ${err.message}`, err);
+        } finally {
+          this.logger.debug(`[END] Compact ref count from ${fileToChangePath}`);
+        }
+      },
+    );
   }
 
   /** ************** File removing ************************* */
 
   async removeBackupRefcntTo(fileToChangePath: string, backupRefcntPath: string, unusedPath?: string): Promise<void> {
     this.logger.debug(`Remove ${backupRefcntPath} ref count to ${fileToChangePath}`);
-    const unlock = await lock(fileToChangePath, { realpath: false });
-    try {
-      const fileToChange = this.readRefCnt(fileToChangePath);
-      const backupRefcnt = from(this.readRefCnt(backupRefcntPath)).pipe(map((v) => ({ ...v, refCount: -v.refCount })));
-      const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
+    await this.lockService.using(
+      [fileToChangePath, backupRefcntPath, unusedPath].filter((v): v is string => !!v),
+      REFCNT_LOCK_TIMEOUT,
+      async (signal) => {
+        try {
+          const fileToChange = this.readRefCnt(fileToChangePath);
+          const backupRefcnt = from(this.readRefCnt(backupRefcntPath)).pipe(
+            map((v) => ({ ...v, refCount: -v.refCount })),
+          );
+          const unused = unusedPath ? this.readUnused(unusedPath) : from([]);
 
-      const unusedArray = await SetOfPoolUnused.fromIterator(unused);
+          const unusedArray = await SetOfPoolUnused.fromIterator(unused);
 
-      const originalCount = await this.#calculateRefCount(fileToChange, new PoolStatistics(), unusedArray);
+          const originalCount = await this.#calculateRefCount(fileToChange, new PoolStatistics(), unusedArray);
 
-      const statistics = new PoolStatistics();
-      const rrefcnt = await this.#calculateRefCount(backupRefcnt, statistics, unusedArray, originalCount);
+          const statistics = new PoolStatistics();
+          const rrefcnt = await this.#calculateRefCount(backupRefcnt, statistics, unusedArray, originalCount);
 
-      if (unusedPath) {
-        await this.writeUnused(unusedArray.toIterator(), unusedPath);
-      }
-      await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
-      await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
-    } catch (err) {
-      this.logger.error(`Error while cleaning up ref count : ${err.message}`, err);
-    } finally {
-      await unlock();
-      this.logger.debug(`[END] Cleanup ref count from ${fileToChangePath} done`);
-    }
+          if (signal.aborted) {
+            throw signal.error;
+          }
+
+          if (unusedPath) {
+            await this.writeUnused(unusedArray.toIterator(), unusedPath);
+          }
+          await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
+          await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
+        } catch (err) {
+          this.logger.error(`Error while cleaning up ref count : ${err.message}`, err);
+        } finally {
+          this.logger.debug(`[END] Cleanup ref count from ${fileToChangePath} done`);
+        }
+      },
+    );
   }
 
   async deleteRefcnt(refcnt: string): Promise<void> {

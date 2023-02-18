@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'crypto';
 import { readFile, writeFile } from 'fs/promises';
 import type { GetPublicKeyOrSecret, Jwt, JwtPayload, Secret, SignOptions, VerifyOptions } from 'jsonwebtoken';
 import { sign, verify } from 'jsonwebtoken';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { pki } from 'node-forge';
 import { join } from 'path';
 import { promisify } from 'util';
