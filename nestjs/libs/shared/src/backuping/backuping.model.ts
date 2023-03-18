@@ -1,6 +1,5 @@
 import { BadRequestException, LoggerService } from '@nestjs/common';
-import { HostConfiguration } from '@woodstock/shared';
-import { BackupsGrpcContext } from 'apps/backupWorker/src/backups/backup-client-grpc.class';
+import { HostConfiguration } from '../shared';
 
 export enum BackupNameTask {
   GROUP_INIT_TASK = 'init',
@@ -28,9 +27,21 @@ export class JobBackupData {
   number?: number;
   ip?: string;
   startDate?: number;
+
+  pathPrefix?: string;
   originalStartDate?: number;
 
   force?: boolean;
+}
+
+export interface BackupClientContext {
+  isLocal: boolean;
+  sessionId?: string;
+  host: string;
+  ip?: string;
+  currentBackupId: number;
+  logger?: LoggerService;
+  abortable: AbortController[];
 }
 
 export class BackupContext {
@@ -42,10 +53,10 @@ export class BackupContext {
 
   startDate: number = new Date().getTime();
 
-  connection: BackupsGrpcContext;
+  connection: BackupClientContext;
   clientLogger: LoggerService;
 
-  constructor(jobData: JobBackupData, clientLogger: LoggerService, connection: BackupsGrpcContext) {
+  constructor(jobData: JobBackupData, clientLogger: LoggerService, connection: BackupClientContext) {
     if (!jobData.config || jobData.number === undefined || (!jobData.ip && !jobData.config.isLocal)) {
       throw new BadRequestException(`Initialisation of backup failed.`);
     }
@@ -55,26 +66,9 @@ export class BackupContext {
     this.previousNumber = jobData.previousNumber;
     this.number = jobData.number;
     this.ip = jobData.ip;
+    this.startDate = jobData.startDate ?? this.startDate;
 
     this.clientLogger = clientLogger;
     this.connection = connection;
   }
-}
-
-export interface GroupContext {
-  description?: string;
-}
-
-export interface CommandContext {
-  command: string;
-}
-
-export interface RefreshCacheContext {
-  shares: string[];
-}
-
-export interface BackupShareContext {
-  includes: Buffer[];
-  excludes: Buffer[];
-  sharePath: Buffer;
 }

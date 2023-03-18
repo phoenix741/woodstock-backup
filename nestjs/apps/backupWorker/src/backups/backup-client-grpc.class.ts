@@ -5,6 +5,7 @@ import { ClientGrpcProxy, ClientProxyFactory, Transport } from '@nestjs/microser
 import {
   ApplicationConfigService,
   AuthenticateReply,
+  BackupClientContext,
   ChunkInformation,
   ChunkStatus,
   EncryptionService,
@@ -22,16 +23,18 @@ import {
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
 import { AsyncIterableX, from } from 'ix/asynciterable';
-import { catchError, filter, map } from 'ix/asynciterable/operators';
+import { filter, map } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
-import { BackupClientContext, BackupClientInterface } from './backup-client.interface.js';
+import { BackupClientInterface } from './backup-client.interface.js';
 import { LaunchBackupError } from './backup.error.js';
 
 export class BackupsGrpcContext implements BackupClientContext {
+  isLocal = false;
   sessionId?: string;
   logger?: LoggerService;
+
   abortable: AbortController[] = [];
   client?: ClientGrpcProxy;
 
@@ -48,26 +51,27 @@ export class BackupClientGrpc implements BackupClientInterface {
 
   constructor(private config: ApplicationConfigService, private encryptionService: EncryptionService) {}
 
-  checkConnection(context: BackupsGrpcContext): WoodstockClientServiceClient {
-    if (!context.service) {
+  #checkConnection(context: BackupClientContext): WoodstockClientServiceClient {
+    const contextAsGrpc = context as BackupsGrpcContext;
+    if (!contextAsGrpc.service) {
       throw new LaunchBackupError(`No connection to host ${context.host}`);
     }
 
-    const status = context.service?.getChannel().getConnectivityState(true);
+    const status = contextAsGrpc.service?.getChannel().getConnectivityState(true);
     if ([ConnectivityState.SHUTDOWN, ConnectivityState.TRANSIENT_FAILURE].includes(status)) {
       throw new LaunchBackupError(`Connection to host ${context.host} is down`);
     }
 
-    return context.service;
+    return contextAsGrpc.service;
   }
 
-  createContext(ip: string | undefined, hostname: string, currentBackupId: number): BackupsGrpcContext {
+  createContext(ip: string | undefined, hostname: string, currentBackupId: number): BackupClientContext {
     this.logger.log(`Create context to ${hostname} (${ip})`);
 
     return new BackupsGrpcContext(hostname, ip, currentBackupId);
   }
 
-  async createConnection(context: BackupsGrpcContext): Promise<void> {
+  async createConnection(context: BackupClientContext): Promise<void> {
     this.logger.log(`Create connection to ${context.host} (${context.ip})`);
     if (!context.ip) {
       throw new Error(`No ip for ${context.host}`);
@@ -94,10 +98,10 @@ export class BackupClientGrpc implements BackupClientInterface {
       },
     });
 
-    context.client = client;
+    (context as BackupsGrpcContext).client = client;
   }
 
-  private getMetadata(context: BackupsGrpcContext) {
+  private getMetadata(context: BackupClientContext) {
     if (!context.sessionId) {
       throw new LaunchBackupError("Can't find the sessionId");
     }
@@ -107,14 +111,14 @@ export class BackupClientGrpc implements BackupClientInterface {
     return metadata;
   }
 
-  async authenticate(context: BackupsGrpcContext, password: string): Promise<AuthenticateReply> {
+  async authenticate(context: BackupClientContext, password: string): Promise<AuthenticateReply> {
     const token = await this.encryptionService.createAuthentificationToken(context.host, password);
     if (!token) {
       throw new UnauthorizedException("The token for the backup can't be generated");
     }
 
     return await new Promise<AuthenticateReply>((resolve, reject) => {
-      const service = this.checkConnection(context);
+      const service = this.#checkConnection(context);
 
       service.authenticate({ version: 0, token }, (err, reply) => {
         if (err) {
@@ -128,12 +132,10 @@ export class BackupClientGrpc implements BackupClientInterface {
     });
   }
 
-  streamLog(context: BackupsGrpcContext): AsyncIterableX<LogEntry> {
-    if (!context.service) {
-      throw new LaunchBackupError(`No connection tho host ${context.host}`);
-    }
+  streamLog(context: BackupClientContext): AsyncIterableX<LogEntry> {
+    const service = this.#checkConnection(context);
 
-    return context.service
+    return service
       .streamLog({}, this.getMetadata(context))
       .on('error', (err) => {
         context.logger?.error(`Can't get the stream from the client: ${err.message}`);
@@ -141,9 +143,9 @@ export class BackupClientGrpc implements BackupClientInterface {
       .pipe(asAsyncIterable<LogEntry>({ objectMode: true }));
   }
 
-  async executeCommand(context: BackupsGrpcContext, command: string): Promise<ExecuteCommandReply> {
+  async executeCommand(context: BackupClientContext, command: string): Promise<ExecuteCommandReply> {
     const executeCommand = new Promise<ExecuteCommandReply>((resolve, reject) => {
-      const service = this.checkConnection(context);
+      const service = this.#checkConnection(context);
 
       service.executeCommand({ command }, this.getMetadata(context), (err, reply) => {
         if (err) {
@@ -169,9 +171,9 @@ export class BackupClientGrpc implements BackupClientInterface {
     return reply;
   }
 
-  refreshCache(context: BackupsGrpcContext, request: AsyncIterable<RefreshCacheRequest>): Promise<RefreshCacheReply> {
+  refreshCache(context: BackupClientContext, request: AsyncIterable<RefreshCacheRequest>): Promise<RefreshCacheReply> {
     return new Promise((resolve, reject) => {
-      const service = this.checkConnection(context);
+      const service = this.#checkConnection(context);
 
       const abortController = new AbortController();
       const reader = Readable.from(request);
@@ -193,8 +195,8 @@ export class BackupClientGrpc implements BackupClientInterface {
     });
   }
 
-  downloadFileList(context: BackupsGrpcContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry> {
-    const service = this.checkConnection(context);
+  downloadFileList(context: BackupClientContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry> {
+    const service = this.#checkConnection(context);
 
     const grpclaunchBackup = service.launchBackup({ share: backupShare }, this.getMetadata(context));
     return from<LaunchBackupReply>(grpclaunchBackup).pipe(
@@ -208,8 +210,8 @@ export class BackupClientGrpc implements BackupClientInterface {
     );
   }
 
-  copyChunk(context: BackupsGrpcContext, chunk: ChunkInformation): Readable {
-    const service = this.checkConnection(context);
+  copyChunk(context: BackupClientContext, chunk: ChunkInformation): Readable {
+    const service = this.#checkConnection(context);
 
     const chunkResult = service.getChunk({ chunk }, this.getMetadata(context));
     chunkResult.on('error', () => {
@@ -230,7 +232,9 @@ export class BackupClientGrpc implements BackupClientInterface {
     );
   }
 
-  close(context: BackupsGrpcContext): void {
-    context.client?.close();
+  close(context: BackupClientContext): void {
+    if ((context as BackupsGrpcContext).client) {
+      (context as BackupsGrpcContext).client?.close();
+    }
   }
 }

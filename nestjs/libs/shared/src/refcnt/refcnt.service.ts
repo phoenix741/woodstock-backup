@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { concat, from, reduce } from 'ix/asynciterable';
+import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { dirname } from 'path';
+import { ProtobufService } from '../input-output/protobuf.service.js';
 import { LockService, PoolRefCount, PoolUnused } from '../shared';
 import { ProtoPoolRefCount, ProtoPoolUnused } from '../shared/woodstock.model.js';
-import { ProtobufService } from '../input-output/protobuf.service.js';
 import { PoolStatisticsService } from '../statistics/pool-statistics.service.js';
-import { SetOfPoolUnused } from './refcnt.interface';
 import { PoolStatistics } from '../statistics/statistics.interface';
+import { SetOfPoolUnused } from './refcnt.interface';
 
 const REFCNT_LOCK_TIMEOUT = 60 * 1000;
 
@@ -88,7 +88,7 @@ export class RefCntService {
     await this.protobufService.atomicWriteFile<PoolUnused>(filename, ProtoPoolUnused, source);
   }
 
-  readUnused(filename: string): AsyncIterable<PoolUnused> {
+  readUnused(filename: string): AsyncIterableX<PoolUnused> {
     this.logger.debug(`Read unused from ${filename}`);
     return from(this.protobufService.loadFile<PoolUnused>(filename, ProtoPoolUnused)).pipe(
       map((v) => v.message),

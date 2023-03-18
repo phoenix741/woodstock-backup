@@ -52,7 +52,7 @@ EventEmitter {
   "_getStatusCode": [Function],
   "_getStatusMessage": [Function],
   "_headers": {
-    "content-disposition": "attachment; filename="download.zip"",
+    "content-disposition": "attachment; filename="share_path.zip"",
     "content-type": "application/zip",
   },
   "_isDataLengthValid": [Function],
@@ -116,7 +116,7 @@ EventEmitter {
   "_getStatusCode": [Function],
   "_getStatusMessage": [Function],
   "_headers": {
-    "content-disposition": "attachment; filename="download.zip"",
+    "content-disposition": "attachment; filename="share_path.zip"",
     "content-type": "application/zip",
   },
   "_isDataLengthValid": [Function],

@@ -1,6 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { Job } from 'bullmq';
 import { instanceToPlain, plainToInstance } from 'class-transformer';
-import { catchError, concatMap, defer, from, map, Observable, of, startWith, tap } from 'rxjs';
+import {
+  catchError,
+  concatMap,
+  defer,
+  from,
+  lastValueFrom,
+  map,
+  Observable,
+  of,
+  startWith,
+  tap,
+  throttleTime,
+} from 'rxjs';
 import {
   ABORTABLE_QUEUE_TASK_PRIORITY,
   QueueGroupTasks,
@@ -9,6 +22,7 @@ import {
   QueueTaskPriority,
   QueueTaskProgression,
   QueueTasks,
+  QueueTasksInformations,
   QueueTaskState,
   QUEUE_TASK_FAILED_STATE,
   TASK_PRIORITY_ORDER,
@@ -16,12 +30,43 @@ import {
 
 @Injectable()
 export class QueueTasksService {
+  async executeTasksFromJob<JobData, Context>(
+    job: Job<JobData>,
+    informations: QueueTasksInformations<Context>,
+    callback?: (informations: QueueTasksInformations<Context>) => Promise<void>,
+  ): Promise<QueueTasksInformations<Context>> {
+    if (typeof job.progress === 'object') {
+      informations.tasks = this.deserializeBackupTask(job.progress);
+    }
+    job.updateProgress(this.serializeBackupTask(informations.tasks));
+
+    const { context, tasks } = informations;
+
+    await lastValueFrom(
+      this.executeTasks(tasks, context).pipe(
+        throttleTime(1000, undefined, { leading: true }), // TODO: Conf // When trailing is true, the throttle end arrive before it complete
+        concatMap(async (task) => {
+          job.updateProgress(this.serializeBackupTask(task));
+
+          if (callback) {
+            await callback(informations);
+          }
+
+          return task;
+        }),
+      ),
+    );
+
+    job.updateProgress(this.serializeBackupTask(informations.tasks));
+    return informations;
+  }
+
   serializeBackupTask(tasks: QueueTasks): object {
     return instanceToPlain(tasks);
   }
 
   deserializeBackupTask(data: object): QueueTasks {
-    return plainToInstance(QueueTasks, data, { enableImplicitConversion: true });
+    return plainToInstance(QueueTasks, data);
   }
 
   executeTasks<Context>(task: QueueTasks, context: QueueTaskContext<Context>): Observable<QueueTasks> {
@@ -83,11 +128,11 @@ export class QueueTasksService {
     subtask.progression = new QueueTaskProgression();
     subtask.state = QueueTaskState.RUNNING;
 
-    context.logger.log(`Start task ${subtask.taskName} `, subtask.taskName);
+    context.logger.debug?.(`Start task ${subtask.taskName} `, subtask.taskName);
     return launchCommand.pipe(
       startWith(subtask.progression),
       map((progression) => {
-        subtask.progression = progression || subtask.progression;
+        subtask.progression = progression ?? subtask.progression;
         return primaryTask;
       }),
       catchError((err) => {
@@ -101,7 +146,7 @@ export class QueueTasksService {
             subtask.progression = subtask.progression || new QueueTaskProgression();
             subtask.state = QueueTaskState.SUCCESS;
           }
-          context.logger.log(`End task with state ${subtask.state}`, subtask.taskName);
+          context.logger.debug?.(`End task with state ${subtask.state}`, subtask.taskName);
           return primaryTask;
         },
       }),

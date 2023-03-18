@@ -3,14 +3,14 @@ import { Module } from '@nestjs/common';
 import { ApplicationConfigModule } from '../config';
 import { BullConfigService } from './bull-config.factory';
 
-export enum Queue {
-  BACKUP_QUEUE = 'queue',
+export enum QueueName {
+  BACKUP_QUEUE = 'backup',
   REFCNT_QUEUE = 'refcnt',
   SCHEDULE_QUEUE = 'schedule',
   STATS_QUEUE = 'stats',
 }
 
-const QUEUES = [Queue.BACKUP_QUEUE, Queue.REFCNT_QUEUE, Queue.SCHEDULE_QUEUE, Queue.STATS_QUEUE];
+const QUEUES = [QueueName.BACKUP_QUEUE, QueueName.REFCNT_QUEUE, QueueName.SCHEDULE_QUEUE, QueueName.STATS_QUEUE];
 
 const RegisteredQueue = BullModule.registerQueue(...QUEUES.map((q) => ({ name: q })));
 

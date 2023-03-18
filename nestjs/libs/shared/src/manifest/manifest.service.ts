@@ -199,7 +199,7 @@ export class ManifestService {
   listChunksFromManifest(manifest: Manifest): AsyncIterableX<ManifestChunk> {
     return this.readManifestEntries(manifest).pipe(
       concatMap((manifest) => {
-        const chunks = manifest.chunks || [];
+        const chunks = manifest.chunks ?? [];
         return from(chunks).pipe(map((sha256) => ({ sha256, manifest })));
       }),
       filter((chunk) => !!chunk.sha256),

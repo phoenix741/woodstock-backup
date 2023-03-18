@@ -1,7 +1,0 @@
-#import "./FragmentJob.graphql"
-
-subscription QueueTasksJobUpdated {
-  jobUpdated {
-    ...FragmentJob
-  }
-}

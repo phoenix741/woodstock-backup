@@ -8,25 +8,22 @@
     },
     {
       "path": "docs/website"
-    },
-    {
-      "path": "front2"
     }
   ],
   "settings": {
     "conventionalCommits.scopes": [
       "console",
       "shared",
-      "workflow"
+      "workflow",
+      "front"
     ],
     "jest.disabledWorkspaceFolders": [
       "client-sync",
       "docker",
       "docs",
       "website",
-      "front",
-      "front2"
     ],
     "jest.coverageFormatter": "GutterFormatter",
+    "typescript.tsdk": "nestjs/node_modules/typescript/lib",
   }
 }

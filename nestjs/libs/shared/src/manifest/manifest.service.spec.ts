@@ -1,8 +1,8 @@
 import { copyFile, unlink } from 'fs/promises';
 import { count } from 'ix/asynciterable';
 import { join } from 'path';
-import { ProtoFileManifest } from '../shared/woodstock.model.js';
 import { ProtobufService } from '../input-output/protobuf.service.js';
+import { ProtoFileManifest } from '../shared/woodstock.model.js';
 import { Manifest } from './manifest.model.js';
 import { ManifestService } from './manifest.service.js';
 

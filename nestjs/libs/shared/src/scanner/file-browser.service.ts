@@ -32,7 +32,7 @@ export class FileBrowserService {
   #readDirSync(path: Buffer): AsyncIterableX<Dirent> {
     return from(
       opendir(path, { encoding: 'buffer' as any }).catch((err) => {
-        this.#logger.error(err);
+        this.#logger.error(err.message);
         return from([]);
       }),
     ).pipe(concatMap((dir) => dir));

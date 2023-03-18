@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { resolve } from 'path';
 import { ApplicationConfigService } from '../config';
-import { rendering } from '../utils';
 import { YamlService } from '../input-output';
+import { rendering } from '../utils';
 
 class Tools {
   tools!: Record<string, string>;

@@ -8,7 +8,15 @@ import { LogService } from './logger/log.service.js';
 describe('AppController', () => {
   let appController: AppController;
 
-  const fakeAppService = {};
+  const fakeAppService = {
+    async executeCommand(sessionId: string, command: string) {
+      return {
+        code: StatusCode.Ok,
+        stdout: command,
+        stderr: sessionId,
+      };
+    },
+  };
   const fakeLogService = {};
 
   beforeEach(async () => {
@@ -24,10 +32,16 @@ describe('AppController', () => {
   });
 
   describe('executeCommand', () => {
-    it('Should execute the command !', () => {
+    it('Should execute the command !', async () => {
+      // GIVEN
       const metadata: Metadata = new Metadata();
       metadata.add('X-Session-Id', 'test');
-      expect(appController.executeCommand({ command: 'Cmd' }, metadata)).toEqual({
+
+      // WHEN
+      const result = await appController.executeCommand({ command: 'Cmd' }, metadata);
+
+      // THEN
+      expect(result).toEqual({
         code: StatusCode.Ok,
         stdout: 'Cmd',
         stderr: 'test',

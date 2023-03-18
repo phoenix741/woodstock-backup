@@ -1,62 +1,101 @@
-import { Field, Float, Int, ObjectType } from '@nestjs/graphql';
+import { Field, Int, ObjectType } from '@nestjs/graphql';
+import { Transform } from 'class-transformer';
 
 @ObjectType()
-export class TimeSerie {
-  @Field(() => BigInt)
+export class BigIntTimeSerie {
   time: number;
 
-  @Field(() => Float)
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  value: bigint;
+
+  constructor(o: Partial<BigIntTimeSerie>) {
+    Object.assign(this, o);
+  }
+}
+
+@ObjectType()
+export class NumberTimeSerie {
+  time: number;
+
+  @Field(() => Int)
   value: number;
 
-  constructor(o: Partial<TimeSerie>) {
+  constructor(o: NumberTimeSerie) {
     Object.assign(this, o);
   }
 }
 
 @ObjectType()
 export class DiskUsage {
-  @Field(() => Int)
-  used?: number;
-  usedRange?: TimeSerie[];
-  usedLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  used?: bigint;
+  usedRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  usedLastMonth?: bigint;
 
-  @Field(() => Int)
-  free?: number;
-  freeRange?: TimeSerie[];
-  freeLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  free?: bigint;
+  freeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  freeLastMonth?: bigint;
 
-  @Field(() => Int)
-  total?: number;
-  totalRange?: TimeSerie[];
-  totalLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  total?: bigint;
+  totalRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  totalLastMonth?: bigint;
 }
 
 @ObjectType()
 export class PoolUsage {
   @Field(() => Int)
   longestChain?: number;
-  longestChainRange?: TimeSerie[];
+  longestChainRange?: NumberTimeSerie[];
+  @Field(() => Int)
   longestChainLastMonth?: number;
 
   @Field(() => Int)
   nbChunk?: number;
-  nbChunkRange?: TimeSerie[];
+  nbChunkRange?: NumberTimeSerie[];
+  @Field(() => Int)
   nbChunkLastMonth?: number;
 
   @Field(() => Int)
   nbRef?: number;
-  nbRefRange?: TimeSerie[];
+  nbRefRange?: NumberTimeSerie[];
+  @Field(() => Int)
   nbRefLastMonth?: number;
 
-  @Field(() => Int)
-  size?: number;
-  sizeRange?: TimeSerie[];
-  sizeLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  size?: bigint;
+  sizeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  sizeLastMonth?: bigint;
 
-  @Field(() => Int)
-  compressedSize?: number;
-  compressedSizeRange?: TimeSerie[];
-  compressedSizeLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  compressedSize?: bigint;
+  compressedSizeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  compressedSizeLastMonth?: bigint;
+
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  unusedSize?: bigint;
+  unusedSizeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  unusedSizeLastMonth?: bigint;
 }
 
 @ObjectType()
@@ -65,28 +104,37 @@ export class HostStatistics {
 
   @Field(() => Int)
   longestChain?: number;
-  longestChainRange?: TimeSerie[];
+  longestChainRange?: NumberTimeSerie[];
+  @Field(() => Int)
   longestChainLastMonth?: number;
 
   @Field(() => Int)
   nbChunk?: number;
-  nbChunkRange?: TimeSerie[];
+  nbChunkRange?: NumberTimeSerie[];
+  @Field(() => Int)
   nbChunkLastMonth?: number;
 
   @Field(() => Int)
   nbRef?: number;
-  nbRefRange?: TimeSerie[];
+  nbRefRange?: NumberTimeSerie[];
+  @Field(() => Int)
   nbRefLastMonth?: number;
 
-  @Field(() => Int)
-  size?: number;
-  sizeRange?: TimeSerie[];
-  sizeLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  size?: bigint;
+  sizeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  sizeLastMonth?: bigint;
 
-  @Field(() => Int)
-  compressedSize?: number;
-  compressedSizeRange?: TimeSerie[];
-  compressedSizeLastMonth?: number;
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  compressedSize?: bigint;
+  compressedSizeRange?: BigIntTimeSerie[];
+  @Transform((v) => v.value && BigInt(v.value))
+  @Field(() => BigInt)
+  compressedSizeLastMonth?: bigint;
 }
 
 @ObjectType()

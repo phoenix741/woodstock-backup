@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { HostsStatsUsage, PoolStatistics, StatsDiskUsage, StatsInstantService } from '@woodstock/shared';
+import { HostsStatsUsage, PoolStatistics, QueueName, StatsDiskUsage, StatsInstantService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import * as promClient from 'prom-client';
 
@@ -25,7 +25,7 @@ export class PrometheusService {
   private cache: Cache;
 
   constructor(
-    @InjectQueue('queue') private readonly backupQueue: Queue,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private readonly backupQueue: Queue,
     private instantStatService: StatsInstantService,
   ) {
     promClient.collectDefaultMetrics();
@@ -220,6 +220,14 @@ export class PrometheusService {
         const { pool } = await self.getCache();
 
         this.set(Number(pool.compressedSize / 1024n / 1024n));
+      },
+    });
+    new promClient.Gauge({
+      name: 'pool_unusedSize',
+      help: 'Content of the pool that is not used in Mo',
+      async collect() {
+        const { pool } = await self.getCache();
+        this.set(Number(pool.unusedSize / 1024n / 1024n));
       },
     });
 

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, LoggerService } from '@nestjs/common';
+import { BadRequestException, Injectable, LoggerService } from '@nestjs/common';
 import {
   ApplicationConfigService,
   BackupsService,
@@ -15,6 +15,7 @@ import {
   QueueTasksService,
 } from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
+import { RedlockAbortSignal } from 'redlock';
 
 export enum RemoveTaskName {
   REMOVE_REFCNT_POOL_TASK = 'REMOVE_REFCNT_POOL_TASK',
@@ -24,8 +25,6 @@ export enum RemoveTaskName {
 
 @Injectable()
 export class RemoveService {
-  #logger = new Logger(RemoveService.name);
-
   constructor(
     private applicationConfig: ApplicationConfigService,
     private backupsService: BackupsService,
@@ -43,7 +42,7 @@ export class RemoveService {
 
     const globalContext = new QueueTaskContext(refcnt, logger);
 
-    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_POOL_TASK, async (gc) => {
+    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_POOL_TASK, async () => {
       await this.jobService.launchRefcntJob(
         job.id || '',
         `${job.prefix}:${job.queueName}`,
@@ -52,10 +51,10 @@ export class RemoveService {
         'remove_backup',
       );
     });
-    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, async (gc) => {
+    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, async () => {
       await this.refcntService.removeBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
     });
-    globalContext.commands.set(RemoveTaskName.REMOVE_BACKUP_TASK, async (gc) => {
+    globalContext.commands.set(RemoveTaskName.REMOVE_BACKUP_TASK, async () => {
       await this.backupsService.removeBackup(hostname, backupNumber);
     });
 
@@ -69,16 +68,23 @@ export class RemoveService {
     }
 
     const task = new QueueTasks('GLOBAL', {})
-      .add(new QueueSubTask(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, {}))
-      .add(new QueueSubTask(RemoveTaskName.REMOVE_BACKUP_TASK, {}));
+      .add(new QueueSubTask(RemoveTaskName.REMOVE_REFCNT_HOST_TASK))
+      .add(new QueueSubTask(RemoveTaskName.REMOVE_REFCNT_POOL_TASK))
+      .add(new QueueSubTask(RemoveTaskName.REMOVE_BACKUP_TASK));
 
     return new QueueTasksInformations(task, this.#createGlobalContext(job, host, number, logger));
   }
 
-  launchRemoveTask(informations: QueueTasksInformations<ReferenceCount>) {
-    const { context, tasks } = informations;
-
-    return this.queueTasksService.executeTasks(tasks, context);
+  launchRemoveTask(
+    job: Job<JobBackupData>,
+    informations: QueueTasksInformations<ReferenceCount>,
+    signal: RedlockAbortSignal,
+  ) {
+    return this.queueTasksService.executeTasksFromJob(job, informations, async () => {
+      if (signal.aborted) {
+        throw signal.error;
+      }
+    });
   }
 
   serializeTask(tasks: QueueTasks): object {

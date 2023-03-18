@@ -11,7 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
-import { FileDescription } from '@woodstock/shared';
+import { FileDescription, splitBuffer, unmangle } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { BackupsFilesService } from './backups-files.service.js';
@@ -60,7 +60,12 @@ export class BackupsFilesController {
         throw new UnsupportedMediaTypeException(`Unsupported media type: ${type}`);
     }
 
-    res.attachment(`download.zip`);
+    const filename = [unmangle(sharePath), unmangle(path)]
+      .map((m) => splitBuffer(m))
+      .flat()
+      .map((m) => m.toString())
+      .join('_');
+    res.attachment(`${filename}.zip`);
     archive.pipe(res);
 
     await this.service.createArchive(archive, name, number, sharePath, path);

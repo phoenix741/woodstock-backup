@@ -2,11 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { copy } from 'fs-extra';
 import { rm } from 'fs/promises';
 import { join } from 'path';
-import { ApplicationConfigService } from './application-config.service';
 import { YamlService } from '../input-output';
 import { Manifest } from '../manifest';
 import { Backup } from '../shared';
 import { mangle, unmangle } from '../utils';
+import { ApplicationConfigService } from './application-config.service';
 
 @Injectable()
 export class BackupsService {

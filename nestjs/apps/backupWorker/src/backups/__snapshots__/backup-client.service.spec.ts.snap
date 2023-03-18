@@ -57,22 +57,11 @@ exports[`BackupClient authenticate: mockClientGrpc.streamLog 1`] = `
     [
       BackupsGrpcContext {
         "abortable": [],
-        "client": {
-          "close": [MockFunction] {
-            "calls": [
-              [],
-            ],
-            "results": [
-              {
-                "type": "return",
-                "value": undefined,
-              },
-            ],
-          },
-        },
+        "client": undefined,
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
+        "isLocal": false,
         "logger": undefined,
         "sessionId": undefined,
       },
@@ -1380,22 +1369,11 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
     [
       BackupsGrpcContext {
         "abortable": [],
-        "client": {
-          "close": [MockFunction] {
-            "calls": [
-              [],
-            ],
-            "results": [
-              {
-                "type": "return",
-                "value": undefined,
-              },
-            ],
-          },
-        },
+        "client": undefined,
         "currentBackupId": 1,
         "host": "host",
         "ip": "ip",
+        "isLocal": false,
         "logger": undefined,
         "sessionId": undefined,
       },

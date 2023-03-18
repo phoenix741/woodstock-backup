@@ -42,20 +42,16 @@ export class AppController {
   }
 
   @GrpcMethod('WoodstockClientService', 'ExecuteCommand')
-  executeCommand(request: ExecuteCommandRequest, metadata: Metadata): ExecuteCommandReply {
+  async executeCommand(request: ExecuteCommandRequest, metadata: Metadata): Promise<ExecuteCommandReply> {
     try {
       const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
 
-      return {
-        code: StatusCode.Ok,
-        stdout: request.command,
-        stderr: sessionId,
-      };
+      return await this.service.executeCommand(sessionId, request.command);
     } catch (err) {
       return {
         code: StatusCode.Failed,
-        stdout: err.message,
-        stderr: '',
+        stdout: '',
+        stderr: err.message,
       };
     }
   }

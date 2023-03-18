@@ -1,8 +1,14 @@
 import { ChunkInformation } from '../shared';
 
 export interface RefcntJobData {
-  hostname?: string;
-  backupNumber?: number;
+  host?: string;
+  number?: number;
+
+  fix?: boolean;
+  refcnt?: boolean;
+  unused?: boolean;
+
+  target?: string;
 }
 
 export interface PoolChunkInformation {

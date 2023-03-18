@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AsyncIterableX } from 'ix/asynciterable';
+import { AsyncIterableX, count } from 'ix/asynciterable';
 import { filter, map } from 'ix/asynciterable/operators';
 import { basename } from 'path';
 import { Observable } from 'rxjs';
@@ -35,6 +35,11 @@ export class PoolService {
         map((file) => Buffer.from(file.substring(0, file.length - 10), 'hex')),
         map((file) => this.getChunk(file)),
       );
+  }
+
+  async countUnusedFiles(): Promise<number> {
+    const refcnt = new ReferenceCount('', '', this.applicationConfig.poolPath);
+    return await count(this.refcntService.readUnused(refcnt.unusedPoolPath));
   }
 
   removeUnusedFiles(targetPath?: string): Observable<PoolUnused> {

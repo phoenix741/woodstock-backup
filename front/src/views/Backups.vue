@@ -1,199 +1,116 @@
 <template>
   <v-container>
-    <v-card>
-      <v-data-table
-        v-model="selection"
-        show-select
-        :headers="headers"
-        :items="backups"
-        :items-per-page="10"
-        item-key="number"
-        show-expand
-        :single-expand="true"
-        :sort-by.sync="sortBy"
-        :sort-desc.sync="sortDesc"
-        :loading="$apollo.queries.backups.loading"
-        loading-text="Loading... Please wait"
-      >
-        <template slot="item.startDate" slot-scope="props">
-          {{ props.item.startDate | date }}
-        </template>
-        <template slot="item.duration" slot-scope="props">
-          {{ (props.item.duration / (1000 * 60)) | formatNumber }}
-        </template>
-        <template slot="item.fileSize" slot-scope="props">
-          {{ props.item.fileSize | filesize }}
-        </template>
-        <template slot="item.existingFileSize" slot-scope="props">
-          {{ props.item.existingFileSize | filesize }}
-        </template>
-        <template slot="item.newFileSize" slot-scope="props">
-          {{ props.item.newFileSize | filesize }}
-        </template>
-        <template slot="item.fileCount" slot-scope="props">
-          {{ props.item.fileCount | formatNumber }}
-        </template>
-        <template slot="item.existingFileCount" slot-scope="props">
-          {{ props.item.existingFileCount | formatNumber }}
-        </template>
-        <template slot="item.newFileCount" slot-scope="props">
-          {{ props.item.newFileCount | formatNumber }}
-        </template>
-        <template slot="item.complete" slot-scope="props">
-          <v-simple-checkbox v-model="props.item.complete" disabled></v-simple-checkbox>
-        </template>
-        <template v-slot:expanded-item="{ headers, item }">
-          <td :colspan="headers.length">
-            <v-card class="mx-auto transparent" flat>
-              <v-card-title>Size repartition</v-card-title>
-              <BackupChartSize class="mx-auto chart" :backup="item"></BackupChartSize>
-
-              <v-card-actions>
-                <v-btn text :to="`/backups/${hostname}/${item.number}`">Browse</v-btn>
-                <v-btn-toggle borderless multiple>
-                  <v-menu offset-y>
-                    <template v-slot:activator="{ on }">
-                      <v-btn text v-on="on"> Show Log </v-btn>
-                    </template>
-                    <v-list>
-                      <v-list-item :to="`/backups/${hostname}/${item.number}/logs/backup.log`">
-                        <v-list-item-title>Transfert Logs</v-list-item-title>
-                      </v-list-item>
-                      <v-list-item :to="`/backups/${hostname}/${item.number}/logs/backup.error.log`">
-                        <v-list-item-title>Error Logs</v-list-item-title>
-                      </v-list-item>
-                    </v-list>
-                  </v-menu>
-                </v-btn-toggle>
-              </v-card-actions>
-            </v-card>
-          </td>
-        </template>
-      </v-data-table>
-      <v-card-actions>
-        <v-btn class="primary ml-12" text @click="deleteBackup()">Delete</v-btn>
-        <v-btn class="primary ml-1" text @click="createBackup()">Launch backup</v-btn>
-      </v-card-actions>
-    </v-card>
-
-    <template v-for="(job, key) in jobCreated">
-      <v-snackbar v-model="jobCreated[key]" color="info" :timeout="5000" :key="key">
-        Launch a backup with job id {{ key }}.
-        <v-btn color="secondary" text @click="jobCreated[key] = false"> Close </v-btn>
-      </v-snackbar>
-    </template>
-    <template v-for="(job, key) in jobRemoved">
-      <v-snackbar v-model="jobRemoved[key]" color="error" :timeout="5000" :key="key">
-        Remove the backup with job id {{ key }}.
-        <v-btn color="primary" text @click="jobRemoved[key] = false"> Close </v-btn>
-      </v-snackbar>
-    </template>
+    <v-row v-if="backups && (backups?.length ?? 0) >= 3">
+      <v-col>
+        <BackupsChartsComponent :backups="backups"></BackupsChartsComponent>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col>
+        <v-sheet rounded="lg">
+          <v-data-table
+            show-select
+            v-model="selection"
+            v-model:items-per-page="itemsPerPage"
+            :headers="headers"
+            :items="backupsDataTable"
+            :loading="isFetching"
+            :sort-by="[{ key: 'number', order: 'desc' }]"
+            loading-title="Loading... Please wait"
+            item-key="name"
+            item-title="name"
+            class="elevation-1"
+            @click:row="
+              (_event: unknown, { item }: any) => {
+                showDialog[item.columns.number] = true;
+              }
+            "
+          >
+            <template v-slot:[`item.number`]="{ item }">
+              <BackupView v-model="showDialog[item.columns.number]" :deviceId="deviceId" :backup="item.raw"></BackupView
+              >{{ item.columns.number }}
+            </template>
+            <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.columns.startDate) }}</template>
+            <template v-slot:[`item.fileSize`]="{ item }">{{ filesize(item.columns.fileSize) }}</template>
+            <template v-slot:[`item.existingFileSize`]="{ item }">{{
+              filesize(item.columns.existingFileSize)
+            }}</template>
+            <template v-slot:[`item.newFileSize`]="{ item }">{{ filesize(item.columns.newFileSize) }}</template>
+            <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.columns.fileCount) }}</template>
+            <template v-slot:[`item.existingFileCount`]="{ item }">{{
+              toNumber(item.columns.existingFileCount)
+            }}</template>
+            <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.columns.newFileCount) }}</template>
+            <template v-slot:[`item.complete`]="{ item }">
+              <v-checkbox readonly v-model="item.columns.complete" disabled></v-checkbox>
+            </template>
+            <template v-slot:bottom>
+              <div class="text-right pa-2">
+                <BackupDelete
+                  :device-id="deviceId"
+                  :backup-numbers="selection?.map((item) => item.number) || []"
+                ></BackupDelete>
+                <BackupCreate :device-id="deviceId"></BackupCreate>
+              </div>
+            </template>
+          </v-data-table>
+        </v-sheet>
+      </v-col>
+    </v-row>
   </v-container>
 </template>
 
-<script lang="ts">
-import { Component, Vue, Prop } from 'vue-property-decorator';
-import {
-  BackupsQuery,
-  CreateBackupMutation,
-  CreateBackupMutationVariables,
-  RemoveBackupMutation,
-  RemoveBackupMutationVariables,
-} from '@/generated/graphql';
-import BackupChartSize from '@/components/backups/BackupChartSize';
-import backups from './Backups.graphql';
-import createBackup from './BackupsCreate.graphql';
-import removeBackup from './BackupsRemove.graphql';
+<script lang="ts" setup>
+import BackupsChartsComponent from '@/components/backups/cards/BackupsChartsComponent.vue';
+import { toDateTime, toMinutes, toNumber } from '@/components/hosts/hosts.utils';
+import filesize from '@/utils/filesize';
+import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { useBackups } from '../utils/backups';
+import BackupCreate from './dialogs/BackupCreate.vue';
+import BackupDelete from './dialogs/BackupDelete.vue';
+import BackupView from './dialogs/BackupView.vue';
 
-@Component({
-  apollo: {
-    backups: {
-      query: backups,
-      variables() {
-        return {
-          hostname: this.hostname,
-        };
-      },
-      update: ({ backups }: BackupsQuery) =>
-        backups.map((backup) => ({
-          ...backup,
-          duration: backup?.endDate ? backup.endDate - backup.startDate : null,
-        })),
-      fetchPolicy: 'network-only',
-    },
+const route = useRoute();
+
+const deviceId = Array.isArray(route.params.deviceId) ? route.params.deviceId[0] : route.params.deviceId;
+
+let itemsPerPage = ref(25);
+
+const headers = [
+  {
+    title: 'Backup#',
+    align: 'start',
+    sortable: true,
+    key: 'number',
   },
-  components: {
-    BackupChartSize,
+  { title: 'Start date', align: 'end', key: 'startDate' },
+  { title: 'Duration (minutes)', align: 'end', key: 'duration' },
+  { title: 'Files Count', align: 'end', key: 'fileCount' },
+  { title: 'Files Size', align: 'end', key: 'fileSize' },
+  { title: 'Existing Files Count', align: 'end', key: 'existingFileCount' },
+  { title: 'Existing Files Size', align: 'end', key: 'existingFileSize' },
+  { title: 'New Files Count', align: 'end', key: 'newFileCount' },
+  { title: 'New Files Size', align: 'end', key: 'newFileSize' },
+  { title: 'Complete', align: 'center', key: 'complete' },
+];
+
+const { backups, isFetching } = useBackups(deviceId);
+
+const backupsDataTable = computed(() => {
+  return backups.value?.map((backup) => ({
+    duration: backup.endDate && toMinutes(backup.endDate - backup.startDate),
+    ...backup,
+  }));
+});
+
+const selection = ref<typeof backupsDataTable.value>([]);
+const showDialog = ref<Record<number, boolean>>({});
+
+watch(
+  () => backups.value,
+  () => {
+    showDialog.value = backups.value?.reduce((acc, backup) => ({ ...acc, [backup.number]: false }), {}) ?? {};
   },
-})
-export default class Backups extends Vue {
-  @Prop({
-    required: true,
-  })
-  hostname!: string;
-  selection: BackupsQuery['backups'] = [];
-
-  sortBy = 'number';
-  sortDesc = true;
-
-  jobCreated: Record<number, boolean> = {};
-  jobRemoved: Record<number, boolean> = {};
-
-  headers = [
-    {
-      text: 'Backup#',
-      align: 'start',
-      value: 'number',
-    },
-    { text: 'Start date', value: 'startDate' },
-    { text: 'Duration (minutes)', value: 'duration' },
-    { text: 'Files Count', value: 'fileCount' },
-    { text: 'Files Size', value: 'fileSize' },
-    { text: 'Existing Files Count', value: 'existingFileCount' },
-    { text: 'Existing Files Size', value: 'existingFileSize' },
-    { text: 'New Files Count', value: 'newFileCount' },
-    { text: 'New Files Size', value: 'newFileSize' },
-    { text: 'Complete', value: 'complete' },
-  ];
-  backups: BackupsQuery['backups'] = [];
-
-  async deleteBackup() {
-    for (const backup of this.selection) {
-      const mutation = await this.$apollo.mutate<RemoveBackupMutation, RemoveBackupMutationVariables>({
-        mutation: removeBackup,
-        variables: {
-          hostname: this.hostname,
-          number: backup.number,
-        },
-      });
-
-      if (mutation.data) {
-        Vue.set(this.jobRemoved, mutation.data.removeBackup.id, true);
-      }
-    }
-  }
-
-  async createBackup() {
-    const mutation = await this.$apollo.mutate<CreateBackupMutation, CreateBackupMutationVariables>({
-      mutation: createBackup,
-      variables: {
-        hostname: this.hostname,
-      },
-    });
-    if (mutation.data) {
-      Vue.set(this.jobCreated, mutation.data.createBackup.id, true);
-    }
-  }
-}
+);
 </script>
-
-<style scoped>
-.transparent {
-  background-color: transparent;
-  border-color: transparent !important;
-}
-
-.chart {
-  height: 250px;
-}
-</style>

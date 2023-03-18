@@ -54,11 +54,11 @@ describe('BackupClientProgress', () => {
 
     const logger = new Logger('FakeLogger');
     const clientLogger = new Logger('FakeClientLogger');
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
-    const observable = backupClientProgress.authenticate(ctxt, logger, clientLogger, 'password');
-    const result = await lastValueFrom(observable.pipe(toArray()));
+    const result = await backupClientProgress.authenticate(ctxt, logger, clientLogger, 'password');
 
     // THEN
     expect(result).toMatchSnapshot('result');
@@ -68,7 +68,8 @@ describe('BackupClientProgress', () => {
     // GIVEN
     mockBackupClient.executeCommand = jest.fn().mockResolvedValue(undefined);
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.executeCommand(ctxt, 'command');
@@ -90,7 +91,8 @@ describe('BackupClientProgress', () => {
     ];
     mockBackupClient.getFileList = jest.fn().mockReturnValue(from(it));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.getFileList(ctxt, {
@@ -158,7 +160,8 @@ describe('BackupClientProgress', () => {
     ];
     mockBackupClient.createBackup = jest.fn().mockReturnValue(from(it));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.createBackup(ctxt, {

@@ -28,14 +28,14 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
   "__type": "grouptask",
   "groupName": "GLOBAL",
   "localContext": {
-    "localContext": "GLOBAL",
+    "command": "GLOBAL",
   },
   "subtasks": [
     {
       "__type": "grouptask",
       "groupName": "INITIALISATION",
       "localContext": {
-        "localContext": "INITIALISATION",
+        "command": "INITIALISATION",
       },
       "subtasks": [
         {
@@ -46,6 +46,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -66,6 +67,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -86,6 +88,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -104,7 +107,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
       "__type": "grouptask",
       "groupName": "PRE_COMMANDS",
       "localContext": {
-        "localContext": "PRE_COMMANDS",
+        "command": "PRE_COMMANDS",
       },
       "subtasks": [
         {
@@ -115,6 +118,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -135,6 +139,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -155,6 +160,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -173,14 +179,14 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
       "__type": "grouptask",
       "groupName": "SHARES",
       "localContext": {
-        "localContext": "SHARES",
+        "command": "SHARES",
       },
       "subtasks": [
         {
           "__type": "grouptask",
           "groupName": "SHARE1",
           "localContext": {
-            "localContext": "SHARE1",
+            "command": "SHARE1",
           },
           "subtasks": [
             {
@@ -191,6 +197,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -211,6 +218,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -231,6 +239,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -249,7 +258,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "__type": "grouptask",
           "groupName": "SHARE2",
           "localContext": {
-            "localContext": "SHARE2",
+            "command": "SHARE2",
           },
           "subtasks": [
             {
@@ -260,6 +269,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -280,6 +290,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -300,6 +311,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -320,7 +332,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
       "__type": "grouptask",
       "groupName": "POST_COMMANDS",
       "localContext": {
-        "localContext": "POST_COMMANDS",
+        "command": "POST_COMMANDS",
       },
       "subtasks": [
         {
@@ -331,6 +343,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -351,6 +364,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -371,6 +385,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -389,7 +404,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
       "__type": "grouptask",
       "groupName": "FINALISATION",
       "localContext": {
-        "localContext": "FINALISATION",
+        "command": "FINALISATION",
       },
       "subtasks": [
         {
@@ -400,6 +415,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "POST_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -420,6 +436,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -440,6 +457,7 @@ exports[`QueueTasksService executeTasks failed at finalisation: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -476,14 +494,14 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
   "__type": "grouptask",
   "groupName": "GLOBAL",
   "localContext": {
-    "localContext": "GLOBAL",
+    "command": "GLOBAL",
   },
   "subtasks": [
     {
       "__type": "grouptask",
       "groupName": "INITIALISATION",
       "localContext": {
-        "localContext": "INITIALISATION",
+        "command": "INITIALISATION",
       },
       "subtasks": [
         {
@@ -494,6 +512,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -514,6 +533,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -534,6 +554,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -552,7 +573,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
       "__type": "grouptask",
       "groupName": "PRE_COMMANDS",
       "localContext": {
-        "localContext": "PRE_COMMANDS",
+        "command": "PRE_COMMANDS",
       },
       "subtasks": [
         {
@@ -563,6 +584,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -583,6 +605,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -603,6 +626,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -621,14 +645,14 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
       "__type": "grouptask",
       "groupName": "SHARES",
       "localContext": {
-        "localContext": "SHARES",
+        "command": "SHARES",
       },
       "subtasks": [
         {
           "__type": "grouptask",
           "groupName": "SHARE1",
           "localContext": {
-            "localContext": "SHARE1",
+            "command": "SHARE1",
           },
           "subtasks": [
             {
@@ -639,6 +663,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -659,6 +684,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -679,6 +705,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -697,7 +724,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "__type": "grouptask",
           "groupName": "SHARE2",
           "localContext": {
-            "localContext": "SHARE2",
+            "command": "SHARE2",
           },
           "subtasks": [
             {
@@ -708,6 +735,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -728,6 +756,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -748,6 +777,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -768,7 +798,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
       "__type": "grouptask",
       "groupName": "POST_COMMANDS",
       "localContext": {
-        "localContext": "POST_COMMANDS",
+        "command": "POST_COMMANDS",
       },
       "subtasks": [
         {
@@ -779,6 +809,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -799,6 +830,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -819,6 +851,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -837,7 +870,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
       "__type": "grouptask",
       "groupName": "FINALISATION",
       "localContext": {
-        "localContext": "FINALISATION",
+        "command": "FINALISATION",
       },
       "subtasks": [
         {
@@ -848,6 +881,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "POST_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -868,6 +902,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -888,6 +923,7 @@ exports[`QueueTasksService executeTasks failed at pre init step: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -930,14 +966,14 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
   "__type": "grouptask",
   "groupName": "GLOBAL",
   "localContext": {
-    "localContext": "GLOBAL",
+    "command": "GLOBAL",
   },
   "subtasks": [
     {
       "__type": "grouptask",
       "groupName": "INITIALISATION",
       "localContext": {
-        "localContext": "INITIALISATION",
+        "command": "INITIALISATION",
       },
       "subtasks": [
         {
@@ -948,6 +984,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -968,6 +1005,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -988,6 +1026,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1006,7 +1045,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
       "__type": "grouptask",
       "groupName": "PRE_COMMANDS",
       "localContext": {
-        "localContext": "PRE_COMMANDS",
+        "command": "PRE_COMMANDS",
       },
       "subtasks": [
         {
@@ -1017,6 +1056,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1037,6 +1077,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1057,6 +1098,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1075,14 +1117,14 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
       "__type": "grouptask",
       "groupName": "SHARES",
       "localContext": {
-        "localContext": "SHARES",
+        "command": "SHARES",
       },
       "subtasks": [
         {
           "__type": "grouptask",
           "groupName": "SHARE1",
           "localContext": {
-            "localContext": "SHARE1",
+            "command": "SHARE1",
           },
           "subtasks": [
             {
@@ -1093,6 +1135,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1113,6 +1156,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1133,6 +1177,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1151,7 +1196,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "__type": "grouptask",
           "groupName": "SHARE2",
           "localContext": {
-            "localContext": "SHARE2",
+            "command": "SHARE2",
           },
           "subtasks": [
             {
@@ -1162,6 +1207,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1182,6 +1228,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1202,6 +1249,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1222,7 +1270,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
       "__type": "grouptask",
       "groupName": "POST_COMMANDS",
       "localContext": {
-        "localContext": "POST_COMMANDS",
+        "command": "POST_COMMANDS",
       },
       "subtasks": [
         {
@@ -1233,6 +1281,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1253,6 +1302,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1273,6 +1323,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1291,7 +1342,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
       "__type": "grouptask",
       "groupName": "FINALISATION",
       "localContext": {
-        "localContext": "FINALISATION",
+        "command": "FINALISATION",
       },
       "subtasks": [
         {
@@ -1302,6 +1353,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "POST_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1322,6 +1374,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1342,6 +1395,7 @@ exports[`QueueTasksService executeTasks failed at pre progress: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1388,14 +1442,14 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
   "__type": "grouptask",
   "groupName": "GLOBAL",
   "localContext": {
-    "localContext": "GLOBAL",
+    "command": "GLOBAL",
   },
   "subtasks": [
     {
       "__type": "grouptask",
       "groupName": "INITIALISATION",
       "localContext": {
-        "localContext": "INITIALISATION",
+        "command": "INITIALISATION",
       },
       "subtasks": [
         {
@@ -1406,6 +1460,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1426,6 +1481,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1446,6 +1502,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1464,7 +1521,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
       "__type": "grouptask",
       "groupName": "PRE_COMMANDS",
       "localContext": {
-        "localContext": "PRE_COMMANDS",
+        "command": "PRE_COMMANDS",
       },
       "subtasks": [
         {
@@ -1475,6 +1532,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1495,6 +1553,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1515,6 +1574,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1533,14 +1593,14 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
       "__type": "grouptask",
       "groupName": "SHARES",
       "localContext": {
-        "localContext": "SHARES",
+        "command": "SHARES",
       },
       "subtasks": [
         {
           "__type": "grouptask",
           "groupName": "SHARE1",
           "localContext": {
-            "localContext": "SHARE1",
+            "command": "SHARE1",
           },
           "subtasks": [
             {
@@ -1551,6 +1611,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1571,6 +1632,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1591,6 +1653,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1609,7 +1672,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "__type": "grouptask",
           "groupName": "SHARE2",
           "localContext": {
-            "localContext": "SHARE2",
+            "command": "SHARE2",
           },
           "subtasks": [
             {
@@ -1620,6 +1683,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1640,6 +1704,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1660,6 +1725,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -1680,7 +1746,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
       "__type": "grouptask",
       "groupName": "POST_COMMANDS",
       "localContext": {
-        "localContext": "POST_COMMANDS",
+        "command": "POST_COMMANDS",
       },
       "subtasks": [
         {
@@ -1691,6 +1757,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1711,6 +1778,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1731,6 +1799,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1749,7 +1818,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
       "__type": "grouptask",
       "groupName": "FINALISATION",
       "localContext": {
-        "localContext": "FINALISATION",
+        "command": "FINALISATION",
       },
       "subtasks": [
         {
@@ -1760,6 +1829,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "POST_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1780,6 +1850,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1800,6 +1871,7 @@ exports[`QueueTasksService executeTasks success backup: task 1`] = `
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -1822,25 +1894,44 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
 QueueTasks {
   "__type": "grouptask",
   "groupName": "GLOBAL",
-  "localContext": {
-    "localContext": "GLOBAL",
+  "localContext": TaskLocalContext {
+    "command": "GLOBAL",
+    "excludes": undefined,
+    "host": undefined,
+    "includes": undefined,
+    "number": undefined,
+    "sharePath": undefined,
+    "shares": undefined,
   },
   "subtasks": [
     QueueGroupTasks {
       "__type": "grouptask",
       "groupName": "INITIALISATION",
-      "localContext": {
-        "localContext": "INITIALISATION",
+      "localContext": TaskLocalContext {
+        "command": "INITIALISATION",
+        "excludes": undefined,
+        "host": undefined,
+        "includes": undefined,
+        "number": undefined,
+        "sharePath": undefined,
+        "shares": undefined,
       },
       "subtasks": [
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "connection",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "INITIALISATION",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1855,12 +1946,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "init-directory",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "INITIALISATION",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1875,12 +1973,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "authentication",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "INITIALISATION",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1898,18 +2003,31 @@ QueueTasks {
     QueueGroupTasks {
       "__type": "grouptask",
       "groupName": "PRE_COMMANDS",
-      "localContext": {
-        "localContext": "PRE_COMMANDS",
+      "localContext": TaskLocalContext {
+        "command": "PRE_COMMANDS",
+        "excludes": undefined,
+        "host": undefined,
+        "includes": undefined,
+        "number": undefined,
+        "sharePath": undefined,
+        "shares": undefined,
       },
       "subtasks": [
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "pre-command1",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PRE_PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1924,12 +2042,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "pre-command2",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PRE_PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1944,12 +2069,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "pre-command3",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PRE_PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -1967,25 +2099,44 @@ QueueTasks {
     QueueGroupTasks {
       "__type": "grouptask",
       "groupName": "SHARES",
-      "localContext": {
-        "localContext": "SHARES",
+      "localContext": TaskLocalContext {
+        "command": "SHARES",
+        "excludes": undefined,
+        "host": undefined,
+        "includes": undefined,
+        "number": undefined,
+        "sharePath": undefined,
+        "shares": undefined,
       },
       "subtasks": [
         QueueGroupTasks {
           "__type": "grouptask",
           "groupName": "SHARE1",
-          "localContext": {
-            "localContext": "SHARE1",
+          "localContext": TaskLocalContext {
+            "command": "SHARE1",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "subtasks": [
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share1-filelist",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "PRE_PROCESSING",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2000,12 +2151,19 @@ QueueTasks {
             },
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share1-chunks",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "PROCESSING",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2020,12 +2178,19 @@ QueueTasks {
             },
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share1-compact",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "FINALISATION",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2043,18 +2208,31 @@ QueueTasks {
         QueueGroupTasks {
           "__type": "grouptask",
           "groupName": "SHARE2",
-          "localContext": {
-            "localContext": "SHARE2",
+          "localContext": TaskLocalContext {
+            "command": "SHARE2",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "subtasks": [
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share2-filelist",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "PRE_PROCESSING",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2069,12 +2247,19 @@ QueueTasks {
             },
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share2-chunks",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "PROCESSING",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2089,12 +2274,19 @@ QueueTasks {
             },
             QueueSubTask {
               "__type": "subtask",
-              "localContext": {
+              "localContext": TaskLocalContext {
                 "command": "share2-compact",
+                "excludes": undefined,
+                "host": undefined,
+                "includes": undefined,
+                "number": undefined,
+                "sharePath": undefined,
+                "shares": undefined,
               },
               "priority": "FINALISATION",
               "progression": QueueTaskProgression {
                 "compressedFileSize": 0n,
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": 0n,
                 "newCompressedFileSize": 0n,
@@ -2114,18 +2306,31 @@ QueueTasks {
     QueueGroupTasks {
       "__type": "grouptask",
       "groupName": "POST_COMMANDS",
-      "localContext": {
-        "localContext": "POST_COMMANDS",
+      "localContext": TaskLocalContext {
+        "command": "POST_COMMANDS",
+        "excludes": undefined,
+        "host": undefined,
+        "includes": undefined,
+        "number": undefined,
+        "sharePath": undefined,
+        "shares": undefined,
       },
       "subtasks": [
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "post-command1",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2140,12 +2345,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "post-command2",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2160,12 +2372,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "post-command3",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2183,18 +2402,31 @@ QueueTasks {
     QueueGroupTasks {
       "__type": "grouptask",
       "groupName": "FINALISATION",
-      "localContext": {
-        "localContext": "FINALISATION",
+      "localContext": TaskLocalContext {
+        "command": "FINALISATION",
+        "excludes": undefined,
+        "host": undefined,
+        "includes": undefined,
+        "number": undefined,
+        "sharePath": undefined,
+        "shares": undefined,
       },
       "subtasks": [
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "close-connection",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "POST_PROCESSING",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2209,12 +2441,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "refcnt-host",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "FINALISATION",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2229,12 +2468,19 @@ QueueTasks {
         },
         QueueSubTask {
           "__type": "subtask",
-          "localContext": {
+          "localContext": TaskLocalContext {
             "command": "refcnt-pool",
+            "excludes": undefined,
+            "host": undefined,
+            "includes": undefined,
+            "number": undefined,
+            "sharePath": undefined,
+            "shares": undefined,
           },
           "priority": "FINALISATION",
           "progression": QueueTaskProgression {
             "compressedFileSize": 0n,
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": 0n,
             "newCompressedFileSize": 0n,
@@ -2258,13 +2504,13 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
   "__type": "grouptask",
   "groupName": "GLOBAL",
   "localContext": {
-    "localContext": "GLOBAL",
+    "command": "GLOBAL",
   },
   "subtasks": [
     {
       "groupName": "INITIALISATION",
       "localContext": {
-        "localContext": "INITIALISATION",
+        "command": "INITIALISATION",
       },
       "subtasks": [
         {
@@ -2274,6 +2520,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2293,6 +2540,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2312,6 +2560,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "INITIALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2329,7 +2578,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
     {
       "groupName": "PRE_COMMANDS",
       "localContext": {
-        "localContext": "PRE_COMMANDS",
+        "command": "PRE_COMMANDS",
       },
       "subtasks": [
         {
@@ -2339,6 +2588,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2358,6 +2608,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2377,6 +2628,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PRE_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2394,13 +2646,13 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
     {
       "groupName": "SHARES",
       "localContext": {
-        "localContext": "SHARES",
+        "command": "SHARES",
       },
       "subtasks": [
         {
           "groupName": "SHARE1",
           "localContext": {
-            "localContext": "SHARE1",
+            "command": "SHARE1",
           },
           "subtasks": [
             {
@@ -2410,6 +2662,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2429,6 +2682,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2448,6 +2702,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2465,7 +2720,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
         {
           "groupName": "SHARE2",
           "localContext": {
-            "localContext": "SHARE2",
+            "command": "SHARE2",
           },
           "subtasks": [
             {
@@ -2475,6 +2730,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "PRE_PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2494,6 +2750,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "PROCESSING",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2513,6 +2770,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
               "priority": "FINALISATION",
               "progression": {
                 "compressedFileSize": "0",
+                "errorCount": 0,
                 "fileCount": 0,
                 "fileSize": "0",
                 "newCompressedFileSize": "0",
@@ -2532,7 +2790,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
     {
       "groupName": "POST_COMMANDS",
       "localContext": {
-        "localContext": "POST_COMMANDS",
+        "command": "POST_COMMANDS",
       },
       "subtasks": [
         {
@@ -2542,6 +2800,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2561,6 +2820,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2580,6 +2840,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2597,7 +2858,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
     {
       "groupName": "FINALISATION",
       "localContext": {
-        "localContext": "FINALISATION",
+        "command": "FINALISATION",
       },
       "subtasks": [
         {
@@ -2607,6 +2868,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "POST_PROCESSING",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2626,6 +2888,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",
@@ -2645,6 +2908,7 @@ exports[`QueueTasksService serializeBackupTask/deserializeBackupTask should seri
           "priority": "FINALISATION",
           "progression": {
             "compressedFileSize": "0",
+            "errorCount": 0,
             "fileCount": 0,
             "fileSize": "0",
             "newCompressedFileSize": "0",

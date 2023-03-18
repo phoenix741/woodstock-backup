@@ -1,6 +1,8 @@
-import { createUnionType, Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { createUnionType, Field, InputType, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
+import { JobState } from 'bullmq';
 import { Transform, Type } from 'class-transformer';
+import { Allow } from 'class-validator';
 import { QueueTaskState } from '../tasks/queue-tasks.model.js';
 
 registerEnumType(QueueTaskState, {
@@ -31,6 +33,10 @@ export class JobProgression {
   @Field(() => Int)
   fileCount?: number;
 
+  @ApiProperty({ type: 'integer' })
+  @Field(() => Int)
+  errorCount?: number;
+
   speed?: number;
   percent?: number;
 
@@ -45,7 +51,7 @@ export class JobProgression {
 @ObjectType()
 export class JobSubTask {
   taskName: string;
-  state: QueueTaskState;
+  state?: QueueTaskState;
   @Type(() => JobProgression)
   progression?: JobProgression;
   description?: string;
@@ -62,7 +68,7 @@ export class JobGroupTasks {
 
   @Field(() => [SubTaskOrGroupTasks])
   subtasks: (typeof SubTaskOrGroupTasks)[];
-  state: QueueTaskState;
+  state?: QueueTaskState;
   @Type(() => JobProgression)
   progression?: JobProgression;
   description?: string;
@@ -70,7 +76,7 @@ export class JobGroupTasks {
 
 @ObjectType()
 export class BackupTask extends JobGroupTasks {
-  host!: string;
+  host?: string;
   number?: number;
   ip?: string;
   startDate?: number;
@@ -79,6 +85,7 @@ export class BackupTask extends JobGroupTasks {
 @ObjectType()
 export class Job {
   id?: string;
+  queueName!: string;
   name!: string;
   state: string;
 
@@ -87,4 +94,19 @@ export class Job {
 
   @Field(() => Int)
   attemptsMade!: number;
+  failedReason?: string;
+}
+
+@InputType()
+export class QueueListInput {
+  @Field(() => [String], { defaultValue: [] })
+  @Type(() => String)
+  @Allow()
+  states: JobState[];
+
+  @Allow()
+  queueName?: string;
+
+  @Allow()
+  operationName?: string;
 }

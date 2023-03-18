@@ -2,8 +2,8 @@ import { readFile } from 'fs/promises';
 import { count, from } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { ProtoFileManifestJournalEntry } from '../shared/woodstock.model.js';
 import { FileManifestJournalEntry } from '../shared';
+import { ProtoFileManifestJournalEntry } from '../shared/woodstock.model.js';
 import { ProtobufService } from './protobuf.service.js';
 
 describe('ManifestWrapper', () => {

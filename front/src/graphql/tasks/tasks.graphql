@@ -1,0 +1,90 @@
+fragment ProgressTask on JobProgression {
+  progressCurrent
+  progressMax
+
+  fileSize
+  newFileSize
+
+  compressedFileSize
+  newCompressedFileSize
+
+  fileCount
+  newFileCount
+
+  errorCount
+}
+
+fragment TaskDescription on SubTaskOrGroupTasks {
+  __typename
+  ... on JobSubTask {
+    taskName
+    description
+    state
+  }
+}
+
+fragment BackupTask on SubTaskOrGroupTasks {
+  __typename
+  ... on JobGroupTasks {
+    groupName
+    description
+    state
+    progression {
+      ...ProgressTask
+    }
+    taskDescription: subtasks {
+      ...TaskDescription
+    }
+  }
+  ... on JobSubTask {
+    taskName
+    description
+    state
+    progression {
+      ...ProgressTask
+    }
+  }
+}
+
+fragment JobProgression on JobProgression {
+  newFileCount
+  fileCount
+  progressCurrent
+  progressMax
+  speed
+}
+
+fragment Job on Job {
+  id
+  queueName
+  name
+  failedReason
+  state
+  data {
+    host
+    number
+    startDate
+    groupName
+    description
+    ip
+    state
+    progression {
+      ...JobProgression
+    }
+    subtasks {
+      ...BackupTask
+    }
+  }
+}
+
+query Tasks($input: QueueListInput!) {
+  queue(input: $input) {
+    ...Job
+  }
+}
+
+subscription QueueTasksJobUpdated {
+  jobUpdated {
+    ...Job
+  }
+}

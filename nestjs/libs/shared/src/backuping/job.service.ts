@@ -5,7 +5,7 @@ import { RedlockAbortSignal } from 'redlock';
 import { PingService } from '../commands';
 import { BackupsService, HostsService, SchedulerConfigService } from '../config';
 import { RefcntJobData } from '../pool';
-import { BackupTask } from '../shared';
+import { QueueName } from '../queue';
 import { LockService } from '../shared/lock.service';
 import { JobBackupData } from './backuping.model';
 
@@ -19,7 +19,7 @@ export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);
 
   constructor(
-    @InjectQueue('queue') private hostsQueue: Queue<JobBackupData>,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
     @InjectQueue('refcnt') private refcnQueue: Queue<RefcntJobData>,
     private lockService: LockService,
     private hostsService: HostsService,
@@ -143,26 +143,27 @@ export class JobService extends QueueEventsHost {
   async launchRefcntJob(
     jobid: string,
     jobname: string,
-    hostname: string,
-    backupNumber: number,
+    host: string,
+    number: number,
     operation: 'add_backup' | 'remove_backup',
   ): Promise<void> {
-    this.logger.log(`Launch ${operation} for ${hostname}`);
+    this.logger.log(`Launch ${operation} for ${host}`);
     const job = await this.refcnQueue.add(
       operation,
       {
-        hostname,
-        backupNumber,
+        host,
+        number,
       },
       {
         parent: {
           id: jobid,
           queue: jobname,
         },
+        removeOnComplete: true,
       },
     );
 
     await job.waitUntilFinished(this.queueEvents);
-    this.logger.log(`${operation} for ${hostname} finished`);
+    this.logger.log(`${operation} for ${host} finished`);
   }
 }

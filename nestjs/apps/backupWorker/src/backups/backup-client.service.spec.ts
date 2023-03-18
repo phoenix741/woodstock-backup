@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ApplicationConfigService,
@@ -22,6 +21,7 @@ import { lastValueFrom, toArray } from 'rxjs';
 import { Readable } from 'stream';
 import { setTimeout } from 'timers/promises';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { BackupClientLocal } from './backup-client-local.class.js';
 import { BackupClient } from './backup-client.service.js';
 
 describe('BackupClient', () => {
@@ -34,6 +34,7 @@ describe('BackupClient', () => {
     streamLog: () => 0,
     downloadFileList: () => 0,
     copyChunk: () => 0,
+    close: () => 0,
   };
 
   const mockBackupService = {
@@ -64,10 +65,6 @@ describe('BackupClient', () => {
     compactAllRefCnt: () => 0,
   };
 
-  const fakeClient = {
-    close: () => void 0,
-  } as ClientGrpcProxy;
-
   function fakeLogger() {
     const logger = new Logger('FakeLogger');
     logger.log = jest.fn();
@@ -85,6 +82,7 @@ describe('BackupClient', () => {
       providers: [
         { provide: ApplicationConfigService, useValue: mockApplicationConfigService },
         { provide: BackupClientGrpc, useValue: mockCientGrpc },
+        { provide: BackupClientLocal, useValue: mockCientGrpc },
         { provide: BackupsService, useValue: mockBackupService },
         { provide: ManifestService, useValue: mockManifestService },
         { provide: PoolService, useValue: mockPoolService },
@@ -100,11 +98,11 @@ describe('BackupClient', () => {
     // GIVEN
     const streamLog = new AsyncSink<LogEntry>();
     const logger = fakeLogger();
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
     mockCientGrpc.authenticate = jest.fn().mockResolvedValue({ sessionId: 'sessionId' });
     mockCientGrpc.streamLog = jest.fn().mockReturnValue(from(streamLog));
-    fakeClient.close = jest.fn();
+    mockCientGrpc.close = jest.fn();
 
     // WHEN
     await backupClient.authenticate(ctxt, logger, logger, 'password');
@@ -119,11 +117,8 @@ describe('BackupClient', () => {
     streamLog.end();
 
     // THEN
-    expect(fakeClient.close).toHaveBeenCalled();
-    expect(mockCientGrpc.authenticate).toHaveBeenCalledWith(
-      new BackupsGrpcContext('host', 'ip', 1, fakeClient),
-      'password',
-    );
+    expect(mockCientGrpc.close).toHaveBeenCalled();
+    expect(mockCientGrpc.authenticate).toHaveBeenCalledWith(new BackupsGrpcContext('host', 'ip', 1), 'password');
     expect(mockCientGrpc.streamLog).toMatchSnapshot('mockClientGrpc.streamLog');
     expect(logger.log).toMatchSnapshot('logger.log');
     expect(logger.warn).toMatchSnapshot('logger.warn');
@@ -188,7 +183,7 @@ describe('BackupClient', () => {
       }
     });
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
     // WHEN
     const observable = backupClient.getFileList(ctxt, {
@@ -293,7 +288,7 @@ describe('BackupClient', () => {
 
     mockCientGrpc.copyChunk = jest.fn().mockReturnValue(Readable.from(['chunk1', 'chunk2']));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
     // WHEN
     const observable = backupClient.createBackup(ctxt, {
@@ -339,7 +334,7 @@ describe('BackupClient', () => {
 
     mockBackupService.addBackupSharePath = jest.fn();
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
     // WHEN
     const observable = backupClient.compact(ctxt, Buffer.from('sharePath'));
@@ -376,7 +371,7 @@ describe('BackupClient', () => {
     mockPoolChunkRefCnt.compactAllRefCnt = jest.fn();
     mockPoolChunkRefCnt.addBackupRefcntTo = jest.fn();
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
     // WHEN
     await backupClient.countRef(ctxt);

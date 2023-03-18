@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ApplicationConfigModule, AuthentificationModule, CoreModule, QueueModule } from '@woodstock/shared';
+import { QueueTasksModule } from '@woodstock/shared/tasks';
 import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller.js';
 import { BackupsFilesService } from './backups/backups-files.service.js';
@@ -12,10 +13,12 @@ import { BackupsResolver } from './backups/backups.resolver.js';
 import { GlobalModule } from './global.module.js';
 import { HostController } from './hosts/hosts.controller.js';
 import { HostsResolver } from './hosts/hosts.resolver.js';
+import { PoolResolver } from './pool/pool.resolver.js';
 import { QueueController } from './queue/queue.controller.js';
 import { QueueResolver } from './queue/queue.resolver.js';
 import { QueueService } from './queue/queue.service.js';
 import { QueueUtils } from './queue/queue.utils.js';
+import { RefcntQueueService } from './queue/refcnt-queue.service.js';
 import { ServeStaticService } from './server/serve-static.service.js';
 import { ServerController } from './server/server.controller.js';
 import { ServerService } from './server/server.service.js';
@@ -30,6 +33,7 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     GlobalModule,
     CoreModule,
     QueueModule,
+    QueueTasksModule,
     AuthentificationModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
@@ -64,12 +68,14 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     QueueController,
     QueueResolver,
     QueueService,
+    RefcntQueueService,
     QueueUtils,
     ServerController,
     ServerService,
     ServeStaticService,
     StatsResolver,
     PrometheusService,
+    PoolResolver,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

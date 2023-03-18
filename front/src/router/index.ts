@@ -1,59 +1,51 @@
-import Vue from 'vue';
-import VueRouter, { RouteConfig } from 'vue-router';
+// Composables
+import { createRouter, createWebHistory } from 'vue-router';
 
-Vue.use(VueRouter);
-
-const routes: Array<RouteConfig> = [
-  {
-    name: 'Dashboard',
-    path: '/dashboard',
-    component: () => import(/* webpackChunkName: "dashboard" */ '../views/Dashboard.vue'),
-  },
-  {
-    name: 'Hosts',
-    path: '/hosts',
-    component: () => import(/* webpackChunkName: "hosts" */ '../views/Hosts.vue'),
-  },
-  {
-    name: 'Backups',
-    path: '/backups/:hostname',
-    props: true,
-    component: () => import(/* webpackChunkName: "hosts" */ '../views/Backups.vue'),
-  },
-  {
-    name: 'QueueTasks',
-    path: '/tasks/:state',
-    props: true,
-    component: () => import(/* webpackChunkName: "tasks" */ '../views/QueueTasks.vue'),
-  },
-  {
-    name: 'Log',
-    path: '/logs/:logfile',
-    props: true,
-    component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
-  },
-  {
-    name: 'BackupLog',
-    path: '/backups/:hostname/:number/logs/:logfile',
-    props: true,
-    component: () => import(/* webpackChunkName: "logs" */ '../views/Logs.vue'),
-  },
-
-  {
-    name: 'BackupsBrowse',
-    path: '/backups/:hostname/:number',
-    props: true,
-    component: () => import(/* webpackChunkName: "browse" */ '../views/BackupsBrowse.vue'),
-  },
+const routes = [
   {
     path: '/',
-    redirect: '/dashboard',
+    component: () => import('@/layouts/default/Default.vue'),
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        redirect: { name: 'Devices' },
+      },
+      {
+        path: 'devices',
+        name: 'Devices',
+        // route level code-splitting
+        // this generates a separate chunk (about.[hash].js) for this route
+        // which is lazy-loaded when the route is visited.
+        component: () => import(/* webpackChunkName: "devices" */ '@/views/Devices.vue'),
+      },
+      {
+        path: 'backups/:deviceId',
+        name: 'Backups',
+        component: () => import(/* webpackChunkName: "backups" */ '@/views/Backups.vue'),
+      },
+      {
+        path: 'tasks/:taskFilter',
+        name: 'Tasks',
+        props: true,
+        component: () => import(/* webpackChunkName: "tasks" */ '@/views/Tasks.vue'),
+      },
+      {
+        path: 'pool',
+        name: 'Pool',
+        component: () => import(/* webpackChunkName: "pool" */ '@/views/Pool.vue'),
+      },
+      {
+        path: 'about',
+        name: 'About',
+        component: () => import(/* webpackChunkName: "about" */ '@/views/About.vue'),
+      },
+    ],
   },
 ];
 
-const router = new VueRouter({
-  mode: 'history',
-  base: process.env.BASE_URL,
+const router = createRouter({
+  history: createWebHistory(process.env.BASE_URL),
   routes,
 });
 

@@ -49,15 +49,29 @@ export const QUEUE_TASK_SUCCESS_STATE = [QueueTaskState.SUCCESS];
 export type QueueSubTaskCommand<GlobalContext, LocalContext> = (
   context: QueueTaskContext<GlobalContext>,
   localContext: LocalContext,
-) => Observable<QueueTaskProgression> | Promise<void>;
+) => Observable<QueueTaskProgression> | Promise<QueueTaskProgression | void>;
 
 /**
  * Define the context of tasks
  */
 export class QueueTaskContext<GlobalContext> {
-  commands = new Map<string, QueueSubTaskCommand<GlobalContext, unknown>>();
+  commands = new Map<string, QueueSubTaskCommand<GlobalContext, TaskLocalContext>>();
 
   constructor(public readonly globalContext: GlobalContext, public readonly logger: LoggerService) {}
+}
+
+export class TaskLocalContext {
+  host?: string;
+  number?: number;
+
+  command?: string;
+  shares?: string[];
+  @Type(() => Buffer)
+  includes?: Buffer[];
+  @Type(() => Buffer)
+  excludes?: Buffer[];
+  @Type(() => Buffer)
+  sharePath?: Buffer;
 }
 
 /**
@@ -76,6 +90,8 @@ export class QueueTaskProgression {
 
   newFileCount = 0;
   fileCount = 0;
+
+  errorCount = 0;
 
   speed = 0;
 
@@ -100,20 +116,22 @@ export class QueueTaskProgression {
     return progressions.reduce((acc, p) => acc.merge(p), new QueueTaskProgression());
   }
 
-  merge(progression: QueueTaskProgression): QueueTaskProgression {
-    this.progressCurrent += progression.progressCurrent;
-    this.progressMax += progression.progressMax;
+  merge(progression?: QueueTaskProgression): QueueTaskProgression {
+    this.progressCurrent += progression?.progressCurrent ?? 0n;
+    this.progressMax += progression?.progressMax ?? 0n;
 
-    this.compressedFileSize += progression.compressedFileSize;
-    this.newCompressedFileSize += progression.newCompressedFileSize;
+    this.compressedFileSize += progression?.compressedFileSize ?? 0n;
+    this.newCompressedFileSize += progression?.newCompressedFileSize ?? 0n;
 
-    this.fileSize += progression.fileSize;
-    this.newFileSize += progression.newFileSize;
+    this.fileSize += progression?.fileSize ?? 0n;
+    this.newFileSize += progression?.newFileSize ?? 0n;
 
-    this.newFileCount += progression.newFileCount;
-    this.fileCount += progression.fileCount;
+    this.newFileCount += progression?.newFileCount ?? 0;
+    this.fileCount += progression?.fileCount ?? 0;
 
-    this.speed += progression.speed;
+    this.errorCount += progression?.errorCount ?? 0;
+
+    this.speed += progression?.speed ?? 0;
 
     return this;
   }
@@ -121,7 +139,7 @@ export class QueueTaskProgression {
 
 abstract class AbstractQueueTask {
   protected __type: string;
-  readonly localContext: unknown;
+  readonly localContext: TaskLocalContext;
 }
 
 /**
@@ -134,14 +152,15 @@ export class QueueSubTask extends AbstractQueueTask {
   progression = new QueueTaskProgression();
 
   readonly taskName: string;
-  readonly localContext: unknown;
+  @Type(() => TaskLocalContext)
+  readonly localContext: TaskLocalContext;
   readonly priority: QueueTaskPriority;
 
-  constructor(taskName: string, localContext: unknown, priority = QueueTaskPriority.PROCESSING) {
+  constructor(taskName: string, localContext?: TaskLocalContext, priority = QueueTaskPriority.PROCESSING) {
     super();
     this.__type = 'subtask';
     this.taskName = taskName;
-    this.localContext = localContext;
+    this.localContext = localContext ?? {};
     this.priority = priority;
   }
 }
@@ -161,17 +180,18 @@ export class QueueGroupTasks extends AbstractQueueTask {
   })
   subtasks: (QueueSubTask | QueueGroupTasks)[] = [];
   readonly groupName: string;
-  readonly localContext: unknown;
+  @Type(() => TaskLocalContext)
+  readonly localContext: TaskLocalContext;
 
-  constructor(groupName: string, localContext: unknown) {
+  constructor(groupName: string, localContext?: TaskLocalContext) {
     super();
     this.__type = 'grouptask';
     this.groupName = groupName;
-    this.localContext = localContext;
+    this.localContext = localContext ?? {};
   }
 
-  add(task: QueueSubTask | QueueGroupTasks) {
-    this.subtasks.push(task);
+  add(...task: (QueueSubTask | QueueGroupTasks)[]) {
+    this.subtasks.push(...task);
     return this;
   }
 
@@ -193,7 +213,10 @@ export class QueueGroupTasks extends AbstractQueueTask {
       }
 
       const started = subtasks.some((subtask) => [QueueTaskState.RUNNING].includes(subtask.state));
-      if (started) {
+
+      const hasSuccess = subtasks.some((subtask) => [QueueTaskState.SUCCESS].includes(subtask.state));
+      const hasWaiting = subtasks.some((subtask) => [QueueTaskState.WAITING].includes(subtask.state));
+      if (started || (hasSuccess && hasWaiting)) {
         return QueueTaskState.RUNNING;
       }
       return QueueTaskState.WAITING;

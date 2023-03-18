@@ -41,23 +41,23 @@ describe('QueueTasksService', () => {
   });
 
   beforeEach(() => {
-    task = new QueueTasks('GLOBAL', { localContext: 'GLOBAL' })
+    task = new QueueTasks('GLOBAL', { command: 'GLOBAL' })
       .add(
-        new QueueGroupTasks('INITIALISATION', { localContext: 'INITIALISATION' })
+        new QueueGroupTasks('INITIALISATION', { command: 'INITIALISATION' })
           .add(new QueueSubTask('connection', { command: 'connection' }, QueueTaskPriority.INITIALISATION))
           .add(new QueueSubTask('init-directory', { command: 'init-directory' }, QueueTaskPriority.INITIALISATION))
           .add(new QueueSubTask('authentication', { command: 'authentication' }, QueueTaskPriority.INITIALISATION)),
       )
       .add(
-        new QueueGroupTasks('PRE_COMMANDS', { localContext: 'PRE_COMMANDS' })
+        new QueueGroupTasks('PRE_COMMANDS', { command: 'PRE_COMMANDS' })
           .add(new QueueSubTask('pre-command1', { command: 'pre-command1' }, QueueTaskPriority.PRE_PROCESSING))
           .add(new QueueSubTask('pre-command2', { command: 'pre-command2' }, QueueTaskPriority.PRE_PROCESSING))
           .add(new QueueSubTask('pre-command3', { command: 'pre-command3' }, QueueTaskPriority.PRE_PROCESSING)),
       )
       .add(
-        new QueueGroupTasks('SHARES', { localContext: 'SHARES' })
+        new QueueGroupTasks('SHARES', { command: 'SHARES' })
           .add(
-            new QueueGroupTasks('SHARE1', { localContext: 'SHARE1' })
+            new QueueGroupTasks('SHARE1', { command: 'SHARE1' })
               .add(
                 new QueueSubTask('share1-filelist', { command: 'share1-filelist' }, QueueTaskPriority.PRE_PROCESSING),
               )
@@ -65,7 +65,7 @@ describe('QueueTasksService', () => {
               .add(new QueueSubTask('share1-compact', { command: 'share1-compact' }, QueueTaskPriority.FINALISATION)),
           )
           .add(
-            new QueueGroupTasks('SHARE2', { localContext: 'SHARE2' })
+            new QueueGroupTasks('SHARE2', { command: 'SHARE2' })
               .add(
                 new QueueSubTask('share2-filelist', { command: 'share2-filelist' }, QueueTaskPriority.PRE_PROCESSING),
               )
@@ -74,13 +74,13 @@ describe('QueueTasksService', () => {
           ),
       )
       .add(
-        new QueueGroupTasks('POST_COMMANDS', { localContext: 'POST_COMMANDS' })
+        new QueueGroupTasks('POST_COMMANDS', { command: 'POST_COMMANDS' })
           .add(new QueueSubTask('post-command1', { command: 'post-command1' }, QueueTaskPriority.PROCESSING))
           .add(new QueueSubTask('post-command2', { command: 'post-command2' }, QueueTaskPriority.PROCESSING))
           .add(new QueueSubTask('post-command3', { command: 'post-command3' }, QueueTaskPriority.PROCESSING)),
       )
       .add(
-        new QueueGroupTasks('FINALISATION', { localContext: 'FINALISATION' })
+        new QueueGroupTasks('FINALISATION', { command: 'FINALISATION' })
           .add(new QueueSubTask('close-connection', { command: 'close-connection' }, QueueTaskPriority.POST_PROCESSING))
           .add(new QueueSubTask('refcnt-host', { command: 'refcnt-host' }, QueueTaskPriority.FINALISATION))
           .add(new QueueSubTask('refcnt-pool', { command: 'refcnt-pool' }, QueueTaskPriority.FINALISATION)),

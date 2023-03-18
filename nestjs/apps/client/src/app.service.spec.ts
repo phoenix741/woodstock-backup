@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { EncryptionService } from '@woodstock/shared';
+import { BackupOnClientService, EncryptionService } from '@woodstock/shared';
 import { AppService } from './app.service.js';
-import { BackupService } from './backup/backup.service.js';
 import { ClientConfigService } from './config/client.config.js';
 import { LogService } from './logger/log.service.js';
 
@@ -17,7 +16,7 @@ describe('AppService', () => {
         AppService,
         { provide: ClientConfigService, useValue: {} },
         { provide: EncryptionService, useValue: {} },
-        { provide: BackupService, useValue: backupService },
+        { provide: BackupOnClientService, useValue: backupService },
         { provide: LogService, useValue: logService },
       ],
     }).compile();

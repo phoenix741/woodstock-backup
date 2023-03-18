@@ -1,46 +1,11 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`BackupClientProgress #authenticate: result 1`] = `
-[
-  QueueTaskProgression {
-    "compressedFileSize": 0n,
-    "fileCount": 0,
-    "fileSize": 0n,
-    "newCompressedFileSize": 0n,
-    "newFileCount": 0,
-    "newFileSize": 0n,
-    "progressCurrent": 0n,
-    "progressMax": 0n,
-    "speed": 0,
-  },
-  QueueTaskProgression {
-    "compressedFileSize": 0n,
-    "fileCount": 0,
-    "fileSize": 0n,
-    "newCompressedFileSize": 0n,
-    "newFileCount": 0,
-    "newFileSize": 0n,
-    "progressCurrent": 0n,
-    "progressMax": 0n,
-    "speed": 0,
-  },
-  QueueTaskProgression {
-    "compressedFileSize": 0n,
-    "fileCount": 0,
-    "fileSize": 0n,
-    "newCompressedFileSize": 0n,
-    "newFileCount": 0,
-    "newFileSize": 0n,
-    "progressCurrent": 1n,
-    "progressMax": 1n,
-    "speed": 0,
-  },
-]
-`;
+exports[`BackupClientProgress #authenticate: result 1`] = `undefined`;
 
 exports[`BackupClientProgress #createBackup: result 1`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 0n,
@@ -55,6 +20,7 @@ exports[`BackupClientProgress #createBackup: result 1`] = `
 exports[`BackupClientProgress #createBackup: result 2`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 0n,
@@ -69,6 +35,7 @@ exports[`BackupClientProgress #createBackup: result 2`] = `
 exports[`BackupClientProgress #createBackup: result 3`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 0n,
@@ -83,6 +50,7 @@ exports[`BackupClientProgress #createBackup: result 3`] = `
 exports[`BackupClientProgress #createBackup: result 4`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 50n,
@@ -97,6 +65,7 @@ exports[`BackupClientProgress #createBackup: result 4`] = `
 exports[`BackupClientProgress #createBackup: result 5`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 50n,
@@ -111,6 +80,7 @@ exports[`BackupClientProgress #createBackup: result 5`] = `
 exports[`BackupClientProgress #createBackup: result 6`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 50n,
@@ -125,6 +95,7 @@ exports[`BackupClientProgress #createBackup: result 6`] = `
 exports[`BackupClientProgress #createBackup: result 7`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 50n,
@@ -139,6 +110,7 @@ exports[`BackupClientProgress #createBackup: result 7`] = `
 exports[`BackupClientProgress #createBackup: result 8`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -153,6 +125,7 @@ exports[`BackupClientProgress #createBackup: result 8`] = `
 exports[`BackupClientProgress #createBackup: result 9`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -167,6 +140,7 @@ exports[`BackupClientProgress #createBackup: result 9`] = `
 exports[`BackupClientProgress #createBackup: result 10`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -181,6 +155,7 @@ exports[`BackupClientProgress #createBackup: result 10`] = `
 exports[`BackupClientProgress #createBackup: result 11`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -195,6 +170,7 @@ exports[`BackupClientProgress #createBackup: result 11`] = `
 exports[`BackupClientProgress #createBackup: result 12`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -209,6 +185,7 @@ exports[`BackupClientProgress #createBackup: result 12`] = `
 exports[`BackupClientProgress #createBackup: result 13`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 150n,
@@ -223,6 +200,7 @@ exports[`BackupClientProgress #createBackup: result 13`] = `
 exports[`BackupClientProgress #createBackup: result 14`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -237,6 +215,7 @@ exports[`BackupClientProgress #createBackup: result 14`] = `
 exports[`BackupClientProgress #createBackup: result 15`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -251,6 +230,7 @@ exports[`BackupClientProgress #createBackup: result 15`] = `
 exports[`BackupClientProgress #createBackup: result 16`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -265,6 +245,7 @@ exports[`BackupClientProgress #createBackup: result 16`] = `
 exports[`BackupClientProgress #createBackup: result 17`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -279,6 +260,7 @@ exports[`BackupClientProgress #createBackup: result 17`] = `
 exports[`BackupClientProgress #createBackup: result 18`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -293,6 +275,7 @@ exports[`BackupClientProgress #createBackup: result 18`] = `
 exports[`BackupClientProgress #createBackup: result 19`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -307,6 +290,7 @@ exports[`BackupClientProgress #createBackup: result 19`] = `
 exports[`BackupClientProgress #createBackup: result 20`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 300n,
@@ -321,6 +305,7 @@ exports[`BackupClientProgress #createBackup: result 20`] = `
 exports[`BackupClientProgress #createBackup: result 21`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -335,6 +320,7 @@ exports[`BackupClientProgress #createBackup: result 21`] = `
 exports[`BackupClientProgress #createBackup: result 22`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -349,6 +335,7 @@ exports[`BackupClientProgress #createBackup: result 22`] = `
 exports[`BackupClientProgress #createBackup: result 23`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -363,6 +350,7 @@ exports[`BackupClientProgress #createBackup: result 23`] = `
 exports[`BackupClientProgress #createBackup: result 24`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -377,6 +365,7 @@ exports[`BackupClientProgress #createBackup: result 24`] = `
 exports[`BackupClientProgress #createBackup: result 25`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -391,6 +380,7 @@ exports[`BackupClientProgress #createBackup: result 25`] = `
 exports[`BackupClientProgress #createBackup: result 26`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -405,6 +395,7 @@ exports[`BackupClientProgress #createBackup: result 26`] = `
 exports[`BackupClientProgress #createBackup: result 27`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -419,6 +410,7 @@ exports[`BackupClientProgress #createBackup: result 27`] = `
 exports[`BackupClientProgress #createBackup: result 28`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 500n,
@@ -433,6 +425,7 @@ exports[`BackupClientProgress #createBackup: result 28`] = `
 exports[`BackupClientProgress #createBackup: result 29`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -447,6 +440,7 @@ exports[`BackupClientProgress #createBackup: result 29`] = `
 exports[`BackupClientProgress #createBackup: result 30`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -461,6 +455,7 @@ exports[`BackupClientProgress #createBackup: result 30`] = `
 exports[`BackupClientProgress #createBackup: result 31`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -475,6 +470,7 @@ exports[`BackupClientProgress #createBackup: result 31`] = `
 exports[`BackupClientProgress #createBackup: result 32`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -489,6 +485,7 @@ exports[`BackupClientProgress #createBackup: result 32`] = `
 exports[`BackupClientProgress #createBackup: result 33`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -503,6 +500,7 @@ exports[`BackupClientProgress #createBackup: result 33`] = `
 exports[`BackupClientProgress #createBackup: result 34`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -517,6 +515,7 @@ exports[`BackupClientProgress #createBackup: result 34`] = `
 exports[`BackupClientProgress #createBackup: result 35`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -531,6 +530,7 @@ exports[`BackupClientProgress #createBackup: result 35`] = `
 exports[`BackupClientProgress #createBackup: result 36`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -545,6 +545,7 @@ exports[`BackupClientProgress #createBackup: result 36`] = `
 exports[`BackupClientProgress #createBackup: result 37`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -559,6 +560,7 @@ exports[`BackupClientProgress #createBackup: result 37`] = `
 exports[`BackupClientProgress #createBackup: result 38`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 750n,
@@ -573,6 +575,7 @@ exports[`BackupClientProgress #createBackup: result 38`] = `
 exports[`BackupClientProgress #createBackup: result 39`] = `
 {
   "compressedFileSize": 0n,
+  "errorCount": 0,
   "fileCount": 0,
   "fileSize": 0n,
   "newCompressedFileSize": 1350n,
@@ -588,6 +591,7 @@ exports[`BackupClientProgress #executeCommand: result 1`] = `
 [
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -599,6 +603,7 @@ exports[`BackupClientProgress #executeCommand: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -610,6 +615,7 @@ exports[`BackupClientProgress #executeCommand: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -626,6 +632,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
 [
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -637,6 +644,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -648,6 +656,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -659,6 +668,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -670,6 +680,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
@@ -681,6 +692,7 @@ exports[`BackupClientProgress #getFileList: result 1`] = `
   },
   QueueTaskProgression {
     "compressedFileSize": 0n,
+    "errorCount": 0,
     "fileCount": 0,
     "fileSize": 0n,
     "newCompressedFileSize": 0n,
