@@ -15,7 +15,8 @@
       "console",
       "shared",
       "workflow",
-      "front"
+      "front",
+      "gitea"
     ],
     "jest.disabledWorkspaceFolders": [
       "client-sync",

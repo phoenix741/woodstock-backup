@@ -63,6 +63,7 @@ exports[`BackupClient authenticate: mockClientGrpc.streamLog 1`] = `
         "ip": "ip",
         "isLocal": false,
         "logger": undefined,
+        "originalDate": undefined,
         "sessionId": undefined,
       },
     ],
@@ -458,10 +459,15 @@ exports[`BackupClient countRef: mockPoolChunkRefCnt.addBackupRefcntTo 1`] = `
   "calls": [
     [
       "host-1/REFCNT.backup",
+      undefined,
+      undefined,
+      undefined,
     ],
     [
       "host/REFCNT.host",
       "host-1/REFCNT.backup",
+      undefined,
+      undefined,
     ],
   ],
   "results": [
@@ -1375,6 +1381,7 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
         "ip": "ip",
         "isLocal": false,
         "logger": undefined,
+        "originalDate": undefined,
         "sessionId": undefined,
       },
       {
