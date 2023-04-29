@@ -21,8 +21,6 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=debug
-      - APOLLO_KEY=service:woodstock-backup:iqaZyc66gS4JhesQlqnXvw
-      - APOLLO_GRAPH_REF=woodstock@develop
       - NODE_ENV=development
       - BACKUP_PATH=/backups
     volumes:

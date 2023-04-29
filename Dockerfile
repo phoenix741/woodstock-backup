@@ -1,4 +1,4 @@
-FROM node:16 as dependencies
+FROM node:20 as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/nestjs
@@ -23,16 +23,14 @@ COPY nestjs/ /src/nestjs/
 
 WORKDIR /src/front
 
-ENV VUE_APP_GRAPHQL_HTTP=/graphql
-
-RUN npm run build -- --prod
+RUN npm run build 
 
 WORKDIR /src/nestjs
 RUN npm run buildall
 
 #
 # -------- Dist -----------
-FROM node:16 AS dist
+FROM node:20 AS dist
 
 WORKDIR /nestjs
 

@@ -170,7 +170,12 @@ export class RefCntService {
     return reducedRefCount;
   }
 
-  async addBackupRefcntTo(fileToChangePath: string, backupRefcntPath?: string, unusedPath?: string): Promise<void> {
+  async addBackupRefcntTo(
+    fileToChangePath: string,
+    backupRefcntPath?: string,
+    unusedPath?: string,
+    fakeDate?: number,
+  ): Promise<void> {
     this.logger.debug(`Add ${backupRefcntPath} ref count to ${fileToChangePath}`);
     await this.lockService.using(
       [fileToChangePath, backupRefcntPath, unusedPath].filter((v): v is string => !!v),
@@ -194,7 +199,7 @@ export class RefCntService {
             await this.writeUnused(unusedArray.toIterator(), unusedPath);
           }
           await this.writeRefCnt(from(rrefcnt.values()), fileToChangePath);
-          await this.statsService.writeStatistics(statistics, dirname(fileToChangePath));
+          await this.statsService.writeStatistics(statistics, dirname(fileToChangePath), fakeDate);
         } catch (err) {
           this.logger.log(`Error while compacting ref count from ${fileToChangePath} : ${err.message}`, err);
         } finally {

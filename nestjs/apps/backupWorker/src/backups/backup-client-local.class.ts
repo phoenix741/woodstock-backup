@@ -25,7 +25,12 @@ export class BackupsLocalContext implements BackupClientContext {
   logger?: LoggerService;
   abortable: AbortController[] = [];
 
-  constructor(public host: string, public currentBackupId: number, public pathPrefix: string) {}
+  constructor(
+    public host: string,
+    public currentBackupId: number,
+    public pathPrefix: string,
+    public originalDate?: number,
+  ) {}
 }
 @Injectable()
 export class BackupClientLocal implements BackupClientInterface {
@@ -33,10 +38,15 @@ export class BackupClientLocal implements BackupClientInterface {
 
   constructor(private backupService: BackupOnClientService) {}
 
-  createContext(hostname: string, currentBackupId: number, pathPrefix: string): BackupsLocalContext {
+  createContext(
+    hostname: string,
+    currentBackupId: number,
+    pathPrefix: string,
+    originalDate?: number,
+  ): BackupsLocalContext {
     this.logger.log(`Create LOCAL context to ${hostname}`);
 
-    return new BackupsLocalContext(hostname, currentBackupId, pathPrefix);
+    return new BackupsLocalContext(hostname, currentBackupId, pathPrefix, originalDate);
   }
 
   async createConnection(): Promise<void> {

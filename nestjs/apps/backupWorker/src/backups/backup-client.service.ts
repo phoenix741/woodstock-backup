@@ -74,11 +74,12 @@ export class BackupClient {
     hostname: string,
     currentBackupId: number,
     pathPrefix?: string,
+    originalDate?: number,
   ): BackupClientContext {
     if (pathPrefix) {
-      return this.clientLocal.createContext(hostname, currentBackupId, pathPrefix);
+      return this.clientLocal.createContext(hostname, currentBackupId, pathPrefix, originalDate);
     }
-    return this.clientGrpc.createContext(ip, hostname, currentBackupId);
+    return this.clientGrpc.createContext(ip, hostname, currentBackupId, originalDate);
   }
 
   async createConnection(context: BackupClientContext): Promise<void> {
@@ -413,8 +414,8 @@ export class BackupClient {
     // Compact the refcnt files
     this.logger.debug(`Compact ref count from ${refcnt.backupPath}`);
     try {
-      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath);
-      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath, undefined, undefined, context.originalDate);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath, undefined, context.originalDate);
     } finally {
       this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
     }

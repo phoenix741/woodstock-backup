@@ -146,6 +146,7 @@ export class JobService extends QueueEventsHost {
     host: string,
     number: number,
     operation: 'add_backup' | 'remove_backup',
+    originalDate?: number,
   ): Promise<void> {
     this.logger.log(`Launch ${operation} for ${host}`);
     const job = await this.refcnQueue.add(
@@ -153,6 +154,7 @@ export class JobService extends QueueEventsHost {
       {
         host,
         number,
+        originalDate,
       },
       {
         parent: {

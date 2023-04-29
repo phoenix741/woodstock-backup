@@ -104,14 +104,14 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   #prepareAddBackupTask(job: Job<RefcntJobData>) {
-    const { host, number } = job.data;
+    const { host, number, originalDate } = job.data;
     if (!host || number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);
     }
 
     const task = new QueueTasks('GLOBAL', {}).add(new QueueSubTask(RefcntTaskNameEnum.ADD_REFCNT_POOL_TASK));
 
-    return new QueueTasksInformations(task, this.#createGlobalContext(host, number));
+    return new QueueTasksInformations(task, this.#createGlobalContext(host, number, undefined, originalDate));
   }
 
   #prepareRemoveBackupTask(job: Job<RefcntJobData>) {
@@ -210,7 +210,7 @@ export class RefcntConsumer extends WorkerHost {
     return new QueueTasksInformations(tasks, globalContext);
   }
 
-  #createGlobalContext(hostname?: string, backupNumber?: number, target?: string) {
+  #createGlobalContext(hostname?: string, backupNumber?: number, target?: string, originalDate?: number) {
     const logger = new BackupLogger(this.backupsService, hostname ?? 'refcnt', backupNumber);
     const refcnt = new ReferenceCount(
       (hostname && this.backupsService.getHostDirectory(hostname)) ?? '',
@@ -222,7 +222,12 @@ export class RefcntConsumer extends WorkerHost {
     const globalContext = new QueueTaskContext(refcnt, logger);
 
     globalContext.commands.set(RefcntTaskNameEnum.ADD_REFCNT_POOL_TASK, async () => {
-      await this.refcntService.addBackupRefcntTo(refcnt.poolPath, refcnt.backupPath, refcnt.unusedPoolPath);
+      await this.refcntService.addBackupRefcntTo(
+        refcnt.poolPath,
+        refcnt.backupPath,
+        refcnt.unusedPoolPath,
+        originalDate,
+      );
     });
     globalContext.commands.set(RefcntTaskNameEnum.REMOVE_REFCNT_POOL_TASK, async () => {
       await this.refcntService.removeBackupRefcntTo(refcnt.poolPath, refcnt.backupPath, refcnt.unusedPoolPath);

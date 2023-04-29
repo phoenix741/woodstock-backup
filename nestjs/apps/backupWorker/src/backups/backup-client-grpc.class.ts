@@ -38,7 +38,12 @@ export class BackupsGrpcContext implements BackupClientContext {
   abortable: AbortController[] = [];
   client?: ClientGrpcProxy;
 
-  constructor(public host: string, public ip: string | undefined, public currentBackupId: number) {}
+  constructor(
+    public host: string,
+    public ip: string | undefined,
+    public currentBackupId: number,
+    public originalDate?: number,
+  ) {}
 
   get service() {
     return this.client?.getClientByServiceName<WoodstockClientServiceClient>('WoodstockClientService');
@@ -65,10 +70,15 @@ export class BackupClientGrpc implements BackupClientInterface {
     return contextAsGrpc.service;
   }
 
-  createContext(ip: string | undefined, hostname: string, currentBackupId: number): BackupClientContext {
+  createContext(
+    ip: string | undefined,
+    hostname: string,
+    currentBackupId: number,
+    originalDate?: number,
+  ): BackupClientContext {
     this.logger.log(`Create context to ${hostname} (${ip})`);
 
-    return new BackupsGrpcContext(hostname, ip, currentBackupId);
+    return new BackupsGrpcContext(hostname, ip, currentBackupId, originalDate);
   }
 
   async createConnection(context: BackupClientContext): Promise<void> {

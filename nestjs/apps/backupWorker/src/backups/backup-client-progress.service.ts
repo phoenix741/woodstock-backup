@@ -14,8 +14,9 @@ export class BackupClientProgress {
     hostname: string,
     currentBackupId: number,
     pathPrefix?: string,
+    originalDate?: number,
   ): BackupClientContext {
-    return this.backupClient.createContext(ip, hostname, currentBackupId, pathPrefix);
+    return this.backupClient.createContext(ip, hostname, currentBackupId, pathPrefix, originalDate);
   }
 
   async createConnection(context: BackupClientContext): Promise<void> {

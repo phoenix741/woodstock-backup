@@ -4,25 +4,25 @@ name: backend
 
 steps:
   - name: server:install
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm ci
 
   - name: server:lint
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run lint
 
   - name: server:unit
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run test
 
   - name: server:build
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run buildall
@@ -34,20 +34,20 @@ name: frontend
 
 steps:
   - name: front:install
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm ci
 
   - name: front:lint
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm run lint
       #- npm run test:unit
 
   - name: front:build
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm run build

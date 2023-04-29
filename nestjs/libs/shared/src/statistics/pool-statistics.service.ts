@@ -22,9 +22,9 @@ export class PoolStatisticsService {
     private readonly applicationConfig: ApplicationConfigService,
   ) {}
 
-  async writeStatistics(statistics: PoolStatistics, dirname: string): Promise<void> {
+  async writeStatistics(statistics: PoolStatistics, dirname: string, fakeDate?: number): Promise<void> {
     await this.yamlService.writeFile(join(dirname, 'statistics.yml'), statistics);
-    await this.appendHistoryStatistics(dirname, statistics);
+    await this.appendHistoryStatistics(dirname, statistics, fakeDate);
   }
 
   async readStatistics(filename: string): Promise<PoolStatistics> {
@@ -46,10 +46,10 @@ export class PoolStatisticsService {
     return this.readStatistics(path);
   }
 
-  async appendHistoryStatistics(dirname: string, statistics: PoolStatistics): Promise<void> {
+  async appendHistoryStatistics(dirname: string, statistics: PoolStatistics, fakeDate?: number): Promise<void> {
     const path = join(dirname, 'history.yml');
     const histories = await this.yamlService.loadFile(path, [] as HistoricalPoolStatistics[]);
-    histories.push({ ...statistics, date: new Date().getTime() });
+    histories.push({ ...statistics, date: fakeDate ?? new Date().getTime() });
 
     await this.yamlService.writeFile(path, histories);
   }

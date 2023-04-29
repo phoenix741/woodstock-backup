@@ -42,6 +42,7 @@ export interface BackupClientContext {
   currentBackupId: number;
   logger?: LoggerService;
   abortable: AbortController[];
+  originalDate?: number;
 }
 
 export class BackupContext {
@@ -52,6 +53,7 @@ export class BackupContext {
   ip?: string;
 
   startDate: number = new Date().getTime();
+  originalStartDate?: number;
 
   connection: BackupClientContext;
   clientLogger: LoggerService;
@@ -67,6 +69,7 @@ export class BackupContext {
     this.number = jobData.number;
     this.ip = jobData.ip;
     this.startDate = jobData.startDate ?? this.startDate;
+    this.originalStartDate = jobData.originalStartDate;
 
     this.clientLogger = clientLogger;
     this.connection = connection;

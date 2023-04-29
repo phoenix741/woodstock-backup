@@ -86,6 +86,7 @@ export class BackupTasksService {
       job.data.host,
       job.data.number ?? 0,
       job.data.pathPrefix,
+      job.data.originalStartDate,
     );
     const globalContext = new QueueTaskContext(new BackupContext(job.data, clientLogger, connection), logger);
 
@@ -169,6 +170,7 @@ export class BackupTasksService {
         job.data.host,
         job.data.number,
         'add_backup',
+        job.data.originalStartDate,
       );
     });
 
@@ -234,13 +236,19 @@ export class BackupTasksService {
     const progression = informations.tasks.progression;
     const jobData = informations.context.globalContext;
 
-    const endDate = new Date().getTime();
+    let diffTime = 0;
+    if (jobData.originalStartDate) {
+      diffTime = jobData.startDate - jobData.originalStartDate;
+    }
+
+    const startDate = jobData.startDate - diffTime;
+    const endDate = new Date().getTime() - diffTime;
 
     return {
       number: jobData.number,
       complete: QUEUE_TASK_SUCCESS_STATE.includes(informations.tasks.state),
 
-      startDate: jobData.startDate,
+      startDate,
       endDate,
 
       fileCount: progression.fileCount,

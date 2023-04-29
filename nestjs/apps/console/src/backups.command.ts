@@ -123,6 +123,7 @@ export class BackupsCommand extends QueueEventsHost {
     description: 'Import backup from filesystem',
   })
   async import(host: string, date: string | number, pathPrefix: string, prefixText?: string): Promise<void> {
+    console.log(`[Backups/Import] ${host}/NA: Importing backup from ${pathPrefix} for ${host} at ${date}`);
     const spinner = createSpinner({ prefixText });
     spinner.start(`[Backups/Import] ${host}/NA: Progress 0%`);
 
@@ -137,7 +138,7 @@ export class BackupsCommand extends QueueEventsHost {
       host,
 
       pathPrefix,
-      originalStartDate: typeof date === 'string' ? parseInt(date) : date,
+      originalStartDate: typeof date === 'string' ? new Date(date).getTime() : date,
       force: true,
     });
 

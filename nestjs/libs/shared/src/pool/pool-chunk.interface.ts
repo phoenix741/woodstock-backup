@@ -3,6 +3,7 @@ import { ChunkInformation } from '../shared';
 export interface RefcntJobData {
   host?: string;
   number?: number;
+  originalDate?: number;
 
   fix?: boolean;
   refcnt?: boolean;

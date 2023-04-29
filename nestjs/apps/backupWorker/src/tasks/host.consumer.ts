@@ -71,7 +71,7 @@ export class HostConsumer extends WorkerHost {
           job.update(backupTask);
         }
 
-        this.logger.debug(`Resove IP - JOB ID = ${job.id}`);
+        this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
         if (!backupTask.ip && !backupTask.config?.isLocal) {
           backupTask.ip = await this.resolveService.resolveFromConfig(backupTask.host, config);
           if (!backupTask.ip) {
