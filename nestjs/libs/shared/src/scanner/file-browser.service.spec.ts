@@ -9,6 +9,8 @@ describe('FileBrowserService', () => {
       await toArray(service.getFiles(Buffer.from(__dirname))(Buffer.alloc(0), [], [globStringToRegex('*.spec.ts')]))
     ).sort((a, b) => a.path.compare(b.path));
 
-    expect(value).toMatchSnapshot(new Array(value.length).fill({ stats: expect.any(Object) }), 'value');
+    for (const file of value) {
+      expect(file).toMatchSnapshot({ stats: expect.any(Object) }, 'value');
+    }
   });
 });

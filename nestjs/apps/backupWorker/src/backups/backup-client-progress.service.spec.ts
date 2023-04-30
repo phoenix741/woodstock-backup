@@ -53,11 +53,12 @@ describe('BackupClientProgress', () => {
     mockBackupClient.authenticate = jest.fn().mockResolvedValue(undefined);
 
     const logger = new Logger('FakeLogger');
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const clientLogger = new Logger('FakeClientLogger');
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
-    const observable = backupClientProgress.authenticate(ctxt, logger, 'password');
-    const result = await lastValueFrom(observable.pipe(toArray()));
+    const result = await backupClientProgress.authenticate(ctxt, logger, clientLogger, 'password');
 
     // THEN
     expect(result).toMatchSnapshot('result');
@@ -67,7 +68,8 @@ describe('BackupClientProgress', () => {
     // GIVEN
     mockBackupClient.executeCommand = jest.fn().mockResolvedValue(undefined);
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.executeCommand(ctxt, 'command');
@@ -89,7 +91,8 @@ describe('BackupClientProgress', () => {
     ];
     mockBackupClient.getFileList = jest.fn().mockReturnValue(from(it));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.getFileList(ctxt, {
@@ -157,7 +160,8 @@ describe('BackupClientProgress', () => {
     ];
     mockBackupClient.createBackup = jest.fn().mockReturnValue(from(it));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1, fakeClient);
+    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
+    ctxt.client = fakeClient;
 
     // WHEN
     const observable = backupClientProgress.createBackup(ctxt, {
@@ -168,6 +172,8 @@ describe('BackupClientProgress', () => {
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN
-    expect(result).toMatchSnapshot(new Array(result.length).fill({ speed: expect.any(Number) }), 'result');
+    for (const r of result) {
+      expect(r).toMatchSnapshot({ speed: expect.any(Number) }, 'result');
+    }
   });
 });

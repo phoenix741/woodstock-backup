@@ -1,0 +1,42 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`IteratorUtil split should split an async iterable into multiple async iterables based on a predicate: resultArray 1`] = `
+{
+  "/etc": [
+    {
+      "header": undefined,
+      "manifest": 5,
+    },
+    {
+      "header": undefined,
+      "manifest": 6,
+    },
+    {
+      "header": undefined,
+      "manifest": 7,
+    },
+    {
+      "header": undefined,
+      "manifest": 8,
+    },
+  ],
+  "/home": [
+    {
+      "header": undefined,
+      "manifest": 1,
+    },
+    {
+      "header": undefined,
+      "manifest": 2,
+    },
+    {
+      "header": undefined,
+      "manifest": 3,
+    },
+    {
+      "header": undefined,
+      "manifest": 4,
+    },
+  ],
+}
+`;

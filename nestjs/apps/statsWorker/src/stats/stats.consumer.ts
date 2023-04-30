@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { BackupTask, DiskStatisticsService, StatsInstantService } from '@woodstock/shared';
+import { DiskStatisticsService, StatsInstantService } from '@woodstock/shared';
 import { Job } from 'bullmq';
 
 @Processor('stats')
@@ -11,12 +11,12 @@ export class StatsConsumer extends WorkerHost {
     super();
   }
 
-  async process(job: Job<BackupTask>): Promise<void> {
-    this.logger.log(`START: Calculate for backup ${job.data.host}/${job.data.number} - JOB ID = ${job.id}`);
+  async process(job: Job<void>): Promise<void> {
+    this.logger.log(`START: Calculate stats for disk - JOB ID = ${job.id}`);
 
     const instant = await this.instantService.getSpace();
     await this.statsService.appendHistoryStatistics(instant);
 
-    this.logger.debug(`END: Of calculate of the host ${job.data.host}/${job.data.number} - JOB ID = ${job.id}`);
+    this.logger.debug(`END: Of calculate stats for disk  - JOB ID = ${job.id}`);
   }
 }

@@ -1,47 +1,60 @@
 import { Injectable, LoggerService } from '@nestjs/common';
-import { EntryType, isPoolChunkInformation, longToBigInt, Share, TaskProgression } from '@woodstock/shared';
+import { BackupClientContext, EntryType, isPoolChunkInformation, longToBigInt, Share } from '@woodstock/shared';
+import { QueueTaskProgression } from '@woodstock/shared/tasks';
 import * as Long from 'long';
 import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
-import { BackupsGrpcContext } from './backup-client-grpc.class.js';
 import { BackupClient } from './backup-client.service.js';
 
 @Injectable()
 export class BackupClientProgress {
   constructor(private backupClient: BackupClient) {}
 
-  authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Observable<TaskProgression> {
-    const authenticate$ = defer(() => this.backupClient.authenticate(context, logger, password));
-
-    return authenticate$.pipe(
-      mapTo(new TaskProgression()),
-      endWith(new TaskProgression({ percent: 100 })),
-      startWith(new TaskProgression({ percent: 0 })),
-    );
+  createContext(
+    ip: string | undefined,
+    hostname: string,
+    currentBackupId: number,
+    pathPrefix?: string,
+    originalDate?: number,
+  ): BackupClientContext {
+    return this.backupClient.createContext(ip, hostname, currentBackupId, pathPrefix, originalDate);
   }
 
-  executeCommand(context: BackupsGrpcContext, command: string): Observable<TaskProgression> {
+  async createConnection(context: BackupClientContext): Promise<void> {
+    await this.backupClient.createConnection(context);
+  }
+
+  authenticate(
+    context: BackupClientContext,
+    logger: LoggerService,
+    clientLogger: LoggerService,
+    password: string,
+  ): Promise<void> {
+    return this.backupClient.authenticate(context, logger, clientLogger, password);
+  }
+
+  executeCommand(context: BackupClientContext, command: string): Observable<QueueTaskProgression> {
     const executeCommand$ = defer(() => this.backupClient.executeCommand(context, command));
 
     return executeCommand$.pipe(
-      startWith(new TaskProgression({ percent: 0 })),
-      mapTo(new TaskProgression()),
-      endWith(new TaskProgression({ percent: 100 })),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      map(() => new QueueTaskProgression()),
+      endWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }
 
-  getFileList(context: BackupsGrpcContext, backupShare: Share): Observable<TaskProgression> {
+  getFileList(context: BackupClientContext, backupShare: Share): Observable<QueueTaskProgression> {
     const fileList$ = this.backupClient.getFileList(context, backupShare).pipe(
       scan((current, value) => {
-        return new TaskProgression({
+        return new QueueTaskProgression({
           progressMax: current.progressMax + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
         });
-      }, new TaskProgression({ percent: 0, progressMax: 0n })),
+      }, new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
     );
 
     return fileList$;
   }
 
-  createBackup(context: BackupsGrpcContext, backupShare: Share): Observable<TaskProgression> {
+  createBackup(context: BackupClientContext, backupShare: Share): Observable<QueueTaskProgression> {
     return this.backupClient.createBackup(context, backupShare).pipe(
       scan(
         (current, value) => {
@@ -82,7 +95,7 @@ export class BackupClientProgress {
       ),
       map((fileCount) => {
         const elapsedTime = BigInt(Date.now() - fileCount.date.getTime());
-        return new TaskProgression({
+        return new QueueTaskProgression({
           newCompressedFileSize: fileCount.compressedFileSize,
           newFileCount: fileCount.count,
           newFileSize: fileCount.size,
@@ -90,11 +103,11 @@ export class BackupClientProgress {
           speed: Number(elapsedTime && (fileCount.progress * 1000n) / elapsedTime),
         });
       }),
-      startWith(new TaskProgression({ percent: 0 })),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
     );
   }
 
-  compact(context: BackupsGrpcContext, sharePath: Buffer): Observable<TaskProgression> {
+  compact(context: BackupClientContext, sharePath: Buffer): Observable<QueueTaskProgression> {
     return this.backupClient.compact(context, sharePath).pipe(
       scan(
         (current, value) => {
@@ -115,37 +128,38 @@ export class BackupClientProgress {
       ),
       map(
         (fileCount) =>
-          new TaskProgression({
+          new QueueTaskProgression({
             compressedFileSize: fileCount.compressedFileSize,
             fileCount: fileCount.count,
             fileSize: fileCount.size,
-            percent: 0,
+            progressCurrent: 0n,
+            progressMax: 0n,
           }),
       ),
-      startWith(new TaskProgression({ percent: 0 })),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
     );
   }
 
-  countRef(context: BackupsGrpcContext): Observable<TaskProgression> {
+  countRef(context: BackupClientContext): Observable<QueueTaskProgression> {
     const countRef$ = defer(() => this.backupClient.countRef(context));
 
     return countRef$.pipe(
-      startWith(new TaskProgression({ percent: 0 })),
-      mapTo(new TaskProgression()),
-      endWith(new TaskProgression({ percent: 100 })),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      mapTo(new QueueTaskProgression()),
+      startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }
 
-  refreshCache(context: BackupsGrpcContext, shares: string[]): Observable<TaskProgression> {
+  refreshCache(context: BackupClientContext, shares: string[]): Observable<QueueTaskProgression> {
     const refreshCache$ = defer(() => this.backupClient.refreshCache(context, shares));
     return refreshCache$.pipe(
-      mapTo(new TaskProgression()),
-      startWith(new TaskProgression({ percent: 0 })),
-      endWith(new TaskProgression({ percent: 100 })),
+      mapTo(new QueueTaskProgression()),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }
 
-  close(context: BackupsGrpcContext): void {
+  close(context: BackupClientContext): void {
     this.backupClient.close(context);
   }
 }

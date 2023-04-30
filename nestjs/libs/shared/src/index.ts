@@ -1,5 +1,6 @@
 export * from './authentification';
 export * from './backuping';
+export * from './client';
 export * from './commands';
 export * from './config';
 export * from './core';

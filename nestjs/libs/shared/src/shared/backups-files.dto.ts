@@ -24,51 +24,51 @@ registerEnumType(EnumFileType, {
 
 @ObjectType()
 export class FileStat implements FileManifestStat {
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   ownerId?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   groupId?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   size?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   compressedSize?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   lastRead?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   lastModified?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   created?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   mode?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   dev?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   rdev?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   ino?: Long;
-  @Transform(({ value }) => value.toString())
+  @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
   nlink?: Long;
@@ -97,6 +97,7 @@ export class FileDescription implements FileManifest {
   @Field(() => String)
   path: Buffer;
   stats: FileStat | undefined;
+  @Field(() => String) // FIXME: GraphQL type for JSON
   xattr: { [key: string]: Buffer };
   acl: FileAcl[];
   @Transform(({ value }) => value && mangle(value))

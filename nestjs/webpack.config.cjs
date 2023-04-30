@@ -5,7 +5,7 @@ module.exports = function (options) {
 
   return {
     ...options,
-    target: 'node16',
+    target: 'node18',
     devtool: 'source-map',
     // resolve: {
     //   ...options.resolve,
@@ -14,6 +14,7 @@ module.exports = function (options) {
     //     '.mjs': ['.mts', '.mjs'],
     //   },
     // },
+
     output: {
       ...options.output,
       libraryTarget: 'commonjs2',

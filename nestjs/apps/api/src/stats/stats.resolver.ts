@@ -7,7 +7,8 @@ import {
   PoolUsage,
   Statistics,
   StatsInstantService,
-  TimeSerie,
+  BigIntTimeSerie,
+  NumberTimeSerie,
 } from '@woodstock/shared';
 
 @Resolver(() => Statistics)
@@ -25,51 +26,54 @@ export class StatsResolver {
 
   @ResolveField(() => DiskUsage)
   async diskUsage(): Promise<DiskUsage> {
-    const { used, free, size } = await this.instantStatsService.getSpace();
+    const { used, free, size: total } = await this.instantStatsService.getSpace();
     const statistics = await this.diskStatisticsService.readHistoryStatistics();
     const lastMonth = await this.findLastMonth(statistics);
 
     return {
-      used: Number(used / 1024n / 1024n),
-      usedLastMonth: Number((lastMonth?.used || 0n) / 1024n / 1024n),
-      usedRange: statistics.map((s) => new TimeSerie({ time: s.date, value: Number(s.used / 1024n / 1024n) })),
-      free: Number(free / 1024n / 1024n),
-      freeLastMonth: Number((lastMonth?.used || 0n) / 1024n / 1024n),
-      freeRange: statistics.map((s) => new TimeSerie({ time: s.date, value: Number(s.free / 1024n / 1024n) })),
-      total: Number(size / 1024n / 1024n),
-      totalLastMonth: Number((lastMonth?.used || 0n) / 1024n / 1024n),
-      totalRange: statistics.map((s) => new TimeSerie({ time: s.date, value: Number(s.size / 1024n / 1024n) })),
+      used,
+      usedLastMonth: lastMonth?.used ?? 0n,
+      usedRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.used })),
+      free,
+      freeLastMonth: lastMonth?.used ?? 0n,
+      freeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.free })),
+      total,
+      totalLastMonth: lastMonth?.used ?? 0n,
+      totalRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.size })),
     };
   }
 
   @ResolveField(() => PoolUsage)
   async poolUsage(): Promise<PoolUsage> {
-    const { longestChain, nbChunk, nbRef, size, compressedSize } = await this.instantStatsService.getPoolStatsUsage();
+    const { longestChain, nbChunk, nbRef, size, compressedSize, unusedSize } =
+      await this.instantStatsService.getPoolStatsUsage();
     const statistics = await this.poolStatisticsService.readPoolHistoryStatistics();
     const lastMonth = await this.findLastMonth(statistics);
 
     return {
       longestChain,
-      longestChainRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.longestChain })),
+      longestChainRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.longestChain })),
       longestChainLastMonth: lastMonth?.longestChain,
 
       nbChunk,
-      nbChunkRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.nbChunk })),
+      nbChunkRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.nbChunk })),
       nbChunkLastMonth: lastMonth?.nbChunk,
 
       nbRef,
-      nbRefRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.nbRef })),
+      nbRefRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.nbRef })),
       nbRefLastMonth: lastMonth?.nbRef,
 
-      size: Number(size / 1024n / 1024n),
-      sizeRange: statistics.map((s) => new TimeSerie({ time: s.date, value: Number(s.size / 1024n / 1024n) })),
-      sizeLastMonth: Number((lastMonth?.size || 0n) / 1024n / 1024n),
+      size,
+      sizeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.size })),
+      sizeLastMonth: lastMonth?.size ?? 0n,
 
-      compressedSize: Number(compressedSize / 1024n / 1024n),
-      compressedSizeRange: statistics.map(
-        (s) => new TimeSerie({ time: s.date, value: Number(s.compressedSize / 1024n / 1024n) }),
-      ),
-      compressedSizeLastMonth: Number((lastMonth?.compressedSize || 0n) / 1024n / 1024n),
+      compressedSize,
+      compressedSizeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.compressedSize })),
+      compressedSizeLastMonth: lastMonth?.compressedSize ?? 0n,
+
+      unusedSize: unusedSize,
+      unusedSizeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.unusedSize })),
+      unusedSizeLastMonth: lastMonth?.unusedSize ?? 0n,
     };
   }
 
@@ -85,26 +89,24 @@ export class StatsResolver {
         host,
 
         longestChain: hostsUsage[host].longestChain,
-        longestChainRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.longestChain })),
+        longestChainRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.longestChain })),
         longestChainLastMonth: lastMonth?.longestChain,
 
         nbChunk: hostsUsage[host].nbChunk,
-        nbChunkRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.nbChunk })),
+        nbChunkRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.nbChunk })),
         nbChunkLastMonth: lastMonth?.nbChunk,
 
         nbRef: hostsUsage[host].nbRef,
-        nbRefRange: statistics.map((s) => new TimeSerie({ time: s.date, value: s.nbRef })),
+        nbRefRange: statistics.map((s) => new NumberTimeSerie({ time: s.date, value: s.nbRef })),
         nbRefLastMonth: lastMonth?.nbRef,
 
-        size: Number(hostsUsage[host].size / 1024n / 1024n),
-        sizeRange: statistics.map((s) => new TimeSerie({ time: s.date, value: Number(s.size / 1024n / 1024n) })),
-        sizeLastMonth: Number((lastMonth?.size || 0n) / 1024n / 1024n),
+        size: hostsUsage[host].size,
+        sizeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.size })),
+        sizeLastMonth: lastMonth?.size ?? 0n,
 
-        compressedSize: Number(hostsUsage[host].compressedSize / 1024n / 1024n),
-        compressedSizeRange: statistics.map(
-          (s) => new TimeSerie({ time: s.date, value: Number(s.compressedSize / 1024n / 1024n) }),
-        ),
-        compressedSizeLastMonth: Number((lastMonth?.compressedSize || 0n) / 1024n / 1024n),
+        compressedSize: hostsUsage[host].compressedSize,
+        compressedSizeRange: statistics.map((s) => new BigIntTimeSerie({ time: s.date, value: s.compressedSize })),
+        compressedSizeLastMonth: lastMonth?.compressedSize ?? 0n,
       };
     });
 

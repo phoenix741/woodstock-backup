@@ -92,8 +92,10 @@ message RefreshCacheHeader {
 }
 
 message RefreshCacheRequest {
-  RefreshCacheHeader header = 1;
-  FileManifest fileManifest = 2;
+  oneof field {
+    RefreshCacheHeader header = 1;
+    FileManifest fileManifest = 2;
+  }
 }
 
 message RefreshCacheReply {

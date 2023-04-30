@@ -1,25 +1,35 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
-import { BackupTask, Job, SchedulerConfigService } from '@woodstock/shared';
-import Bull, { Job as BullJob, JobState, Queue } from 'bullmq';
+import { Job, QueueListInput, QueueName, RefcntJobData, SchedulerConfigService } from '@woodstock/shared';
+import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
+import { Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.dto.js';
+import { QueueUtils } from './queue.utils.js';
 
 @Resolver()
 export class QueueResolver {
   constructor(
-    @InjectQueue('queue') private backupQueue: Queue<BackupTask>,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private backupQueue: Queue<JobBackupData>,
+    @InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>,
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
     private scheduler: SchedulerConfigService,
+    private queueUtils: QueueUtils,
   ) {}
 
   @Query(() => [Job])
-  async queue(
-    @Args('state', { type: () => [String], defaultValue: [] }) states: JobState[],
-  ): Promise<Bull.Job<BackupTask>[]> {
-    return await this.backupQueue.getJobs(states);
+  async queue(@Args('input', { type: () => QueueListInput }) input: QueueListInput): Promise<Job[]> {
+    const jobs = [...(await this.backupQueue.getJobs(input.states)), ...(await this.refcntQueue.getJobs(input.states))];
+
+    return Promise.all(
+      jobs
+        .filter((job) => !input.queueName || job.queueName === input.queueName)
+        .filter((job) => !input.operationName || job.name === input.operationName)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(async (job) => await this.queueUtils.getJob(job)),
+    );
   }
 
   @Query(() => QueueStats)
@@ -34,12 +44,13 @@ export class QueueResolver {
     }
 
     return {
-      waiting: await this.backupQueue.getWaitingCount(),
-      waitingChildren: await this.backupQueue.getWaitingChildrenCount(),
-      active: await this.backupQueue.getActiveCount(),
-      failed: await this.backupQueue.getFailedCount(),
-      delayed: await this.backupQueue.getDelayedCount(),
-      completed: await this.backupQueue.getCompletedCount(),
+      waiting: (await this.backupQueue.getWaitingCount()) + (await this.refcntQueue.getWaitingCount()),
+      waitingChildren:
+        (await this.backupQueue.getWaitingChildrenCount()) + (await this.refcntQueue.getWaitingChildrenCount()),
+      active: (await this.backupQueue.getActiveCount()) + (await this.refcntQueue.getActiveCount()),
+      failed: (await this.backupQueue.getFailedCount()) + (await this.refcntQueue.getFailedCount()),
+      delayed: (await this.backupQueue.getDelayedCount()) + (await this.refcntQueue.getDelayedCount()),
+      completed: (await this.backupQueue.getCompletedCount()) + (await this.refcntQueue.getCompletedCount()),
 
       lastExecution,
       nextWakeup,
@@ -47,7 +58,7 @@ export class QueueResolver {
   }
 
   @Subscription(() => Job)
-  jobUpdated(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobUpdated(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobUpdated');
   }
 
@@ -57,12 +68,12 @@ export class QueueResolver {
   }
 
   @Subscription(() => Job)
-  jobFailed(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobFailed(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobFailed');
   }
 
   @Subscription(() => Job)
-  jobRemoved(): AsyncIterator<{ jobUpdated: BullJob<BackupTask> }> {
+  jobRemoved(): AsyncIterator<{ jobUpdated: Job }> {
     return this.pubSub.asyncIterator('jobRemoved');
   }
 }

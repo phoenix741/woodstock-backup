@@ -21,68 +21,11 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=debug
-      - APOLLO_KEY=service:woodstock-backup:iqaZyc66gS4JhesQlqnXvw
-      - APOLLO_GRAPH_REF=woodstock@develop
       - NODE_ENV=development
       - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
-  woodstock_backup:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/backupWorker/main.js
-    links:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-      - MAX_BACKUP_TASK=2
-      - NODE_ENV=development
-      - BACKUP_PATH=/backups
-    volumes:
-      - "backups_storage:/backups"
-  woodstock_refcnt:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/refcntWorker/main.js
-    links:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-      - MAX_BACKUP_TASK=2
-      - NODE_ENV=development
-      - BACKUP_PATH=/backups
-    volumes:
-      - "backups_storage:/backups"
-  woodstock_schedule:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/scheduleWorker/main.js
-    links:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-      - MAX_BACKUP_TASK=2
-      - NODE_ENV=development
-      - BACKUP_PATH=/backups
-    volumes:
-      - "backups_storage:/backups"
-  woodstock_stats:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/statsWorker/main.js
-    links:
-      - redis
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=debug
-      - MAX_BACKUP_TASK=2
-      - NODE_ENV=development
-      - BACKUP_PATH=/backups
-    volumes:
-      - "backups_storage:/backups"
+
   woodstock_client:
     image: phoenix741/woodstock-backup:develop
     command: /nestjs/apps/client/main.js
@@ -91,7 +34,7 @@ services:
       - NODE_ENV=development
 
   redis:
-    image: "bitnami/redis:5.0"
+    image: "bitnami/redis:6.2"
     environment:
       # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes

@@ -8,3 +8,4 @@ export * from './woodstock-client.interface.js';
 export * from './woodstock.constant.js';
 export * from './woodstock.interface.js';
 export * from './woodstock.model.js';
+export * from './lock.service.js';

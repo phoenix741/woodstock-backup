@@ -1,11 +1,13 @@
 import { Injectable, Logger, LoggerService } from '@nestjs/common';
 import {
   ApplicationConfigService,
+  BackupClientContext,
   BackupsService,
   bigIntToLong,
   ChunkInformation,
   concurrentMap,
   EntryType,
+  ExecuteCommandReply,
   FileBrowserService,
   FileManifest,
   FileManifestJournalEntry,
@@ -35,7 +37,9 @@ import {
 import { concatAll, concatMap, finalize, map, map as mapIx } from 'ix/asynciterable/operators';
 import * as Long from 'long';
 import { Observable } from 'rxjs';
-import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class.js';
+import { BackupClientGrpc } from './backup-client-grpc.class.js';
+import { BackupClientLocal } from './backup-client-local.class.js';
+import { BackupClientInterface } from './backup-client.interface.js';
 import { LaunchBackupError } from './backup.error.js';
 
 export const SHA256_EMPTYSTRING = Buffer.from(
@@ -50,16 +54,47 @@ export class BackupClient {
   constructor(
     private applicationConfig: ApplicationConfigService,
     private clientGrpc: BackupClientGrpc,
+    private clientLocal: BackupClientLocal,
+
     private backupService: BackupsService,
     private manifestService: ManifestService,
     private poolService: PoolService,
     private poolChunkRefCnt: RefCntService,
   ) {}
 
-  async authenticate(context: BackupsGrpcContext, logger: LoggerService, password: string): Promise<void> {
+  #getClientInterface(context: BackupClientContext): BackupClientInterface {
+    if (context.isLocal) {
+      return this.clientLocal;
+    }
+    return this.clientGrpc;
+  }
+
+  createContext(
+    ip: string | undefined,
+    hostname: string,
+    currentBackupId: number,
+    pathPrefix?: string,
+    originalDate?: number,
+  ): BackupClientContext {
+    if (pathPrefix) {
+      return this.clientLocal.createContext(hostname, currentBackupId, pathPrefix, originalDate);
+    }
+    return this.clientGrpc.createContext(ip, hostname, currentBackupId, originalDate);
+  }
+
+  async createConnection(context: BackupClientContext): Promise<void> {
+    await this.#getClientInterface(context).createConnection(context);
+  }
+
+  async authenticate(
+    context: BackupClientContext,
+    logger: LoggerService,
+    clientLogger: LoggerService,
+    password: string,
+  ): Promise<void> {
     this.logger.log(`Authenticate to ${context.host} (${context.ip})`);
 
-    const reply = await this.clientGrpc.authenticate(context, password);
+    const reply = await this.#getClientInterface(context).authenticate(context, password);
 
     if (!reply || reply.code === StatusCode.Failed || !reply.sessionId) {
       throw new LaunchBackupError('Authentication failed');
@@ -69,54 +104,54 @@ export class BackupClient {
     const ac = new AbortController();
     context.abortable.push(ac);
 
-    const streamLog = this.clientGrpc.streamLog(context);
+    const streamLog = this.#getClientInterface(context).streamLog(context);
     streamLog
       .forEach(
         (log) => {
           switch (log.level) {
             case LogLevel.verbose:
-              logger.debug?.(log.line, log.context);
+              clientLogger.debug?.(log.line, log.context);
               break;
             case LogLevel.debug:
-              logger.debug?.(log.line, log.context);
+              clientLogger.debug?.(log.line, log.context);
               break;
             case LogLevel.error:
-              logger.error(log.line, log.context);
+              clientLogger.error(log.line, log.context);
               break;
             case LogLevel.warn:
-              logger.warn(log.line, log.context);
+              clientLogger.warn(log.line, log.context);
               break;
             default:
-              logger.log(log.line, log.context);
+              clientLogger.log(log.line, log.context);
               break;
           }
         },
         { signal: ac.signal },
       )
       .then(() => {
-        logger.log('The backup process has been completed', 'logger');
+        clientLogger.log('The backup process has been completed', 'logger');
       })
       .catch((err) => {
-        logger.error(`The backup process has been failed: ${err.message}`, 'logger');
+        clientLogger.error(`The backup process has been failed: ${err.message}`, 'logger');
       });
 
     this.logger.log(`Authentication has been completed: ${context.sessionId}`);
   }
 
-  executeCommand(context: BackupsGrpcContext, command: string): Promise<void> {
+  async executeCommand(context: BackupClientContext, command: string): Promise<ExecuteCommandReply> {
     this.logger.log(`Execute command (${context.sessionId}): ${command}`);
 
     context.logger?.log(`Execute command: ${command}`, 'executeCommand');
 
-    return this.clientGrpc.executeCommand(context, command);
+    return await this.#getClientInterface(context).executeCommand(context, command);
   }
 
-  getFileList(context: BackupsGrpcContext, backupShare: Share): Observable<FileManifestJournalEntry> {
+  getFileList(context: BackupClientContext, backupShare: Share): Observable<FileManifestJournalEntry> {
     this.logger.log(`Get file list (${context.sessionId}): ${backupShare.sharePath.toString()}`);
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry>((subscriber) => {
-      const launchBackup = this.clientGrpc.downloadFileList(context, backupShare);
+      const launchBackup = this.#getClientInterface(context).downloadFileList(context, backupShare);
       this.manifestService
         .writeFileListEntry(launchBackup, manifest, async (entry) => {
           if (entry) {
@@ -138,7 +173,7 @@ export class BackupClient {
   }
 
   private async copyChunk(
-    context: BackupsGrpcContext,
+    context: BackupClientContext,
     sharePath: Buffer,
     fileManifest: FileManifest,
     chunkNumber: number,
@@ -176,7 +211,7 @@ export class BackupClient {
           return oldChunk;
         } else {
           // Create the chunk
-          const readable = this.clientGrpc.copyChunk(context, chunk);
+          const readable = this.#getClientInterface(context).copyChunk(context, chunk);
           return await wrapper.write(readable, joinBuffer(sharePath, fileManifest.path).toString());
         }
       }
@@ -193,7 +228,7 @@ export class BackupClient {
   }
 
   private async downloadManifestFile(
-    context: BackupsGrpcContext,
+    context: BackupClientContext,
     sharePath: Buffer,
     fileManifest: FileManifest,
     chunks: AsyncSink<PoolChunkInformation>,
@@ -235,17 +270,18 @@ export class BackupClient {
   }
 
   createBackup(
-    context: BackupsGrpcContext,
+    context: BackupClientContext,
     backupShare: Share,
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     this.logger.log(`Create backup (${context.sessionId}): ${backupShare.sharePath.toString()}`);
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
 
     return new Observable<FileManifestJournalEntry | PoolChunkInformation>((subscriber) => {
+      let errorCount = 0;
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
         // TODO: Define the concurrency
-        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | undefined>(20, async (entry) => {
+        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | Error>(20, async (entry) => {
           try {
             if (
               entry?.type !== EntryType.REMOVE &&
@@ -263,20 +299,27 @@ export class BackupClient {
               return entry;
             }
           } catch (err) {
-            // FIXME: Gérer l'erreur
-            console.log(err.stack);
-            this.logger.error(`${entry.manifest?.path.toString()}: ${(err as Error).message}`, err);
-            return undefined;
+            // FIXME: Gérer l'erreur, quelle erreur quand le fichier change ou est supprimé???
+            errorCount++;
+            this.logger.verbose(
+              `Can't download chunk for ${entry.manifest?.path.toString()}: '${(err as Error).message}'`,
+            );
+            return err;
           }
         }),
-        finalize(() => chunkSink.end()),
+        finalize(() => {
+          this.logger.verbose('All chunks are downloaded');
+          chunkSink.end();
+        }),
       );
 
       const journalEntry = this.manifestService.writeJournalEntry(entries, manifest, async (entry) => {
-        if (entry) {
+        const isError = entry instanceof Error;
+        if (!isError) {
           subscriber.next(entry);
+          return entry;
         }
-        return entry;
+        return undefined;
       });
 
       const referenceCountFiles = new ReferenceCount(
@@ -287,6 +330,11 @@ export class BackupClient {
       const refCntEntry = this.poolChunkRefCnt.addChunkInformationToRefCnt(
         fromIx(chunkSink).pipe(
           map(async (entry) => {
+            this.logger.verbose(
+              `Add chunk to refcnt: ${entry.sha256.toString('hex')} (size = ${entry.size}, compressedSize = ${
+                entry.compressedSize
+              }))`,
+            );
             if (entry) {
               subscriber.next(entry);
             }
@@ -303,7 +351,11 @@ export class BackupClient {
 
       Promise.all([journalEntry, refCntEntry])
         .then(() => {
-          subscriber.complete();
+          if (errorCount === 0) {
+            subscriber.complete();
+          } else {
+            subscriber.error(new Error(`Can't download ${errorCount} chunks`));
+          }
         })
         .catch((err) => {
           subscriber.error(err);
@@ -315,7 +367,7 @@ export class BackupClient {
     });
   }
 
-  compact(context: BackupsGrpcContext, sharePath: Buffer): Observable<FileManifest> {
+  compact(context: BackupClientContext, sharePath: Buffer): Observable<FileManifest> {
     this.logger.log('Compact backup for the share: ' + sharePath.toString());
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, sharePath);
 
@@ -339,7 +391,7 @@ export class BackupClient {
     });
   }
 
-  async countRef(context: BackupsGrpcContext): Promise<void> {
+  async countRef(context: BackupClientContext): Promise<void> {
     this.logger.log('Counting reference');
     const hostDirectory = this.backupService.getHostDirectory(context.host);
     const destinationDirectory = this.backupService.getDestinationDirectory(context.host, context.currentBackupId);
@@ -362,14 +414,14 @@ export class BackupClient {
     // Compact the refcnt files
     this.logger.debug(`Compact ref count from ${refcnt.backupPath}`);
     try {
-      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath);
-      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.backupPath, undefined, undefined, context.originalDate);
+      await this.poolChunkRefCnt.addBackupRefcntTo(refcnt.hostPath, refcnt.backupPath, undefined, context.originalDate);
     } finally {
       this.logger.debug(`[END] Compact ref count from ${refcnt.backupPath}`);
     }
   }
 
-  refreshCache(context: BackupsGrpcContext, shares: string[]): Promise<RefreshCacheReply> {
+  refreshCache(context: BackupClientContext, shares: string[]): Promise<RefreshCacheReply> {
     this.logger.log(`Refresh cache for all share [${shares.join(',')}]`);
     const request$ = fromIx(shares).pipe(
       mapIx((s) => Buffer.from(s)),
@@ -390,10 +442,10 @@ export class BackupClient {
       concatAll<RefreshCacheRequest>(),
     );
 
-    return this.clientGrpc.refreshCache(context, request$);
+    return this.#getClientInterface(context).refreshCache(context, request$);
   }
 
-  close(context: BackupsGrpcContext): void {
+  close(context: BackupClientContext): void {
     this.logger.log(`Close connection (${context.sessionId})`);
     try {
       // Stop subscription
@@ -403,7 +455,8 @@ export class BackupClient {
 
       // Close connection
       context.sessionId = undefined;
-      context.client.close();
+
+      this.#getClientInterface(context).close(context);
 
       this.logger.log(`Connection closed (${context.sessionId})`);
     } catch (err) {

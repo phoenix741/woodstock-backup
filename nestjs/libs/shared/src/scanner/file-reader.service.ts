@@ -18,11 +18,11 @@ const pipeline = promisify(streamPipeline);
 
 function isModified(index: IndexManifest, manifest: FileManifest): boolean {
   const entry = index.getEntry(manifest.path);
-  return (
+  const isModified =
     !entry ||
     !entry.manifest.stats?.lastModified?.equals(manifest.stats?.lastModified || Long.ZERO) ||
-    !entry.manifest.stats?.size?.equals(manifest.stats?.size || Long.ZERO)
-  );
+    !entry.manifest.stats?.size?.equals(manifest.stats?.size || Long.ZERO);
+  return isModified;
 }
 
 @Injectable()

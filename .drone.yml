@@ -1,28 +1,31 @@
 kind: pipeline
 type: docker
 name: backend
+trigger:
+  event:
+    - pull_request
 
 steps:
   - name: server:install
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm ci
 
   - name: server:lint
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run lint
 
   - name: server:unit
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run test
 
   - name: server:build
-    image: node:16
+    image: node:20
     commands:
       - cd nestjs
       - npm run buildall
@@ -31,23 +34,26 @@ steps:
 kind: pipeline
 type: docker
 name: frontend
+trigger:
+  event:
+    - pull_request
 
 steps:
   - name: front:install
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm ci
 
   - name: front:lint
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm run lint
       #- npm run test:unit
 
   - name: front:build
-    image: node:16
+    image: node:20
     commands:
       - cd front
       - npm run build
@@ -55,7 +61,13 @@ steps:
 ---
 kind: pipeline
 type: docker
-name: website
+name: publish
+trigger:
+  when:
+    event:
+      - promote
+    target:
+      - production
 
 steps:
   - name: website:build
@@ -70,12 +82,6 @@ steps:
       context: ./docs/website
       auto_tag: true
 
----
-kind: pipeline
-type: docker
-name: final
-
-steps:
   - name: server:build-docker
     image: plugins/docker
     settings:
@@ -85,12 +91,13 @@ steps:
         from_secret: docker_password
       repo: phoenix741/woodstock-backup
       auto_tag: true
-    when:
-      event:
-        - promote
-      target:
-        - production
 
+---
+kind: pipeline
+type: docker
+name: final
+
+steps:
   - name: notify
     image: plugins/slack
     settings:
@@ -103,4 +110,4 @@ steps:
 depends_on:
   - backend
   - frontend
-  - website
+  - publish

@@ -1,20 +1,21 @@
-import '@mdi/font/css/materialdesignicons.css';
-import 'roboto-fontface/css/roboto/roboto-fontface.css';
+/**
+ * main.ts
+ *
+ * Bootstraps Vuetify and other plugins then mounts the App`
+ */
 
-import Vue from 'vue';
-
+// Components
+import 'json-bigint-patch';
 import App from './App.vue';
-import { createProvider } from './plugins/vue-apollo';
-import vuetify from './plugins/vuetify';
-import router from './router';
 
-import './filters';
+// Composables
+import { createApp } from 'vue';
 
-Vue.config.productionTip = false;
+// Plugins
+import { registerPlugins } from '@/plugins';
 
-new Vue({
-  router,
-  vuetify,
-  apolloProvider: createProvider(),
-  render: (h) => h(App),
-}).$mount('#app');
+const app = createApp(App);
+
+registerPlugins(app);
+
+app.mount('#app');

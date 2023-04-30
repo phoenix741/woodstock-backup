@@ -1,6 +1,0 @@
-subscription NavigationBarTasksJobUpdated {
-  jobUpdated {
-    id
-    state
-  }
-}

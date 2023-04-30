@@ -1,7 +1,0 @@
-#import "./FragmentJob.graphql"
-
-query QueueTasks($state: [String!]) {
-  queue(state: $state) {
-    ...FragmentJob
-  }
-}

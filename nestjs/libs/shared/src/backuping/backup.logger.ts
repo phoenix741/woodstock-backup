@@ -1,6 +1,6 @@
 import { LoggerService } from '@nestjs/common';
 import * as logform from 'logform';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { createLogger, format, Logger, transports } from 'winston';
 import { BackupsService } from '../config';
 
@@ -15,7 +15,7 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 export class BackupLogger implements LoggerService {
   #logger: Logger;
 
-  constructor(backupsService: BackupsService, private hostname: string, number?: number) {
+  constructor(backupsService: BackupsService, private hostname: string, number?: number, clientSide = false) {
     const destinationDirectory = backupsService.getLogDirectory(hostname);
 
     mkdirp(destinationDirectory);
@@ -24,10 +24,12 @@ export class BackupLogger implements LoggerService {
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({
-          filename: backupsService.getLogFile(hostname, number, 'error'),
+          filename: backupsService.getLogFile(hostname, number, clientSide ? 'error-client' : 'error'),
           level: 'error',
         }),
-        new transports.File({ filename: backupsService.getLogFile(hostname, number) }),
+        new transports.File({
+          filename: backupsService.getLogFile(hostname, number, clientSide ? 'client' : undefined),
+        }),
       ],
     });
   }

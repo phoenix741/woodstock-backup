@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, LoggerService } from '@nestjs/common';
 import { AsyncIterableX, concat, count, from, reduce } from 'ix/asynciterable';
 import { concatMap, filter, map, tap } from 'ix/asynciterable/operators';
+import { from as fromRx, Observable } from 'rxjs';
 import { ApplicationConfigService, BackupsService, HostsService } from '../config';
 import { ManifestChunk, ManifestService } from '../manifest';
 import { PoolService } from '../pool';
 import { RefCntService, ReferenceCount, SetOfPoolUnused } from '../refcnt';
 import { FileManifest, PoolRefCount } from '../shared';
+import { QueueTaskProgression } from '../tasks';
 
 interface ManifestChunkCount {
   count: number;
@@ -42,10 +44,17 @@ export class FsckService {
     private poolService: PoolService,
   ) {}
 
-  async #reduceChunk(chunks: AsyncIterableX<ManifestChunk | PoolRefCount>) {
+  /**
+   * Read the iterator and return a map of sha256 and the number of occurence of the sha256 in the iterator
+   *
+   * @param chunks The iterator to read
+   * @returns A map of sha256 and the number of occurence of the sha256 in the iterator
+   */
+  async #iterableToMap(chunks: AsyncIterableX<ManifestChunk | PoolRefCount>): Promise<Map<string, ManifestChunkCount>> {
     return await reduce(chunks, {
       callback: async (acc, chunk) => {
-        const ref = acc.get(chunk.sha256.toString('base64')) || {
+        const sha256Str = chunk.sha256.toString('base64');
+        const ref = acc.get(sha256Str) ?? {
           count: 0,
           manifests: [],
         };
@@ -57,7 +66,7 @@ export class FsckService {
           ref.count += chunk.refCount;
         }
 
-        acc.set(chunk.sha256.toString('base64'), ref);
+        acc.set(sha256Str, ref);
 
         return acc;
       },
@@ -65,17 +74,31 @@ export class FsckService {
     });
   }
 
-  async #refcntFromBackup(host: string, backupNumber: number): Promise<Map<string, ManifestChunkCount>> {
+  /**
+   * Read the Reference count of a backup, from the manifest (and not the reference count) and return a map of sha256 and the
+   * number of occurence of the sha256 in the iterator
+   *
+   * @param host The host to read
+   * @param backupNumber The backup number to read
+   * @returns A map of sha256 and the number of occurence of the sha256 in the iterator
+   */
+  async #calculateRefcntFromBackup(host: string, backupNumber: number): Promise<Map<string, ManifestChunkCount>> {
     // Read backup
     const chunks = from(this.backupsService.getManifests(host, backupNumber)).pipe(
       concatMap((manifest) => from(manifest)),
       concatMap(async (manifest) => this.manifestService.listChunksFromManifest(manifest)),
     );
 
-    return await this.#reduceChunk(chunks);
+    return await this.#iterableToMap(chunks);
   }
 
-  async #hostRefcntFromBackup(host: string): Promise<Map<string, ManifestChunkCount>> {
+  /**
+   * Calculate the reference count of a host, from the reference count of each backup.
+   *
+   * @param host The host to read
+   * @returns A map of sha256 and the number of occurence of the sha256 in the iterator
+   */
+  async #calculateHostRefcntFromBackupRefcnt(host: string): Promise<Map<string, ManifestChunkCount>> {
     const chunks = from(this.backupsService.getBackups(host)).pipe(
       concatMap((backup) => from(backup)),
       concatMap(async (backup) => {
@@ -89,10 +112,15 @@ export class FsckService {
       }),
     );
 
-    return this.#reduceChunk(chunks);
+    return this.#iterableToMap(chunks);
   }
 
-  async #poolRefcntFromHost(): Promise<Map<string, ManifestChunkCount>> {
+  /**
+   * Calculate the reference count of the pool, from the reference count of each host.
+   *
+   * @returns A map of sha256 and the number of occurence of the sha256 in the iterator
+   */
+  async #calculatePoolRefcntFromHostRefcnt(): Promise<Map<string, ManifestChunkCount>> {
     const chunks = from(this.hostService.getHosts()).pipe(
       concatMap((host) => from(host)),
       concatMap(async (host) => {
@@ -102,16 +130,23 @@ export class FsckService {
       }),
     );
 
-    return this.#reduceChunk(chunks);
+    return this.#iterableToMap(chunks);
   }
 
+  /**
+   * Check the integrity of the reference count of from the REFCNT file compared to the map of sha256 and reference count.
+   *
+   * @param path The path to the REFCNT file
+   * @param refcnt The map of sha256 and reference count
+   * @returns An iterator of error
+   */
   #checkIntegrity(path: string, refcnt: Map<string, ManifestChunkCount>): AsyncIterableX<RefcntError> {
     return from(this.refCntService.readAllRefCnt(path)).pipe(
       concatMap((originalReferenceCount) => {
         const wrongReferenceCount = from(refcnt.entries()).pipe(
           map(([sha256, ref]) => ({
             sha256,
-            originalRefcnt: originalReferenceCount.get(sha256)?.refCount || 0,
+            originalRefcnt: originalReferenceCount.get(sha256)?.refCount ?? 0,
             newRefcnt: ref.count,
             filename: ref.manifests.map((manifest) => manifest.path),
           })),
@@ -133,107 +168,93 @@ export class FsckService {
     );
   }
 
-  async processRefcnt(logger: RefcntLoggger<number>, dryRun = false) {
-    const hosts = await this.hostService.getHosts();
+  async checkBackupIntegrity(
+    logger: LoggerService,
+    host: string,
+    number: number,
+    dryRun: boolean,
+  ): Promise<QueueTaskProgression> {
+    const refcnt = new ReferenceCount(
+      this.backupsService.getHostDirectory(host),
+      this.backupsService.getDestinationDirectory(host, number),
+      this.configService.poolPath,
+    );
 
-    const backups = (
-      await Promise.all(
-        hosts.map(async (host) =>
-          (await this.backupsService.getBackups(host)).map((backup) => ({ host, number: backup.number })),
-        ),
-      )
-    ).flat();
+    const refcntValues = await this.#calculateRefcntFromBackup(host, number);
 
-    const progressMax = hosts.length + backups.length + 1;
-    let progress = 0;
-    let errorCount = 0;
+    const integrity = await count(
+      this.#checkIntegrity(refcnt.backupPath, refcntValues).pipe(
+        tap((error) => {
+          logger.error(
+            `${Buffer.from(error.sha256, 'base64').toString('hex')}: have ${error.originalRefcnt}, should ${
+              error.newRefcnt
+            }`,
+          );
+        }),
+      ),
+    );
 
-    // Start by regenerate backup refcnt
-    for (let i = 0; i < backups.length; i++) {
-      const backup = backups[i];
-      logger.log(progress, progressMax, `Regenerating backup refcnt for ${backup.host}/${backup.number}`);
-
-      const refcnt = new ReferenceCount(
-        this.backupsService.getHostDirectory(backup.host),
-        this.backupsService.getDestinationDirectory(backup.host, backup.number),
-        this.configService.poolPath,
+    if (!dryRun && integrity) {
+      logger.error(`Fix ${refcnt.backupPath}`);
+      const source = from(refcntValues.entries()).pipe(
+        map(([sha256, v]) => ({
+          sha256: Buffer.from(sha256, 'base64'),
+          refCount: v.count,
+          size: 0,
+          compressedSize: 0,
+        })),
       );
-
-      const refcntValues = await this.#refcntFromBackup(backup.host, backup.number);
-
-      const integrity = await count(
-        this.#checkIntegrity(refcnt.backupPath, refcntValues).pipe(
-          tap((error) => {
-            logger.error(
-              `${Buffer.from(error.sha256, 'base64').toString('hex')}: have ${error.originalRefcnt}, should ${
-                error.newRefcnt
-              }`,
-            );
-          }),
-        ),
-      );
-
-      if (!dryRun && integrity) {
-        logger.error(`Fix ${refcnt.backupPath}`);
-        const source = from(refcntValues.entries()).pipe(
-          map(([sha256, v]) => ({
-            sha256: Buffer.from(sha256, 'base64'),
-            refCount: v.count,
-            size: 0,
-            compressedSize: 0,
-          })),
-        );
-        await this.refCntService.fixRefcnt(source, refcnt.backupPath);
-      }
-
-      errorCount += integrity;
-      progress += 1;
+      await this.refCntService.fixRefcnt(source, refcnt.backupPath);
     }
 
-    // Regenerate host refcnt
-    for (let i = 0; i < hosts.length; i++) {
-      const host = hosts[i];
-      logger.log(progress, progressMax, `host backup refcnt for ${host}`);
+    return new QueueTaskProgression({
+      fileCount: refcntValues.size,
+      errorCount: integrity,
+      progressCurrent: 1n,
+    });
+  }
 
-      const refcnt = new ReferenceCount(this.backupsService.getHostDirectory(host), '', this.configService.poolPath);
+  async checkHostIntegrity(logger: LoggerService, host: string, dryRun: boolean): Promise<QueueTaskProgression> {
+    const refcnt = new ReferenceCount(this.backupsService.getHostDirectory(host), '', this.configService.poolPath);
 
-      const refcntValues = await this.#hostRefcntFromBackup(host);
+    const refcntValues = await this.#calculateHostRefcntFromBackupRefcnt(host);
 
-      const integrity = await count(
-        this.#checkIntegrity(refcnt.hostPath, refcntValues).pipe(
-          tap((error) => {
-            logger.error(
-              `${Buffer.from(error.sha256, 'base64').toString('hex')}: have ${error.originalRefcnt}, should ${
-                error.newRefcnt
-              }`,
-            );
-          }),
-        ),
+    const integrity = await count(
+      this.#checkIntegrity(refcnt.hostPath, refcntValues).pipe(
+        tap((error) => {
+          logger.error(
+            `${Buffer.from(error.sha256, 'base64').toString('hex')}: have ${error.originalRefcnt}, should ${
+              error.newRefcnt
+            }`,
+          );
+        }),
+      ),
+    );
+
+    if (!dryRun && integrity) {
+      logger.error(`Fix ${refcnt.hostPath}`);
+      const source = from(refcntValues.entries()).pipe(
+        map(([sha256, v]) => ({
+          sha256: Buffer.from(sha256, 'base64'),
+          refCount: v.count,
+          size: 0,
+          compressedSize: 0,
+        })),
       );
-
-      if (!dryRun && integrity) {
-        logger.error(`Fix ${refcnt.hostPath}`);
-        const source = from(refcntValues.entries()).pipe(
-          map(([sha256, v]) => ({
-            sha256: Buffer.from(sha256, 'base64'),
-            refCount: v.count,
-            size: 0,
-            compressedSize: 0,
-          })),
-        );
-        await this.refCntService.fixRefcnt(source, refcnt.hostPath);
-      }
-
-      errorCount += integrity;
-      progress += 1;
+      await this.refCntService.fixRefcnt(source, refcnt.hostPath);
     }
 
-    // Regenerate pool refcnt
-    logger.log(progress, progressMax, `pool refcnt`);
+    return new QueueTaskProgression({
+      fileCount: refcntValues.size,
+      errorCount: integrity,
+      progressCurrent: 1n,
+    });
+  }
 
+  async checkPoolIntegrity(logger: LoggerService, dryRun: boolean): Promise<QueueTaskProgression> {
     const refcnt = new ReferenceCount('', '', this.configService.poolPath);
 
-    const refcntValues = await this.#poolRefcntFromHost();
+    const refcntValues = await this.#calculatePoolRefcntFromHostRefcnt();
 
     const integrity = await count(
       this.#checkIntegrity(refcnt.poolPath, refcntValues).pipe(
@@ -260,96 +281,127 @@ export class FsckService {
       await this.refCntService.fixRefcnt(source, refcnt.poolPath);
     }
 
-    errorCount += integrity;
-
-    logger.log(progressMax, progressMax, `Refcnt checked, ${errorCount} errors`);
-    return errorCount;
+    return new QueueTaskProgression({
+      fileCount: refcntValues.size,
+      errorCount: integrity,
+      progressCurrent: 1n,
+    });
   }
 
-  async processUnused(logger: RefcntLoggger<number>, dryRun = false) {
-    // Read unused file
-    const refcnt = new ReferenceCount('', '', this.configService.poolPath);
-    const unusedIt = this.refCntService.readUnused(refcnt.unusedPoolPath);
-    const unusedPool = await SetOfPoolUnused.fromIterator(unusedIt);
+  async countAllChunks(): Promise<number> {
+    return count(this.poolService.readAllChunks());
+  }
 
-    logger.log(0, 1, `Read Refcnt`);
+  processUnused(logger: LoggerService, dryRun = false): Observable<QueueTaskProgression> {
+    return new Observable((subscriber) => {
+      (async () => {
+        // Read unused file
+        const refcnt = new ReferenceCount('', '', this.configService.poolPath);
+        const unusedIt = this.refCntService.readUnused(refcnt.unusedPoolPath);
+        const unusedPool = await SetOfPoolUnused.fromIterator(unusedIt);
 
-    // Read reference count file
-    const refcntPool = await SetOfPoolUnused.fromMapPoolRefCount(this.refCntService.readRefCnt(refcnt.poolPath));
+        // Read Refcnt
+        subscriber.next(new QueueTaskProgression({ progressMax: 1n }));
 
-    const max = refcntPool.size;
+        // Read reference count file
+        const refcntPool = await SetOfPoolUnused.fromMapPoolRefCount(this.refCntService.readRefCnt(refcnt.poolPath));
 
-    logger.log(0, max, `Read all chunks`);
-    // Search all file pool directory
-    const files = this.poolService.readAllChunks();
-    const filesSet = new SetOfPoolUnused();
+        const max = refcntPool.size;
 
-    logger.log(2, max, `Checking chunk in unused files`);
-    //     If file is not in reference count file add it to unused file (and warn if not already)
-    let inUnused = 0;
-    let inRefcnt = 0;
-    let inNothing = 0;
-    let missing = 0;
-    for await (const file of files) {
-      const { sha256, compressedSize } = await file.getChunkInformation(false);
-      const chunk = { sha256, compressedSize: Number(compressedSize), size: 0 };
-      filesSet.add(chunk);
-      if (unusedPool.has(chunk)) {
-        inUnused++;
-        if (refcntPool.has(chunk)) {
-          inRefcnt++;
-          unusedPool.delete(chunk);
-          logger.error(file.sha256Str + ' is in unused and in refcnt');
+        subscriber.next(new QueueTaskProgression({ progressMax: BigInt(max) }));
+
+        // Search all file pool directory
+        const files = this.poolService.readAllChunks();
+        const filesSet = new SetOfPoolUnused();
+
+        // Checking chunk in unused files
+        subscriber.next(new QueueTaskProgression({ progressCurrent: 2n, progressMax: BigInt(max) }));
+
+        // If file is not in reference count file add it to unused file (and warn if not already)
+        let inUnused = 0;
+        let inRefcnt = 0;
+        let inNothing = 0;
+        let missing = 0;
+        for await (const file of files) {
+          const { sha256, compressedSize } = await file.getChunkInformation(false);
+          const chunk = { sha256, compressedSize: Number(compressedSize), size: 0 };
+          filesSet.add(chunk);
+          if (unusedPool.has(chunk)) {
+            inUnused++;
+            if (refcntPool.has(chunk)) {
+              inRefcnt++;
+              unusedPool.delete(chunk);
+
+              logger.error(file.sha256Str + ' is in unused and in refcnt');
+            }
+          } else if (refcntPool.has(chunk)) {
+            inRefcnt++;
+          } else {
+            inNothing++;
+            unusedPool.add(chunk);
+            logger.error(file.sha256Str + ' is not in unused nor in refcnt');
+          }
+
+          subscriber.next(new QueueTaskProgression({ progressCurrent: BigInt(inRefcnt), progressMax: BigInt(max) }));
         }
-      } else if (refcntPool.has(chunk)) {
-        inRefcnt++;
-      } else {
-        inNothing++;
-        unusedPool.add(chunk);
-        logger.error(file.sha256Str + ' is not in unused nor in refcnt');
-      }
-      logger.log(inRefcnt, max, `Search for unused chunks`);
-    }
 
-    for await (const file of refcntPool.toIterator()) {
-      if (!filesSet.has(file)) {
-        missing++;
-      }
-    }
+        for await (const file of refcntPool.toIterator()) {
+          if (!filesSet.has(file)) {
+            missing++;
+          }
+        }
 
-    if (!dryRun) {
-      await this.refCntService.writeUnused(unusedPool.toIterator(), refcnt.unusedPoolPath);
-    }
+        if (!dryRun) {
+          await this.refCntService.writeUnused(unusedPool.toIterator(), refcnt.unusedPoolPath);
+        }
 
-    return { inUnused, inRefcnt, inNothing, missing };
+        subscriber.next(
+          new QueueTaskProgression({
+            progressCurrent: BigInt(inRefcnt),
+            progressMax: BigInt(max),
+            newFileCount: missing + inNothing,
+          }),
+        );
+        logger.log(
+          `inUnused: ${inUnused}, inRefcnt: ${inRefcnt}, inNothing: ${inNothing}, missing: ${missing}`,
+          'refcnt_unused',
+        );
+      })()
+        .then(() => subscriber.complete())
+        .catch((err) => subscriber.error(err));
+    });
   }
 
-  async processVerifyChunk(logger: RefcntLoggger<number>) {
+  processVerifyChunk(logger: LoggerService): Observable<QueueTaskProgression> {
     // Read unused file
     let chunkOk = 0;
     let chunkKo = 0;
 
     // Search all file pool directory
-    const files = this.poolService.readAllChunks();
+    return fromRx(
+      this.poolService.readAllChunks().pipe(
+        map(async (chunk) => {
+          const chunkInformation = await chunk.getChunkInformation();
+          if (!chunk.sha256) {
+            chunkKo++;
+            logger.error(`${chunk.sha256Str}: chunk invalid`);
+          } else {
+            if (chunkInformation.sha256.equals(chunk.sha256)) {
+              chunkOk++;
+            } else {
+              chunkKo++;
+              logger.error(`${chunk.sha256Str}: chunk is corrupted`);
+            }
+          }
 
-    for await (const chunk of files) {
-      const chunkInformation = await chunk.getChunkInformation();
-      if (!chunk.sha256) {
-        chunkKo++;
-        logger.error(`${chunk.sha256Str}: chunk invalid`);
-      } else {
-        if (chunkInformation.sha256.equals(chunk.sha256)) {
-          chunkOk++;
-        } else {
-          chunkKo++;
-          logger.error(`${chunk.sha256Str}: chunk is corrupted`);
-        }
-      }
-
-      logger.log(chunkOk + chunkKo, 100, `${chunkOk} chunks ok, ${chunkKo} chunks ko`);
-    }
-
-    return { chunkOk, chunkKo };
+          return new QueueTaskProgression({
+            errorCount: chunkKo,
+            fileCount: chunkOk + chunkKo,
+            progressCurrent: BigInt(chunkOk + chunkKo),
+          });
+        }),
+      ),
+    );
   }
 
   async checkCompression(logger: RefcntLoggger<bigint>, all?: boolean) {

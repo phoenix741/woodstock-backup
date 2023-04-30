@@ -2,14 +2,14 @@
 
 exports[`FilesService createArchive create archive: append 1`] = `
 [MockFunction] {
-  "calls": Array [
-    Array [
+  "calls": [
+    [
       "d1/dd2/ddd1/abcd",
-      Object {
+      {
         "date": undefined,
         "mode": 32768,
         "name": "d1/dd2/ddd1/abcd",
-        "stats": Object {
+        "stats": {
           "atime": undefined,
           "ctime": undefined,
           "dev": undefined,
@@ -27,13 +27,13 @@ exports[`FilesService createArchive create archive: append 1`] = `
         },
       },
     ],
-    Array [
+    [
       "d1/dd2/ddd1/efgh",
-      Object {
+      {
         "date": undefined,
         "mode": 32768,
         "name": "d1/dd2/ddd1/efgh",
-        "stats": Object {
+        "stats": {
           "atime": undefined,
           "ctime": undefined,
           "dev": undefined,
@@ -51,13 +51,13 @@ exports[`FilesService createArchive create archive: append 1`] = `
         },
       },
     ],
-    Array [
+    [
       "d1/dd2/ddd1/mnop",
-      Object {
+      {
         "date": undefined,
         "mode": 32768,
         "name": "d1/dd2/ddd1/mnop",
-        "stats": Object {
+        "stats": {
           "atime": undefined,
           "ctime": undefined,
           "dev": undefined,
@@ -75,13 +75,13 @@ exports[`FilesService createArchive create archive: append 1`] = `
         },
       },
     ],
-    Array [
+    [
       "d1/dd2/ddd3",
-      Object {
+      {
         "date": undefined,
         "mode": 32768,
         "name": "d1/dd2/ddd3",
-        "stats": Object {
+        "stats": {
           "atime": undefined,
           "ctime": undefined,
           "dev": undefined,
@@ -100,20 +100,20 @@ exports[`FilesService createArchive create archive: append 1`] = `
       },
     ],
   ],
-  "results": Array [
-    Object {
+  "results": [
+    {
       "type": "return",
       "value": undefined,
     },
-    Object {
+    {
       "type": "return",
       "value": undefined,
     },
-    Object {
+    {
       "type": "return",
       "value": undefined,
     },
-    Object {
+    {
       "type": "return",
       "value": undefined,
     },
@@ -123,11 +123,11 @@ exports[`FilesService createArchive create archive: append 1`] = `
 
 exports[`FilesService createArchive create archive: readFileStream 1`] = `
 [MockFunction] {
-  "calls": Array [
-    Array [
-      Object {
-        "path": Object {
-          "data": Array [
+  "calls": [
+    [
+      {
+        "path": {
+          "data": [
             100,
             49,
             47,
@@ -147,7 +147,7 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
           ],
           "type": "Buffer",
         },
-        "stats": Object {
+        "stats": {
           "mode": Long {
             "high": 0,
             "low": 32768,
@@ -156,10 +156,10 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
         },
       },
     ],
-    Array [
-      Object {
-        "path": Object {
-          "data": Array [
+    [
+      {
+        "path": {
+          "data": [
             100,
             49,
             47,
@@ -179,7 +179,7 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
           ],
           "type": "Buffer",
         },
-        "stats": Object {
+        "stats": {
           "mode": Long {
             "high": 0,
             "low": 32768,
@@ -188,10 +188,10 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
         },
       },
     ],
-    Array [
-      Object {
-        "path": Object {
-          "data": Array [
+    [
+      {
+        "path": {
+          "data": [
             100,
             49,
             47,
@@ -211,7 +211,7 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
           ],
           "type": "Buffer",
         },
-        "stats": Object {
+        "stats": {
           "mode": Long {
             "high": 0,
             "low": 32768,
@@ -220,10 +220,10 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
         },
       },
     ],
-    Array [
-      Object {
-        "path": Object {
-          "data": Array [
+    [
+      {
+        "path": {
+          "data": [
             100,
             49,
             47,
@@ -238,7 +238,7 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
           ],
           "type": "Buffer",
         },
-        "stats": Object {
+        "stats": {
           "mode": Long {
             "high": 0,
             "low": 32768,
@@ -248,20 +248,20 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
       },
     ],
   ],
-  "results": Array [
-    Object {
+  "results": [
+    {
       "type": "return",
       "value": "d1/dd2/ddd1/abcd",
     },
-    Object {
+    {
       "type": "return",
       "value": "d1/dd2/ddd1/efgh",
     },
-    Object {
+    {
       "type": "return",
       "value": "d1/dd2/ddd1/mnop",
     },
-    Object {
+    {
       "type": "return",
       "value": "d1/dd2/ddd3",
     },
@@ -271,15 +271,15 @@ exports[`FilesService createArchive create archive: readFileStream 1`] = `
 
 exports[`FilesService createArchive create archive: symlink 1`] = `
 [MockFunction] {
-  "calls": Array [
-    Array [
+  "calls": [
+    [
       "d1/dd2/ddd1/ijkl",
       "symlink",
       40960,
     ],
   ],
-  "results": Array [
-    Object {
+  "results": [
+    {
       "type": "return",
       "value": undefined,
     },
@@ -288,7 +288,7 @@ exports[`FilesService createArchive create archive: symlink 1`] = `
 `;
 
 exports[`FilesService listShares list share from a directory: res 1`] = `
-Array [
+[
   "file1",
   "file3",
 ]
@@ -305,10 +305,10 @@ exports[`FilesService readFileStream read file stream regular file: chunk 4`] = 
 exports[`FilesService readFileStream read file stream regular file: chunk 5`] = `"chunks5"`;
 
 exports[`FilesService searchFiles search files in directory: res 1`] = `
-Array [
-  Object {
+[
+  {
     "path": "d1/dd2/ddd1",
-    "stats": Object {
+    "stats": {
       "mode": Long {
         "high": 0,
         "low": 16384,
@@ -316,9 +316,9 @@ Array [
       },
     },
   },
-  Object {
+  {
     "path": "d1/dd2/ddd2",
-    "stats": Object {
+    "stats": {
       "mode": Long {
         "high": 0,
         "low": 16384,
@@ -326,9 +326,9 @@ Array [
       },
     },
   },
-  Object {
+  {
     "path": "d1/dd2/ddd3",
-    "stats": Object {
+    "stats": {
       "mode": Long {
         "high": 0,
         "low": 32768,

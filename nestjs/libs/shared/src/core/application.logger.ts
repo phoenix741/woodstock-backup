@@ -1,6 +1,6 @@
 import { Injectable, LoggerService } from '@nestjs/common';
 import * as logform from 'logform';
-import * as mkdirp from 'mkdirp';
+import { mkdirp } from 'mkdirp';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
 import 'winston-daily-rotate-file';
@@ -54,6 +54,7 @@ export class ApplicationLogger implements LoggerService {
           symlinkName: `exceptions-${worker}.log`,
         }),
       ],
+      //exitOnError: false,
     });
   }
 

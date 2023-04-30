@@ -4,10 +4,11 @@ import { cp } from 'fs/promises';
 import { count, from, toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { ProtoFileManifestJournalEntry } from '../shared/woodstock.model.js';
-import { FileManifestJournalEntry } from '../shared';
+import { RedlockAbortSignal } from 'redlock';
 import { ProtobufMessageWithPosition } from '../input-output';
 import { ProtobufService } from '../input-output/protobuf.service.js';
+import { FileManifestJournalEntry, LockService } from '../shared';
+import { ProtoFileManifestJournalEntry } from '../shared/woodstock.model.js';
 import { PoolStatisticsService } from '../statistics';
 import { ReferenceCount } from './refcnt.interface.js';
 import { RefCntService } from './refcnt.service.js';
@@ -50,6 +51,13 @@ describe('RefCntService', () => {
     },
   };
 
+  const lockService = {
+    using<T>(resources: string[], timeout: number, routine: (signal: RedlockAbortSignal) => Promise<T>): Promise<T> {
+      const abortController = new AbortController();
+      return routine(abortController.signal);
+    },
+  };
+
   beforeEach(async () => {
     statsService.writeStatistics.mockClear();
   });
@@ -57,7 +65,12 @@ describe('RefCntService', () => {
   describe('With real file', () => {
     beforeEach(async () => {
       const module: TestingModule = await Test.createTestingModule({
-        providers: [ProtobufService, RefCntService, { provide: PoolStatisticsService, useValue: statsService }],
+        providers: [
+          ProtobufService,
+          RefCntService,
+          { provide: PoolStatisticsService, useValue: statsService },
+          { provide: LockService, useValue: lockService },
+        ],
       }).compile();
 
       service = module.get<RefCntService>(RefCntService);
@@ -191,6 +204,7 @@ describe('RefCntService', () => {
           RefCntService,
           { provide: ProtobufService, useValue: protobufService },
           { provide: PoolStatisticsService, useValue: statsService },
+          { provide: LockService, useValue: lockService },
         ],
       }).compile();
 

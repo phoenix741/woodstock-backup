@@ -1,38 +1,38 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`RefCntService With mock cleanup some file: atomicWriteFileRefCnt 1`] = `
-Object {
+{
   "append": undefined,
   "filename": "fileToChange",
-  "source": Array [
-    Object {
+  "source": [
+    {
       "compressedSize": 4000000,
       "refCount": 5,
       "sha256": "sha256_1",
       "size": 4000000,
     },
-    Object {
+    {
       "compressedSize": 4000000,
       "refCount": 2,
       "sha256": "sha256_2",
       "size": 4000000,
     },
   ],
-  "type": Object {
-    "fields": Object {
-      "compressedSize": Object {
+  "type": {
+    "fields": {
+      "compressedSize": {
         "id": 4,
         "type": "int32",
       },
-      "refCount": Object {
+      "refCount": {
         "id": 2,
         "type": "int32",
       },
-      "sha256": Object {
+      "sha256": {
         "id": 1,
         "type": "bytes",
       },
-      "size": Object {
+      "size": {
         "id": 3,
         "type": "int32",
       },
@@ -42,60 +42,60 @@ Object {
 `;
 
 exports[`RefCntService With mock cleanup some file: atomicWriteFileUnused 1`] = `
-Object {
+{
   "append": undefined,
   "filename": "unusedPath",
-  "source": Array [
-    Object {
+  "source": [
+    {
       "compressedSize": undefined,
       "sha256": "sha256_4",
       "size": undefined,
     },
-    Object {
+    {
       "compressedSize": undefined,
       "sha256": "sha256_5",
       "size": undefined,
     },
-    Object {
+    {
       "compressedSize": 4000000,
       "sha256": "sha256_3",
       "size": 4000000,
     },
-    Object {
+    {
       "compressedSize": 4000000,
       "sha256": "sha256_10",
       "size": 4000000,
     },
   ],
-  "type": Object {
-    "fields": Object {
-      "compressedSize": Object {
+  "type": {
+    "fields": {
+      "compressedSize": {
         "id": 4,
-        "options": Object {
+        "options": {
           "proto3_optional": true,
         },
         "type": "int32",
       },
-      "sha256": Object {
+      "sha256": {
         "id": 1,
         "type": "bytes",
       },
-      "size": Object {
+      "size": {
         "id": 3,
-        "options": Object {
+        "options": {
           "proto3_optional": true,
         },
         "type": "int32",
       },
     },
-    "oneofs": Object {
-      "_compressedSize": Object {
-        "oneof": Array [
+    "oneofs": {
+      "_compressedSize": {
+        "oneof": [
           "compressedSize",
         ],
       },
-      "_size": Object {
-        "oneof": Array [
+      "_size": {
+        "oneof": [
           "size",
         ],
       },
@@ -105,7 +105,7 @@ Object {
 `;
 
 exports[`RefCntService With mock cleanup some file: statsService.writeStatistics 1`] = `
-Array [
+[
   PoolStatistics {
     "compressedSize": 8000000n,
     "longestChain": 5,

@@ -4,7 +4,7 @@ import { Transform, TransformCallback, TransformOptions } from 'stream';
 
 const WRITE_BUFFER_SIZE = Math.pow(2, 16);
 
-export class ProtobufMessageWriter<T> extends Transform {
+export class ProtobufMessageWriter<T extends object> extends Transform {
   #grpcWriter = new Writer();
 
   constructor(private type: Type, opts?: TransformOptions) {

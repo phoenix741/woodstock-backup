@@ -1,134 +1,112 @@
-import { Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { createUnionType, Field, InputType, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { HostConfiguration } from './host-configuration.dto.js';
+import { JobState } from 'bullmq';
+import { Transform, Type } from 'class-transformer';
+import { Allow } from 'class-validator';
+import { QueueTaskState } from '../tasks/queue-tasks.model.js';
 
-export enum BackupState {
-  WAITING = 'WAITING',
-  RUNNING = 'RUNNING',
-  SUCCESS = 'SUCCESS',
-  ABORTED = 'ABORTED',
-  FAILED = 'FAILED',
-}
-
-registerEnumType(BackupState, {
-  name: 'BackupState',
+registerEnumType(QueueTaskState, {
+  name: 'QueueTaskState',
 });
 
 @ObjectType()
-export class TaskProgression {
-  constructor(s: Partial<TaskProgression> = {}) {
-    this.compressedFileSize = 0n;
-    this.newCompressedFileSize = 0n;
-
-    this.fileSize = 0n;
-    this.newFileSize = 0n;
-
-    this.newFileCount = 0;
-    this.fileCount = 0;
-
-    this.speed = 0;
-    this.progressCurrent = 0n;
-    this.progressMax = 0n;
-
-    Object.assign(this, s);
-  }
-
-  @Transform((v) => BigInt(v.value))
+export class JobProgression {
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  compressedFileSize: bigint;
-  @Transform((v) => BigInt(v.value))
+  compressedFileSize?: bigint;
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  newCompressedFileSize: bigint;
+  newCompressedFileSize?: bigint;
 
-  @Transform((v) => BigInt(v.value))
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  fileSize: bigint;
-  @Transform((v) => BigInt(v.value))
+  fileSize?: bigint;
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  newFileSize: bigint;
-
-  newFileCount: number;
-  fileCount: number;
-
-  speed: number;
+  newFileSize?: bigint;
 
   @ApiProperty({ type: 'integer' })
   @Field(() => Int)
-  get percent(): number {
-    if (this.progressMax) {
-      return Number((this.progressCurrent * 100n) / this.progressMax);
-    }
-    return 0;
-  }
+  newFileCount?: number;
 
-  set percent(v: number) {
-    this.progressMax = this.progressMax || (v > 0 ? 100n : 0n);
-    this.progressCurrent = (BigInt(v) * this.progressMax) / 100n;
-  }
+  @ApiProperty({ type: 'integer' })
+  @Field(() => Int)
+  fileCount?: number;
 
-  @Transform((v) => BigInt(v.value))
+  @ApiProperty({ type: 'integer' })
+  @Field(() => Int)
+  errorCount?: number;
+
+  speed?: number;
+  percent?: number;
+
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  progressCurrent: bigint;
-  @Transform((v) => BigInt(v.value))
+  progressCurrent?: bigint;
+  @Transform((v) => v.value && BigInt(v.value))
   @Field(() => BigInt)
-  progressMax: bigint;
-
-  toJSON() {
-    return {
-      ...this,
-      percent: this.percent,
-    };
-  }
+  progressMax?: bigint;
 }
 
 @ObjectType()
-export class BackupSubTask {
-  context!: string;
-  description!: string;
-  state!: BackupState;
-  progression?: TaskProgression;
+export class JobSubTask {
+  taskName: string;
+  state?: QueueTaskState;
+  @Type(() => JobProgression)
+  progression?: JobProgression;
+  description?: string;
+}
+
+export const SubTaskOrGroupTasks = createUnionType({
+  name: 'SubTaskOrGroupTasks',
+  types: () => [JobSubTask, JobGroupTasks] as const,
+});
+
+@ObjectType()
+export class JobGroupTasks {
+  groupName?: string;
+
+  @Field(() => [SubTaskOrGroupTasks])
+  subtasks: (typeof SubTaskOrGroupTasks)[];
+  state?: QueueTaskState;
+  @Type(() => JobProgression)
+  progression?: JobProgression;
+  description?: string;
 }
 
 @ObjectType()
-export class BackupTask {
-  host!: string;
-  config?: HostConfiguration;
-  previousNumber?: number;
+export class BackupTask extends JobGroupTasks {
+  host?: string;
   number?: number;
   ip?: string;
   startDate?: number;
-  originalStartDate?: number;
-
-  force?: boolean;
-
-  subtasks?: BackupSubTask[];
-
-  state?: BackupState;
-  progression?: TaskProgression;
-
-  @ApiProperty({ type: Boolean })
-  @Field(() => Boolean)
-  complete?: boolean;
 }
 
 @ObjectType()
 export class Job {
-  id!: string;
-
+  id?: string;
+  queueName!: string;
   name!: string;
+  state: string;
+
+  @Type(() => BackupTask)
   data!: BackupTask;
-
-  delay!: number;
-
-  timestamp!: number;
 
   @Field(() => Int)
   attemptsMade!: number;
-
   failedReason?: string;
-  stacktrace?: string[];
+}
 
-  finishedOn?: number;
-  processedOn?: number;
+@InputType()
+export class QueueListInput {
+  @Field(() => [String], { defaultValue: [] })
+  @Type(() => String)
+  @Allow()
+  states: JobState[];
+
+  @Allow()
+  queueName?: string;
+
+  @Allow()
+  operationName?: string;
 }

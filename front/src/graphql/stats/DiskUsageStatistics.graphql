@@ -1,0 +1,10 @@
+query DiskUsageStatistics {
+  statistics {
+    hosts {
+      host
+
+      size
+      compressedSize
+    }
+  }
+}

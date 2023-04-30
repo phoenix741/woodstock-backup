@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { join } from 'path';
-import { ApplicationConfigService } from './application-config.service';
 import { YamlService } from '../input-output';
 import { HostConfiguration } from '../shared';
+import { ApplicationConfigService } from './application-config.service';
 
 /**
  * Class used to manage configuration file for hosts.

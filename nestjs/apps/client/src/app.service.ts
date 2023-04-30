@@ -1,9 +1,10 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import {
   AuthenticateReply,
   AuthenticateRequest,
   ChunkInformation,
   EncryptionService,
+  ExecuteCommandReply,
   FileChunk,
   LaunchBackupReply,
   LogEntry,
@@ -12,18 +13,21 @@ import {
   Share,
   StatusCode,
 } from '@woodstock/shared';
+import { BackupOnClientService } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Observable } from 'rxjs';
-import { BackupService } from './backup/backup.service.js';
+import { v4 as uuidv4 } from 'uuid';
 import { ClientConfigService } from './config/client.config.js';
 import { LogService } from './logger/log.service.js';
 
 @Injectable()
 export class AppService {
+  private context = new Set<string>();
+
   constructor(
     private clientConfig: ClientConfigService,
     private encryptionService: EncryptionService,
-    private backupService: BackupService,
+    private backupService: BackupOnClientService,
     private logService: LogService,
   ) {}
 
@@ -36,7 +40,13 @@ export class AppService {
         this.clientConfig.config.password,
       );
 
-      const uuid = this.backupService.initializeBackup(request);
+      if (request.version !== 0) {
+        throw new BadRequestException('Unsupported version');
+      }
+
+      const uuid = uuidv4();
+      this.context.add(uuid);
+
       return { code: StatusCode.Ok, sessionId: uuid };
     } catch (err) {
       return {
@@ -46,35 +56,39 @@ export class AppService {
     }
   }
 
-  async refreshCache(sessionId: string, request: AsyncIterableX<RefreshCacheRequest>): Promise<RefreshCacheReply> {
-    const context = this.backupService.getContext(sessionId);
-    if (!context) {
-      throw new InternalServerErrorException('The context is not defined');
+  checkContext(sessionId: string) {
+    if (!this.context.has(sessionId)) {
+      throw new UnauthorizedException('Session not found');
     }
+  }
 
-    return context.refreshCache(request);
+  async executeCommand(sessionId: string, command: string): Promise<ExecuteCommandReply> {
+    this.checkContext(sessionId);
+
+    return this.backupService.executeCommand(command);
+  }
+
+  async refreshCache(sessionId: string, request: AsyncIterableX<RefreshCacheRequest>): Promise<RefreshCacheReply> {
+    this.checkContext(sessionId);
+
+    return this.backupService.refreshCache(request);
   }
 
   launchBackup(sessionId: string, share: Share): AsyncIterableX<LaunchBackupReply> {
-    const context = this.backupService.getContext(sessionId);
-    if (!context) {
-      throw new InternalServerErrorException('The context is not defined');
-    }
+    this.checkContext(sessionId);
 
-    return context.launchBackup(share);
+    return this.backupService.launchBackup(share);
   }
 
   getChunk(sessionId: string, request: ChunkInformation): AsyncIterableX<FileChunk> {
-    const context = this.backupService.getContext(sessionId);
-    if (!context) {
-      throw new InternalServerErrorException('The context is not defined');
-    }
+    this.checkContext(sessionId);
 
-    return context.getChunk(request);
+    return this.backupService.getChunk(request);
   }
 
   getLogAsObservable(sessionId: string): Observable<LogEntry> {
-    this.backupService.getContext(sessionId);
+    this.checkContext(sessionId);
+
     return this.logService.getLogAsObservable();
   }
 }
