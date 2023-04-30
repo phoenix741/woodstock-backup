@@ -16,13 +16,15 @@
       "shared",
       "workflow",
       "front",
-      "gitea"
+      "gitea",
+      "backup"
     ],
     "jest.disabledWorkspaceFolders": [
       "client-sync",
       "docker",
       "docs",
       "website",
+      "front"
     ],
     "jest.coverageFormatter": "GutterFormatter",
     "typescript.tsdk": "nestjs/node_modules/typescript/lib",

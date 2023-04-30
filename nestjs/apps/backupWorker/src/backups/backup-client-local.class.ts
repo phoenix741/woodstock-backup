@@ -5,6 +5,7 @@ import {
   ChunkInformation,
   ExecuteCommandReply,
   FileManifestJournalEntry,
+  joinBuffer,
   LogEntry,
   RefreshCacheReply,
   RefreshCacheRequest,
@@ -82,13 +83,23 @@ export class BackupClientLocal implements BackupClientInterface {
   }
 
   async refreshCache(
-    _context: BackupsLocalContext,
+    context: BackupsLocalContext,
     request: AsyncIterable<RefreshCacheRequest>,
   ): Promise<RefreshCacheReply> {
-    return await this.backupService.refreshCache(from(request));
+    return await this.backupService.refreshCache(
+      from(request).pipe(
+        map((r) => {
+          if (r.header) {
+            r.header.sharePath = joinBuffer(Buffer.from(context.pathPrefix), r.header.sharePath);
+          }
+          return r;
+        }),
+      ),
+    );
   }
 
-  downloadFileList(_context: BackupsLocalContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry> {
+  downloadFileList(context: BackupsLocalContext, backupShare: Share): AsyncIterableX<FileManifestJournalEntry> {
+    backupShare = { ...backupShare, sharePath: joinBuffer(Buffer.from(context.pathPrefix), backupShare.sharePath) };
     return this.backupService.launchBackup(backupShare).pipe(
       map(({ entry }) => entry),
       filter((entry): entry is FileManifestJournalEntry => !!entry),
