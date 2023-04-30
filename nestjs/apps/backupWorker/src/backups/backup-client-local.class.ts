@@ -107,7 +107,8 @@ export class BackupClientLocal implements BackupClientInterface {
     );
   }
 
-  copyChunk(_context: BackupsLocalContext, chunk: ChunkInformation): Readable {
+  copyChunk(context: BackupsLocalContext, chunk: ChunkInformation): Readable {
+    chunk = { ...chunk, filename: joinBuffer(Buffer.from(context.pathPrefix), chunk.filename) };
     const chunkResult = this.backupService.getChunk(chunk);
     return Readable.from(
       chunkResult.pipe(
