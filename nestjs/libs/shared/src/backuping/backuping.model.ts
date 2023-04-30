@@ -1,5 +1,6 @@
 import { BadRequestException, LoggerService } from '@nestjs/common';
 import { HostConfiguration } from '../shared';
+import { BackupLogger } from './backup.logger';
 
 export enum BackupNameTask {
   GROUP_INIT_TASK = 'init',
@@ -40,7 +41,7 @@ export interface BackupClientContext {
   host: string;
   ip?: string;
   currentBackupId: number;
-  logger?: LoggerService;
+  logger?: BackupLogger;
   abortable: AbortController[];
   originalDate?: number;
 }
@@ -56,9 +57,9 @@ export class BackupContext {
   originalStartDate?: number;
 
   connection: BackupClientContext;
-  clientLogger: LoggerService;
+  clientLogger: BackupLogger;
 
-  constructor(jobData: JobBackupData, clientLogger: LoggerService, connection: BackupClientContext) {
+  constructor(jobData: JobBackupData, clientLogger: BackupLogger, connection: BackupClientContext) {
     if (!jobData.config || jobData.number === undefined || (!jobData.ip && !jobData.config.isLocal)) {
       throw new BadRequestException(`Initialisation of backup failed.`);
     }

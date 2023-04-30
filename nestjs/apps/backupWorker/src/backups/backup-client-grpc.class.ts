@@ -6,6 +6,7 @@ import {
   ApplicationConfigService,
   AuthenticateReply,
   BackupClientContext,
+  BackupLogger,
   ChunkInformation,
   ChunkStatus,
   EncryptionService,
@@ -33,7 +34,7 @@ import { LaunchBackupError } from './backup.error.js';
 export class BackupsGrpcContext implements BackupClientContext {
   isLocal = false;
   sessionId?: string;
-  logger?: LoggerService;
+  logger?: BackupLogger;
 
   abortable: AbortController[] = [];
   client?: ClientGrpcProxy;

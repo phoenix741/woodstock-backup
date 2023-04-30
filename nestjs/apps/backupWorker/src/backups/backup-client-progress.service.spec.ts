@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { bigIntToLong, EntryType } from '@woodstock/shared';
+import { BackupLogger, bigIntToLong, EntryType } from '@woodstock/shared';
 import { from, lastValueFrom, toArray } from 'rxjs';
 import { BackupsGrpcContext } from './backup-client-grpc.class.js';
 import { BackupClientProgress } from './backup-client-progress.service.js';
@@ -52,8 +52,8 @@ describe('BackupClientProgress', () => {
     // GIVEN
     mockBackupClient.authenticate = jest.fn().mockResolvedValue(undefined);
 
-    const logger = new Logger('FakeLogger');
-    const clientLogger = new Logger('FakeClientLogger');
+    const logger = new Logger('FakeLogger') as unknown as BackupLogger;
+    const clientLogger = new Logger('FakeClientLogger') as unknown as BackupLogger;
     const ctxt = new BackupsGrpcContext('host', 'ip', 1);
     ctxt.client = fakeClient;
 

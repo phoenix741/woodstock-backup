@@ -2,6 +2,7 @@ import { Injectable, Logger, LoggerService } from '@nestjs/common';
 import {
   AuthenticateReply,
   BackupClientContext,
+  BackupLogger,
   ChunkInformation,
   ExecuteCommandReply,
   FileManifestJournalEntry,
@@ -23,7 +24,7 @@ export class BackupsLocalContext implements BackupClientContext {
   isLocal = true;
   sessionId?: string;
   ip?: string;
-  logger?: LoggerService;
+  logger?: BackupLogger;
   abortable: AbortController[] = [];
 
   constructor(

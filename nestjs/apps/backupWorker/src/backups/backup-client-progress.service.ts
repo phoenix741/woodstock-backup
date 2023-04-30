@@ -1,5 +1,12 @@
-import { Injectable, LoggerService } from '@nestjs/common';
-import { BackupClientContext, EntryType, isPoolChunkInformation, longToBigInt, Share } from '@woodstock/shared';
+import { Injectable } from '@nestjs/common';
+import {
+  BackupClientContext,
+  BackupLogger,
+  EntryType,
+  isPoolChunkInformation,
+  longToBigInt,
+  Share,
+} from '@woodstock/shared';
 import { QueueTaskProgression } from '@woodstock/shared/tasks';
 import * as Long from 'long';
 import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
@@ -25,8 +32,8 @@ export class BackupClientProgress {
 
   authenticate(
     context: BackupClientContext,
-    logger: LoggerService,
-    clientLogger: LoggerService,
+    logger: BackupLogger,
+    clientLogger: BackupLogger,
     password: string,
   ): Promise<void> {
     return this.backupClient.authenticate(context, logger, clientLogger, password);

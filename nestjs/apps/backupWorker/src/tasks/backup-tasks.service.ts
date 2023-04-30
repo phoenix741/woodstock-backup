@@ -1,5 +1,12 @@
-import { Injectable, InternalServerErrorException, LoggerService } from '@nestjs/common';
-import { BackupOperation, BackupsService, bigIntMax, ExecuteCommandOperation, JobService } from '@woodstock/shared';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BackupLogger,
+  BackupOperation,
+  BackupsService,
+  bigIntMax,
+  ExecuteCommandOperation,
+  JobService,
+} from '@woodstock/shared';
 import { BackupContext, BackupNameTask, JobBackupData } from '@woodstock/shared/backuping/backuping.model';
 import {
   QueueGroupTasks,
@@ -80,7 +87,7 @@ export class BackupTasksService {
     return backupGroup;
   }
 
-  #createGlobalContext(job: Job<JobBackupData>, clientLogger: LoggerService, logger: LoggerService) {
+  #createGlobalContext(job: Job<JobBackupData>, clientLogger: BackupLogger, logger: BackupLogger) {
     const connection = this.backupsClient.createContext(
       job.data.ip,
       job.data.host,
@@ -179,8 +186,8 @@ export class BackupTasksService {
 
   prepareBackupTask(
     job: Job<JobBackupData>,
-    clientLogger: LoggerService,
-    logger: LoggerService,
+    clientLogger: BackupLogger,
+    logger: BackupLogger,
   ): QueueTasksInformations<BackupContext> {
     const config = job.data.config;
 

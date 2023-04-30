@@ -34,6 +34,10 @@ export class BackupLogger implements LoggerService {
     });
   }
 
+  close(): void {
+    this.#logger.close();
+  }
+
   log(message: string | Record<string, unknown>, context?: string): void {
     this.#logger.info(
       typeof message === 'string'

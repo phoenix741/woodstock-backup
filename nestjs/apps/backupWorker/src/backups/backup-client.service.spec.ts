@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   ApplicationConfigService,
+  BackupLogger,
   BackupsService,
   bigIntToLong,
   EntryType,
@@ -66,12 +67,13 @@ describe('BackupClient', () => {
   };
 
   function fakeLogger() {
-    const logger = new Logger('FakeLogger');
+    const logger = new Logger('FakeLogger') as unknown as BackupLogger;
     logger.log = jest.fn();
     logger.debug = jest.fn();
     logger.error = jest.fn();
     logger.verbose = jest.fn();
     logger.warn = jest.fn();
+    logger.close = jest.fn();
     return logger;
   }
 

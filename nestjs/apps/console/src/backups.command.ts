@@ -2,9 +2,8 @@ import { InjectQueue, QueueEventsHost } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { HostsService, QueueName } from '@woodstock/shared';
 import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
-import { QueueSubTask, QueueTasks, QueueTaskState, QueueGroupTasks } from '@woodstock/shared/tasks';
+import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/shared/tasks';
 import { Job, Queue } from 'bullmq';
-import { Command as Cmd } from 'commander';
 import { promises as fs } from 'fs';
 import { Command, Console, createSpinner } from 'nestjs-console';
 import * as ora from 'ora';
@@ -12,6 +11,7 @@ import { join } from 'path';
 import { BackupQueueStatus, QueueStatusInterface } from './queue-status.service';
 
 interface BackupPCSlot {
+  host: string;
   date: number;
   path: string;
 }
@@ -169,16 +169,17 @@ export class BackupsCommand extends QueueEventsHost {
       },
     ],
   })
-  async importFromBackuppc(path: string, cmd: Cmd): Promise<void> {
-    const { host, startDate, endDate } = cmd.opts();
+  async importFromBackuppc(
+    path: string,
+    { host, startDate, endDate }: { host?: string; startDate?: number; endDate?: number } = {},
+  ): Promise<void> {
     const hosts = await this.hostsService.getHosts();
-    const originalBackup: Record<string, BackupPCSlot[]> = {};
+    const originalBackup: BackupPCSlot[] = [];
     const files = await fs.readdir(path);
+
     for (const file of files) {
       if (!hosts.includes(file)) continue;
       if (!!host && file !== host) continue;
-
-      const backups: BackupPCSlot[] = [];
 
       const backupDirEnts = await fs.readdir(join(path, file), { withFileTypes: true });
       for (const dirEntry of backupDirEnts) {
@@ -191,26 +192,22 @@ export class BackupsCommand extends QueueEventsHost {
           if (dirEntry.isSymbolicLink()) {
             name = await fs.readlink(join(path, file, dirEntry.name));
           }
-          backups.push({ date, path: join(path, file, name) });
+          originalBackup.push({ host: file, date, path: join(path, file, name) });
         }
-      }
-
-      if (backups.length) {
-        originalBackup[file] = backups;
       }
     }
 
-    for (const host in originalBackup) {
-      const backups = originalBackup[host];
+    // Sort by date asc
+    originalBackup.sort((a, b) => a.date - b.date);
+
+    for (const backup of originalBackup) {
       let importedBackup = 0;
 
-      for (const backup of backups) {
-        const globalProgress = `${host}(${importedBackup}/${backups.length})`;
+      const globalProgress = `${backup.host}(${importedBackup}/${originalBackup.length})`;
 
-        await this.import(host, backup.date, backup.path, globalProgress);
+      await this.import(backup.host, backup.date, backup.path, globalProgress);
 
-        importedBackup++;
-      }
+      importedBackup++;
     }
   }
 }

@@ -1,7 +1,8 @@
-import { Injectable, Logger, LoggerService } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ApplicationConfigService,
   BackupClientContext,
+  BackupLogger,
   BackupsService,
   bigIntToLong,
   ChunkInformation,
@@ -88,8 +89,8 @@ export class BackupClient {
 
   async authenticate(
     context: BackupClientContext,
-    logger: LoggerService,
-    clientLogger: LoggerService,
+    logger: BackupLogger,
+    clientLogger: BackupLogger,
     password: string,
   ): Promise<void> {
     this.logger.log(`Authenticate to ${context.host} (${context.ip})`);
@@ -451,6 +452,7 @@ export class BackupClient {
       // Stop subscription
       context.abortable.forEach((s) => s.abort());
       context.abortable = [];
+      context.logger?.close();
       context.logger = undefined;
 
       // Close connection
