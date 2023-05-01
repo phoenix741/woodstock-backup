@@ -199,11 +199,10 @@ export class BackupsCommand extends QueueEventsHost {
 
     // Sort by date asc
     originalBackup.sort((a, b) => a.date - b.date);
+    let importedBackup = 1;
 
     for (const backup of originalBackup) {
-      let importedBackup = 0;
-
-      const globalProgress = `${backup.host}(${importedBackup}/${originalBackup.length})`;
+      const globalProgress = `${backup.host}(${importedBackup}/${originalBackup.length}) - ${backup.path}`;
 
       await this.import(backup.host, backup.date, backup.path, globalProgress);
 
