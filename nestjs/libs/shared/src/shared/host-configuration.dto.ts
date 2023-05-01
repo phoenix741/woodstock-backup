@@ -98,6 +98,12 @@ export class HostConfiguration {
   @Exclude()
   password: string;
 
+  /**
+   * Max number of concurrent downloads for this host. By default, it's 1.
+   */
+  @ApiProperty({ example: 1 })
+  maxConcurrentDownloads?: number;
+
   @ApiProperty({ example: [] })
   addresses?: string[];
 

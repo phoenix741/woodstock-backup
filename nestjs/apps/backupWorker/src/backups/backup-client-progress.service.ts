@@ -61,8 +61,12 @@ export class BackupClientProgress {
     return fileList$;
   }
 
-  createBackup(context: BackupClientContext, backupShare: Share): Observable<QueueTaskProgression> {
-    return this.backupClient.createBackup(context, backupShare).pipe(
+  createBackup(
+    context: BackupClientContext,
+    backupShare: Share,
+    maxConcurrentDownloads = 1,
+  ): Observable<QueueTaskProgression> {
+    return this.backupClient.createBackup(context, backupShare, maxConcurrentDownloads).pipe(
       scan(
         (current, value) => {
           if (isPoolChunkInformation(value)) {

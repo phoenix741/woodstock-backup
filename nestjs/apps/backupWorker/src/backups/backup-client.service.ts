@@ -273,6 +273,7 @@ export class BackupClient {
   createBackup(
     context: BackupClientContext,
     backupShare: Share,
+    maxConcurrentDownloads = 1,
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     this.logger.log(`Create backup (${context.sessionId}): ${backupShare.sharePath.toString()}`);
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
@@ -281,33 +282,35 @@ export class BackupClient {
       let errorCount = 0;
       const chunkSink = new AsyncSink<PoolChunkInformation>();
       const entries = this.manifestService.readFilelistEntries(manifest).pipe(
-        // TODO: Define the concurrency
-        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | Error>(20, async (entry) => {
-          try {
-            if (
-              entry?.type !== EntryType.REMOVE &&
-              entry?.manifest &&
-              !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode || Long.ZERO))
-            ) {
-              const manifest = await this.downloadManifestFile(
-                context,
-                backupShare.sharePath,
-                entry.manifest,
-                chunkSink,
+        concurrentMap<FileManifestJournalEntry, FileManifestJournalEntry | Error>(
+          maxConcurrentDownloads,
+          async (entry) => {
+            try {
+              if (
+                entry?.type !== EntryType.REMOVE &&
+                entry?.manifest &&
+                !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode || Long.ZERO))
+              ) {
+                const manifest = await this.downloadManifestFile(
+                  context,
+                  backupShare.sharePath,
+                  entry.manifest,
+                  chunkSink,
+                );
+                return { type: entry.type, manifest };
+              } else {
+                return entry;
+              }
+            } catch (err) {
+              // FIXME: Gérer l'erreur, quelle erreur quand le fichier change ou est supprimé???
+              errorCount++;
+              this.logger.verbose(
+                `Can't download chunk for ${entry.manifest?.path.toString()}: '${(err as Error).message}'`,
               );
-              return { type: entry.type, manifest };
-            } else {
-              return entry;
+              return err;
             }
-          } catch (err) {
-            // FIXME: Gérer l'erreur, quelle erreur quand le fichier change ou est supprimé???
-            errorCount++;
-            this.logger.verbose(
-              `Can't download chunk for ${entry.manifest?.path.toString()}: '${(err as Error).message}'`,
-            );
-            return err;
-          }
-        }),
+          },
+        ),
         finalize(() => {
           this.logger.verbose('All chunks are downloaded');
           chunkSink.end();

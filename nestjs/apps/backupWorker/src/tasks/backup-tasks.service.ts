@@ -144,7 +144,11 @@ export class BackupTasksService {
         throw new InternalServerErrorException('No includes, excludes or sharePath provided');
       }
 
-      return this.backupsClient.createBackup(gc.globalContext.connection, { includes, excludes, sharePath });
+      return this.backupsClient.createBackup(
+        gc.globalContext.connection,
+        { includes, excludes, sharePath },
+        gc.globalContext.config.maxConcurrentDownloads,
+      );
     });
     globalContext.commands.set(BackupNameTask.COMPACT_TASK, (gc, lc) => {
       if (!lc.sharePath) {
