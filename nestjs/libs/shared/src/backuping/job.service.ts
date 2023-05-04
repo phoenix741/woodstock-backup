@@ -11,16 +11,16 @@ import { JobBackupData } from './backuping.model';
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
 
-export const LOCK_TIMEOUT = 5000;
+export const LOCK_TIMEOUT = 60_000;
 
 @Injectable()
-@QueueEventsListener('refcnt')
+@QueueEventsListener(QueueName.REFCNT_QUEUE)
 export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);
 
   constructor(
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
-    @InjectQueue('refcnt') private refcnQueue: Queue<RefcntJobData>,
+    @InjectQueue(QueueName.REFCNT_QUEUE) private refcnQueue: Queue<RefcntJobData>,
     private lockService: LockService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
