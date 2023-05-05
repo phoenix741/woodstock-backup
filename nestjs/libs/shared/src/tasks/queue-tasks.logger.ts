@@ -1,36 +1,56 @@
 import { LoggerService } from '@nestjs/common';
+import * as logform from 'logform';
+import { mkdirp } from 'mkdirp';
+import { createLogger, format, Logger, transports } from 'winston';
 import { Job } from 'bullmq';
+import { ApplicationConfigService } from '../config';
+import { join } from 'path';
+
+const { combine, timestamp, printf } = format;
+const applicationFormat = printf((info: logform.TransformableInfo) => {
+  return `${info.timestamp} [${info.context}] ${info.level}: ${info.message} ${info.trace ? info.trace : ''}`;
+});
 
 export class JobLogger implements LoggerService {
-  constructor(private job: Job<unknown>) {}
+  #logger: Logger;
+
+  constructor(private configService: ApplicationConfigService, private job: Job<unknown>) {
+    const destinationDirectory = this.configService.jobPath;
+    const destinationLog = join(destinationDirectory, job.id ?? 'unknown');
+
+    mkdirp(destinationDirectory);
+    this.#logger = createLogger({
+      level: process.env.LOG_LEVEL || 'info',
+      format: combine(timestamp(), applicationFormat),
+      transports: [
+        new transports.File({
+          filename: destinationLog,
+        }),
+      ],
+    });
+  }
+
+  close(): void {
+    this.#logger.close();
+  }
 
   log(message: string | Record<string, unknown>, context?: string): void {
-    const msg = typeof message === 'string' ? message : JSON.stringify(message);
-
-    this.job.log(`[LOG] ${context} ${msg}`);
+    this.#logger.info(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
   error(message: string | Record<string, unknown>, trace?: string, context?: string): void {
-    const msg = typeof message === 'string' ? message : JSON.stringify(message);
-
-    this.job.log(`[ERROR] ${context} ${msg} ${trace}`);
+    this.#logger.error(typeof message === 'string' ? { context, trace, message } : { context, trace, ...message });
   }
 
   warn(message: string | Record<string, unknown>, context?: string): void {
-    const msg = typeof message === 'string' ? message : JSON.stringify(message);
-
-    this.job.log(`[WARN] ${context} ${msg}`);
+    this.#logger.warn(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
   debug(message: string | Record<string, unknown>, context?: string): void {
-    const msg = typeof message === 'string' ? message : JSON.stringify(message);
-
-    this.job.log(`[DEBUG] ${context} ${msg}`);
+    this.#logger.debug(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 
   verbose(message: string | Record<string, unknown>, context?: string): void {
-    const msg = typeof message === 'string' ? message : JSON.stringify(message);
-
-    this.job.log(`[VERBOSE] ${context} ${msg}`);
+    this.#logger.verbose(typeof message === 'string' ? { context, message } : { context, ...message });
   }
 }

@@ -20,7 +20,7 @@ import {
   QueueTasksInformations,
   QueueTasksService,
 } from '@woodstock/shared/tasks';
-import { JobLogger } from '@woodstock/shared/tasks/queue-tasks.logger';
+import { JobLogger } from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
 import { scan } from 'rxjs';
 
@@ -143,7 +143,7 @@ export class RefcntConsumer extends WorkerHost {
     const { fix, refcnt, unused } = job.data;
     const dryRun = !fix;
 
-    const logger = new JobLogger(job);
+    const logger = new JobLogger(this.applicationConfig, job);
     const globalContext = new QueueTaskContext({}, logger);
 
     const hosts = await this.hostService.getHosts();
@@ -193,7 +193,7 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   async #prepareVerifyChecksum(job: Job<RefcntJobData>) {
-    const logger = new JobLogger(job);
+    const logger = new JobLogger(this.applicationConfig, job);
     const globalContext = new QueueTaskContext({}, logger);
 
     globalContext.commands.set('prepare', async () => {

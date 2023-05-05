@@ -1,4 +1,4 @@
-FROM node:20 as dependencies
+FROM node:18 as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/nestjs
@@ -30,7 +30,7 @@ RUN npm run buildall
 
 #
 # -------- Dist -----------
-FROM node:20 AS dist
+FROM node:18 AS dist
 
 WORKDIR /nestjs
 

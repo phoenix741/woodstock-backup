@@ -17,7 +17,8 @@
       "workflow",
       "front",
       "gitea",
-      "backup"
+      "backup",
+      "refcnt"
     ],
     "jest.disabledWorkspaceFolders": [
       "client-sync",

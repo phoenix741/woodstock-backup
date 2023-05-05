@@ -64,6 +64,10 @@ export class ApplicationConfigService {
     return this.configService.get('POOL_PATH', join(this.backupPath, 'pool'));
   }
 
+  get jobPath(): string {
+    return this.configService.get('JOB_PATH', join(this.logPath, 'jobs'));
+  }
+
   get redis(): RedisOptions {
     return {
       host: this.configService.get<string>('REDIS_HOST', 'localhost'),

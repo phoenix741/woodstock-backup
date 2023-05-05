@@ -7,25 +7,25 @@ trigger:
 
 steps:
   - name: server:install
-    image: node:20
+    image: node:18
     commands:
       - cd nestjs
       - npm ci
 
   - name: server:lint
-    image: node:20
+    image: node:18
     commands:
       - cd nestjs
       - npm run lint
 
   - name: server:unit
-    image: node:20
+    image: node:18
     commands:
       - cd nestjs
       - npm run test
 
   - name: server:build
-    image: node:20
+    image: node:18
     commands:
       - cd nestjs
       - npm run buildall
@@ -40,20 +40,20 @@ trigger:
 
 steps:
   - name: front:install
-    image: node:20
+    image: node:18
     commands:
       - cd front
       - npm ci
 
   - name: front:lint
-    image: node:20
+    image: node:18
     commands:
       - cd front
       - npm run lint
       #- npm run test:unit
 
   - name: front:build
-    image: node:20
+    image: node:18
     commands:
       - cd front
       - npm run build

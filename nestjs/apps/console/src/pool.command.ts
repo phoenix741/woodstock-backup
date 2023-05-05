@@ -1,10 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
-import { FsckService, PoolService, QueueName, RefcntJobData } from '@woodstock/shared';
+import { ApplicationConfigService, FsckService, PoolService, QueueName, RefcntJobData } from '@woodstock/shared';
 import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/shared/tasks';
 import { Job, Queue } from 'bullmq';
 import { Command, Console, createSpinner } from 'nestjs-console';
 import * as ora from 'ora';
+import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { QueueStatusInterface, RefcntQueueStatus } from './queue-status.service';
 
@@ -38,6 +39,7 @@ function getRunningTask(task: QueueTasks): string {
 })
 export class PoolCommand {
   constructor(
+    private configService: ApplicationConfigService,
     @InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>,
     private refCntFsckService: FsckService,
     private poolService: PoolService,
@@ -80,9 +82,7 @@ export class PoolCommand {
         complete: async () => {
           spinner.succeed(`[Pool]: Verification finished. ${status}`);
           if (job.id) {
-            console.log(
-              (await this.refcntQueue.getJobLogs(job.id)).logs.filter((line) => line.indexOf('[DEBUG]') < 0).join('\n'),
-            );
+            console.log(`See results in ${join(this.configService.jobPath, job.id)}`);
           }
           resolve();
         },
