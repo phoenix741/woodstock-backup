@@ -1,19 +1,13 @@
 import { BadRequestException, Injectable, LoggerService } from '@nestjs/common';
-import {
-  ApplicationConfigService,
-  BackupsService,
-  JobBackupData,
-  JobService,
-  RefCntService,
-  ReferenceCount,
-} from '@woodstock/shared';
+import { ApplicationConfigService } from '@woodstock/core';
+import { BackupsService, JobBackupData, JobService, RefCntService, ReferenceCount } from '@woodstock/server';
 import {
   QueueSubTask,
   QueueTaskContext,
   QueueTasks,
   QueueTasksInformations,
   QueueTasksService,
-} from '@woodstock/shared/tasks';
+} from '@woodstock/server/tasks';
 import { Job } from 'bullmq';
 import { RedlockAbortSignal } from 'redlock';
 

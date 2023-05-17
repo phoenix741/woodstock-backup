@@ -1,12 +1,13 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { SchedulerConfigService } from '@woodstock/shared';
+import { SchedulerConfigService } from '@woodstock/core';
+import { QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
 
 @Injectable()
 export class SchedulerService implements OnModuleInit {
   constructor(
-    @InjectQueue('schedule') private scheduleQueue: Queue<unknown>,
+    @InjectQueue(QueueName.SCHEDULE_QUEUE) private scheduleQueue: Queue<unknown>,
     private schedulerConfigService: SchedulerConfigService,
   ) {}
 

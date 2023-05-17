@@ -1,13 +1,8 @@
 import { Controller, Get, Headers, NotFoundException, Param, Res, UnsupportedMediaTypeException } from '@nestjs/common';
 import { ApiHeader, ApiOkResponse, ApiProduces } from '@nestjs/swagger';
-import {
-  ApplicationConfigService,
-  BackupsService,
-  CertificateService,
-  HostConfiguration,
-  HostsService,
-  YamlService,
-} from '@woodstock/shared';
+import { ApplicationConfigService, YamlService } from '@woodstock/core';
+import { BackupsService, HostConfiguration, HostsService } from '@woodstock/server';
+import { CertificateService } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { join } from 'path';

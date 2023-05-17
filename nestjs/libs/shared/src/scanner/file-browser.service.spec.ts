@@ -1,5 +1,5 @@
+import { globStringToRegex } from '@woodstock/core';
 import { toArray } from 'ix/asynciterable';
-import { globStringToRegex } from '../utils';
 import { FileBrowserService } from './file-browser.service.js';
 
 describe('FileBrowserService', () => {

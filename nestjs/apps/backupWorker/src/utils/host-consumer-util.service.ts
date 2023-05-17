@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { HostConfiguration, HostsService } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
+import { HostConfiguration, HostsService, JobBackupData } from '@woodstock/server';
 import { Job } from 'bullmq';
 
 @Injectable()

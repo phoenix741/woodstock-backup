@@ -1,10 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ExecuteCommandService, globStringToRegex, mangle, notUndefined, split } from '@woodstock/core';
 import { createReadStream, ReadStream } from 'fs';
 import { AsyncIterableX, concat, from, of } from 'ix/asynciterable';
 import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/operators';
-import { ExecuteCommandService } from '../commands';
 import { Manifest, ManifestService } from '../manifest';
-import { FileHashReader, FileReaderService } from '../scanner';
 import {
   ChunkInformation,
   ExecuteCommandReply,
@@ -15,8 +14,8 @@ import {
   RefreshCacheRequest,
   Share,
   StatusCode,
-} from '../shared';
-import { globStringToRegex, mangle, notUndefined, split } from '../utils';
+} from '../protobuf/woodstock.interface';
+import { FileHashReader, FileReaderService } from '../scanner';
 
 @Injectable()
 export class BackupOnClientService {

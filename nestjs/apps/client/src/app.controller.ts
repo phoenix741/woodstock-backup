@@ -1,10 +1,11 @@
 import { Metadata, ServerReadableStream } from '@grpc/grpc-js';
-import { BadRequestException, Controller, InternalServerErrorException, Logger } from '@nestjs/common';
+import { BadRequestException, Controller, InternalServerErrorException, Logger, UseGuards } from '@nestjs/common';
 import { GrpcMethod, GrpcStreamCall } from '@nestjs/microservices';
 import {
   AuthenticateReply,
   AuthenticateRequest,
   ChunkStatus,
+  Empty,
   ExecuteCommandReply,
   ExecuteCommandRequest,
   GetChunkReply,
@@ -21,6 +22,7 @@ import { from as fromIx, of as ofIx } from 'ix/asynciterable';
 import { catchError, map } from 'ix/asynciterable/operators';
 import { from, Observable, of } from 'rxjs';
 import { AppService } from './app.service.js';
+import { AuthGuard } from './auth/auth.guard.js';
 
 function getMetadata<T extends string | Buffer>(metadata: Metadata, key: string): T {
   const value = metadata.get(key);
@@ -41,12 +43,11 @@ export class AppController {
     return await this.service.authenticate(request);
   }
 
+  @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'ExecuteCommand')
-  async executeCommand(request: ExecuteCommandRequest, metadata: Metadata): Promise<ExecuteCommandReply> {
+  async executeCommand(request: ExecuteCommandRequest): Promise<ExecuteCommandReply> {
     try {
-      const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
-
-      return await this.service.executeCommand(sessionId, request.command);
+      return await this.service.executeCommand(request.command);
     } catch (err) {
       return {
         code: StatusCode.Failed,
@@ -56,14 +57,14 @@ export class AppController {
     }
   }
 
+  @UseGuards(AuthGuard)
   @GrpcStreamCall('WoodstockClientService', 'RefreshCache')
   async refreshCache(
     requestStream: ServerReadableStream<RefreshCacheRequest, RefreshCacheReply>,
     callback: (err: unknown, value: RefreshCacheReply) => void,
   ) {
-    const sessionId = getMetadata<string>(requestStream.metadata, 'X-Session-Id');
     try {
-      const reply = await this.service.refreshCache(sessionId, fromIx(requestStream));
+      const reply = await this.service.refreshCache(fromIx(requestStream));
       callback(null, reply);
     } catch (err) {
       callback(null, {
@@ -73,14 +74,15 @@ export class AppController {
     }
   }
 
+  @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'LaunchBackup')
-  launchBackup(request: LaunchBackupRequest, metadata: Metadata): Observable<LaunchBackupReply> {
+  launchBackup(request: LaunchBackupRequest): Observable<LaunchBackupReply> {
     try {
       if (!request.share) {
         throw new InternalServerErrorException('share must be defined');
       }
-      const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
-      return from(this.service.launchBackup(sessionId, request.share));
+
+      return from(this.service.launchBackup(request.share));
     } catch (err) {
       return of({
         entry: undefined,
@@ -92,16 +94,16 @@ export class AppController {
     }
   }
 
+  @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'GetChunk')
-  getChunk(request: GetChunkRequest, metadata: Metadata): Observable<GetChunkReply> {
+  getChunk(request: GetChunkRequest): Observable<GetChunkReply> {
     try {
       if (!request.chunk) {
         throw new InternalServerErrorException('chunk must be defined');
       }
 
-      const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
       return from(
-        this.service.getChunk(sessionId, request.chunk).pipe(
+        this.service.getChunk(request.chunk).pipe(
           map((data) => ({ data, status: ChunkStatus.DATA })),
           catchError((err) => {
             this.logger.error(err);
@@ -115,9 +117,18 @@ export class AppController {
     }
   }
 
+  @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'StreamLog')
-  streamLog(_: StreamLogRequest, metadata: Metadata): Observable<LogEntry> {
+  streamLog(_: StreamLogRequest): Observable<LogEntry> {
+    return this.service.getLogAsObservable();
+  }
+
+  @UseGuards(AuthGuard)
+  @GrpcMethod('WoodstockClientService', 'CloseClient')
+  async closeBackup(request: Empty, metadata: Metadata): Promise<Empty> {
     const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
-    return this.service.getLogAsObservable(sessionId);
+    await this.service.closeBackup(sessionId);
+
+    return {};
   }
 }

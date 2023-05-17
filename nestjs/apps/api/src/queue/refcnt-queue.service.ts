@@ -1,6 +1,6 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Inject, Logger } from '@nestjs/common';
-import { QueueName, RefcntJobData } from '@woodstock/shared';
+import { QueueName, RefcntJobData } from '@woodstock/server';
 import { Queue } from 'bullmq';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueUtils } from './queue.utils';

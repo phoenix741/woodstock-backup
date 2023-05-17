@@ -1,6 +1,6 @@
+import { CHUNK_SIZE, HASH_ALGO } from '@woodstock/core';
 import { createHash } from 'crypto';
 import { Transform, TransformCallback, TransformOptions } from 'stream';
-import { CHUNK_SIZE, HASH_ALGO } from '../shared/woodstock.constant';
 
 export class FileHashReader extends Transform {
   #digester = createHash(HASH_ALGO);

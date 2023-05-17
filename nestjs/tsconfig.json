@@ -28,6 +28,18 @@
       "@woodstock/shared/*": [
         "libs/shared/src/*"
       ],
+      "@woodstock/core": [
+        "libs/core/src"
+      ],
+      "@woodstock/core/*": [
+        "libs/core/src/*"
+      ],
+      "@woodstock/server": [
+        "libs/server/src"
+      ],
+      "@woodstock/server/*": [
+        "libs/server/src/*"
+      ]
     }
   }
 }

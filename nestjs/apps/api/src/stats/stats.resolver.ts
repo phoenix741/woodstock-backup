@@ -1,15 +1,15 @@
 import { Query, ResolveField, Resolver } from '@nestjs/graphql';
 import {
+  BigIntTimeSerie,
   DiskStatisticsService,
   DiskUsage,
   HostStatistics,
+  NumberTimeSerie,
   PoolStatisticsService,
   PoolUsage,
   Statistics,
   StatsInstantService,
-  BigIntTimeSerie,
-  NumberTimeSerie,
-} from '@woodstock/shared';
+} from '@woodstock/server';
 
 @Resolver(() => Statistics)
 export class StatsResolver {

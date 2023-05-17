@@ -1,7 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BackupLogger, bigIntToLong, EntryType } from '@woodstock/shared';
+import { bigIntToLong } from '@woodstock/core';
+import { BackupLogger } from '@woodstock/server';
+import { EntryType } from '@woodstock/shared';
 import { from, lastValueFrom, toArray } from 'rxjs';
 import { BackupsGrpcContext } from './backup-client-grpc.class.js';
 import { BackupClientProgress } from './backup-client-progress.service.js';

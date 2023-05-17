@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { WorkerType, WORKER_TYPE } from '@woodstock/shared';
+import { WorkerType, WORKER_TYPE } from '@woodstock/core';
 
 @Global()
 @Module({

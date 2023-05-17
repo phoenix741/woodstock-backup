@@ -1,5 +1,5 @@
-import { Backup } from '@woodstock/shared';
 import { ObjectType } from '@nestjs/graphql';
+import { Backup } from '@woodstock/server';
 
 @ObjectType()
 export class Host {

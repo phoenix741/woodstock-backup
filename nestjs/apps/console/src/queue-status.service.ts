@@ -1,8 +1,8 @@
-import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
+import { QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { JobBackupData, QueueName, RefcntJobData } from '@woodstock/shared';
-import { QueueTasks, QueueTasksService } from '@woodstock/shared/tasks';
-import { Job, Queue } from 'bullmq';
+import { JobBackupData, QueueName, RefcntJobData } from '@woodstock/server';
+import { QueueTasks, QueueTasksService } from '@woodstock/server/tasks';
+import { Job } from 'bullmq';
 import { Constructor } from 'protobufjs';
 import { Observable } from 'rxjs';
 
@@ -14,7 +14,7 @@ export function QueueStatus<T = unknown>(queueName: QueueName): Constructor<Queu
   @Injectable()
   @QueueEventsListener(queueName)
   class QueueStatus extends QueueEventsHost implements QueueStatusInterface<T> {
-    constructor(@InjectQueue(queueName) private queue: Queue<T>, private queueTasksService: QueueTasksService) {
+    constructor(private queueTasksService: QueueTasksService) {
       super();
     }
 

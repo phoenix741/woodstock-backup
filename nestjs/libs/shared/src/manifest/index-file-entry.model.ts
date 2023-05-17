@@ -1,4 +1,4 @@
-import { FileManifest } from '../shared';
+import { FileManifest } from '../protobuf/woodstock.interface';
 
 /**
  * Used to represent a manifest in the index manifest.

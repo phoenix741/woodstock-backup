@@ -1,8 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { NotFoundException } from '@nestjs/common';
 import { Args, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, BackupsService, HostConfiguration, HostsService, QueueName } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
+import { Backup, BackupsService, HostConfiguration, HostsService, JobBackupData, QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
 import { Host } from './hosts.dto.js';
 

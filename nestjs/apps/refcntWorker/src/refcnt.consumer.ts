@@ -1,7 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
+import { ApplicationConfigService } from '@woodstock/core';
 import {
-  ApplicationConfigService,
   BackupLogger,
   BackupsService,
   FsckService,
@@ -10,7 +10,7 @@ import {
   RefcntJobData,
   RefCntService,
   ReferenceCount,
-} from '@woodstock/shared';
+} from '@woodstock/server';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -19,8 +19,8 @@ import {
   QueueTasks,
   QueueTasksInformations,
   QueueTasksService,
-} from '@woodstock/shared/tasks';
-import { JobLogger } from '@woodstock/shared/tasks';
+} from '@woodstock/server/tasks';
+import { JobLogger } from '@woodstock/server/tasks';
 import { Job } from 'bullmq';
 import { scan } from 'rxjs';
 

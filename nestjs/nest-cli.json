@@ -7,13 +7,19 @@
     "webpack": true,
     "webpackConfigPath": "webpack.config.cjs",
     "tsConfigPath": "apps/api/tsconfig.app.json",
-    "assets": ["**/*.proto"],
+    "assets": [
+      "**/*.proto"
+    ],
     "watchAssets": true,
     "plugins": [
       {
         "name": "@nestjs/graphql",
         "options": {
-          "typeFileNameSuffix": [".input.ts", ".args.ts", ".dto.ts"],
+          "typeFileNameSuffix": [
+            ".input.ts",
+            ".args.ts",
+            ".dto.ts"
+          ],
           "introspectComments": true
         }
       },
@@ -91,6 +97,24 @@
       "sourceRoot": "libs/shared/src",
       "compilerOptions": {
         "tsConfigPath": "libs/shared/tsconfig.lib.json"
+      }
+    },
+    "core": {
+      "type": "library",
+      "root": "libs/core",
+      "entryFile": "index",
+      "sourceRoot": "libs/core/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/core/tsconfig.lib.json"
+      }
+    },
+    "server": {
+      "type": "library",
+      "root": "libs/server",
+      "entryFile": "index",
+      "sourceRoot": "libs/server/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/server/tsconfig.lib.json"
       }
     }
   }

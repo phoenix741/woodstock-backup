@@ -5,8 +5,8 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { AppModule } from './app.module.js';
-import { ClientConfigService } from './config/client.config.js';
-import { LogService } from './logger/log.service.js';
+import { ClientConfigService } from './client.config.js';
+import { LogService } from './log.service.js';
 
 async function bootstrap() {
   const appStandalone = await NestFactory.createApplicationContext(AppModule);

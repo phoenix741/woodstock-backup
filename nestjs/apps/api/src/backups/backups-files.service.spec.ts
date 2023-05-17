@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BackupsService, FilesService } from '@woodstock/shared';
+import { BackupsService, FilesService } from '@woodstock/server';
 import { BackupsFilesService } from './backups-files.service.js';
 
 describe('Backups File Service', () => {

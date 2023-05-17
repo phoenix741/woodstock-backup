@@ -1,4 +1,6 @@
-import { FileBrowserService, globStringToRegex, HostsService, longToBigInt } from '@woodstock/shared';
+import { globStringToRegex, longToBigInt } from '@woodstock/core';
+import { HostsService } from '@woodstock/server';
+import { FileBrowserService } from '@woodstock/shared';
 import * as Long from 'long';
 import { Command, Console, createSpinner } from 'nestjs-console';
 import { join } from 'path';

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { ApplicationConfigService, isExists, WorkerType, WORKER_TYPE } from '@woodstock/core';
 import { createHash, randomBytes } from 'crypto';
 import { readFile, writeFile } from 'fs/promises';
 import type { GetPublicKeyOrSecret, Jwt, JwtPayload, Secret, SignOptions, VerifyOptions } from 'jsonwebtoken';
@@ -7,9 +8,6 @@ import { mkdirp } from 'mkdirp';
 import { pki } from 'node-forge';
 import { join } from 'path';
 import { promisify } from 'util';
-import { ApplicationConfigService } from '../config';
-import { WorkerType, WORKER_TYPE } from '../shared';
-import { isExists } from '../utils';
 
 const randomBytesAsync = promisify(randomBytes);
 

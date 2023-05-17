@@ -1,4 +1,4 @@
-import { FileManifest } from '../shared';
+import { FileManifest } from '../protobuf/woodstock.interface';
 
 export interface ManifestChunk {
   sha256: Buffer;

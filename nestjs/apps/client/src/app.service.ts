@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   AuthenticateReply,
   AuthenticateRequest,
+  BackupOnClientService,
   ChunkInformation,
-  EncryptionService,
   ExecuteCommandReply,
   FileChunk,
   LaunchBackupReply,
@@ -13,41 +13,32 @@ import {
   Share,
   StatusCode,
 } from '@woodstock/shared';
-import { BackupOnClientService } from '@woodstock/shared';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { Observable } from 'rxjs';
-import { v4 as uuidv4 } from 'uuid';
-import { ClientConfigService } from './config/client.config.js';
-import { LogService } from './logger/log.service.js';
+import { AuthService } from './auth/auth.service.js';
+import { LogService } from './log.service.js';
+
+export interface JwtPayload {
+  sessionId: string;
+}
 
 @Injectable()
 export class AppService {
-  private context = new Set<string>();
-
   constructor(
-    private clientConfig: ClientConfigService,
-    private encryptionService: EncryptionService,
+    private authService: AuthService,
     private backupService: BackupOnClientService,
     private logService: LogService,
   ) {}
 
   async authenticate(request: AuthenticateRequest): Promise<AuthenticateReply> {
     try {
-      // Check token validity
-      await this.encryptionService.verifyAuthentificationToken(
-        this.clientConfig.config.hostname,
-        request.token,
-        this.clientConfig.config.password,
-      );
-
       if (request.version !== 0) {
         throw new BadRequestException('Unsupported version');
       }
 
-      const uuid = uuidv4();
-      this.context.add(uuid);
+      const sessionToken = await this.authService.authenticate(request.token);
 
-      return { code: StatusCode.Ok, sessionId: uuid };
+      return { code: StatusCode.Ok, sessionId: sessionToken };
     } catch (err) {
       return {
         code: StatusCode.Failed,
@@ -56,39 +47,27 @@ export class AppService {
     }
   }
 
-  checkContext(sessionId: string) {
-    if (!this.context.has(sessionId)) {
-      throw new UnauthorizedException('Session not found');
-    }
-  }
-
-  async executeCommand(sessionId: string, command: string): Promise<ExecuteCommandReply> {
-    this.checkContext(sessionId);
-
+  async executeCommand(command: string): Promise<ExecuteCommandReply> {
     return this.backupService.executeCommand(command);
   }
 
-  async refreshCache(sessionId: string, request: AsyncIterableX<RefreshCacheRequest>): Promise<RefreshCacheReply> {
-    this.checkContext(sessionId);
-
+  async refreshCache(request: AsyncIterableX<RefreshCacheRequest>): Promise<RefreshCacheReply> {
     return this.backupService.refreshCache(request);
   }
 
-  launchBackup(sessionId: string, share: Share): AsyncIterableX<LaunchBackupReply> {
-    this.checkContext(sessionId);
-
+  launchBackup(share: Share): AsyncIterableX<LaunchBackupReply> {
     return this.backupService.launchBackup(share);
   }
 
-  getChunk(sessionId: string, request: ChunkInformation): AsyncIterableX<FileChunk> {
-    this.checkContext(sessionId);
-
+  getChunk(request: ChunkInformation): AsyncIterableX<FileChunk> {
     return this.backupService.getChunk(request);
   }
 
-  getLogAsObservable(sessionId: string): Observable<LogEntry> {
-    this.checkContext(sessionId);
-
+  getLogAsObservable(): Observable<LogEntry> {
     return this.logService.getLogAsObservable();
+  }
+
+  async closeBackup(sessionToken: string): Promise<void> {
+    this.authService.logout(sessionToken);
   }
 }

@@ -1,12 +1,10 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { ApplicationConfigService, isExists, WorkerType, WORKER_TYPE } from '@woodstock/core';
 import { readFile, writeFile } from 'fs/promises';
 import { mkdirp } from 'mkdirp';
 import type { pki as PKI } from 'node-forge';
 import { md, pki } from 'node-forge';
 import { join } from 'path';
-import { ApplicationConfigService } from '../config';
-import { WorkerType, WORKER_TYPE } from '../shared';
-import { isExists } from '../utils';
 
 const CERTIFICATE_ATTRS = [
   {

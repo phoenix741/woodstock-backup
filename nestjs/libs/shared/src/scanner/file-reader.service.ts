@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { joinBuffer, longToBigInt } from '@woodstock/core';
 import { createReadStream } from 'fs';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { filter, map, tap } from 'ix/asynciterable/operators';
@@ -6,11 +7,8 @@ import Long from 'long';
 import type { IMinimatch } from 'minimatch';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
-import { ManifestService } from '../manifest';
-import { IndexManifest } from '../manifest/index-manifest.model.js';
-import { FileManifest, FileManifestJournalEntry } from '../shared';
-import { longToBigInt } from '../utils';
-import { joinBuffer } from '../utils/path.utils.js';
+import { IndexManifest, ManifestService } from '../manifest';
+import { FileManifest, FileManifestJournalEntry } from '../protobuf';
 import { FileBrowserService } from './file-browser.service.js';
 import { ChunkHashReader, FileHashReader } from './hash-reader.transform.js';
 

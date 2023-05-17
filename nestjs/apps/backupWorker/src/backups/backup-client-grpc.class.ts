@@ -1,12 +1,11 @@
 import { credentials, Metadata } from '@grpc/grpc-js';
 import { ConnectivityState } from '@grpc/grpc-js/build/src/connectivity-state';
-import { Injectable, Logger, LoggerService, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ClientGrpcProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
+import { ApplicationConfigService } from '@woodstock/core';
+import { BackupClientContext, BackupLogger } from '@woodstock/server';
 import {
-  ApplicationConfigService,
   AuthenticateReply,
-  BackupClientContext,
-  BackupLogger,
   ChunkInformation,
   ChunkStatus,
   EncryptionService,

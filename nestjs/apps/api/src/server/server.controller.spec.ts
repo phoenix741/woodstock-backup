@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationConfigService } from '@woodstock/shared';
+import { ApplicationConfigService } from '@woodstock/core';
 import * as childProcess from 'child_process';
 import { EventEmitter } from 'events';
 import { Response } from 'express';

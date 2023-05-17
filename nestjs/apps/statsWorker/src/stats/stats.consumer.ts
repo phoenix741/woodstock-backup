@@ -1,9 +1,9 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { DiskStatisticsService, StatsInstantService } from '@woodstock/shared';
+import { DiskStatisticsService, QueueName, StatsInstantService } from '@woodstock/server';
 import { Job } from 'bullmq';
 
-@Processor('stats')
+@Processor(QueueName.STATS_QUEUE)
 export class StatsConsumer extends WorkerHost {
   private logger = new Logger(StatsConsumer.name);
 

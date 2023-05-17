@@ -1,7 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, NotFoundException } from '@nestjs/common';
-import { HostsService, JobService, QueueName, RefcntJobData } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
+import { HostsService, JobBackupData, JobService, QueueName, RefcntJobData } from '@woodstock/server';
 import { Job, Queue } from 'bullmq';
 
 @Processor('schedule')

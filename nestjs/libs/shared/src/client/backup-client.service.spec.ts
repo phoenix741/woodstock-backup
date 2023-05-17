@@ -1,10 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { CoreModule, ProtobufService } from '@woodstock/core';
 import { count, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
 import { join } from 'path';
-import { CommandsModule } from '../commands/commands.module.js';
-import { ProtobufService } from '../input-output/protobuf.service.js';
 import { IndexManifest } from '../manifest/index-manifest.model.js';
 import { Manifest } from '../manifest/manifest.model.js';
 import { ManifestService } from '../manifest/manifest.service.js';
@@ -19,7 +18,7 @@ describe('BackupOnClientService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [CommandsModule],
+      imports: [CoreModule],
       providers: [ManifestService, ProtobufService, FileReaderService, FileBrowserService, BackupOnClientService],
     }).compile();
 

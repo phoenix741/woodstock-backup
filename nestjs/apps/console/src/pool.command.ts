@@ -1,7 +1,8 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
-import { ApplicationConfigService, FsckService, PoolService, QueueName, RefcntJobData } from '@woodstock/shared';
-import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/shared/tasks';
+import { ApplicationConfigService } from '@woodstock/core';
+import { FsckService, PoolService, QueueName, RefcntJobData } from '@woodstock/server';
+import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/server/tasks';
 import { Job, Queue } from 'bullmq';
 import { Command, Console, createSpinner } from 'nestjs-console';
 import * as ora from 'ora';

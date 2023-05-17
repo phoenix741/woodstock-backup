@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Job, JobGroupTasks, JobSubTask, RefcntJobData } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
-import { QueueGroupTasks, QueueSubTask, QueueTasksService, TaskLocalContext } from '@woodstock/shared/tasks';
+import {
+  Job,
+  JobBackupData,
+  JobGroupTasks,
+  JobSubTask,
+  QueueGroupTasks,
+  QueueSubTask,
+  QueueTasksService,
+  RefcntJobData,
+  TaskLocalContext,
+} from '@woodstock/server';
 import Bull from 'bullmq';
 import { plainToInstance } from 'class-transformer';
 

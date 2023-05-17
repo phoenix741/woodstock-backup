@@ -1,19 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  ApplicationConfigService,
-  BackupLogger,
-  BackupsService,
-  bigIntToLong,
-  EntryType,
-  LogEntry,
-  LogLevel,
-  Manifest,
-  ManifestService,
-  PoolRefCount,
-  PoolService,
-  RefCntService,
-} from '@woodstock/shared';
+import { ApplicationConfigService, bigIntToLong } from '@woodstock/core';
+import { BackupLogger, BackupsService, PoolService, RefCntService } from '@woodstock/server';
+import { EntryType, Manifest, ManifestService, PoolRefCount } from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
 import { fromNodeStream } from 'ix';
 import { AsyncSink, from, toArray as toArrayIx } from 'ix/asynciterable';
@@ -21,6 +10,7 @@ import * as Long from 'long';
 import { lastValueFrom, toArray } from 'rxjs';
 import { Readable } from 'stream';
 import { setTimeout } from 'timers/promises';
+import { LogEntry } from 'winston';
 import { BackupClientGrpc, BackupsGrpcContext } from './backup-client-grpc.class.js';
 import { BackupClientLocal } from './backup-client-local.class.js';
 import { BackupClient } from './backup-client.service.js';

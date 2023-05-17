@@ -1,6 +1,13 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
-import { HostsStatsUsage, PoolStatistics, QueueName, StatsDiskUsage, StatsInstantService } from '@woodstock/shared';
+import {
+  HostsStatsUsage,
+  JobBackupData,
+  PoolStatistics,
+  QueueName,
+  StatsDiskUsage,
+  StatsInstantService,
+} from '@woodstock/server';
 import { Queue } from 'bullmq';
 import * as promClient from 'prom-client';
 
@@ -25,7 +32,7 @@ export class PrometheusService {
   private cache: Cache;
 
   constructor(
-    @InjectQueue(QueueName.BACKUP_QUEUE) private readonly backupQueue: Queue,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private readonly backupQueue: Queue<JobBackupData>,
     private instantStatService: StatsInstantService,
   ) {
     promClient.collectDefaultMetrics();

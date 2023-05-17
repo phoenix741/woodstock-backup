@@ -1,8 +1,7 @@
 import { InjectQueue, QueueEventsHost } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
-import { HostsService, QueueName } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
-import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/shared/tasks';
+import { HostsService, JobBackupData, QueueName } from '@woodstock/server';
+import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/server/tasks';
 import { Job, Queue } from 'bullmq';
 import { promises as fs } from 'fs';
 import { Command, Console, createSpinner } from 'nestjs-console';

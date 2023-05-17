@@ -1,17 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isExists, notUndefined, ProtobufService } from '@woodstock/core';
 import { rename } from 'fs/promises';
 import { AsyncIterableX, concat, from, reduce } from 'ix/asynciterable';
 import { catchError, concatAll, concatMap, filter, map } from 'ix/asynciterable/operators';
-import { ProtobufService } from '../input-output/protobuf.service.js';
-import {
-  EntryType,
-  FileManifest,
-  FileManifestJournalEntry,
-  PoolRefCount,
-  ProtoFileManifest,
-  ProtoFileManifestJournalEntry,
-} from '../shared';
-import { isExists, notUndefined } from '../utils';
+import { EntryType, FileManifest, FileManifestJournalEntry, PoolRefCount } from '../protobuf/woodstock.interface.js';
+import { ProtoFileManifest, ProtoFileManifestJournalEntry } from '../protobuf/woodstock.model.js';
 import { IndexManifest } from './index-manifest.model.js';
 import { ManifestChunk } from './manifest.interface.js';
 import { Manifest } from './manifest.model.js';

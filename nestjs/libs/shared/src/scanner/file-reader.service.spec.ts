@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { globStringToRegex } from '@woodstock/core';
 import { AsyncIterableX, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
 import { IndexManifest } from '../manifest/index-manifest.model.js';
-import { FileManifest } from '../shared';
-import { globStringToRegex } from '../utils/global-regexp.utils.js';
+import { FileManifest } from '../protobuf/woodstock.interface.js';
 import { FileBrowserService } from './file-browser.service.js';
 import { FileReaderService } from './file-reader.service.js';
 

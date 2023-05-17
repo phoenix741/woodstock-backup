@@ -1,13 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import {
-  BackupClientContext,
-  BackupLogger,
-  EntryType,
-  isPoolChunkInformation,
-  longToBigInt,
-  Share,
-} from '@woodstock/shared';
-import { QueueTaskProgression } from '@woodstock/shared/tasks';
+import { longToBigInt } from '@woodstock/core';
+import { BackupClientContext, BackupLogger, isPoolChunkInformation } from '@woodstock/server';
+import { QueueTaskProgression } from '@woodstock/server/tasks';
+import { EntryType, Share } from '@woodstock/shared';
 import * as Long from 'long';
 import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
 import { BackupClient } from './backup-client.service.js';

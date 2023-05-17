@@ -1,20 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CommandsModule, CoreModule, MaintenanceModule, QueueModule } from '@woodstock/shared';
-import { QueueTasksModule } from '@woodstock/shared/tasks/queue-tasks.module.js';
+import { CoreModule } from '@woodstock/core';
+import { ServerModule } from '@woodstock/server';
+import { SharedModule } from '@woodstock/shared';
 import { GlobalModule } from './global.module.js';
 import { RefcntConsumer } from './refcnt.consumer.js';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot(),
-    GlobalModule,
-    CoreModule,
-    CommandsModule,
-    QueueModule,
-    QueueTasksModule,
-    MaintenanceModule,
-  ],
+  imports: [ConfigModule.forRoot(), GlobalModule, CoreModule, SharedModule, ServerModule],
   providers: [RefcntConsumer],
 })
 export class AppModule {}

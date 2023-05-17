@@ -1,11 +1,11 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { bigIntToLong, joinBuffer, notUndefined } from '@woodstock/core';
 import { constants as constantsFs, Dirent } from 'fs';
 import { access, lstat, opendir, readlink } from 'fs/promises';
 import { AsyncIterableX, from, of } from 'ix/asynciterable';
 import { concatMap, filter, map, startWith } from 'ix/asynciterable/operators';
 import type { IMinimatch } from 'minimatch';
-import { FileManifest } from '../shared';
-import { joinBuffer, bigIntToLong, notUndefined } from '../utils';
+import { FileManifest } from '../protobuf';
 
 function isFileAuthorized(file: Buffer, includes: IMinimatch[], excludes: IMinimatch[]): boolean {
   const latin1File = file.toString('latin1');

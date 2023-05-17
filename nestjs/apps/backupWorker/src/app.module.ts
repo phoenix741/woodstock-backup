@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AuthentificationModule, BackupingModule, CommandsModule, CoreModule, QueueModule } from '@woodstock/shared';
-import { BackupClientModule } from '@woodstock/shared/client/backup-client.module.js';
-import { QueueTasksModule } from '@woodstock/shared/tasks/queue-tasks.module.js';
+import { CoreModule } from '@woodstock/core';
+import { ServerModule } from '@woodstock/server';
+import { SharedModule } from '@woodstock/shared';
 import { BackupClientGrpc } from './backups/backup-client-grpc.class.js';
 import { BackupClientLocal } from './backups/backup-client-local.class.js';
 import { BackupClientProgress } from './backups/backup-client-progress.service.js';
@@ -14,17 +14,7 @@ import { RemoveService } from './tasks/remove.service.js';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot(),
-    GlobalModule,
-    CoreModule,
-    CommandsModule,
-    QueueModule,
-    AuthentificationModule,
-    BackupingModule,
-    QueueTasksModule,
-    BackupClientModule,
-  ],
+  imports: [ConfigModule.forRoot(), GlobalModule, CoreModule, SharedModule, ServerModule],
   providers: [
     BackupClientProgress,
     BackupClient,

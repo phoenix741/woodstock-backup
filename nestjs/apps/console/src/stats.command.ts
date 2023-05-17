@@ -1,6 +1,5 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
-import { QueueName } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
+import { JobBackupData, QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
 import { Command, Console, createSpinner } from 'nestjs-console';
 

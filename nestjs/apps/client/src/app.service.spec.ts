@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BackupOnClientService, EncryptionService } from '@woodstock/shared';
 import { AppService } from './app.service.js';
-import { ClientConfigService } from './config/client.config.js';
-import { LogService } from './logger/log.service.js';
+import { ClientConfigService } from './client.config.js';
+import { LogService } from './log.service.js';
 
 describe('AppService', () => {
   let service: AppService;

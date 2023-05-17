@@ -1,13 +1,15 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { bigIntMax } from '@woodstock/core';
 import {
+  BackupContext,
   BackupLogger,
+  BackupNameTask,
   BackupOperation,
   BackupsService,
-  bigIntMax,
   ExecuteCommandOperation,
+  JobBackupData,
   JobService,
-} from '@woodstock/shared';
-import { BackupContext, BackupNameTask, JobBackupData } from '@woodstock/shared/backuping/backuping.model';
+} from '@woodstock/server';
 import {
   QueueGroupTasks,
   QueueSubTask,
@@ -16,8 +18,8 @@ import {
   QueueTasks,
   QueueTasksInformations,
   QUEUE_TASK_SUCCESS_STATE,
-} from '@woodstock/shared/tasks/queue-tasks.model';
-import { QueueTasksService } from '@woodstock/shared/tasks/queue-tasks.service';
+} from '@woodstock/server/tasks/queue-tasks.model';
+import { QueueTasksService } from '@woodstock/server/tasks/queue-tasks.service';
 import { Job } from 'bullmq';
 import mkdirp from 'mkdirp';
 import { RedlockAbortSignal } from 'redlock';

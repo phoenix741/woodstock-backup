@@ -1,8 +1,14 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
-import { BackupLogger, BackupsService, JobService, QueueName, ResolveService } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
-import { QUEUE_TASK_FAILED_STATE } from '@woodstock/shared/tasks/queue-tasks.model.js';
+import { ResolveService } from '@woodstock/core';
+import {
+  BackupLogger,
+  BackupsService,
+  JobBackupData,
+  JobService,
+  QueueName,
+  QUEUE_TASK_FAILED_STATE,
+} from '@woodstock/server';
 import { Job, Queue } from 'bullmq';
 import { inspect } from 'util';
 import { LaunchBackupError } from '../backups/backup.error.js';

@@ -1,6 +1,6 @@
+import { mangle } from '@woodstock/core';
 import { from } from 'ix/iterable';
-import { EntryType, FileManifest, FileManifestJournalEntry } from '../shared';
-import { mangle } from '../utils';
+import { EntryType, FileManifest, FileManifestJournalEntry } from '../protobuf/woodstock.interface.js';
 import { IndexFileEntry } from './index-file-entry.model.js';
 
 function isIndexFileEntry(indexOrPath: IndexFileEntry | Buffer): indexOrPath is IndexFileEntry {

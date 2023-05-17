@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { StatusCode } from '@woodstock/shared';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
-import { LogService } from './logger/log.service.js';
+import { LogService } from './log.service.js';
 
 describe('AppController', () => {
   let appController: AppController;

@@ -12,8 +12,8 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-import { ApplicationConfigService, Backup, BackupsService, HostsService, QueueName } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model.js';
+import { ApplicationConfigService } from '@woodstock/core';
+import { Backup, BackupsService, HostsService, JobBackupData, QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
 import { Response } from 'express';
 import { join } from 'path';

@@ -1,6 +1,6 @@
+import { BackupClientContext } from '@woodstock/server';
 import {
   AuthenticateReply,
-  BackupClientContext,
   ChunkInformation,
   ExecuteCommandReply,
   FileManifestJournalEntry,

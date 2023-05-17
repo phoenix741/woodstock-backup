@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package woodstock;
 
+message Empty {
+
+}
+
 message PoolUnused {
   bytes sha256 = 1;
   optional int32 size = 3;
@@ -192,4 +196,7 @@ service WoodstockClientService {
 
   // In parallele, the server will open a stream for the client to send log file.
   rpc StreamLog(StreamLogRequest) returns (stream LogEntry) {}
+
+  // Free the client
+  rpc CloseBackup(Empty) returns (Empty) {}
 }

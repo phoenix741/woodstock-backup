@@ -1,8 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { BackupTask, QueueName } from '@woodstock/shared';
-import { JobBackupData } from '@woodstock/shared/backuping/backuping.model';
+import { BackupTask, JobBackupData, QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
 
 @Controller('queue')
