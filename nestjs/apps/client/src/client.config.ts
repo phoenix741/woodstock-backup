@@ -34,7 +34,6 @@ export class ClientConfigService implements OnModuleInit {
       DEFAULT_CONFIG,
       await this.yamlService.loadFile(join(this.configService.clientPath, 'config.yaml'), DEFAULT_CONFIG),
     );
-    this.#logger.log(`Starting client on ${this.config.hostname} (listening on port ${this.config.bind})`);
   }
 
   get config() {

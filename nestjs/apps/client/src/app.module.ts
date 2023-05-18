@@ -6,6 +6,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { AuthService } from './auth/auth.service.js';
+import { ClientJwtModuleFactory } from './client.config-factory.js';
 import { ClientConfigService } from './client.config.js';
 import { GlobalModule } from './global.module.js';
 import { LogService } from './log.service.js';
@@ -16,20 +17,6 @@ import { LogService } from './log.service.js';
   exports: [CoreModule, ClientConfigService],
 })
 export class ConfigModule {}
-
-@Injectable()
-export class ClientJwtModuleFactory implements JwtOptionsFactory {
-  constructor(private configService: ClientConfigService) {}
-
-  async createJwtOptions(): Promise<JwtModuleOptions> {
-    // On Module Init isn't called at this time
-    await this.configService.onModuleInit();
-
-    return {
-      secret: this.configService.config.secret,
-    };
-  }
-}
 
 @Module({
   imports: [
