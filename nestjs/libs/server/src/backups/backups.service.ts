@@ -10,7 +10,10 @@ import { Backup } from '../models';
 export class BackupsService {
   private logger = new Logger(BackupsService.name);
 
-  constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
+  constructor(
+    private configService: ApplicationConfigService,
+    private yamlService: YamlService,
+  ) {}
 
   private getSharePathFile(hostname: string, backupNumber: number): string {
     return join(this.configService.hostPath, hostname, '' + backupNumber, 'shares.yml');

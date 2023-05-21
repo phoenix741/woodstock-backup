@@ -1,6 +1,6 @@
 import { LoggerService } from '@nestjs/common';
+import { mkdirSync } from 'fs';
 import * as logform from 'logform';
-import { mkdirp } from 'mkdirp';
 import { createLogger, format, Logger, transports } from 'winston';
 import { BackupsService } from '../backups';
 
@@ -18,7 +18,7 @@ export class BackupLogger implements LoggerService {
   constructor(backupsService: BackupsService, private hostname: string, number?: number, clientSide = false) {
     const destinationDirectory = backupsService.getLogDirectory(hostname);
 
-    mkdirp(destinationDirectory);
+    mkdirSync(destinationDirectory, { recursive: true });
     this.#logger = createLogger({
       level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),

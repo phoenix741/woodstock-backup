@@ -25,7 +25,7 @@ export class BackupOnClientService {
     private commandService: ExecuteCommandService,
     private fileReader: FileReaderService,
     private manifestService: ManifestService,
-  ) {}
+  ) { }
 
   async executeCommand(command: string): Promise<ExecuteCommandReply> {
     return this.commandService.executeCommand(command);

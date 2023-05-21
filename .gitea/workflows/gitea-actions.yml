@@ -1,0 +1,90 @@
+name: CI/CD
+
+on:
+  pull_request:
+
+jobs:
+  # Build the Rust application in the clientrs directory
+  # Launch the tests
+  rust_lib:
+    runs-on: ubuntu-latest
+    matrix:
+      include:
+        - target: x86_64-unknown-linux-musl
+        - target: x86_64-pc-windows-gnu
+
+    steps:
+      - name: Install protoc
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake git-lfs libacl1-dev
+
+      - uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Cargo cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ./target
+          key: build-cargo-registry-${{matrix.TARGET}}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Test
+        run: cargo test
+        working-directory: ./clientrs
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build
+        run: cross build --verbose --release --target ${{ matrix.target }}
+        working-directory: ./clientrs
+
+  backend:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - run: "apt-get update && apt-get install -y git-lfs"
+      - uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - run: |
+          cd nestjs
+          npm ci
+          npm run lint
+          npm run test
+          npm run buildall
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - run: "apt-get update && apt-get install -y git-lfs"
+      - uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+
+      - run: |
+          cd front
+          npm ci
+          npm run lint
+          npm run build

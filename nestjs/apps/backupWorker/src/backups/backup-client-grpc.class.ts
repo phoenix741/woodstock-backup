@@ -66,7 +66,10 @@ export class BackupsGrpcContext implements BackupClientContext {
 export class BackupClientGrpc implements BackupClientInterface {
   private readonly logger = new Logger(BackupClientGrpc.name);
 
-  constructor(private config: ApplicationConfigService, private encryptionService: EncryptionService) {}
+  constructor(
+    private config: ApplicationConfigService,
+    private encryptionService: EncryptionService,
+  ) {}
 
   #calculateKey(request: ChunkInformation) {
     return `${request.filename}-${request.position}-${request.size}`;
@@ -128,9 +131,9 @@ export class BackupClientGrpc implements BackupClientInterface {
     }
 
     const channel_creds = credentials.createSsl(
-      await readFile(join(this.config.certificatePath, 'rootCA.pem')),
-      await readFile(join(this.config.certificatePath, `${context.host}.key`)),
-      await readFile(join(this.config.certificatePath, `${context.host}.pem`)),
+      await readFile(join(this.config.certificatePath, `${context.host}_ca.pem`)),
+      await readFile(join(this.config.certificatePath, `${context.host}_client.key`)),
+      await readFile(join(this.config.certificatePath, `${context.host}_client.pem`)),
     );
     const client = ClientProxyFactory.create({
       transport: Transport.GRPC,
@@ -139,6 +142,9 @@ export class BackupClientGrpc implements BackupClientInterface {
         protoPath: resolve('woodstock.proto'),
         url: context.ip + ':3657',
         credentials: channel_creds,
+        loader: {
+          defaults: true,
+        },
         channelOptions: {
           'grpc.ssl_target_name_override': context.host,
           'grpc.enable_channelz': 0,
@@ -209,12 +215,14 @@ export class BackupClientGrpc implements BackupClientInterface {
   streamLog(context: BackupClientContext): AsyncIterableX<LogEntry> {
     const service = this.#checkConnection(context);
 
-    return service
-      .streamLog({}, this.getMetadata(context))
-      .on('error', (err) => {
-        context.logger?.error(`Can't get the stream from the client: ${err.message}`);
-      })
-      .pipe(asAsyncIterable<LogEntry>({ objectMode: true }));
+    return from(
+      service
+        .streamLog({}, this.getMetadata(context))
+        .on('error', (err) => {
+          context.logger?.error(`Can't get the stream from the client: ${err.message}`);
+        })
+        .pipe(asAsyncIterable<LogEntry>({ objectMode: true })),
+    );
   }
 
   async executeCommand(context: BackupClientContext, command: string): Promise<ExecuteCommandReply> {

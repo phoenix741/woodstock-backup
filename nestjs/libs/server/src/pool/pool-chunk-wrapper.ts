@@ -3,8 +3,7 @@ import { CHUNK_SIZE, getTemporaryFileName, isExists, rm } from '@woodstock/core'
 import { FileHashReader } from '@woodstock/shared';
 import * as assert from 'assert';
 import { createReadStream, createWriteStream } from 'fs';
-import { rename, stat } from 'fs/promises';
-import { mkdirp } from 'mkdirp';
+import { mkdir, rename, stat } from 'fs/promises';
 import { join } from 'path';
 import * as stream from 'stream';
 import { Duplex, pipeline as streamPipeline, Readable, Stream, Writable } from 'stream';
@@ -24,7 +23,10 @@ export class PoolChunkWrapper {
   #logger = new Logger(PoolChunkWrapper.name);
   #sha256Str?: string;
 
-  constructor(private poolPath: string, private _sha256?: Buffer) {
+  constructor(
+    private poolPath: string,
+    private _sha256?: Buffer,
+  ) {
     this.sha256 = _sha256;
   }
 
@@ -101,7 +103,7 @@ export class PoolChunkWrapper {
   }
 
   async write(inputStream: Readable, debugFilename: string): Promise<PoolChunkInformation> {
-    await mkdirp(this.chunkDir);
+    await mkdir(this.chunkDir, { recursive: true });
 
     const tempfilename = join(this.chunkDir, getTemporaryFileName());
 
@@ -134,7 +136,7 @@ export class PoolChunkWrapper {
         this.#logger.debug(`The chunk ${this.#sha256Str} is already present`);
         await rm(tempfilename);
       } else {
-        await mkdirp(this.chunkDir);
+        await mkdir(this.chunkDir, { recursive: true });
         await rename(tempfilename, this.chunkPath);
       }
 

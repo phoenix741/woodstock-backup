@@ -2,7 +2,8 @@ import { globStringToRegex, longToBigInt } from '@woodstock/core';
 import { HostsService } from '@woodstock/server';
 import { FileBrowserService } from '@woodstock/shared';
 import * as Long from 'long';
-import { Command, Console, createSpinner } from 'nestjs-console';
+import { Command, Console } from 'nestjs-console';
+import * as ora from 'ora';
 import { join } from 'path';
 
 @Console({
@@ -24,7 +25,7 @@ export class BrowserCommand {
   })
   async browse(host: string, path: string, options: { verbose: boolean }): Promise<void> {
     const { verbose } = options;
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`Get config for ${host}`);
 
     // Get the host configuration

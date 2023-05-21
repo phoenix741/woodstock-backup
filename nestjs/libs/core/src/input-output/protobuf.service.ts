@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createReadStream, createWriteStream } from 'fs';
-import { rename, unlink } from 'fs/promises';
+import { mkdir, rename, unlink } from 'fs/promises';
 import { from, never } from 'ix/asynciterable';
-import { mkdirp } from 'mkdirp';
 import { dirname } from 'path';
 import type { Type } from 'protobufjs';
 import * as stream from 'stream';
@@ -65,7 +64,7 @@ export class ProtobufService {
   ): Promise<void> {
     this.#logger.debug(`Write the file ${path} with type ${type.name}`);
 
-    await mkdirp(dirname(path));
+    await mkdir(dirname(path), { recursive: true });
 
     const stream = createWriteStream(path, { flags: 'a' });
     const transform = new ProtobufMessageWriter<O>(type);
@@ -77,7 +76,6 @@ export class ProtobufService {
     await pipeline(streams);
   }
 
-  i = 0;
   /**
    * it takes an AsyncIterable of objects of type O, and writes them to a file with the given path.
    * The file will be written in protobuf format.

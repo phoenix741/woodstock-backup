@@ -8,39 +8,33 @@ message Empty {
 
 message PoolUnused {
   bytes sha256 = 1;
-  optional int32 size = 3;
-  optional int32 compressedSize = 4;
+  optional uint64 size = 3;
+  optional uint64 compressedSize = 4;
 }
 
 message PoolRefCount {
   bytes sha256 = 1;
-  int32 refCount = 2;
-  int32 size = 3;
-  int32 compressedSize = 4;
+  uint32 refCount = 2;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
 }
 
-// Status Code for reply
-enum StatusCode {
-  Ok = 0;
-  Failed = 1;
-  Partial = 2;
-}
 
 message FileManifestStat {
-  optional int64 ownerId = 1;
-  optional int64 groupId = 2;
-  optional int64 size = 3;
-  optional int64 compressedSize = 8;
+  optional uint32 ownerId = 1;
+  optional uint32 groupId = 2;
+  optional uint64 size = 3;
+  optional uint64 compressedSize = 8;
   optional int64 lastRead = 4;
   optional int64 lastModified = 5;
   optional int64 created = 6;
-  optional int64 mode = 7;
+  optional uint32 mode = 7;
 
-  optional int64 dev = 9;
-  optional int64 rdev = 10;
+  optional uint64 dev = 9;
+  optional uint64 rdev = 10;
 
-  optional int64 ino = 11;
-  optional int64 nlink = 12;
+  optional uint64 ino = 11;
+  optional uint64 nlink = 12;
 }
 
 message FileManifestAcl {
@@ -92,7 +86,7 @@ message LogEntry {
 }
 
 message RefreshCacheHeader {
-  bytes sharePath = 1;
+  string sharePath = 1;
 }
 
 message RefreshCacheRequest {
@@ -102,50 +96,18 @@ message RefreshCacheRequest {
   }
 }
 
-message RefreshCacheReply {
-  StatusCode code = 1;
-  optional string message = 2;
-}
-
 message LaunchBackupRequest {
   Share share = 1;
-}
-
-message LaunchBackupResponse {
-  StatusCode code = 1;
-  optional string message = 2;
-}
-
-message LaunchBackupReply {
-  FileManifestJournalEntry entry = 2;
-  LaunchBackupResponse response = 3;
 }
 
 message ChunkInformation {
   bytes filename = 1;
   uint64 position = 2;
-  uint64 size = 3;
-  optional bytes sha256 = 4;
+  uint32 size = 3;
 }
 
 message FileChunk {
   bytes data = 1;
-}
-
-message ChunkResult {
-  StatusCode code = 1;
-}
-
-message GetChunkRequest {
-  ChunkInformation chunk = 1;
-}
-
-message GetChunkReply {
-  oneof field {
-    ChunkInformation chunk = 1;
-    ChunkResult result = 2;
-    FileChunk data = 3;
-  }
 }
 
 message StreamLogRequest {
@@ -162,9 +124,9 @@ message ExecuteCommandReply {
 }
 
 message Share {
-  bytes sharePath = 1;
-  repeated bytes includes = 2;
-  repeated bytes excludes = 3;
+  string sharePath = 1;
+  repeated string includes = 2;
+  repeated string excludes = 3;
 }
 
 message AuthenticateRequest {
@@ -173,9 +135,7 @@ message AuthenticateRequest {
 }
 
 message AuthenticateReply {
-  StatusCode code = 1;
-  optional string message = 2;
-  optional string sessionId = 3;
+  string sessionId = 3;
 }
 
 service WoodstockClientService {
@@ -186,15 +146,15 @@ service WoodstockClientService {
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
 
   // 2. The server send the last cache version to the client
-  rpc RefreshCache(stream RefreshCacheRequest) returns (RefreshCacheReply) {}
+  rpc RefreshCache(stream RefreshCacheRequest) returns (Empty) {}
 
   // 3. The server launch the backup with a new number. The client will browse the client computer
   //    and will send all new file to the server
-  rpc LaunchBackup(LaunchBackupRequest) returns (stream LaunchBackupReply) {}
+  rpc LaunchBackup(LaunchBackupRequest) returns (stream FileManifestJournalEntry) {}
 
   // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
   //    and ask all necessary chunk to the client.
-  rpc GetChunk(stream GetChunkRequest) returns (stream GetChunkReply) {}
+  rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
 
   // In parallele, the server will open a stream for the client to send log file.
   rpc StreamLog(StreamLogRequest) returns (stream LogEntry) {}

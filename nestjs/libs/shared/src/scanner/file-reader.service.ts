@@ -4,7 +4,7 @@ import { createReadStream } from 'fs';
 import { AsyncIterableX } from 'ix/asynciterable';
 import { filter, map, tap } from 'ix/asynciterable/operators';
 import Long from 'long';
-import type { IMinimatch } from 'minimatch';
+import { Minimatch } from 'minimatch';
 import { pipeline as streamPipeline, Writable } from 'stream';
 import { promisify } from 'util';
 import { IndexManifest, ManifestService } from '../manifest';
@@ -32,8 +32,8 @@ export class FileReaderService {
   getFiles(
     index: IndexManifest,
     sharePath: Buffer,
-    includes: IMinimatch[] = [],
-    excludes: IMinimatch[] = [],
+    includes: Minimatch[] = [],
+    excludes: Minimatch[] = [],
   ): AsyncIterableX<FileManifestJournalEntry> {
     return this.browser
       .getFiles(sharePath)(Buffer.alloc(0), includes, excludes)
@@ -43,7 +43,7 @@ export class FileReaderService {
         map(async (file) => {
           if (
             !!index.getEntry(file.path) &&
-            FileBrowserService.isRegularFile(longToBigInt(file.stats?.mode || Long.ZERO))
+            FileBrowserService.isRegularFile(file.stats?.mode ?? 0)
           ) {
             const manifest = await this.#calculateChunkHash(sharePath, file);
             return ManifestService.toAddJournalEntry(manifest, false);

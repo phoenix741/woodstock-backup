@@ -27,7 +27,10 @@ export class ClientConfigService implements OnModuleInit {
   #logger = new Logger(ClientConfigService.name);
   #config: ClientConfigFile;
 
-  constructor(private configService: ApplicationConfigService, private yamlService: YamlService) {}
+  constructor(
+    private configService: ApplicationConfigService,
+    private yamlService: YamlService,
+  ) {}
 
   async onModuleInit() {
     DEFAULT_CONFIG.secret = await randomBytes(64).toString('hex');
@@ -47,10 +50,10 @@ export class ClientConfigService implements OnModuleInit {
   }
 
   get privateKey() {
-    return join(this.configService.clientPath, `${this.config.hostname}.key`);
+    return join(this.configService.clientPath, `${this.config.hostname}_server.key`);
   }
 
   get publicKey() {
-    return join(this.configService.clientPath, `${this.config.hostname}.pem`);
+    return join(this.configService.clientPath, `${this.config.hostname}_server.pem`);
   }
 }

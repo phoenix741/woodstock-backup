@@ -74,7 +74,7 @@ export class HostConsumer extends WorkerHost {
         this.logger.debug(`Get the next backup number - JOB ID = ${job.id}`);
         if (backupTask.number === undefined) {
           Object.assign(backupTask, await this.jobService.getNextBackup(backupTask.host));
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
@@ -83,13 +83,13 @@ export class HostConsumer extends WorkerHost {
           if (!backupTask.ip) {
             throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
           }
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         this.logger.debug(`Define the start date - JOB ID = ${job.id}`);
         if (!backupTask.startDate) {
           backupTask.startDate = Date.now();
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         // Set the logger
@@ -139,7 +139,7 @@ export class HostConsumer extends WorkerHost {
 
         if (!backupTask.startDate) {
           backupTask.startDate = Date.now();
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         const informations = this.removeService.prepareRemoveTask(job, removeLogger);

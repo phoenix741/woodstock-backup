@@ -21,7 +21,7 @@ import {
 } from '@woodstock/server/tasks/queue-tasks.model';
 import { QueueTasksService } from '@woodstock/server/tasks/queue-tasks.service';
 import { Job } from 'bullmq';
-import mkdirp from 'mkdirp';
+import { mkdir } from 'fs/promises';
 import { RedlockAbortSignal } from 'redlock';
 import { BackupClientProgress } from '../backups/backup-client-progress.service';
 
@@ -100,7 +100,7 @@ export class BackupTasksService {
     const globalContext = new QueueTaskContext(new BackupContext(job.data, clientLogger, connection), logger);
 
     globalContext.commands.set(BackupNameTask.INIT_DIRECTORY_TASK, async (gc) => {
-      await mkdirp(this.backupsService.getDestinationDirectory(gc.globalContext.host, gc.globalContext.number));
+      await mkdir(this.backupsService.getDestinationDirectory(gc.globalContext.host, gc.globalContext.number), { recursive: true });
       await this.backupsService.cloneBackup(
         gc.globalContext.host,
         gc.globalContext.previousNumber,

@@ -1,4 +1,4 @@
-import { Field, HideField, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { Field, HideField, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
 import { longToBigInt, mangle } from '@woodstock/core';
 import { FileBrowserService, FileManifest, FileManifestAcl, FileManifestStat } from '@woodstock/shared';
@@ -23,14 +23,12 @@ registerEnumType(EnumFileType, {
 
 @ObjectType()
 export class FileStat implements FileManifestStat {
-  @Transform(({ value }) => value?.toString())
-  @ApiProperty({ type: () => String })
-  @Field(() => String)
-  ownerId?: Long;
-  @Transform(({ value }) => value?.toString())
-  @ApiProperty({ type: () => String })
-  @Field(() => String)
-  groupId?: Long;
+  @ApiProperty({ type: () => Number })
+  @Field(() => Int)
+  ownerId?: number;
+  @ApiProperty({ type: () => Number })
+  @Field(() => Int)
+  groupId?: number;
   @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
@@ -51,10 +49,9 @@ export class FileStat implements FileManifestStat {
   @ApiProperty({ type: () => String })
   @Field(() => String)
   created?: Long;
-  @Transform(({ value }) => value?.toString())
-  @ApiProperty({ type: () => String })
-  @Field(() => String)
-  mode?: Long;
+  @ApiProperty({ type: () => Number })
+  @Field(() => Int)
+  mode?: number;
   @Transform(({ value }) => value?.toString())
   @ApiProperty({ type: () => String })
   @Field(() => String)
@@ -122,8 +119,8 @@ export class FileDescription implements FileManifest {
   @Expose()
   @Field(() => EnumFileType)
   get type(): EnumFileType {
-    const m = longToBigInt(this.stats?.mode || Long.ZERO);
-    if (m === -1n) {
+    const m = this.stats?.mode ?? 0;
+    if (m === -1) {
       return EnumFileType.SHARE;
     } else if (FileBrowserService.isDirectory(m)) {
       return EnumFileType.DIRECTORY;

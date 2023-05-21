@@ -45,14 +45,14 @@ export interface PoolRefCount {
 }
 
 export interface FileManifestStat {
-  ownerId?: Long | undefined;
-  groupId?: Long | undefined;
+  ownerId?: number | undefined;
+  groupId?: number | undefined;
   size?: Long | undefined;
   compressedSize?: Long | undefined;
   lastRead?: Long | undefined;
   lastModified?: Long | undefined;
   created?: Long | undefined;
-  mode?: Long | undefined;
+  mode?: number | undefined;
   dev?: Long | undefined;
   rdev?: Long | undefined;
   ino?: Long | undefined;
@@ -126,7 +126,7 @@ export interface LaunchBackupReply {
 export interface ChunkInformation {
   filename: Buffer;
   position: Long;
-  size: Long;
+  size: number;
   sha256?: Buffer | undefined;
 }
 
@@ -178,8 +178,6 @@ export interface AuthenticateReply {
   sessionId?: string | undefined;
 }
 
-// If you get a compile-error about 'Constructor<Long> and ... have no overlap',
-// add '--ts_proto_opt=esModuleInterop=true' as a flag when calling 'protoc'.
 if (_m0.util.Long !== Long) {
   _m0.util.Long = Long as any;
   _m0.configure();

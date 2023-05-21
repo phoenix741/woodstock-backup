@@ -1,14 +1,15 @@
 import { InjectQueue, OnQueueEvent, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { JobBackupData, QueueName } from '@woodstock/server';
 import { Queue } from 'bullmq';
-import { Command, Console, createSpinner } from 'nestjs-console';
+import { Command, Console } from 'nestjs-console';
+import * as ora from 'ora';
 
 @Console({
   command: 'stats',
 })
 @QueueEventsListener(QueueName.BACKUP_QUEUE)
 export class StatsCommand extends QueueEventsHost {
-  private spinner?: ReturnType<typeof createSpinner>;
+  private spinner?: ora.Ora;
   private jobId?: string;
 
   constructor(
@@ -23,7 +24,7 @@ export class StatsCommand extends QueueEventsHost {
     description: 'Calculate daily statistics',
   })
   async statistics(): Promise<void> {
-    this.spinner = createSpinner();
+    this.spinner = ora();
     this.spinner.start('[Stats] Start');
 
     await this.statsQueue.add('stats');

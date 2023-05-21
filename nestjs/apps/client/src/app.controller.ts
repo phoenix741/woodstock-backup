@@ -35,7 +35,7 @@ function getMetadata<T extends string | Buffer>(metadata: Metadata, key: string)
 export class AppController {
   private logger = new Logger(AppController.name);
 
-  constructor(private service: AppService) {}
+  constructor(private service: AppService) { }
 
   @GrpcMethod('WoodstockClientService', 'Authenticate')
   async authenticate(request: AuthenticateRequest): Promise<AuthenticateReply> {

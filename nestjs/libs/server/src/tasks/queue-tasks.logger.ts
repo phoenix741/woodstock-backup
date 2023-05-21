@@ -1,8 +1,8 @@
 import { LoggerService } from '@nestjs/common';
 import { ApplicationConfigService } from '@woodstock/core';
 import { Job } from 'bullmq';
+import { mkdirSync } from 'fs';
 import * as logform from 'logform';
-import { mkdirp } from 'mkdirp';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
 
@@ -18,7 +18,7 @@ export class JobLogger implements LoggerService {
     const destinationDirectory = this.configService.jobPath;
     const destinationLog = join(destinationDirectory, job.id ?? 'unknown');
 
-    mkdirp(destinationDirectory);
+    mkdirSync(destinationDirectory, { recursive: true });
     this.#logger = createLogger({
       level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),

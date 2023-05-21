@@ -2,6 +2,15 @@ import { ConsoleLogger, Injectable, LogLevel } from '@nestjs/common';
 import { LogEntry, LogLevel as GrpcLogLevel } from '@woodstock/shared';
 import { Subject } from 'rxjs';
 
+const mapGrpcLogLevel = {
+  'log': GrpcLogLevel.log,
+  'error': GrpcLogLevel.error,
+  'warn': GrpcLogLevel.warn,
+  'debug': GrpcLogLevel.debug,
+  'verbose': GrpcLogLevel.debug,
+  'fatal': GrpcLogLevel.error,
+};
+
 @Injectable()
 export class LogService extends ConsoleLogger {
   private logStream = new Subject<LogEntry>();
@@ -15,7 +24,7 @@ export class LogService extends ConsoleLogger {
     super.printMessages(messages, context, logLevel, writeStreamType);
     for (const message of messages) {
       this.logStream.next({
-        level: logLevel ? GrpcLogLevel[logLevel] : GrpcLogLevel.log,
+        level: logLevel ? mapGrpcLogLevel[logLevel] : GrpcLogLevel.log,
         line: (message as any).toString(),
         context: context || LogService.name,
       });

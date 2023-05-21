@@ -4,10 +4,10 @@ import { constants as constantsFs, Dirent } from 'fs';
 import { access, lstat, opendir, readlink } from 'fs/promises';
 import { AsyncIterableX, from, of } from 'ix/asynciterable';
 import { concatMap, filter, map, startWith } from 'ix/asynciterable/operators';
-import type { IMinimatch } from 'minimatch';
+import { Minimatch } from 'minimatch';
 import { FileManifest } from '../protobuf';
 
-function isFileAuthorized(file: Buffer, includes: IMinimatch[], excludes: IMinimatch[]): boolean {
+function isFileAuthorized(file: Buffer, includes: Minimatch[], excludes: Minimatch[]): boolean {
   const latin1File = file.toString('latin1');
 
   if (includes.length > 0) {
@@ -72,11 +72,11 @@ export class FileBrowserService {
 
   getFiles(
     sharePath: Buffer,
-  ): (backupPath: Buffer, includes: IMinimatch[], excludes: IMinimatch[]) => AsyncIterableX<FileManifest> {
+  ): (backupPath: Buffer, includes: Minimatch[], excludes: Minimatch[]) => AsyncIterableX<FileManifest> {
     const forShare = (
       backupPath: Buffer,
-      includes: IMinimatch[] = [],
-      excludes: IMinimatch[] = [],
+      includes: Minimatch[] = [],
+      excludes: Minimatch[] = [],
     ): AsyncIterableX<FileManifest> => {
       return this.getFilesRecursive(joinBuffer(sharePath, backupPath), (sharePath, backupPath, path) =>
         isFileAuthorized(joinBuffer(backupPath ?? sharePath, path.name as unknown as Buffer), includes, excludes),
@@ -86,8 +86,7 @@ export class FileBrowserService {
             return await this.#createManifestFromLocalFile(sharePath, file);
           } catch (err) {
             this.#logger.warn(
-              `Can't read information of the file ${joinBuffer(sharePath, file).toString()}: ${
-                err instanceof Error ? err.message : err
+              `Can't read information of the file ${joinBuffer(sharePath, file).toString()}: ${err instanceof Error ? err.message : err
               }`,
             );
             return undefined;
@@ -108,25 +107,27 @@ export class FileBrowserService {
         .then(() => true)
         .catch(() => false),
     ]);
+    let mode = Number(fileStat.mode);
+
     if (
-      (FileBrowserService.isDirectory(fileStat.mode) || FileBrowserService.isRegularFile(fileStat.mode)) &&
+      (FileBrowserService.isDirectory(mode) || FileBrowserService.isRegularFile(mode)) &&
       !fileAccess
     ) {
       throw new UnauthorizedException(`The file is not readable by current user`);
     }
 
     let symlink: Buffer | undefined;
-    if (FileBrowserService.isSymLink(fileStat.mode)) {
+    if (FileBrowserService.isSymLink(mode)) {
       symlink = await readlink(file, { encoding: 'buffer' });
     }
 
     return {
       path,
       stats: {
-        ownerId: bigIntToLong(fileStat.uid),
-        groupId: bigIntToLong(fileStat.gid),
+        ownerId: Number(fileStat.uid),
+        groupId: Number(fileStat.gid),
         size: bigIntToLong(fileStat.size),
-        mode: bigIntToLong(fileStat.mode),
+        mode: Number(fileStat.mode),
         lastModified: bigIntToLong(fileStat.mtimeMs),
         lastRead: bigIntToLong(fileStat.atimeMs),
         created: bigIntToLong(fileStat.birthtimeMs),
@@ -142,35 +143,35 @@ export class FileBrowserService {
     };
   }
 
-  static isRegularFile(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFREG;
+  static isRegularFile(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFREG;
   }
 
-  static isSymLink(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFLNK;
+  static isSymLink(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFLNK;
   }
 
-  static isDirectory(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
+  static isDirectory(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFDIR;
   }
 
-  static isBlockDevice(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFBLK;
+  static isBlockDevice(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFBLK;
   }
 
-  static isCharacterDevice(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFCHR;
+  static isCharacterDevice(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFCHR;
   }
 
-  static isFIFO(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFIFO;
+  static isFIFO(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFIFO;
   }
 
-  static isSocket(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) === constantsFs.S_IFSOCK;
+  static isSocket(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) === constantsFs.S_IFSOCK;
   }
 
-  static isSpecialFile(mode: bigint): boolean {
-    return (Number(mode) & constantsFs.S_IFMT) !== constantsFs.S_IFREG;
+  static isSpecialFile(mode: number): boolean {
+    return (mode & constantsFs.S_IFMT) !== constantsFs.S_IFREG;
   }
 }

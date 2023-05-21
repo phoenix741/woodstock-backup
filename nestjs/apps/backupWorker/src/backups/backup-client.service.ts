@@ -195,7 +195,7 @@ export class BackupClient {
         const chunk: ChunkInformation = {
           filename: joinBuffer(sharePath, fileManifest.path),
           position,
-          size,
+          size: Number(size), // Ne devrait pas être plus gros que LONG_CHUNK_SIZE
           sha256,
         };
         // this.logger.log(`Get the chunk ${fileManifest.path}:${position}-${chunk.size.toNumber()}`);
@@ -293,7 +293,7 @@ export class BackupClient {
               if (
                 entry?.type !== EntryType.REMOVE &&
                 entry?.manifest &&
-                !FileBrowserService.isSpecialFile(longToBigInt(entry?.manifest?.stats?.mode || Long.ZERO))
+                !FileBrowserService.isSpecialFile(entry?.manifest?.stats?.mode ?? 0)
               ) {
                 const manifest = await this.downloadManifestFile(
                   context,
@@ -440,7 +440,7 @@ export class BackupClient {
           ofIx({ header: { sharePath: share }, fileManifest: undefined } as RefreshCacheRequest),
           this.manifestService
             .readManifestEntries(manifest)
-            .pipe(mapIx((fileManifest) => ({ header: undefined, fileManifest } as RefreshCacheRequest))),
+            .pipe(mapIx((fileManifest) => ({ header: undefined, fileManifest }) as RefreshCacheRequest)),
           // ofIx(() => {
           //   this.logger.log(`End of refreshing cache for ${share.toString()}`);
           //   return { header: undefined, fileManifest: undefined };

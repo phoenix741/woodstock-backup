@@ -4,7 +4,7 @@ import { HostsService, JobBackupData, QueueName } from '@woodstock/server';
 import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/server/tasks';
 import { Job, Queue } from 'bullmq';
 import { promises as fs } from 'fs';
-import { Command, Console, createSpinner } from 'nestjs-console';
+import { Command, Console } from 'nestjs-console';
 import * as ora from 'ora';
 import { join } from 'path';
 import { BackupQueueStatus, QueueStatusInterface } from './queue-status.service';
@@ -123,7 +123,7 @@ export class BackupsCommand extends QueueEventsHost {
   })
   async import(host: string, date: string | number, pathPrefix: string, prefixText?: string): Promise<void> {
     console.log(`[Backups/Import] ${host}/NA: Importing backup from ${pathPrefix} for ${host} at ${date}`);
-    const spinner = createSpinner({ prefixText });
+    const spinner = ora({ prefixText });
     spinner.start(`[Backups/Import] ${host}/NA: Progress 0%`);
 
     const config = await this.hostsService.getHostConfiguration(host);

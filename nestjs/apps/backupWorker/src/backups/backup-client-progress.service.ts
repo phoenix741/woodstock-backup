@@ -46,11 +46,14 @@ export class BackupClientProgress {
 
   getFileList(context: BackupClientContext, backupShare: Share): Observable<QueueTaskProgression> {
     const fileList$ = this.backupClient.getFileList(context, backupShare).pipe(
-      scan((current, value) => {
-        return new QueueTaskProgression({
-          progressMax: current.progressMax + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
-        });
-      }, new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      scan(
+        (current, value) => {
+          return new QueueTaskProgression({
+            progressMax: current.progressMax + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
+          });
+        },
+        new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n }),
+      ),
     );
 
     return fileList$;

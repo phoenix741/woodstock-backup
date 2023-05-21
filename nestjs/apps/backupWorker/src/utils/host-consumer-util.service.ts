@@ -14,7 +14,7 @@ export class HostConsumerUtilService {
       if (!backupTask.config) {
         throw new NotFoundException(`Can't found ${backupTask.host}.`);
       }
-      job.update(backupTask);
+      job.updateData(backupTask);
     }
 
     return backupTask.config;

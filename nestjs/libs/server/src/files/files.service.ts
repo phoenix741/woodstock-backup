@@ -62,7 +62,7 @@ export class FilesService {
    * @param manifest The file manifest
    */
   readFileStream(manifest: FileManifest): Readable {
-    if (FileBrowserService.isSpecialFile(longToBigInt(manifest.stats?.mode || Long.ZERO))) {
+    if (FileBrowserService.isSpecialFile(manifest.stats?.mode ?? 0)) {
       return Readable.from([]);
     }
 
@@ -83,13 +83,13 @@ export class FilesService {
     const manifests = this.searchFiles(hostname, backupNumber, sharePath, path, true);
 
     for await (const manifest of manifests) {
-      const mode = longToBigInt(manifest.stats?.mode || Long.ZERO);
+      const mode = manifest.stats?.mode ?? 0;
 
       if (FileBrowserService.isRegularFile(mode)) {
         archiver.append(this.readFileStream(manifest), {
           name: manifest.path.toString('utf-8'),
           date: manifest.stats?.lastModified && new Date(manifest.stats?.lastModified.toNumber()),
-          mode: manifest.stats?.mode?.toNumber(),
+          mode: manifest.stats?.mode,
           stats: {
             size: manifest.stats?.size?.toNumber(),
             mode: Number(mode),
@@ -101,8 +101,8 @@ export class FilesService {
             dev: manifest.stats?.dev?.toNumber(),
             ino: manifest.stats?.ino?.toNumber(),
             nlink: manifest.stats?.nlink?.toNumber(),
-            uid: manifest.stats?.ownerId?.toNumber(),
-            gid: manifest.stats?.groupId?.toNumber(),
+            uid: manifest.stats?.ownerId,
+            gid: manifest.stats?.groupId,
             rdev: manifest.stats?.rdev?.toNumber(),
             atime: manifest.stats?.lastRead && new Date(manifest.stats?.lastRead.toNumber()),
             ctime: manifest.stats?.created && new Date(manifest.stats?.created.toNumber()),

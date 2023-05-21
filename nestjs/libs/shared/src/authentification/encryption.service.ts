@@ -1,10 +1,9 @@
 import { Inject, Injectable, Logger, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ApplicationConfigService, isExists, WorkerType, WORKER_TYPE } from '@woodstock/core';
 import { createHash, randomBytes } from 'crypto';
-import { readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import type { GetPublicKeyOrSecret, Jwt, JwtPayload, Secret, SignOptions, VerifyOptions } from 'jsonwebtoken';
 import { sign, verify } from 'jsonwebtoken';
-import { mkdirp } from 'mkdirp';
 import { pki } from 'node-forge';
 import { join } from 'path';
 import { promisify } from 'util';
@@ -43,7 +42,10 @@ export function verifyAsync<T = Jwt | JwtPayload | string>(
 export class EncryptionService implements OnModuleInit {
   #logger = new Logger(EncryptionService.name);
 
-  constructor(@Inject(WORKER_TYPE) private workerType: WorkerType, private config: ApplicationConfigService) {}
+  constructor(
+    @Inject(WORKER_TYPE) private workerType: WorkerType,
+    private config: ApplicationConfigService,
+  ) {}
 
   async onModuleInit() {
     if (this.workerType === WorkerType.api) {
@@ -61,7 +63,7 @@ export class EncryptionService implements OnModuleInit {
       const pemPublicKey = pki.publicKeyToPem(keys.publicKey);
       const pemPrivateKey = pki.privateKeyToPem(keys.privateKey);
 
-      await mkdirp(this.config.certificatePath);
+      await mkdir(this.config.certificatePath, { recursive: true });
       await writeFile(publicKeyFile, pemPublicKey, 'utf-8');
       await writeFile(privateKeyFile, pemPrivateKey, 'utf-8');
     }
@@ -90,6 +92,7 @@ export class EncryptionService implements OnModuleInit {
     this.#logger.log(`Check the authentification token ${host}`);
     const publicKey = await readFile(join(this.config.clientPath, 'public_key.pem'), 'utf-8');
     const hash = createHash('sha256').update(password).digest('base64');
+    console.log('hash', hash);
     try {
       const payload = await verifyAsync<{ hash: string }>(token, publicKey, {
         algorithms: ['RS256'],
@@ -97,6 +100,8 @@ export class EncryptionService implements OnModuleInit {
         audience: host,
         subject: host,
       });
+
+      console.log('payload?.hash', payload?.hash);
 
       if (hash !== payload?.hash) {
         throw new UnauthorizedException();

@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ApplicationConfigService, isExists, WorkerType, WORKER_TYPE } from '@woodstock/core';
-import { readFile, writeFile } from 'fs/promises';
-import { mkdirp } from 'mkdirp';
+import { randomBytes } from 'crypto';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import type { pki as PKI } from 'node-forge';
 import { md, pki } from 'node-forge';
 import { join } from 'path';
@@ -29,47 +29,14 @@ const CERTIFICATE_ATTRS = [
   },
 ];
 
-const CERTIFICATE_EXTENSIONS = [
-  {
-    name: 'basicConstraints',
-    cA: true,
-  },
-  {
-    name: 'keyUsage',
-    keyCertSign: true,
-    digitalSignature: true,
-    nonRepudiation: true,
-    keyEncipherment: true,
-    dataEncipherment: true,
-  },
-  {
-    name: 'extKeyUsage',
-    serverAuth: true,
-    clientAuth: true,
-    codeSigning: true,
-    emailProtection: true,
-    timeStamping: true,
-  },
-  {
-    name: 'nsCertType',
-    client: true,
-    server: true,
-    email: true,
-    objsign: true,
-    sslCA: true,
-    emailCA: true,
-    objCA: true,
-  },
-  {
-    name: 'subjectKeyIdentifier',
-  },
-];
-
 @Injectable()
 export class CertificateService implements OnModuleInit {
   #logger = new Logger(CertificateService.name);
 
-  constructor(@Inject(WORKER_TYPE) private workerType: WorkerType, private config: ApplicationConfigService) {}
+  constructor(
+    @Inject(WORKER_TYPE) private workerType: WorkerType,
+    private config: ApplicationConfigService,
+  ) {}
 
   async onModuleInit() {
     if (this.workerType === WorkerType.api) {
@@ -79,6 +46,7 @@ export class CertificateService implements OnModuleInit {
 
   #createCertificate(
     host: string,
+    server: boolean,
     rootCA?: { privateKey: PKI.PrivateKey; certificate: PKI.Certificate },
   ): { privateKey: string; publicKey: string } {
     // generate a keypair and create an X.509v3 certificate
@@ -86,7 +54,10 @@ export class CertificateService implements OnModuleInit {
     const cert = pki.createCertificate();
 
     cert.publicKey = keys.publicKey;
-    cert.serialNumber = '01';
+    if (!rootCA) {
+      cert.privateKey = keys.privateKey;
+    }
+    cert.serialNumber = '01' + randomBytes(19).toString('hex');
     cert.validity.notBefore = new Date();
     cert.validity.notAfter = new Date();
     cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
@@ -98,14 +69,66 @@ export class CertificateService implements OnModuleInit {
       ...CERTIFICATE_ATTRS,
     ];
     cert.setSubject(attrs);
-    cert.setIssuer(attrs);
-    cert.setExtensions(CERTIFICATE_EXTENSIONS);
 
     if (rootCA) {
       cert.setIssuer(rootCA.certificate.subject.attributes);
+      const extKeyUsage = server
+        ? [
+            {
+              name: 'keyUsage',
+              digitalSignature: true,
+              keyEncipherment: true,
+            },
+            {
+              name: 'extKeyUsage',
+              serverAuth: true,
+            },
+            {
+              name: 'subjectAltName',
+              altNames: [
+                {
+                  type: 2, // 2 is DNS type
+                  value: host,
+                },
+              ],
+            },
+          ]
+        : [
+            {
+              name: 'extKeyUsage',
+              clientAuth: true,
+            },
+          ];
+      cert.setExtensions([
+        {
+          name: 'basicConstraints',
+          cA: false,
+        },
+        ...extKeyUsage,
+        {
+          name: 'authorityKeyIdentifier',
+          // authorityCertIssuer: true,
+          // serialNumber: rootCA.certificate.serialNumber,
+          keyIdentifier: rootCA.certificate.generateSubjectKeyIdentifier().getBytes(),
+        },
+      ]);
       cert.sign(rootCA.privateKey, md.sha256.create());
     } else {
-      cert.sign(keys.privateKey);
+      cert.setIssuer(attrs);
+      cert.setExtensions([
+        {
+          name: 'basicConstraints',
+          cA: true,
+        },
+        {
+          name: 'keyUsage',
+          keyCertSign: true,
+        },
+        {
+          name: 'subjectKeyIdentifier',
+        },
+      ]);
+      cert.sign(keys.privateKey, md.sha256.create());
     }
 
     // convert a Forge certificate to PEM
@@ -128,34 +151,81 @@ export class CertificateService implements OnModuleInit {
     const rootCAKey = join(this.config.certificatePath, 'rootCA.key');
 
     if (!(await isExists(rootCAPem)) || !(await isExists(rootCAKey))) {
-      this.#logger.log('Generating root certificate...');
-      const keys = this.#createCertificate('woodstock.shadoware.org');
+      this.#logger.log('Generating the server authority certificate...');
+      const keys = this.#createCertificate('woodstock.shadoware.org', false);
 
-      await mkdirp(this.config.certificatePath);
+      await mkdir(this.config.certificatePath, { recursive: true });
       await writeFile(rootCAPem, keys.publicKey, 'utf-8');
       await writeFile(rootCAKey, keys.privateKey, 'utf-8');
     }
   }
 
-  async generateHostCertificate(host: string): Promise<void> {
+  /**
+   * Generate the authority certificate for the client (that is a server)
+   * The certificate will have a validity of 10 years.
+   */
+  async #generateClientAuthorityCertificate(host: string): Promise<void> {
+    const clientCAPem = join(this.config.certificatePath, host + '_ca.pem');
+    const clientCAKey = join(this.config.certificatePath, host + '_ca.key');
+
+    if (!(await isExists(clientCAPem)) || !(await isExists(clientCAKey))) {
+      this.#logger.log('Generating the client authority certificate...');
+      const keys = this.#createCertificate(host + '.woodstock.shadoware.org', true);
+
+      await mkdir(this.config.certificatePath, { recursive: true });
+      await writeFile(clientCAPem, keys.publicKey, 'utf-8');
+      await writeFile(clientCAKey, keys.privateKey, 'utf-8');
+    }
+  }
+
+  async #generateHostServerCertificate(host: string): Promise<void> {
     const rootCAPem = join(this.config.certificatePath, 'rootCA.pem');
     const rootCAKey = join(this.config.certificatePath, 'rootCA.key');
 
-    const hostKey = join(this.config.certificatePath, host + '.key');
-    const hostCert = join(this.config.certificatePath, host + '.pem');
+    const hostKey = join(this.config.certificatePath, host + '_client.key');
+    const hostCert = join(this.config.certificatePath, host + '_client.pem');
 
     if (!(await isExists(hostKey)) || !(await isExists(hostCert))) {
-      this.#logger.log(`Generating host ${host} certificate...`);
+      this.#logger.log(`Generating server host ${host} certificate...`);
 
       const rootCA = {
         privateKey: pki.privateKeyFromPem(await readFile(rootCAKey, 'utf-8')),
         certificate: pki.certificateFromPem(await readFile(rootCAPem, 'utf-8')),
       };
 
-      const keys = this.#createCertificate(host, rootCA);
+      const keys = this.#createCertificate(host, false, rootCA);
 
       await writeFile(hostCert, keys.publicKey, 'utf-8');
       await writeFile(hostKey, keys.privateKey, 'utf-8');
     }
+  }
+
+  async #generateHostClientCertificate(host: string): Promise<void> {
+    const clientCAPem = join(this.config.certificatePath, host + '_ca.pem');
+    const clientCAKey = join(this.config.certificatePath, host + '_ca.key');
+
+    const hostKey = join(this.config.certificatePath, host + '_server.key');
+    const hostCert = join(this.config.certificatePath, host + '_server.pem');
+
+    if (!(await isExists(hostKey)) || !(await isExists(hostCert))) {
+      this.#logger.log(`Generating server host ${host} certificate...`);
+
+      const rootCA = {
+        privateKey: pki.privateKeyFromPem(await readFile(clientCAKey, 'utf-8')),
+        certificate: pki.certificateFromPem(await readFile(clientCAPem, 'utf-8')),
+      };
+
+      const keys = this.#createCertificate(host, true, rootCA);
+
+      await writeFile(hostCert, keys.publicKey, 'utf-8');
+      await writeFile(hostKey, keys.privateKey, 'utf-8');
+    }
+  }
+
+  async generateHostCertificate(host: string): Promise<void> {
+    await this.#generateHostServerCertificate(host);
+
+    await this.#generateClientAuthorityCertificate(host);
+    await this.#generateHostClientCertificate(host);
   }
 }

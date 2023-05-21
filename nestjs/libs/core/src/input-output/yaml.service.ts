@@ -1,9 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import { rename, writeFile } from 'fs/promises';
+import { mkdir, rename, writeFile } from 'fs/promises';
 import * as yaml from 'js-yaml';
 import * as Long from 'long';
-import { mkdirp } from 'mkdirp';
 import { dirname } from 'path';
 import { compact } from '../utils/objects.utils';
 import { tmpNameAsync } from '../utils/path.utils';
@@ -66,7 +65,7 @@ export class YamlService {
     this.#logger.verbose(`Read the file ${filename}`);
 
     try {
-      await mkdirp(dirname(filename));
+      await mkdir(dirname(filename), { recursive: true });
 
       const hostsFromStr = await fs.promises.readFile(filename, 'utf8');
       const value = yaml.load(hostsFromStr, { schema: YAML_SCHEMA }) as never as T | undefined;
@@ -87,7 +86,7 @@ export class YamlService {
    */
   async writeFile<T extends object>(filename: string, obj: T): Promise<void> {
     this.#logger.verbose(`Write the file ${filename} with ${JSON.stringify(obj)}`);
-    await mkdirp(dirname(filename));
+    await mkdir(dirname(filename), { recursive: true });
 
     const hostsFromStr = yaml.dump(compact(obj), { schema: YAML_SCHEMA });
     const tmpFilename = await tmpNameAsync({

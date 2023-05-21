@@ -23,7 +23,7 @@ export class BackupsFilesService {
           new FileDescription({
             path,
             stats: {
-              mode: Long.fromNumber(-1),
+              mode: -1,
               created: Long.fromNumber(startDate),
               lastRead: Long.fromNumber(startDate),
               lastModified: Long.fromNumber(startDate),

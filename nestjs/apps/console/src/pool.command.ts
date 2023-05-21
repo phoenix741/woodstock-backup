@@ -4,7 +4,7 @@ import { ApplicationConfigService } from '@woodstock/core';
 import { FsckService, PoolService, QueueName, RefcntJobData } from '@woodstock/server';
 import { QueueGroupTasks, QueueSubTask, QueueTasks, QueueTaskState } from '@woodstock/server/tasks';
 import { Job, Queue } from 'bullmq';
-import { Command, Console, createSpinner } from 'nestjs-console';
+import { Command, Console } from 'nestjs-console';
 import * as ora from 'ora';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -103,7 +103,7 @@ export class PoolCommand {
     ],
   })
   async fsck({ fix }: { fix?: boolean }) {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
 
     const fsckJob = await this.refcntQueue.add('fsck', { fix: !!fix, refcnt: true, unused: true });
@@ -122,7 +122,7 @@ export class PoolCommand {
     ],
   })
   async verifyRefcnt({ fix }: { fix?: boolean }) {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
 
     const fsckJob = await this.refcntQueue.add('fsck', { fix: !!fix, refcnt: true, unused: false });
@@ -141,7 +141,7 @@ export class PoolCommand {
     ],
   })
   async verifyUnused({ fix }: { fix?: boolean }) {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
 
     const fsckJob = await this.refcntQueue.add('fsck', { fix: !!fix, refcnt: false, unused: true });
@@ -160,7 +160,7 @@ export class PoolCommand {
     ],
   })
   async removeUnused({ target }: { target?: string }) {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
 
     const fsckJob = await this.refcntQueue.add('unused', { target });
@@ -172,7 +172,7 @@ export class PoolCommand {
     description: 'Verify the integrity of all chunk',
   })
   async verifyChunks() {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
 
     const fsckJob = await this.refcntQueue.add('verify_checksum', {});
@@ -201,7 +201,7 @@ export class PoolCommand {
     ],
   })
   async checkCompression({ all }: { all?: boolean }) {
-    const spinner = createSpinner();
+    const spinner = ora();
     spinner.start(`[Pool]: Progress 0%`);
     try {
       const { compressedSize, uncompressedSize } = await this.refCntFsckService.checkCompression(
