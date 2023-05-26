@@ -1,17 +1,17 @@
-import { credentials, Metadata } from '@grpc/grpc-js';
+import { ClientDuplexStream, credentials, Metadata } from '@grpc/grpc-js';
 import { ConnectivityState } from '@grpc/grpc-js/build/src/connectivity-state';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ClientGrpcProxy, ClientProxyFactory, Transport } from '@nestjs/microservices';
-import { ApplicationConfigService } from '@woodstock/core';
+import { ApplicationConfigService, split, SplitedAsyncIterable } from '@woodstock/core';
 import { BackupClientContext, BackupLogger } from '@woodstock/server';
 import {
   AuthenticateReply,
   ChunkInformation,
-  ChunkStatus,
   EncryptionService,
   ExecuteCommandReply,
   FileManifestJournalEntry,
   GetChunkReply,
+  GetChunkRequest,
   LaunchBackupReply,
   LogEntry,
   RefreshCacheReply,
@@ -22,8 +22,8 @@ import {
 } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
-import { AsyncIterableX, from } from 'ix/asynciterable';
-import { filter, map } from 'ix/asynciterable/operators';
+import { AsyncIterableX, find, from } from 'ix/asynciterable';
+import { filter, map, share } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -37,6 +37,9 @@ export class BackupsGrpcContext implements BackupClientContext {
 
   abortable: AbortController[] = [];
   client?: ClientGrpcProxy;
+
+  chunkDuplex?: ClientDuplexStream<GetChunkRequest, GetChunkReply>;
+  chunkResult?: AsyncIterableX<SplitedAsyncIterable<ChunkInformation, Buffer>>;
 
   constructor(
     public host: string,
@@ -137,6 +140,34 @@ export class BackupClientGrpc implements BackupClientInterface {
         }
 
         context.sessionId = reply.sessionId;
+
+        const contextAsGrpc = context as BackupsGrpcContext;
+        contextAsGrpc.chunkDuplex = service.getChunk(this.getMetadata(context));
+        contextAsGrpc.chunkDuplex.on('error', () => {
+          context.logger?.error(`Can't read chunks`);
+        });
+        const isHeader = (v: GetChunkReply) => v.chunk;
+        contextAsGrpc.chunkResult = from(contextAsGrpc.chunkDuplex).pipe(
+          split(isHeader),
+          map(({ key, iterable }) => {
+            return {
+              key,
+              iterable: iterable.pipe(
+                map((pieceOfChunk) => {
+                  if (pieceOfChunk.error?.code === StatusCode.Failed) {
+                    throw new Error(`Can't read the chunk ${pieceOfChunk.chunk?.sha256}`);
+                  }
+                  return pieceOfChunk;
+                }),
+                filter((pieceOfChunk) => !!pieceOfChunk.data),
+                map((pieceOfChunk) => pieceOfChunk.data?.data),
+                filter((buffer): buffer is Buffer => !!buffer),
+              ),
+            };
+          }),
+          share(),
+        );
+
         resolve(reply);
       });
     });
@@ -221,24 +252,20 @@ export class BackupClientGrpc implements BackupClientInterface {
   }
 
   copyChunk(context: BackupClientContext, chunk: ChunkInformation): Readable {
-    const service = this.#checkConnection(context);
+    const contextAsGrpc = context as BackupsGrpcContext;
+    if (!contextAsGrpc.chunkResult || !contextAsGrpc.chunkDuplex) {
+      throw new Error('The chunkResult or chunkDuplex is not initialized');
+    }
 
-    const chunkResult = service.getChunk({ chunk }, this.getMetadata(context));
-    chunkResult.on('error', () => {
-      context.logger?.error(`Can't read the chunk ${chunk.sha256}`);
-    });
+    contextAsGrpc.chunkDuplex.write({ chunk });
+
     return Readable.from(
-      from(chunkResult).pipe(
-        map<GetChunkReply, GetChunkReply>((pieceOfChunk) => {
-          if (pieceOfChunk.status === ChunkStatus.ERROR) {
-            throw new Error(`Can't read the chunk ${chunk.sha256}`);
-          }
-          return pieceOfChunk;
+      from(
+        find(contextAsGrpc.chunkResult, {
+          predicate: ({ key }) =>
+            key.filename.equals(chunk.filename) && key.position === chunk.position && key.size === chunk.size,
         }),
-        filter<GetChunkReply>((pieceOfChunk) => pieceOfChunk.status === ChunkStatus.DATA),
-        map<GetChunkReply, Buffer | undefined>((pieceOfChunk) => pieceOfChunk.data?.data),
-        filter<Buffer>((buffer): buffer is Buffer => !!buffer),
-      ),
+      ).pipe(map((r) => r?.iterable)),
     );
   }
 

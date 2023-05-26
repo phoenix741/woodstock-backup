@@ -1,8 +1,8 @@
 /* eslint-disable */
-import * as Long from 'long';
-import * as _m0 from 'protobufjs/minimal';
+import * as Long from "long";
+import * as _m0 from "protobufjs/minimal";
 
-export const protobufPackage = 'woodstock';
+export const protobufPackage = "woodstock";
 
 /** Status Code for reply */
 export enum StatusCode {
@@ -28,12 +28,8 @@ export enum LogLevel {
   verbose = 4,
 }
 
-export enum ChunkStatus {
-  DATA = 0,
-  ERROR = 1,
+export interface Empty {
 }
-
-export interface Empty {}
 
 export interface PoolUnused {
   sha256: Buffer;
@@ -138,16 +134,22 @@ export interface FileChunk {
   data: Buffer;
 }
 
+export interface ChunkError {
+  code: StatusCode;
+}
+
 export interface GetChunkRequest {
   chunk: ChunkInformation | undefined;
 }
 
 export interface GetChunkReply {
-  status: ChunkStatus;
-  data: FileChunk | undefined;
+  error?: ChunkError | undefined;
+  chunk?: ChunkInformation | undefined;
+  data?: FileChunk | undefined;
 }
 
-export interface StreamLogRequest {}
+export interface StreamLogRequest {
+}
 
 export interface ExecuteCommandRequest {
   command: string;

@@ -1,9 +1,8 @@
+import { FileManifestJournalEntry, ProtoFileManifestJournalEntry } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { count, from } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
 import { join } from 'path';
-import { FileManifestJournalEntry } from '../shared';
-import { ProtoFileManifestJournalEntry } from '../shared/woodstock.model.js';
 import { ProtobufService } from './protobuf.service.js';
 
 describe('ManifestWrapper', () => {
@@ -15,7 +14,7 @@ describe('ManifestWrapper', () => {
 
   test('#readAllMessages should read all message', async () => {
     const it = service.loadFile(
-      join(__dirname, '..', 'manifest', 'fixtures', 'test.journal'),
+      join(__dirname, '..', '..', '..', 'shared', 'src', 'manifest', 'fixtures', 'test.journal'),
       ProtoFileManifestJournalEntry,
     );
     expect(await count(it)).toBe(1000);
@@ -36,8 +35,8 @@ describe('ManifestWrapper', () => {
   });
 
   test('#writeAllMessages should capable to write message, readed by readAllMessages', async () => {
-    const inFile = join(__dirname, '..', 'manifest', 'fixtures', 'test.journal');
-    const outFile = join(__dirname, '..', 'manifest', 'fixtures', 'test.journal.out');
+    const inFile = join(__dirname, '..', '..', '..', 'shared', 'src', 'manifest', 'fixtures', 'test.journal');
+    const outFile = join(__dirname, '..', '..', '..', 'shared', 'src', 'manifest', 'fixtures', 'test.journal.out');
 
     const it = service.loadFile<FileManifestJournalEntry>(inFile, ProtoFileManifestJournalEntry);
     const manifests = from(it).pipe(map((obj) => obj.message));

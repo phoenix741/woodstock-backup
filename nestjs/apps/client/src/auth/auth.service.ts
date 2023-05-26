@@ -45,6 +45,8 @@ export class AuthService {
       },
     );
 
+    this.context.add(uuid);
+
     return sessionToken;
   }
 

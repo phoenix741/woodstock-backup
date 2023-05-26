@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BackupOnClientService, EncryptionService } from '@woodstock/shared';
+import { BackupOnClientService } from '@woodstock/shared';
 import { AppService } from './app.service.js';
-import { ClientConfigService } from './client.config.js';
+import { AuthService } from './auth/auth.service.js';
 import { LogService } from './log.service.js';
 
 describe('AppService', () => {
@@ -14,8 +14,7 @@ describe('AppService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AppService,
-        { provide: ClientConfigService, useValue: {} },
-        { provide: EncryptionService, useValue: {} },
+        { provide: AuthService, useValue: {} },
         { provide: BackupOnClientService, useValue: backupService },
         { provide: LogService, useValue: logService },
       ],

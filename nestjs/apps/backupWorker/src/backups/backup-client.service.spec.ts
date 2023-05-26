@@ -1,10 +1,9 @@
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationConfigService, bigIntToLong } from '@woodstock/core';
+import { ApplicationConfigService, bigIntToLong, fromNodeStream } from '@woodstock/core';
 import { BackupLogger, BackupsService, PoolService, RefCntService } from '@woodstock/server';
 import { EntryType, Manifest, ManifestService, PoolRefCount } from '@woodstock/shared';
 import { constants as constantsFs } from 'fs';
-import { fromNodeStream } from 'ix';
 import { AsyncSink, from, toArray as toArrayIx } from 'ix/asynciterable';
 import * as Long from 'long';
 import { lastValueFrom, toArray } from 'rxjs';
@@ -99,9 +98,9 @@ describe('BackupClient', () => {
     // WHEN
     await backupClient.authenticate(ctxt, logger, logger, 'password');
 
-    streamLog.write({ context: 'context1', level: LogLevel.log, line: 'line1' });
-    streamLog.write({ context: 'context2', level: LogLevel.error, line: 'line2' });
-    streamLog.write({ context: 'context3', level: LogLevel.warn, line: 'line3' });
+    streamLog.write({ context: 'context1', level: 'log', message: 'line1' });
+    streamLog.write({ context: 'context2', level: 'error', message: 'line2' });
+    streamLog.write({ context: 'context3', level: 'warn', message: 'line3' });
 
     await setTimeout(50);
 
@@ -266,7 +265,8 @@ describe('BackupClient', () => {
         exists: () => !!sha256,
         getChunkInformation: async () => ({ sha256, size: BigInt(i * 100), compressedSize: BigInt(i * 50) }),
         write: async (readable: Readable) => {
-          wrappers.push(await toArrayIx(fromNodeStream(readable)));
+          const readableArray = await toArrayIx(fromNodeStream(readable));
+          wrappers.push(readableArray);
           return {
             sha256: sha256 || Buffer.from('newSha256_' + i),
             size: BigInt(i * 100),
@@ -278,7 +278,7 @@ describe('BackupClient', () => {
       return wrapper;
     });
 
-    mockCientGrpc.copyChunk = jest.fn().mockReturnValue(Readable.from(['chunk1', 'chunk2']));
+    mockCientGrpc.copyChunk = jest.fn().mockImplementation(() => Readable.from(['chunk1', 'chunk2']));
 
     const ctxt = new BackupsGrpcContext('host', 'ip', 1);
 
