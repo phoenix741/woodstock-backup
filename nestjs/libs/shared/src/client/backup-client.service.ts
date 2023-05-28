@@ -115,6 +115,8 @@ export class BackupOnClientService {
 
   getChunk(request: ChunkInformation & { failIfWrongHash?: boolean }): AsyncIterableX<FileChunk> {
     const { filename, position, size, sha256 } = request;
+    this.logger.debug(`Get the chunk ${filename} at position ${position} (size: ${size})`);
+
     const stream: ReadStream = createReadStream(filename, {
       start: position.toNumber(),
       end: position.add(size).sub(1).toNumber(),

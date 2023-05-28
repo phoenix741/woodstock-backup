@@ -134,7 +134,7 @@ export interface FileChunk {
   data: Buffer;
 }
 
-export interface ChunkError {
+export interface ChunkResult {
   code: StatusCode;
 }
 
@@ -143,8 +143,8 @@ export interface GetChunkRequest {
 }
 
 export interface GetChunkReply {
-  error?: ChunkError | undefined;
   chunk?: ChunkInformation | undefined;
+  result?: ChunkResult | undefined;
   data?: FileChunk | undefined;
 }
 

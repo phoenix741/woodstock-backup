@@ -132,7 +132,7 @@ message FileChunk {
   bytes data = 1;
 }
 
-message ChunkError {
+message ChunkResult {
   StatusCode code = 1;
 }
 
@@ -142,8 +142,8 @@ message GetChunkRequest {
 
 message GetChunkReply {
   oneof field {
-    ChunkError error = 1;
-    ChunkInformation chunk = 2;
+    ChunkInformation chunk = 1;
+    ChunkResult result = 2;
     FileChunk data = 3;
   }
 }

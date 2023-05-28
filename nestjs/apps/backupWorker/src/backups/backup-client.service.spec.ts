@@ -259,18 +259,24 @@ describe('BackupClient', () => {
     });
 
     const wrappers: unknown[] = [];
-    let i = 0;
+    let i = 1;
     mockPoolService.getChunk = jest.fn().mockImplementation((sha256) => {
+      const localCounter = i;
       const wrapper = {
         exists: () => !!sha256,
-        getChunkInformation: async () => ({ sha256, size: BigInt(i * 100), compressedSize: BigInt(i * 50) }),
+        getChunkInformation: async () => ({
+          sha256,
+          size: BigInt(localCounter * 100),
+          compressedSize: BigInt(localCounter * 50),
+        }),
         write: async (readable: Readable) => {
           const readableArray = await toArrayIx(fromNodeStream(readable));
           wrappers.push(readableArray);
+
           return {
-            sha256: sha256 || Buffer.from('newSha256_' + i),
-            size: BigInt(i * 100),
-            compressedSize: BigInt(i * 50),
+            sha256: sha256 || Buffer.from('newSha256_' + localCounter),
+            size: BigInt(localCounter * 100),
+            compressedSize: BigInt(localCounter * 50),
           };
         },
       };

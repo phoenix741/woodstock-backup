@@ -18,8 +18,8 @@ import {
   StreamLogRequest,
 } from '@woodstock/shared';
 import { from as fromIx, of as ofIx } from 'ix/asynciterable';
-import { catchError, map, startWith } from 'ix/asynciterable/operators';
-import { concatMap, from, Observable, of } from 'rxjs';
+import { catchError, map, startWith, endWith } from 'ix/asynciterable/operators';
+import { concatMap, from, Observable, of, tap } from 'rxjs';
 import { AppService } from './app.service.js';
 import { AuthGuard } from './auth/auth.guard.js';
 
@@ -118,16 +118,17 @@ export class AppController {
           return fromIx(this.service.getChunk(request.chunk)).pipe(
             map((data) => ({ data })),
             startWith({ chunk: request.chunk }),
+            endWith({ result: { code: StatusCode.Ok } }),
             catchError((err) => {
               this.logger.error(err);
-              return ofIx({ error: { code: StatusCode.Failed } });
+              return ofIx({ result: { code: StatusCode.Failed } });
             }),
           );
         }),
       );
     } catch (err) {
       this.logger.error(`Can't get all chunks: ${err.message}`);
-      return of({ error: { code: StatusCode.Failed } });
+      return of({ result: { code: StatusCode.Failed } });
     }
   }
 

@@ -44,7 +44,9 @@ exports[`BackupClient authenticate: mockClientGrpc.streamLog 1`] = `
       BackupsGrpcContext {
         "abortable": [],
         "chunkDuplex": undefined,
-        "chunkResult": undefined,
+        "chunkResult": Map {},
+        "chunkResultStream": undefined,
+        "chunnkResultProcessor": Promise {},
         "client": undefined,
         "currentBackupId": 1,
         "host": "host",
@@ -535,6 +537,42 @@ exports[`BackupClient createBackup: refcntHost 1`] = `
     "size": 100,
   },
   {
+    "compressedSize": 150,
+    "refCount": 0,
+    "sha256": {
+      "data": [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 300,
+  },
+  {
+    "compressedSize": 250,
+    "refCount": 0,
+    "sha256": {
+      "data": [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "size": 500,
+  },
+  {
     "compressedSize": 100,
     "refCount": 0,
     "sha256": {
@@ -556,24 +594,6 @@ exports[`BackupClient createBackup: refcntHost 1`] = `
     "size": 200,
   },
   {
-    "compressedSize": 150,
-    "refCount": 0,
-    "sha256": {
-      "data": [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        50,
-      ],
-      "type": "Buffer",
-    },
-    "size": 300,
-  },
-  {
     "compressedSize": 200,
     "refCount": 0,
     "sha256": {
@@ -593,24 +613,6 @@ exports[`BackupClient createBackup: refcntHost 1`] = `
       "type": "Buffer",
     },
     "size": 400,
-  },
-  {
-    "compressedSize": 250,
-    "refCount": 0,
-    "sha256": {
-      "data": [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        51,
-      ],
-      "type": "Buffer",
-    },
-    "size": 500,
   },
   {
     "compressedSize": 300,
@@ -654,6 +656,80 @@ exports[`BackupClient createBackup: result 1`] = `
       "type": "Buffer",
     },
     "size": 100n,
+  },
+  {
+    "compressedSize": 150n,
+    "sha256": {
+      "data": [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 300n,
+  },
+  {
+    "compressedSize": 250n,
+    "sha256": {
+      "data": [
+        115,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        51,
+      ],
+      "type": "Buffer",
+    },
+    "size": 500n,
+  },
+  {
+    "compressedSize": 100n,
+    "sha256": {
+      "data": [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        50,
+      ],
+      "type": "Buffer",
+    },
+    "size": 200n,
+  },
+  {
+    "compressedSize": 200n,
+    "sha256": {
+      "data": [
+        110,
+        101,
+        119,
+        83,
+        104,
+        97,
+        50,
+        53,
+        54,
+        95,
+        52,
+      ],
+      "type": "Buffer",
+    },
+    "size": 400n,
   },
   {
     "manifest": {
@@ -703,7 +779,7 @@ exports[`BackupClient createBackup: result 1`] = `
     "type": 0,
   },
   {
-    "compressedSize": 100n,
+    "compressedSize": 300n,
     "sha256": {
       "data": [
         110,
@@ -716,11 +792,106 @@ exports[`BackupClient createBackup: result 1`] = `
         53,
         54,
         95,
-        50,
+        54,
       ],
       "type": "Buffer",
     },
-    "size": 200n,
+    "size": 600n,
+  },
+  {
+    "manifest": {
+      "chunks": [
+        {
+          "data": [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            50,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": {
+        "data": [
+          102,
+          105,
+          108,
+          101,
+          57,
+        ],
+        "type": "Buffer",
+      },
+      "stats": {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 150,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  {
+    "manifest": {
+      "chunks": [
+        {
+          "data": [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            51,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": {
+        "data": [
+          102,
+          105,
+          108,
+          101,
+          49,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 250,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
   },
   {
     "manifest": {
@@ -773,90 +944,6 @@ exports[`BackupClient createBackup: result 1`] = `
     "type": 0,
   },
   {
-    "compressedSize": 150n,
-    "sha256": {
-      "data": [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        50,
-      ],
-      "type": "Buffer",
-    },
-    "size": 300n,
-  },
-  {
-    "manifest": {
-      "chunks": [
-        {
-          "data": [
-            115,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            50,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": {
-        "data": [
-          102,
-          105,
-          108,
-          101,
-          57,
-        ],
-        "type": "Buffer",
-      },
-      "stats": {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 150,
-          "unsigned": false,
-        },
-        "mode": Long {
-          "high": 0,
-          "low": 32768,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 300,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  {
-    "compressedSize": 200n,
-    "sha256": {
-      "data": [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        52,
-      ],
-      "type": "Buffer",
-    },
-    "size": 400n,
-  },
-  {
     "manifest": {
       "chunks": [
         {
@@ -906,91 +993,6 @@ exports[`BackupClient createBackup: result 1`] = `
       },
     },
     "type": 0,
-  },
-  {
-    "compressedSize": 250n,
-    "sha256": {
-      "data": [
-        115,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        51,
-      ],
-      "type": "Buffer",
-    },
-    "size": 500n,
-  },
-  {
-    "manifest": {
-      "chunks": [
-        {
-          "data": [
-            115,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            51,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": {
-        "data": [
-          102,
-          105,
-          108,
-          101,
-          49,
-          49,
-        ],
-        "type": "Buffer",
-      },
-      "stats": {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 250,
-          "unsigned": false,
-        },
-        "mode": Long {
-          "high": 0,
-          "low": 32768,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 500,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  {
-    "compressedSize": 300n,
-    "sha256": {
-      "data": [
-        110,
-        101,
-        119,
-        83,
-        104,
-        97,
-        50,
-        53,
-        54,
-        95,
-        54,
-      ],
-      "type": "Buffer",
-    },
-    "size": 600n,
   },
   {
     "manifest": {
@@ -1100,6 +1102,101 @@ exports[`BackupClient createBackup: savedJournal 1`] = `
       "chunks": [
         {
           "data": [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            50,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": {
+        "data": [
+          102,
+          105,
+          108,
+          101,
+          57,
+        ],
+        "type": "Buffer",
+      },
+      "stats": {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 150,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 300,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  {
+    "manifest": {
+      "chunks": [
+        {
+          "data": [
+            115,
+            104,
+            97,
+            50,
+            53,
+            54,
+            95,
+            51,
+          ],
+          "type": "Buffer",
+        },
+      ],
+      "path": {
+        "data": [
+          102,
+          105,
+          108,
+          101,
+          49,
+          49,
+        ],
+        "type": "Buffer",
+      },
+      "stats": {
+        "compressedSize": Long {
+          "high": 0,
+          "low": 250,
+          "unsigned": false,
+        },
+        "mode": Long {
+          "high": 0,
+          "low": 32768,
+          "unsigned": false,
+        },
+        "size": Long {
+          "high": 0,
+          "low": 500,
+          "unsigned": false,
+        },
+      },
+    },
+    "type": 0,
+  },
+  {
+    "manifest": {
+      "chunks": [
+        {
+          "data": [
             110,
             101,
             119,
@@ -1139,53 +1236,6 @@ exports[`BackupClient createBackup: savedJournal 1`] = `
         "size": Long {
           "high": 0,
           "low": 200,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  {
-    "manifest": {
-      "chunks": [
-        {
-          "data": [
-            115,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            50,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": {
-        "data": [
-          102,
-          105,
-          108,
-          101,
-          57,
-        ],
-        "type": "Buffer",
-      },
-      "stats": {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 150,
-          "unsigned": false,
-        },
-        "mode": Long {
-          "high": 0,
-          "low": 32768,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 300,
           "unsigned": false,
         },
       },
@@ -1237,54 +1287,6 @@ exports[`BackupClient createBackup: savedJournal 1`] = `
         "size": Long {
           "high": 0,
           "low": 400,
-          "unsigned": false,
-        },
-      },
-    },
-    "type": 0,
-  },
-  {
-    "manifest": {
-      "chunks": [
-        {
-          "data": [
-            115,
-            104,
-            97,
-            50,
-            53,
-            54,
-            95,
-            51,
-          ],
-          "type": "Buffer",
-        },
-      ],
-      "path": {
-        "data": [
-          102,
-          105,
-          108,
-          101,
-          49,
-          49,
-        ],
-        "type": "Buffer",
-      },
-      "stats": {
-        "compressedSize": Long {
-          "high": 0,
-          "low": 250,
-          "unsigned": false,
-        },
-        "mode": Long {
-          "high": 0,
-          "low": 32768,
-          "unsigned": false,
-        },
-        "size": Long {
-          "high": 0,
-          "low": 500,
           "unsigned": false,
         },
       },
@@ -1369,7 +1371,9 @@ exports[`BackupClient getFileList: downloadFileList 1`] = `
       BackupsGrpcContext {
         "abortable": [],
         "chunkDuplex": undefined,
-        "chunkResult": undefined,
+        "chunkResult": Map {},
+        "chunkResultStream": undefined,
+        "chunnkResultProcessor": Promise {},
         "client": undefined,
         "currentBackupId": 1,
         "host": "host",

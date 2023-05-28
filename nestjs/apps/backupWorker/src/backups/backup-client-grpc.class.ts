@@ -7,6 +7,7 @@ import { BackupClientContext, BackupLogger } from '@woodstock/server';
 import {
   AuthenticateReply,
   ChunkInformation,
+  ChunkResult,
   EncryptionService,
   ExecuteCommandReply,
   FileManifestJournalEntry,
@@ -22,13 +23,18 @@ import {
 } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import { asAsyncIterable } from 'ix';
-import { AsyncIterableX, find, from } from 'ix/asynciterable';
-import { filter, map, share } from 'ix/asynciterable/operators';
+import { AsyncIterableX, concat, find, from } from 'ix/asynciterable';
+import { filter, flatMap, map, publish, share, tap } from 'ix/asynciterable/operators';
 import { join, resolve } from 'path';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { BackupClientInterface } from './backup-client.interface.js';
 import { LaunchBackupError } from './backup.error.js';
+
+interface PromiseResolve {
+  resolve: (value: AsyncIterableX<Buffer>) => void;
+  reject: (reason?: unknown) => void;
+}
 
 export class BackupsGrpcContext implements BackupClientContext {
   isLocal = false;
@@ -39,7 +45,10 @@ export class BackupsGrpcContext implements BackupClientContext {
   client?: ClientGrpcProxy;
 
   chunkDuplex?: ClientDuplexStream<GetChunkRequest, GetChunkReply>;
-  chunkResult?: AsyncIterableX<SplitedAsyncIterable<ChunkInformation, Buffer>>;
+
+  chunnkResultProcessor: Promise<void> = Promise.resolve();
+  chunkResult = new Map<string, PromiseResolve>();
+  chunkResultStream: AsyncIterableX<SplitedAsyncIterable<ChunkInformation, Buffer, ChunkResult>>;
 
   constructor(
     public host: string,
@@ -58,6 +67,34 @@ export class BackupClientGrpc implements BackupClientInterface {
   private readonly logger = new Logger(BackupClientGrpc.name);
 
   constructor(private config: ApplicationConfigService, private encryptionService: EncryptionService) {}
+
+  #calculateKey(request: ChunkInformation) {
+    return `${request.filename}-${request.position}-${request.size}`;
+  }
+
+  async #processChunks(contextAsGrpc: BackupsGrpcContext) {
+    for await (const value of contextAsGrpc.chunkResultStream) {
+      const { key, iterable, result } = value;
+
+      const { resolve } = contextAsGrpc.chunkResult?.get(this.#calculateKey(key)) || {};
+      if (!resolve) {
+        throw new Error('The resolve is not initialized');
+      }
+
+      resolve(
+        concat(
+          iterable,
+          from(result).map((result) => {
+            if (result?.code === StatusCode.Failed) {
+              throw new Error(`Can't read the chunk ${key.filename.toString('utf-8')}:${key.position}:${key.size}`);
+            }
+
+            return Buffer.alloc(0);
+          }),
+        ),
+      );
+    }
+  }
 
   #checkConnection(context: BackupClientContext): WoodstockClientServiceClient {
     const contextAsGrpc = context as BackupsGrpcContext;
@@ -146,27 +183,23 @@ export class BackupClientGrpc implements BackupClientInterface {
         contextAsGrpc.chunkDuplex.on('error', () => {
           context.logger?.error(`Can't read chunks`);
         });
+
         const isHeader = (v: GetChunkReply) => v.chunk;
-        contextAsGrpc.chunkResult = from(contextAsGrpc.chunkDuplex).pipe(
-          split(isHeader),
-          map(({ key, iterable }) => {
+        const result = (v: GetChunkReply) => v.result;
+        contextAsGrpc.chunkResultStream = from(contextAsGrpc.chunkDuplex).pipe(
+          split(isHeader, result),
+          map(({ key, iterable, result }) => {
             return {
               key,
               iterable: iterable.pipe(
-                map((pieceOfChunk) => {
-                  if (pieceOfChunk.error?.code === StatusCode.Failed) {
-                    throw new Error(`Can't read the chunk ${pieceOfChunk.chunk?.sha256}`);
-                  }
-                  return pieceOfChunk;
-                }),
-                filter((pieceOfChunk) => !!pieceOfChunk.data),
                 map((pieceOfChunk) => pieceOfChunk.data?.data),
                 filter((buffer): buffer is Buffer => !!buffer),
               ),
+              result,
             };
           }),
-          share(),
         );
+        contextAsGrpc.chunnkResultProcessor = this.#processChunks(contextAsGrpc);
 
         resolve(reply);
       });
@@ -257,20 +290,23 @@ export class BackupClientGrpc implements BackupClientInterface {
       throw new Error('The chunkResult or chunkDuplex is not initialized');
     }
 
-    contextAsGrpc.chunkDuplex.write({ chunk });
+    const iterablePromise = new Promise<AsyncIterableX<Buffer>>((resolve, reject) => {
+      contextAsGrpc.chunkResult.set(this.#calculateKey(chunk), {
+        resolve,
+        reject,
+      });
+    });
 
-    return Readable.from(
-      from(
-        find(contextAsGrpc.chunkResult, {
-          predicate: ({ key }) =>
-            key.filename.equals(chunk.filename) && key.position === chunk.position && key.size === chunk.size,
-        }),
-      ).pipe(map((r) => r?.iterable)),
-    );
+    const it = from(iterablePromise).pipe(flatMap((v) => v));
+
+    contextAsGrpc.chunkDuplex.write({ chunk });
+    return Readable.from(it);
   }
 
   close(context: BackupClientContext): void {
+    // FIXME: Await the chunkResultProcessor
     if ((context as BackupsGrpcContext).client) {
+      (context as BackupsGrpcContext).chunkDuplex?.end();
       (context as BackupsGrpcContext).client?.close();
     }
   }
