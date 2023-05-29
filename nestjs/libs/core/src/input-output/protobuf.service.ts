@@ -77,7 +77,6 @@ export class ProtobufService {
     await pipeline(streams);
   }
 
-  i = 0;
   /**
    * it takes an AsyncIterable of objects of type O, and writes them to a file with the given path.
    * The file will be written in protobuf format.
