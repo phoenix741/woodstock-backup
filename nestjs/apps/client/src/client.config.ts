@@ -9,6 +9,7 @@ export interface ClientConfigFile {
   bind: string;
   password: string;
   secret: string;
+  backupTimeout: string;
 }
 
 const DEFAULT_CONFIG: ClientConfigFile = {
@@ -16,6 +17,7 @@ const DEFAULT_CONFIG: ClientConfigFile = {
   bind: '0.0.0.0:3657',
   password: '',
   secret: '',
+  backupTimeout: '1h',
 };
 
 export default DEFAULT_CONFIG;
