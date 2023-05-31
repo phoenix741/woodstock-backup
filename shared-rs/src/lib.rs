@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 
+mod manifest_model;
 mod protobuf_service;
 
 pub mod woodstock {
