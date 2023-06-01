@@ -1,5 +1,6 @@
 #![deny(clippy::all)]
 
+mod index_manifest_model;
 mod manifest_model;
 mod protobuf_service;
 

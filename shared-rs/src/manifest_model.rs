@@ -2,10 +2,15 @@ use std::path::Path;
 
 #[napi(js_name = "Manifest")]
 pub struct Manifest {
+  #[napi(writable = false)]
   pub manifest_path: String,
+  #[napi(writable = false)]
   pub file_list_path: String,
+  #[napi(writable = false)]
   pub journal_path: String,
+  #[napi(writable = false)]
   pub new_path: String,
+  #[napi(writable = false)]
   pub lock_path: String,
 }
 
