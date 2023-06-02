@@ -203,7 +203,7 @@ describe('BackupOnClientService', () => {
         filename: Buffer.from(testFile),
         position: Long.fromNumber(0),
         size: Long.fromNumber(100000),
-        sha256: Buffer.from('e4133d7518b34ba4ed12714c8cd2ace672696cfb5bef1fb3a2ad28f4492f4806', 'hex'),
+        sha256: Buffer.from('51d2cb09c7a839173eabd8b96db974865bd3169a6bc167e9914faef6727e0fbaJest', 'hex'),
         failIfWrongHash: true,
       });
 

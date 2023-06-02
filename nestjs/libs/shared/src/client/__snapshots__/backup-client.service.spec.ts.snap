@@ -28,12 +28,11 @@ exports[`BackupOnClientService #getChunk download a file, piece of file: getChun
 exports[`BackupOnClientService #getChunk download a file: getChunk 1`] = `
 [
   "import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { ExecuteCommandService, globStringToRegex, mangle, notUndefined, split } from '@woodstock/core';
 import { createReadStream, ReadStream } from 'fs';
 import { AsyncIterableX, concat, from, of } from 'ix/asynciterable';
 import { catchError, concatAll, filter, finalize, map } from 'ix/asynciterable/operators';
-import { ExecuteCommandService } from '../commands';
 import { Manifest, ManifestService } from '../manifest';
-import { FileHashReader, FileReaderService } from '../scanner';
 import {
   ChunkInformation,
   ExecuteCommandReply,
@@ -44,8 +43,8 @@ import {
   RefreshCacheRequest,
   Share,
   StatusCode,
-} from '../shared';
-import { globStringToRegex, mangle, notUndefined, split } from '../utils';
+} from '../protobuf/woodstock.interface';
+import { FileHashReader, FileReaderService } from '../scanner';
 
 @Injectable()
 export class BackupOnClientService {
@@ -145,6 +144,8 @@ export class BackupOnClientService {
 
   getChunk(request: ChunkInformation & { failIfWrongHash?: boolean }): AsyncIterableX<FileChunk> {
     const { filename, position, size, sha256 } = request;
+    this.logger.debug(\`Get the chunk \${filename} at position \${position} (size: \${size})\`);
+
     const stream: ReadStream = createReadStream(filename, {
       start: position.toNumber(),
       end: position.add(size).sub(1).toNumber(),

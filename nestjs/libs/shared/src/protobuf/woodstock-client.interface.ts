@@ -1,6 +1,7 @@
 import {
   CallOptions,
   Client,
+  ClientDuplexStream,
   ClientReadableStream,
   ClientUnaryCall,
   ClientWritableStream,
@@ -87,12 +88,8 @@ export interface WoodstockClientServiceClient extends Client {
    * 3. When the server receive a journal entry, the server will compare the chunk with the manifest
    *    and ask all necessary chunk to the client.
    */
-  getChunk(request: GetChunkRequest, options?: Partial<CallOptions>): ClientReadableStream<GetChunkReply>;
-  getChunk(
-    request: GetChunkRequest,
-    metadata?: Metadata,
-    options?: Partial<CallOptions>,
-  ): ClientReadableStream<GetChunkReply>;
+  getChunk(options?: Partial<CallOptions>): ClientDuplexStream<GetChunkRequest, GetChunkReply>;
+  getChunk(metadata?: Metadata, options?: Partial<CallOptions>): ClientDuplexStream<GetChunkRequest, GetChunkReply>;
   /** In parallele, the server will open a stream for the client to send log file. */
   streamLog(request: StreamLogRequest, options?: Partial<CallOptions>): ClientReadableStream<LogEntry>;
   streamLog(

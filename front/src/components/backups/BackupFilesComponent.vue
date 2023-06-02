@@ -101,8 +101,9 @@ const nodes = reactive({
 } as Record<string, Node>);
 
 const selected = ref<Node | undefined>(undefined);
-const selectedPath = computed(() =>
-    `/api/hosts/${props.deviceId}/backups/${props.backupNumber}/files/download?sharePath=${selected.value?.sharePath}&path=${selected.value?.file?.path}`
+const selectedPath = computed(
+  () =>
+    `/api/hosts/${props.deviceId}/backups/${props.backupNumber}/files/download?sharePath=${selected.value?.sharePath}&path=${selected.value?.file?.path}`,
 );
 
 watch(shares, () => {
@@ -116,7 +117,6 @@ watch(shares, () => {
     };
     nodes.root.children.push(share.path);
   });
-  console.log(nodes);
 });
 
 const config = reactive({
@@ -146,7 +146,7 @@ const loadNode = async (n: Node) => {
     console.error('no share path');
     return;
   }
-    // set node loading state to tree
+  // set node loading state to tree
   n.state = n.state ?? {};
   n.state.isLoading = true;
 

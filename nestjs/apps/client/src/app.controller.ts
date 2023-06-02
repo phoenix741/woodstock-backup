@@ -1,10 +1,9 @@
 import { Metadata, ServerReadableStream } from '@grpc/grpc-js';
 import { BadRequestException, Controller, InternalServerErrorException, Logger, UseGuards } from '@nestjs/common';
-import { GrpcMethod, GrpcStreamCall } from '@nestjs/microservices';
+import { GrpcMethod, GrpcStreamCall, GrpcStreamMethod } from '@nestjs/microservices';
 import {
   AuthenticateReply,
   AuthenticateRequest,
-  ChunkStatus,
   Empty,
   ExecuteCommandReply,
   ExecuteCommandRequest,
@@ -19,8 +18,8 @@ import {
   StreamLogRequest,
 } from '@woodstock/shared';
 import { from as fromIx, of as ofIx } from 'ix/asynciterable';
-import { catchError, map } from 'ix/asynciterable/operators';
-import { from, Observable, of } from 'rxjs';
+import { catchError, map, startWith, endWith } from 'ix/asynciterable/operators';
+import { concatMap, from, Observable, of, tap } from 'rxjs';
 import { AppService } from './app.service.js';
 import { AuthGuard } from './auth/auth.guard.js';
 
@@ -40,15 +39,20 @@ export class AppController {
 
   @GrpcMethod('WoodstockClientService', 'Authenticate')
   async authenticate(request: AuthenticateRequest): Promise<AuthenticateReply> {
+    this.logger.log('WoodstockClientService.Authenticate');
+
     return await this.service.authenticate(request);
   }
 
   @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'ExecuteCommand')
   async executeCommand(request: ExecuteCommandRequest): Promise<ExecuteCommandReply> {
+    this.logger.log(`WoodstockClientService.ExecuteCommand: ${request.command}`);
+
     try {
       return await this.service.executeCommand(request.command);
     } catch (err) {
+      this.logger.error(`Can't execute the command ${request.command}: ${err.message}`);
       return {
         code: StatusCode.Failed,
         stdout: '',
@@ -63,10 +67,13 @@ export class AppController {
     requestStream: ServerReadableStream<RefreshCacheRequest, RefreshCacheReply>,
     callback: (err: unknown, value: RefreshCacheReply) => void,
   ) {
+    this.logger.log('WoodstockClientService.RefreshCache');
+
     try {
       const reply = await this.service.refreshCache(fromIx(requestStream));
       callback(null, reply);
     } catch (err) {
+      this.logger.error(`Can't execute refresh cache: ${err.message}`);
       callback(null, {
         code: StatusCode.Failed,
         message: err.message,
@@ -77,6 +84,8 @@ export class AppController {
   @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'LaunchBackup')
   launchBackup(request: LaunchBackupRequest): Observable<LaunchBackupReply> {
+    this.logger.log(`WoodstockClientService.LaunchBackup: ${request.share?.sharePath?.toString()}`);
+
     try {
       if (!request.share) {
         throw new InternalServerErrorException('share must be defined');
@@ -84,6 +93,7 @@ export class AppController {
 
       return from(this.service.launchBackup(request.share));
     } catch (err) {
+      this.logger.error(`Can't launch the backup: ${err.message}`);
       return of({
         entry: undefined,
         response: {
@@ -95,37 +105,46 @@ export class AppController {
   }
 
   @UseGuards(AuthGuard)
-  @GrpcMethod('WoodstockClientService', 'GetChunk')
-  getChunk(request: GetChunkRequest): Observable<GetChunkReply> {
-    try {
-      if (!request.chunk) {
-        throw new InternalServerErrorException('chunk must be defined');
-      }
+  @GrpcStreamMethod('WoodstockClientService', 'GetChunk')
+  getChunk(request: Observable<GetChunkRequest>): Observable<GetChunkReply> {
+    this.logger.log('WoodstockClientService.GetChunk');
 
-      return from(
-        this.service.getChunk(request.chunk).pipe(
-          map((data) => ({ data, status: ChunkStatus.DATA })),
-          catchError((err) => {
-            this.logger.error(err);
-            return ofIx({ data: undefined, status: ChunkStatus.ERROR });
-          }),
-        ),
+    try {
+      return request.pipe(
+        concatMap((request) => {
+          if (!request.chunk) {
+            throw new InternalServerErrorException('chunk must be defined');
+          }
+          return fromIx(this.service.getChunk(request.chunk)).pipe(
+            map((data) => ({ data })),
+            startWith({ chunk: request.chunk }),
+            endWith({ result: { code: StatusCode.Ok } }),
+            catchError((err) => {
+              this.logger.error(err);
+              return ofIx({ result: { code: StatusCode.Failed } });
+            }),
+          );
+        }),
       );
     } catch (err) {
-      this.logger.error(err);
-      return of({ data: undefined, status: ChunkStatus.ERROR });
+      this.logger.error(`Can't get all chunks: ${err.message}`);
+      return of({ result: { code: StatusCode.Failed } });
     }
   }
 
   @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'StreamLog')
   streamLog(_: StreamLogRequest): Observable<LogEntry> {
+    this.logger.log('WoodstockClientService.StreamLog');
+
     return this.service.getLogAsObservable();
   }
 
   @UseGuards(AuthGuard)
   @GrpcMethod('WoodstockClientService', 'CloseClient')
   async closeBackup(request: Empty, metadata: Metadata): Promise<Empty> {
+    this.logger.log('WoodstockClientService.CloseClient');
+
     const sessionId = getMetadata<string>(metadata, 'X-Session-Id');
     await this.service.closeBackup(sessionId);
 

@@ -132,18 +132,20 @@ message FileChunk {
   bytes data = 1;
 }
 
+message ChunkResult {
+  StatusCode code = 1;
+}
+
 message GetChunkRequest {
   ChunkInformation chunk = 1;
 }
 
-enum ChunkStatus {
-  DATA = 0;
-  ERROR = 1;
-}
-
 message GetChunkReply {
-  ChunkStatus status = 1;
-  FileChunk data = 3;
+  oneof field {
+    ChunkInformation chunk = 1;
+    ChunkResult result = 2;
+    FileChunk data = 3;
+  }
 }
 
 message StreamLogRequest {
@@ -192,7 +194,7 @@ service WoodstockClientService {
 
   // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
   //    and ask all necessary chunk to the client.
-  rpc GetChunk(GetChunkRequest) returns (stream GetChunkReply) {}
+  rpc GetChunk(stream GetChunkRequest) returns (stream GetChunkReply) {}
 
   // In parallele, the server will open a stream for the client to send log file.
   rpc StreamLog(StreamLogRequest) returns (stream LogEntry) {}

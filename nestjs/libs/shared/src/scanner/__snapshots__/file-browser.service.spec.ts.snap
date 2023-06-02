@@ -369,35 +369,3 @@ exports[`FileBrowserService Search file in all directories: value 9`] = `
   "xattr": {},
 }
 `;
-
-exports[`FileBrowserService Search file in all directories: value 10`] = `
-{
-  "acl": [],
-  "chunks": [],
-  "path": {
-    "data": [
-      115,
-      99,
-      97,
-      110,
-      110,
-      101,
-      114,
-      46,
-      109,
-      111,
-      100,
-      117,
-      108,
-      101,
-      46,
-      116,
-      115,
-    ],
-    "type": "Buffer",
-  },
-  "stats": Any<Object>,
-  "symlink": undefined,
-  "xattr": {},
-}
-`;

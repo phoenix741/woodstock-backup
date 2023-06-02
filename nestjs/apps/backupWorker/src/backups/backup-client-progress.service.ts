@@ -59,7 +59,7 @@ export class BackupClientProgress {
   createBackup(
     context: BackupClientContext,
     backupShare: Share,
-    maxConcurrentDownloads = 1,
+    maxConcurrentDownloads = 10,
   ): Observable<QueueTaskProgression> {
     return this.backupClient.createBackup(context, backupShare, maxConcurrentDownloads).pipe(
       scan(

@@ -41,9 +41,11 @@ export class AuthService {
         issuer: this.clientConfig.config.hostname,
         audience: this.clientConfig.config.hostname,
         subject: uuid,
-        expiresIn: '1h',
+        expiresIn: this.clientConfig.config.backupTimeout,
       },
     );
+
+    this.context.add(uuid);
 
     return sessionToken;
   }
@@ -60,8 +62,6 @@ export class AuthService {
       issuer: this.clientConfig.config.hostname,
       audience: this.clientConfig.config.hostname,
       algorithms: ['HS256'],
-      // Tolerance of 5 minutes
-      clockTolerance: 1000,
     });
 
     if (!this.context.has(payload.sessionId)) {
@@ -73,46 +73,6 @@ export class AuthService {
     }
 
     return payload.sessionId;
-  }
-
-  /**
-   * Renew the token if expired but still valid (signed with HS256).
-   * The token should have been checked before with #checkContext, so the expiration is of max 5 minutes.
-   *
-   * @param sessionToken the session token to replace
-   * @returns the new session token (or undefined if the token is still valid)
-   */
-  async renewToken(sessionToken: string): Promise<string | undefined> {
-    try {
-      await this.jwtService.verifyAsync<Jwt>(sessionToken, {
-        issuer: this.clientConfig.config.hostname,
-        audience: this.clientConfig.config.hostname,
-        algorithms: ['HS256'],
-        complete: true,
-      });
-
-      return undefined;
-    } catch (err) {
-      const uuid = await this.checkContext(sessionToken);
-
-      // If token is expired, without tolerance, so we need to renew the token
-      if (err.name === 'TokenExpiredError') {
-        const sessionId = await this.jwtService.signAsync(
-          { sessionId: uuid, authenticated: true } satisfies JwtPayload,
-          {
-            algorithm: 'HS256',
-            issuer: this.clientConfig.config.hostname,
-            audience: this.clientConfig.config.hostname,
-            subject: uuid,
-            expiresIn: '1h',
-          },
-        );
-
-        return sessionId;
-      }
-
-      throw err;
-    }
   }
 
   /**

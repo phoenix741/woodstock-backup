@@ -1,8 +1,8 @@
-import { Metadata } from '@grpc/grpc-js';
 import { Test, TestingModule } from '@nestjs/testing';
 import { StatusCode } from '@woodstock/shared';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { AuthService } from './auth/auth.service.js';
 import { LogService } from './log.service.js';
 
 describe('AppController', () => {
@@ -24,6 +24,7 @@ describe('AppController', () => {
       controllers: [AppController],
       providers: [
         { provide: AppService, useValue: fakeAppService },
+        { provide: AuthService, useValue: fakeAppService },
         { provide: LogService, useValue: fakeLogService },
       ],
     }).compile();
@@ -33,18 +34,14 @@ describe('AppController', () => {
 
   describe('executeCommand', () => {
     it('Should execute the command !', async () => {
-      // GIVEN
-      const metadata: Metadata = new Metadata();
-      metadata.add('X-Session-Id', 'test');
-
       // WHEN
-      const result = await appController.executeCommand({ command: 'Cmd' }, metadata);
+      const result = await appController.executeCommand({ command: 'Cmd' });
 
       // THEN
       expect(result).toEqual({
         code: StatusCode.Ok,
-        stdout: 'Cmd',
-        stderr: 'test',
+        stderr: 'Cmd',
+        stdout: undefined,
       });
     });
   });

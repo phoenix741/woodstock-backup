@@ -1,13 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { FileBrowserService, ManifestService } from '@woodstock/shared';
 import archiver from 'archiver';
 import { constants as constantsFs } from 'fs';
 import { count, from, toArray } from 'ix/asynciterable';
 import * as Long from 'long';
 import { Readable } from 'stream';
-import { BackupsService } from '../../../core/src/config';
-import { ManifestService } from '../manifest';
-import { PoolService } from '../../../server/src/pool';
-import { FileBrowserService } from '../scanner';
+import { BackupsService } from '../backups/backups.service.js';
+import { PoolService } from '../pool/pool.service.js';
 import { FilesService } from './files.service.js';
 
 describe('FilesService', () => {

@@ -277,7 +277,7 @@ export class BackupClient {
   createBackup(
     context: BackupClientContext,
     backupShare: Share,
-    maxConcurrentDownloads = 1,
+    maxConcurrentDownloads = 10,
   ): Observable<FileManifestJournalEntry | PoolChunkInformation> {
     this.logger.log(`Create backup (${context.sessionId}): ${backupShare.sharePath.toString()}`);
     const manifest = this.backupService.getManifest(context.host, context.currentBackupId, backupShare.sharePath);
