@@ -2,13 +2,12 @@ name: CI/CD
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 jobs:
   start:
     runs-on: ubuntu-latest
+    outputs:
+      message_id: ${{ steps.slack.outputs.message_id }}
     steps:
       - name: Notify slack success
         id: slack # IMPORTANT: reference this step ID value in future Slack steps
@@ -22,6 +21,8 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    needs:
+      - start
 
     strategy:
       matrix:
@@ -39,8 +40,6 @@ jobs:
 
       - run: |
           cd nestjs
-          pwd
-          ls -l
           npm ci
           npm run lint
           npm run test
@@ -48,6 +47,8 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    needs:
+      - start
     steps:
       - run: "apt-get update && apt-get install -y git-lfs"
       - uses: actions/checkout@v3
@@ -64,58 +65,33 @@ jobs:
           npm run lint
           npm run build
 
-  # publish:
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'promote' && github.event.action == 'published' && github.ref == 'refs/tags/v*'
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         lfs: true
-
-  #     - name: Build website
-  #       uses: docker/build-push-action@v2
-  #       with:
-  #         context: ./docs/website
-  #         file: ./docs/website/Dockerfile
-  #         push: true
-  #         tags: phoenix741/woodstock-backup-website:latest
-
-  #     - name: Build server
-  #       uses: docker/build-push-action@v2
-  #       with:
-  #         context: .
-  #         file: ./Dockerfile
-  #         push: true
-  #         tags: phoenix741/woodstock-backup:latest
-
   notify:
     runs-on: ubuntu-latest
     needs:
       - start
       - backend
       - frontend
-      #- publish
-    if: always()
+    if: ${{ always() }}
     steps:
-      - run: echo ${{ join(needs.*.result, ' ') }} contains(needs.*.result , 'failure')
+      #- run: "echo ${{ toJSON(needs) }}"
       - name: Notify slack success
-        if: "!contains(needs.*.result , 'failure')"
+        if: "${{ always() && (needs.backend.result == 'success' && needs.frontend.result == 'success') }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         uses: https://github.com/voxmedia/github-action-slack-notify-build@v1
         with:
-          message_id: ${{ needs.start.steps.slack.outputs.message_id }}
+          message_id: ${{ needs.start.outputs.message_id }}
           channel: ci
           status: SUCCESS
           color: good
 
       - name: Notify slack fail
-        if: contains(needs.*.result, 'failure')
+        if: "${{ always() && (needs.backend.result == 'failure' || needs.frontend.result == 'failure') }}"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         uses: https://github.com/voxmedia/github-action-slack-notify-build@v1
         with:
-          message_id: ${{ needs.start.steps.slack.outputs.message_id }}
+          message_id: ${{ needs.start.outputs.message_id }}
           channel: ci
           status: FAILED
           color: danger
