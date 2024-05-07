@@ -1,20 +1,13 @@
-#[cfg(unix)]
-use nix::libc::{S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO, S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK};
-
-#[cfg(windows)]
-const FILE_ATTRIBUTE_DIRECTORY: u32 = 16u32;
-#[cfg(windows)]
-const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 1024u32;
-
 use std::{
     fmt,
     path::{Path, PathBuf},
 };
 
 use crate::{
-    scanner::CHUNK_SIZE_U64,
+    config::CHUNK_SIZE_U64,
     utils::path::{path_to_vec, vec_to_path},
-    woodstock::{FileManifest, FileManifestJournalEntry},
+    woodstock::{FileManifest, FileManifestJournalEntry, FileManifestType},
+    FileManifestStat,
 };
 
 use super::PathManifest;
@@ -38,18 +31,6 @@ impl PathManifest for FileManifestLight {
     fn size(&self) -> u64 {
         self.size
     }
-}
-
-#[derive(PartialEq)]
-pub enum FileManifestMode {
-    RegularFile,
-    Symlink,
-    Directory,
-    BlockDevice,
-    CharacterDevice,
-    Fifo,
-    Socket,
-    Unknown,
 }
 
 impl PathManifest for FileManifest {
@@ -133,36 +114,11 @@ impl FileManifest {
     /// The file mode as a `FileManifestMode` enum.
     ///
     #[must_use]
-    #[cfg(unix)]
-    pub fn file_mode(&self) -> FileManifestMode {
-        match self.mode() & S_IFMT {
-            S_IFREG => FileManifestMode::RegularFile,
-            S_IFLNK => FileManifestMode::Symlink,
-            S_IFDIR => FileManifestMode::Directory,
-            S_IFBLK => FileManifestMode::BlockDevice,
-            S_IFCHR => FileManifestMode::CharacterDevice,
-            S_IFIFO => FileManifestMode::Fifo,
-            S_IFSOCK => FileManifestMode::Socket,
-            _ => FileManifestMode::Unknown,
-        }
-    }
-
-    /// Returns the file mode as a `FileManifestMode` enum.
-    ///
-    /// # Returns
-    ///
-    /// The file mode as a `FileManifestMode` enum.
-    ///
-    #[must_use]
-    #[cfg(windows)]
-    pub fn file_mode(&self) -> FileManifestMode {
-        if (self.mode() & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY {
-            return FileManifestMode::Directory;
-        } else if (self.mode() & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT {
-            return FileManifestMode::Symlink;
-        } else {
-            return FileManifestMode::RegularFile;
-        }
+    pub fn file_mode(&self) -> FileManifestType {
+        self.stats
+            .as_ref()
+            .map(FileManifestStat::r#type)
+            .unwrap_or_default()
     }
 
     /// Checks if the file is a special file.
@@ -174,7 +130,7 @@ impl FileManifest {
     ///
     #[must_use]
     pub fn is_special_file(&self) -> bool {
-        self.file_mode() != FileManifestMode::RegularFile
+        self.file_mode() != FileManifestType::RegularFile
     }
 }
 

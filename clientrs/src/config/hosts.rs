@@ -1,6 +1,6 @@
 use std::{fs::read_to_string, io::Error, path::PathBuf};
 
-use super::{ConfigurationPath, HostConfiguration};
+use super::{Context, HostConfiguration};
 
 pub struct Hosts {
     config_path_hosts: PathBuf,
@@ -9,10 +9,10 @@ pub struct Hosts {
 
 impl Hosts {
     #[must_use]
-    pub fn new(config: &ConfigurationPath) -> Self {
+    pub fn new(ctxt: &Context) -> Self {
         Self {
-            config_path_hosts: config.config_path_hosts.clone(),
-            config_path: config.config_path.clone(),
+            config_path_hosts: ctxt.config.path.config_path_hosts.clone(),
+            config_path: ctxt.config.path.config_path.clone(),
         }
     }
 

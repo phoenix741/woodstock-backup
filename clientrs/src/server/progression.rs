@@ -8,12 +8,16 @@ pub struct BackupProgression {
 
     pub compressed_file_size: u64,
     pub new_compressed_file_size: u64,
+    pub modified_compressed_file_size: u64,
 
     pub file_size: u64,
     pub new_file_size: u64,
+    pub modified_file_size: u64,
 
     pub new_file_count: usize,
     pub file_count: usize,
+    pub modified_file_count: usize,
+    pub removed_file_count: usize,
 
     pub error_count: usize,
 
@@ -61,9 +65,13 @@ impl Default for BackupProgression {
             end_transfer_date: None,
             compressed_file_size: 0,
             new_compressed_file_size: 0,
+            modified_compressed_file_size: 0,
             file_size: 0,
             new_file_size: 0,
             new_file_count: 0,
+            modified_file_size: 0,
+            modified_file_count: 0,
+            removed_file_count: 0,
             file_count: 0,
             error_count: 0,
             progress_current: 0,

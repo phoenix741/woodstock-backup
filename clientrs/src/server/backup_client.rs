@@ -6,59 +6,59 @@ use std::{
 
 use async_stream::stream;
 use futures::{pin_mut, Future, StreamExt};
-use log::error;
+use log::{debug, error};
 use tokio::sync::Mutex;
 
 use crate::{
-    config::{Backup, Backups, Configuration, ConfigurationPath},
+    config::{Backup, Backups, Context},
+    config::{CHUNK_SIZE_U64, SHA256_EMPTYSTRING},
     manifest::PathManifest,
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
     proto::ProtobufWriter,
     refresh_cache_request,
-    scanner::{CHUNK_SIZE_U64, SHA256_EMPTYSTRING},
     utils::path::path_to_vec,
     ChunkInformation, EntryType, ExecuteCommandReply, FileManifest, FileManifestJournalEntry,
     LaunchBackupRequest, PoolRefCount, RefreshCacheHeader, RefreshCacheRequest, Share,
 };
 
-use super::{grpc_client::BackupGrpcClient, progression::BackupProgression};
+use super::{client::Client, progression::BackupProgression};
 
-pub struct BackupClient {
-    client: BackupGrpcClient,
+pub struct BackupClient<'context, Clt: Client> {
+    client: Clt,
 
     hostname: String,
     current_backup_id: usize,
+    fake_date: Option<SystemTime>,
 
     progression: Arc<Mutex<BackupProgression>>,
-    refcnt: Arc<Mutex<Refcnt>>,
+    refcnt: Arc<Mutex<Refcnt<'context>>>,
+
+    context: &'context Context,
 }
 
-impl BackupClient {
-    pub async fn new(
-        hostname: &str,
-        ip_address: &str,
-        backup_number: usize,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+impl<'context, Clt: Client> BackupClient<'context, Clt> {
+    pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &'context Context) -> Self {
+        let backups = Backups::new(ctxt);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
-        Ok(BackupClient {
-            client: BackupGrpcClient::new(hostname, ip_address).await?,
+        BackupClient {
+            client,
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
             progression: Arc::new(Mutex::new(BackupProgression::default())),
-            refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
-        })
+            refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory, ctxt))),
+            context: ctxt,
+            fake_date: None,
+        }
+    }
+
+    pub fn set_fake_date(&mut self, fake_date: Option<SystemTime>) {
+        self.fake_date = fake_date;
     }
 
     pub async fn progress(&self) -> BackupProgression {
         self.progression.lock().await.clone()
-    }
-
-    pub fn get_client(&self) -> BackupGrpcClient {
-        self.client.clone()
     }
 
     async fn to_backup(&self, is_complete: bool) -> Backup {
@@ -69,13 +69,35 @@ impl BackupClient {
             number: self.current_backup_id,
             completed: is_complete,
 
-            start_date: progression
-                .start_date
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            start_date: match self.fake_date {
+                Some(fake_date) => fake_date
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                None => progression
+                    .start_date
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            },
             end_date: if is_complete {
-                Some(now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs())
+                match self.fake_date {
+                    Some(fake_date) => {
+                        let duration = if let Some(start_date) = progression.start_transfer_date {
+                            now.duration_since(start_date).unwrap_or_default()
+                        } else {
+                            now.duration_since(UNIX_EPOCH).unwrap_or_default()
+                        };
+                        let end_date = fake_date + duration;
+                        Some(
+                            end_date
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs(),
+                        )
+                    }
+                    None => Some(now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()),
+                }
             } else {
                 None
             },
@@ -85,18 +107,22 @@ impl BackupClient {
             existing_file_count: progression
                 .file_count
                 .saturating_sub(progression.new_file_count),
+            modified_file_count: progression.modified_file_count,
+            removed_file_count: progression.removed_file_count,
 
             file_size: progression.file_size,
             new_file_size: progression.new_file_size,
             existing_file_size: progression
                 .file_size
                 .saturating_sub(progression.new_file_size),
+            modified_file_size: progression.modified_file_size,
 
             compressed_file_size: progression.compressed_file_size,
             new_compressed_file_size: progression.new_compressed_file_size,
             existing_compressed_file_size: progression
                 .compressed_file_size
                 .saturating_sub(progression.new_compressed_file_size),
+            modified_compressed_file_size: progression.modified_compressed_file_size,
 
             speed: progression.speed(),
         }
@@ -109,7 +135,7 @@ impl BackupClient {
     }
 
     pub async fn init_backup_directory(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let backups = Backups::new(&ConfigurationPath::default());
+        let backups = Backups::new(self.context);
         let previous_backup = backups
             .get_previous_backup(&self.hostname, self.current_backup_id)
             .map(|b| b.number);
@@ -143,10 +169,10 @@ impl BackupClient {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
+        let context = self.context.to_owned().clone();
 
         let refresh_cache_stream = stream!({
-            let configuration = Configuration::default();
-            let backups = Backups::new(&configuration.path);
+            let backups = Backups::new(&context);
             for share in shares {
                 let manifest = backups.get_manifest(&hostname, current_backup_id, &share);
                 let header = RefreshCacheRequest {
@@ -185,8 +211,7 @@ impl BackupClient {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+        let backups = Backups::new(self.context);
         let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
 
         let response = self.client.download_file_list(LaunchBackupRequest {
@@ -259,8 +284,7 @@ impl BackupClient {
         let filename = Path::new(share_path).join(file_manifest.path());
         let filename = path_to_vec(filename.as_path());
 
-        let configuration = Configuration::default();
-        let mut wrapper = PoolChunkWrapper::new(&configuration.path.pool_path, sha256);
+        let mut wrapper = PoolChunkWrapper::new(&self.context.config.path.pool_path, sha256);
         if wrapper.exists() {
             // Return the information on existing chunk
             let old_chunk = wrapper.chunk_information().await?;
@@ -291,6 +315,8 @@ impl BackupClient {
         let readable = readable.map(|chunk| chunk.map(|chunk| chunk.data));
         let chunk = wrapper.write(readable, &filename).await?;
 
+        debug!("Chunk {:?} downloaded", chunk);
+
         Ok(chunk)
     }
 
@@ -311,12 +337,15 @@ impl BackupClient {
         let mut chunks = Vec::with_capacity(chunk_count);
 
         for chunk_number in 0..chunk_count {
+            debug!("Download chunk {}/{}", chunk_number, chunk_count);
             let chunk = self
                 .copy_chunk(share_path, &file_manifest, chunk_number)
                 .await?;
 
+            debug!("Chunk {:?} downloaded", chunk.sha256);
             callback(chunk.clone()).await;
 
+            debug!("Add refcnt");
             self.refcnt.lock().await.apply(
                 &PoolRefCount {
                     sha256: chunk.sha256.clone(),
@@ -329,10 +358,16 @@ impl BackupClient {
 
             compressed_size += chunk.compressed_size;
             size += chunk.size;
+            debug!("Chunk {:?} added to the list", chunk.sha256);
+
             assert!(chunks.len() == chunk_number);
+
+            debug!("Add chunk to the list");
             chunks.push(chunk.sha256);
+            debug!("Chunk added to the list");
         }
 
+        debug!("Manifest downloaded");
         let path = file_manifest.path();
         let mut stats = file_manifest.stats.unwrap_or_default();
         stats.compressed_size = compressed_size;
@@ -346,6 +381,7 @@ impl BackupClient {
         file_manifest.stats = Some(stats);
         file_manifest.chunks = chunks;
 
+        debug!("Manifest downloaded 2");
         Ok(file_manifest)
     }
 
@@ -357,8 +393,7 @@ impl BackupClient {
         let mut error_count = 0;
         let mut abort: Option<Box<dyn std::error::Error>> = None;
 
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+        let backups = Backups::new(self.context);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         // Start by reading file list
@@ -386,29 +421,6 @@ impl BackupClient {
                     match file_manifest {
                         Ok(file_manifest) => {
                             file_manifest_journal_entry.manifest = Some(file_manifest);
-
-                            match file_manifest_journal_entry.r#type() {
-                                EntryType::Add => {
-                                    let size = file_manifest_journal_entry.size();
-                                    let compressed_size =
-                                        file_manifest_journal_entry.compressed_size();
-
-                                    let mut progression = self.progression.lock().await;
-                                    progression.new_file_count += 1;
-                                    progression.new_file_size += size;
-                                    progression.new_compressed_file_size += compressed_size;
-                                }
-                                EntryType::Modify => {
-                                    let size = file_manifest_journal_entry.size();
-                                    let compressed_size =
-                                        file_manifest_journal_entry.compressed_size();
-
-                                    let mut progression = self.progression.lock().await;
-                                    progression.file_size += size;
-                                    progression.compressed_file_size += compressed_size;
-                                }
-                                EntryType::Remove => {}
-                            }
                         }
                         Err(e) => {
                             error!("Can't download chunk for {:?}: {}", path, e);
@@ -431,6 +443,31 @@ impl BackupClient {
                             continue;
                         }
                     };
+                }
+            }
+
+            match file_manifest_journal_entry.r#type() {
+                EntryType::Add => {
+                    let size = file_manifest_journal_entry.size();
+                    let compressed_size = file_manifest_journal_entry.compressed_size();
+
+                    let mut progression = self.progression.lock().await;
+                    progression.new_file_count += 1;
+                    progression.new_file_size += size;
+                    progression.new_compressed_file_size += compressed_size;
+                }
+                EntryType::Modify => {
+                    let size = file_manifest_journal_entry.size();
+                    let compressed_size = file_manifest_journal_entry.compressed_size();
+
+                    let mut progression = self.progression.lock().await;
+                    progression.modified_file_count += 1;
+                    progression.modified_file_size += size;
+                    progression.modified_compressed_file_size += compressed_size;
+                }
+                EntryType::Remove => {
+                    let mut progression = self.progression.lock().await;
+                    progression.removed_file_count += 1;
                 }
             }
 
@@ -466,8 +503,7 @@ impl BackupClient {
     }
 
     pub async fn compact(&self, share_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+        let backups = Backups::new(self.context);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         manifest
@@ -504,8 +540,7 @@ impl BackupClient {
     }
 
     pub async fn count_references(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+        let backups = Backups::new(self.context);
 
         let mut refcnt = self.refcnt.lock().await;
         refcnt.finish().await?;
@@ -516,6 +551,7 @@ impl BackupClient {
             &host_refcnt_file,
             &refcnt,
             &crate::pool::RefcntApplySens::Increase,
+            self.context,
         )
         .await?;
 
@@ -525,7 +561,7 @@ impl BackupClient {
     }
 
     pub async fn save_backup(&self, is_complete: bool) -> Result<(), Box<dyn std::error::Error>> {
-        let backups = Backups::new(&ConfigurationPath::default());
+        let backups = Backups::new(self.context);
         let backup = self.to_backup(is_complete).await;
 
         backups

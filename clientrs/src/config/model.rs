@@ -80,14 +80,18 @@ pub struct Backup {
 
     pub file_count: usize,
     pub new_file_count: usize,
+    pub removed_file_count: usize,
+    pub modified_file_count: usize,
     pub existing_file_count: usize,
 
     pub file_size: u64,
     pub new_file_size: u64,
+    pub modified_file_size: u64,
     pub existing_file_size: u64,
 
     pub compressed_file_size: u64,
     pub new_compressed_file_size: u64,
+    pub modified_compressed_file_size: u64,
     pub existing_compressed_file_size: u64,
 
     pub speed: f64,

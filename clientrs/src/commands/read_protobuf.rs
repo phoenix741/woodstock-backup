@@ -3,9 +3,9 @@ use std::{error::Error, ffi::OsString};
 use clap::ValueEnum;
 use futures::StreamExt;
 
-use crate::{
+use woodstock::{
     proto::ProtobufReader,
-    woodstock::{FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused},
+    {FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused},
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]

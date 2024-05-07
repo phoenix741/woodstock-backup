@@ -1,16 +1,21 @@
 #![recursion_limit = "256"]
 
-pub mod authentification;
+#[cfg(feature = "client")]
 pub mod client;
-pub mod commands;
+#[cfg(feature = "client")]
+pub mod scanner;
+
+#[cfg(feature = "pool")]
+pub mod pool;
+
+#[cfg(feature = "server")]
+pub mod server;
+
 pub mod config;
 pub mod manifest;
-pub mod pool;
 pub mod proto;
-pub mod scanner;
-pub mod server;
-pub mod utils;
 pub mod statistics;
+pub mod utils;
 
 mod woodstock {
     tonic::include_proto!("woodstock");

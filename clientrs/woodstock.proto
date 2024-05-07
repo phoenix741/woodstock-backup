@@ -19,22 +19,33 @@ message PoolRefCount {
   uint64 compressedSize = 4;
 }
 
+enum FileManifestType {
+    RegularFile = 0;
+    Symlink = 1;
+    Directory = 2;
+    BlockDevice = 3;
+    CharacterDevice = 4;
+    Fifo = 5;
+    Socket = 6;
+    Unknown = 99;
+}
 
 message FileManifestStat {
   uint32 ownerId = 1;
   uint32 groupId = 2;
   uint64 size = 3;
-  uint64 compressedSize = 8;
-  int64 lastRead = 4;
-  int64 lastModified = 5;
-  int64 created = 6;
-  uint32 mode = 7;
+  uint64 compressedSize = 4;
+  int64 lastRead = 5;
+  int64 lastModified = 6;
+  int64 created = 7;
+  uint32 mode = 8;
+  FileManifestType type = 9;
 
-  uint64 dev = 9;
-  uint64 rdev = 10;
+  uint64 dev = 10;
+  uint64 rdev = 11;
 
-  uint64 ino = 11;
-  uint64 nlink = 12;
+  uint64 ino = 12;
+  uint64 nlink = 13;
 }
 
 enum FileManifestAclQualifier {
@@ -62,10 +73,14 @@ message FileManifestXAttr {
 message FileManifest {
   bytes path = 1;
   FileManifestStat stats = 2;
-  repeated FileManifestXAttr xattr = 5;
-  repeated FileManifestAcl acl = 6;
-  repeated bytes chunks = 3;
-  bytes symlink = 7;
+  bytes symlink = 3;
+
+  repeated FileManifestXAttr xattr = 4;
+  repeated FileManifestAcl acl = 5;
+
+  repeated bytes chunks = 6;
+
+  map<string, bytes> metadata = 7;
 }
 
 enum EntryType {

@@ -7,7 +7,7 @@ use std::{
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::{pool::PoolChunkWrapper, scanner::BUFFER_SIZE};
+use woodstock::{config::BUFFER_SIZE, pool::PoolChunkWrapper};
 
 pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     let chunk = hex::decode(chunk)?;
@@ -24,7 +24,7 @@ pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     let file = BufReader::new(file);
     let mut file = ZlibDecoder::new(file);
 
-    let mut buffer = [0; BUFFER_SIZE];
+    let mut buffer = vec![0; BUFFER_SIZE];
     loop {
         let read = file.read(&mut buffer)?;
         if read == 0 {

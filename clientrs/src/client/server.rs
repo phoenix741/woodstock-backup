@@ -22,11 +22,11 @@ use crate::woodstock::{
     ExecuteCommandRequest, FileManifestJournalEntry, LaunchBackupRequest, LogEntry,
     RefreshCacheRequest, StreamLogRequest,
 };
-use crate::{authentification::authentification::Service as AuthService, ChunkInformation};
+use crate::{client::authentification::Service as AuthService, ChunkInformation};
 use crate::{client::config::ClientConfig, FileChunk};
+use crate::{client::exexcute_command::execute_command, scanner::CreateManifestOptions};
 use crate::{client::grpc_logger::close_log, FileManifest};
 use crate::{client::grpc_logger::CLOSE_LOG_STRING, manifest::FileManifestLight};
-use crate::{commands::exexcute_command::execute_command, scanner::CreateManifestOptions};
 
 #[derive(Default)]
 struct WoodstockContext {

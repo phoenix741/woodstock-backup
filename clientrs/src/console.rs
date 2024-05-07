@@ -9,14 +9,16 @@
 
 use clap::{Parser, Subcommand};
 
-use woodstock::commands::client::list_client_files;
-use woodstock::commands::pool::{
+mod commands;
+
+use crate::commands::client::list_client_files;
+use crate::commands::pool::{
     add_refcnt_to_pool, check_compression, clean_unused_pool, remove_refcnt_to_pool, verify_chunk,
     verify_refcnt, verify_unused,
 };
-use woodstock::commands::read_chunk::read_chunk;
-use woodstock::commands::read_protobuf::{read_protobuf, ProtobufFormat};
-use woodstock::config::Configuration;
+use crate::commands::read_chunk::read_chunk;
+use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
+use woodstock::config::Context;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -101,7 +103,7 @@ enum Commands {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
-    let configuration = Configuration::default();
+    let context = Context::default();
 
     let args = Cli::parse();
 
@@ -117,13 +119,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to read protobuf file"),
 
         Commands::GetChunk { chunk } => {
-            read_chunk(&configuration.path.pool_path, &chunk).expect("Failed to read chunk");
+            read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");
         }
         Commands::AddRefCntToPool {
             hostname,
             backup_number,
         } => {
-            add_refcnt_to_pool(&configuration, &hostname, backup_number)
+            add_refcnt_to_pool(&context, &hostname, backup_number)
                 .await
                 .expect("Failed to add refcnt to pool");
         }
@@ -131,35 +133,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             hostname,
             backup_number,
         } => {
-            remove_refcnt_to_pool(&configuration, &hostname, backup_number)
+            remove_refcnt_to_pool(&context, &hostname, backup_number)
                 .await
                 .expect("Failed to remove refcnt to pool");
         }
         Commands::CleanUnused { target } => {
-            clean_unused_pool(&configuration, target)
+            clean_unused_pool(&context, target)
                 .await
                 .expect("Clean unused failed");
         }
-        Commands::CheckCompression {} => check_compression(&configuration)
+        Commands::CheckCompression {} => check_compression(&context)
             .await
             .expect("Failed to check compression"),
-        Commands::VerifyChunk {} => verify_chunk(&configuration)
+        Commands::VerifyChunk {} => verify_chunk(&context)
             .await
             .expect("Can't verify integrity"),
         Commands::VerifyRefcnt { dry_run } => {
-            verify_refcnt(&configuration, dry_run)
+            verify_refcnt(&context, dry_run)
                 .await
                 .expect("Can't verify refcnt");
         }
         Commands::VerifyUnused { dry_run } => {
-            verify_unused(&configuration, dry_run)
+            verify_unused(&context, dry_run)
                 .await
                 .expect("Can't verify unused");
         }
         Commands::ListDirectory {
             hostname,
             share_path,
-        } => list_client_files(&configuration, &hostname, &share_path)
+        } => list_client_files(&hostname, &share_path, &context)
             .await
             .expect("Failed to list files"),
     }

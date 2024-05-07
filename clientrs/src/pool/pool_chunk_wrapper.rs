@@ -12,10 +12,8 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use crate::{
-    scanner::{BUFFER_SIZE, CHUNK_SIZE},
-    utils::path::vec_to_path,
-};
+use crate::config::{BUFFER_SIZE, CHUNK_SIZE};
+use crate::utils::path::vec_to_path;
 
 use super::pool_chunk_information::PoolChunkInformation;
 

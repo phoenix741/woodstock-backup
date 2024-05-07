@@ -14,9 +14,11 @@ use log::trace;
 use log::warn;
 use stream_cancel::Valve;
 use woodstock::config::Backups;
-use woodstock::config::Configuration;
+use woodstock::config::Context;
 use woodstock::config::Hosts;
 use woodstock::server::backup_client::BackupClient;
+use woodstock::server::client::Client;
+use woodstock::server::grpc_client::BackupGrpcClient;
 use woodstock::Share;
 
 #[derive(Parser)]
@@ -38,12 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let term = Term::stdout();
 
-    let configuration = Configuration::default();
+    let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&configuration.path);
+    let hosts = Hosts::new(&context);
     let host_configuration = hosts.get_host(&args.hostname)?;
-    let backups = Backups::new(&configuration.path);
+    let backups = Backups::new(&context);
 
     let backup_number = match args.backup_number {
         Some(backup_number) => backup_number,
@@ -60,7 +62,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         &args.hostname, host_configuration.addresses,
     ))?;
 
-    let mut client = BackupClient::new(&args.hostname, &args.ip, backup_number).await?;
+    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &context).await?;
+    let mut log_client = grpc_client.clone();
+
+    let mut client = BackupClient::new(grpc_client, &args.hostname, backup_number, &context);
 
     term.write_line(&format!("[1/10] {}Authenticating", Emoji("🔐 ", "")))?;
 
@@ -72,8 +77,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))?;
 
     client.init_backup_directory().await?;
-
-    let mut log_client = client.get_client();
 
     let (exit, valve) = Valve::new();
 

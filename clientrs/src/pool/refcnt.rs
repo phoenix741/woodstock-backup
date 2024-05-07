@@ -11,8 +11,7 @@ use futures::pin_mut;
 use futures::StreamExt;
 
 use crate::config::Backups;
-use crate::config::Configuration;
-use crate::config::ConfigurationPath;
+use crate::config::Context;
 use crate::config::Hosts;
 use crate::proto::save_file;
 use crate::statistics::write_statistics;
@@ -27,7 +26,8 @@ pub enum RefcntApplySens {
     Decrease,
 }
 
-pub struct Refcnt {
+pub struct Refcnt<'context> {
+    context: &'context Context,
     path: PathBuf,
     refcnt_path: PathBuf,
     unused_path: PathBuf,
@@ -37,10 +37,11 @@ pub struct Refcnt {
 }
 
 // FIXME: Add lock (or add it on nodejs part ?)
-impl Refcnt {
+impl<'context> Refcnt<'context> {
     #[must_use]
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: &Path, ctxt: &'context Context) -> Self {
         Self {
+            context: ctxt,
             path: path.to_path_buf(),
             refcnt_path: path.join("REFCNT"),
             unused_path: path.join("unused"),
@@ -97,13 +98,13 @@ impl Refcnt {
     pub async fn apply_from_backup(
         hostname: &str,
         backup_number: usize,
+        ctxt: &'context Context,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let backups = Backups::new(&configuration.path);
+        let backups = Backups::new(ctxt);
         let refcnt_file = backups.get_backup_destination_directory(hostname, backup_number);
 
         let manifests = backups.get_manifests(hostname, backup_number);
-        let mut refcnt = Refcnt::new(&refcnt_file);
+        let mut refcnt = Refcnt::new(&refcnt_file, ctxt);
         refcnt.load_refcnt(true).await;
 
         for manifest in manifests {
@@ -118,20 +119,22 @@ impl Refcnt {
         Ok(refcnt)
     }
 
-    pub async fn apply_from_host(hostname: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let backups_config = Backups::new(&configuration.path);
+    pub async fn apply_from_host(
+        hostname: &str,
+        ctxt: &'context Context,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let backups_config = Backups::new(ctxt);
         let refcnt_file = backups_config.get_host_path(hostname);
 
         let backups = backups_config.get_backups(hostname);
 
-        let mut new_refcnt = Refcnt::new(&refcnt_file);
+        let mut new_refcnt = Refcnt::new(&refcnt_file, ctxt);
 
         for backup in backups {
             let destination_backup =
                 backups_config.get_backup_destination_directory(hostname, backup.number);
 
-            let mut backup_refcnt = Refcnt::new(&destination_backup);
+            let mut backup_refcnt = Refcnt::new(&destination_backup, ctxt);
             backup_refcnt.load_refcnt(false).await;
 
             for pool_refcnt in backup_refcnt.index.values() {
@@ -142,21 +145,22 @@ impl Refcnt {
         Ok(new_refcnt)
     }
 
-    pub async fn apply_from_all() -> Result<Self, Box<dyn std::error::Error>> {
-        let configuration = Configuration::default();
-        let hosts_config = Hosts::new(&configuration.path);
-        let backups_config = Backups::new(&configuration.path);
+    pub async fn apply_from_all(
+        ctxt: &'context Context,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let hosts_config = Hosts::new(ctxt);
+        let backups_config = Backups::new(ctxt);
 
-        let refcnt_file = configuration.path.pool_path.clone();
+        let refcnt_file = ctxt.config.path.pool_path.clone();
 
         let hosts = hosts_config.list_hosts()?;
 
-        let mut new_refcnt = Refcnt::new(&refcnt_file);
+        let mut new_refcnt = Refcnt::new(&refcnt_file, ctxt);
 
         for host in hosts {
             let destination_host = backups_config.get_host_path(&host);
 
-            let mut host_refcnt = Refcnt::new(&destination_host);
+            let mut host_refcnt = Refcnt::new(&destination_host, ctxt);
             host_refcnt.load_refcnt(false).await;
 
             for pool_refcnt in host_refcnt.index.values() {
@@ -167,12 +171,13 @@ impl Refcnt {
         Ok(new_refcnt)
     }
 
-    pub async fn apply_all_from(
+    pub async fn apply_all_from<'a>(
         path: &Path,
-        refcnt: &Refcnt,
+        refcnt: &'a Refcnt<'a>,
         sens: &RefcntApplySens,
+        ctxt: &'context Context,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut new_refcnt = Refcnt::new(path);
+        let mut new_refcnt = Refcnt::new(path, ctxt);
         new_refcnt.load_refcnt(false).await;
         new_refcnt.load_unused().await;
 
@@ -230,14 +235,16 @@ impl Refcnt {
 
     pub async fn remove_unused_files(
         &mut self,
-        config: &Configuration,
         target: Option<PathBuf>,
         callback: &impl Fn(&Option<PoolUnused>),
     ) -> Result<(), Box<dyn std::error::Error>> {
         debug!("Remove unused files");
         let unused = self.unused.values().cloned().collect::<Vec<PoolUnused>>();
         for pool_unused in unused {
-            let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&pool_unused.sha256));
+            let wrapper = PoolChunkWrapper::new(
+                &self.context.config.path.pool_path,
+                Some(&pool_unused.sha256),
+            );
             if let Some(target) = &target {
                 if let Err(e) = wrapper.mv(target).await {
                     error!("Error while moving chunk: {:?}", e);
@@ -303,12 +310,13 @@ impl Refcnt {
 
     pub async fn finish(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         debug!("Read chunk informations");
-        let config_path = ConfigurationPath::default();
         // For each value check chunk informations
         for (sha256_pool_refcnt, pool_refcnt) in &mut self.index {
             if pool_refcnt.size == 0 || pool_refcnt.compressed_size == 0 {
-                let wrapper =
-                    PoolChunkWrapper::new(&config_path.pool_path, Some(sha256_pool_refcnt));
+                let wrapper = PoolChunkWrapper::new(
+                    &self.context.config.path.pool_path,
+                    Some(sha256_pool_refcnt),
+                );
                 let informations = wrapper.chunk_information().await?;
 
                 pool_refcnt.size = informations.size;

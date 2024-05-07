@@ -7,31 +7,32 @@ use console::Term;
 use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use log::{error, info};
 
-use crate::{
-    config::{Backups, Configuration, Hosts},
+use woodstock::{
+    config::{Backups, Context, Hosts},
     pool::{
         check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
-        PoolChunkWrapper, Refcnt,
+        PoolChunkWrapper, Refcnt, RefcntApplySens,
     },
 };
 
 pub async fn add_refcnt_to_pool(
-    configuration: &Configuration,
+    ctxt: &Context,
     hostname: &str,
     backup_number: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let backups = Backups::new(&configuration.path);
+    let backups = Backups::new(ctxt);
     let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
     info!("Add refcnt to pool for {}", destination_directory.display());
-    let mut backup_refcnt = Refcnt::new(&destination_directory);
+    let mut backup_refcnt = Refcnt::new(&destination_directory, ctxt);
     backup_refcnt.load_refcnt(false).await;
 
     info!("Apply refcnt to pool");
     Refcnt::apply_all_from(
-        &configuration.path.pool_path,
+        &ctxt.config.path.pool_path,
         &backup_refcnt,
-        &crate::pool::RefcntApplySens::Increase,
+        &RefcntApplySens::Increase,
+        ctxt,
     )
     .await?;
 
@@ -41,30 +42,29 @@ pub async fn add_refcnt_to_pool(
 }
 
 pub async fn remove_refcnt_to_pool(
-    configuration: &Configuration,
+    ctxt: &Context,
     hostname: &str,
     backup_number: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let backups = Backups::new(&configuration.path);
+    let backups = Backups::new(ctxt);
     let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let mut backup_refcnt = Refcnt::new(&destination_directory);
+    let mut backup_refcnt = Refcnt::new(&destination_directory, ctxt);
     backup_refcnt.load_refcnt(false).await;
 
     Refcnt::apply_all_from(
-        &configuration.path.pool_path,
+        &ctxt.config.path.pool_path,
         &backup_refcnt,
-        &crate::pool::RefcntApplySens::Decrease,
+        &RefcntApplySens::Decrease,
+        ctxt,
     )
     .await?;
 
     Ok(())
 }
 
-pub async fn check_compression(
-    configuration: &Configuration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&configuration.path.pool_path);
+pub async fn check_compression(ctxt: &Context) -> Result<(), Box<dyn std::error::Error>> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     pool_refcnt.load_refcnt(false).await;
 
     let mut compressed_size: u64 = 0;
@@ -108,8 +108,8 @@ pub async fn check_compression(
     Ok(())
 }
 
-pub async fn verify_chunk(configuration: &Configuration) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&configuration.path.pool_path);
+pub async fn verify_chunk(ctxt: &Context) -> Result<(), Box<dyn std::error::Error>> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -136,7 +136,7 @@ pub async fn verify_chunk(configuration: &Configuration) -> Result<(), Box<dyn s
     );
 
     for refcnt in chunks {
-        let wrapper = PoolChunkWrapper::new(&configuration.path.pool_path, Some(&refcnt));
+        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&refcnt));
 
         let is_valid = wrapper.check_chunk_information().await?;
         if !is_valid {
@@ -159,11 +159,11 @@ pub async fn verify_chunk(configuration: &Configuration) -> Result<(), Box<dyn s
 }
 
 pub async fn verify_refcnt(
-    configuration: &Configuration,
+    ctxt: &Context,
     dry_run: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let hosts = Hosts::new(&configuration.path);
-    let backups = Backups::new(&configuration.path);
+    let hosts = Hosts::new(ctxt);
+    let backups = Backups::new(ctxt);
 
     let mut error_count = 0;
     let mut total_count = 0;
@@ -186,7 +186,7 @@ pub async fn verify_refcnt(
     for host in hosts.list_hosts()? {
         let backups = backups.get_backups(&host);
         for backup in backups {
-            let result = check_backup_integrity(&host, backup.number, dry_run).await?;
+            let result = check_backup_integrity(&host, backup.number, dry_run, ctxt).await?;
 
             error_count += result.error_count;
             total_count += result.total_count;
@@ -194,7 +194,7 @@ pub async fn verify_refcnt(
             bar.inc(1);
         }
 
-        let result = check_host_integrity(&host, dry_run).await?;
+        let result = check_host_integrity(&host, dry_run, ctxt).await?;
 
         error_count += result.error_count;
         total_count += result.total_count;
@@ -202,7 +202,7 @@ pub async fn verify_refcnt(
         bar.inc(1);
     }
 
-    let result = check_pool_integrity(dry_run).await?;
+    let result = check_pool_integrity(dry_run, ctxt).await?;
 
     error_count += result.error_count;
     total_count += result.total_count;
@@ -221,10 +221,10 @@ pub async fn verify_refcnt(
 }
 
 pub async fn verify_unused(
-    configuration: &Configuration,
+    ctxt: &Context,
     dry_run: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&configuration.path.pool_path);
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -239,7 +239,7 @@ pub async fn verify_unused(
         .unwrap(),
     );
 
-    let result = check_unused(dry_run, &|p| bar.inc(p as u64)).await?;
+    let result = check_unused(dry_run, &|p| bar.inc(p as u64), ctxt).await?;
 
     bar.finish();
 
@@ -264,11 +264,11 @@ pub async fn verify_unused(
 }
 
 pub async fn clean_unused_pool(
-    configuration: &Configuration,
+    ctxt: &Context,
     target: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let target = target.map(PathBuf::from);
-    let mut refcnt = Refcnt::new(&configuration.path.pool_path);
+    let mut refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     refcnt.load_unused().await;
 
     let total = Arc::new(Mutex::new(0));
@@ -283,7 +283,7 @@ pub async fn clean_unused_pool(
     );
 
     refcnt
-        .remove_unused_files(configuration, target, &|unused| {
+        .remove_unused_files(target, &|unused| {
             let compressed_size = unused
                 .clone()
                 .map(|f| f.compressed_size)

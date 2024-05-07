@@ -3,7 +3,7 @@ use futures::{pin_mut, StreamExt};
 use log::{error, info};
 
 use crate::{
-    config::{Backups, Configuration},
+    config::{Backups, Context},
     pool::PoolChunkWrapper,
     PoolUnused,
 };
@@ -54,13 +54,13 @@ pub async fn check_backup_integrity(
     hostname: &str,
     backup_number: usize,
     dry_run: bool,
+    ctxt: &Context,
 ) -> Result<FsckCount, Box<dyn std::error::Error>> {
-    let configuration = Configuration::default();
-    let backups = Backups::new(&configuration.path);
+    let backups = Backups::new(ctxt);
     let destination_backup = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let new_refcnt = Refcnt::apply_from_backup(hostname, backup_number).await?;
-    let mut original_refcnt = Refcnt::new(&destination_backup);
+    let new_refcnt = Refcnt::apply_from_backup(hostname, backup_number, ctxt).await?;
+    let mut original_refcnt = Refcnt::new(&destination_backup, ctxt);
     original_refcnt.load_refcnt(false).await;
 
     let error_count = check_integrity(&original_refcnt, &new_refcnt);
@@ -82,14 +82,14 @@ pub async fn check_backup_integrity(
 pub async fn check_host_integrity(
     hostname: &str,
     dry_run: bool,
+    ctxt: &Context,
 ) -> Result<FsckCount, Box<dyn std::error::Error>> {
-    let configuration = Configuration::default();
-    let backups = Backups::new(&configuration.path);
+    let backups = Backups::new(ctxt);
     let destination_directory = backups.get_host_path(hostname);
 
-    let new_refcnt = Refcnt::apply_from_host(hostname).await?;
+    let new_refcnt = Refcnt::apply_from_host(hostname, ctxt).await?;
 
-    let mut original_refcnt = Refcnt::new(&destination_directory);
+    let mut original_refcnt = Refcnt::new(&destination_directory, ctxt);
     original_refcnt.load_refcnt(false).await;
 
     let error_count = check_integrity(&original_refcnt, &new_refcnt);
@@ -108,12 +108,14 @@ pub async fn check_host_integrity(
     })
 }
 
-pub async fn check_pool_integrity(dry_run: bool) -> Result<FsckCount, Box<dyn std::error::Error>> {
-    let configuration = Configuration::default();
-    let mut pool_refcnt = Refcnt::new(&configuration.path.pool_path);
+pub async fn check_pool_integrity(
+    dry_run: bool,
+    ctxt: &Context,
+) -> Result<FsckCount, Box<dyn std::error::Error>> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     pool_refcnt.load_refcnt(false).await;
 
-    let new_refcnt = Refcnt::apply_from_all().await?;
+    let new_refcnt = Refcnt::apply_from_all(ctxt).await?;
 
     let error_count = check_integrity(&pool_refcnt, &new_refcnt);
 
@@ -134,9 +136,9 @@ pub async fn check_pool_integrity(dry_run: bool) -> Result<FsckCount, Box<dyn st
 pub async fn check_unused(
     dry_run: bool,
     cb: &impl Fn(usize),
+    ctxt: &Context,
 ) -> Result<FsckUnusedCount, Box<dyn std::error::Error>> {
-    let configuration = Configuration::default();
-    let mut pool_refcnt = Refcnt::new(&configuration.path.pool_path);
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -146,7 +148,7 @@ pub async fn check_unused(
     let mut missing = 0;
 
     // FIXME: Remove walkdir and use unfold like get_files_recursive
-    let entries = WalkDir::new(&configuration.path.pool_path)
+    let entries = WalkDir::new(&ctxt.config.path.pool_path)
         .filter(|f| async move {
             let path = f.path();
 
@@ -167,7 +169,7 @@ pub async fn check_unused(
     pin_mut!(entries);
 
     while let Some(hash) = entries.next().await {
-        let wrapper = PoolChunkWrapper::new(&configuration.path.pool_path, Some(&hash));
+        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&hash));
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
 
         if pool_refcnt.get_unused(&hash).is_some() {
@@ -197,7 +199,7 @@ pub async fn check_unused(
     }
 
     for refcnt in pool_refcnt.list_refcnt() {
-        let wrapper = PoolChunkWrapper::new(&configuration.path.pool_path, Some(&refcnt.sha256));
+        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&refcnt.sha256));
         if !wrapper.exists() {
             missing += 1;
             error!("{} is missing", hex::encode(&refcnt.sha256));

@@ -1,9 +1,18 @@
+#[cfg(unix)]
+use nix::libc::{S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO, S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK};
+
+#[cfg(windows)]
+const FILE_ATTRIBUTE_DIRECTORY: u32 = 16u32;
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 1024u32;
+
 use async_stream::stream;
 use futures::pin_mut;
 use futures::stream::StreamExt;
 use futures::Stream;
 use globset::GlobSet;
 use log::error;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{io, path::Path};
 use tokio::fs::DirEntry;
@@ -14,7 +23,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::windows::fs::MetadataExt;
 
 use crate::utils::path::path_to_vec;
-use crate::woodstock::{FileManifest, FileManifestStat};
+use crate::woodstock::{FileManifest, FileManifestStat, FileManifestType};
 use crate::{FileManifestAcl, FileManifestXAttr};
 
 #[derive(Clone)]
@@ -62,6 +71,16 @@ fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat 
         rdev: metadata.rdev(),
         ino: metadata.ino(),
         nlink: metadata.nlink(),
+        r#type: match metadata.mode() & S_IFMT {
+            S_IFREG => FileManifestType::RegularFile,
+            S_IFLNK => FileManifestType::Symlink,
+            S_IFDIR => FileManifestType::Directory,
+            S_IFBLK => FileManifestType::BlockDevice,
+            S_IFCHR => FileManifestType::CharacterDevice,
+            S_IFIFO => FileManifestType::Fifo,
+            S_IFSOCK => FileManifestType::Socket,
+            _ => FileManifestType::Unknown,
+        } as i32,
     }
 }
 
@@ -80,13 +99,26 @@ fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat 
         rdev: 0,
         ino: 0,
         nlink: 0,
+        r#type: if (metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY)
+            == FILE_ATTRIBUTE_DIRECTORY
+        {
+            FileManifestType::Directory.into()
+        } else if (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT)
+            == FILE_ATTRIBUTE_REPARSE_POINT
+        {
+            FileManifestType::Symlink.into()
+        } else {
+            FileManifestType::RegularFile.into()
+        },
     }
 }
 
+#[must_use]
 pub fn read_xattr(file: &Path) -> Vec<FileManifestXAttr> {
     let mut xattr = Vec::new();
 
     #[cfg(unix)]
+    #[cfg(feature = "xattr")]
     {
         if let Ok(attrs) = xattr::list(file) {
             for attr in attrs {
@@ -105,10 +137,12 @@ pub fn read_xattr(file: &Path) -> Vec<FileManifestXAttr> {
     xattr
 }
 
+#[must_use]
 pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
     let mut results = Vec::new();
 
     #[cfg(unix)]
+    #[cfg(feature = "acl")]
     {
         use crate::FileManifestAclQualifier;
         use posix_acl::{PosixACL, Qualifier};
@@ -193,6 +227,8 @@ fn create_manifest_from_file(
         acl,
         chunks: Vec::new(),
         symlink,
+
+        metadata: HashMap::new(),
     })
 }
 
@@ -219,9 +255,9 @@ fn get_files_recursive(
         while let Some(child) = dir.next_entry().await? {
             if child.metadata().await?.is_dir() {
                 to_visit.push(child.path());
-            } else {
-                files.push(child)
             }
+
+            files.push(child);
         }
 
         Ok(files)

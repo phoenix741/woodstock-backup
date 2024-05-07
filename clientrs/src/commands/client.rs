@@ -2,20 +2,20 @@ use std::path::Path;
 
 use futures::{pin_mut, StreamExt};
 
-use crate::{
-    config::{Configuration, Hosts},
+use woodstock::{
+    config::{Context, Hosts},
     manifest::PathManifest,
     scanner::{get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
 };
 
 pub async fn list_client_files(
-    configuration: &Configuration,
     hostname: &str,
     share_path: &str,
+    ctxt: &Context,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Start by reading the configuration file
-    let hosts = Hosts::new(&configuration.path);
+    let hosts = Hosts::new(ctxt);
     let host = hosts.get_host(hostname)?;
 
     if let Some(operation) = host.operations.operation {
@@ -56,10 +56,10 @@ pub async fn list_client_files(
 
                     let file = file.path();
                     let path = file.to_string_lossy();
-                    println!("{}", path);
+                    println!("{path}");
                 }
 
-                println!("Total size: {}", backup_size);
+                println!("Total size: {backup_size}");
             }
         }
     }

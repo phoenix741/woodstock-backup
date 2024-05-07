@@ -11,17 +11,16 @@ use std::{error::Error, io::Read, path::Path};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
-use super::config::BUFFER_SIZE;
-use super::config::CHUNK_SIZE;
 use super::file_browser::get_files;
 use super::CreateManifestOptions;
-use crate::manifest::FileManifestMode;
+use crate::config::BUFFER_SIZE;
+use crate::config::CHUNK_SIZE;
 use crate::manifest::IndexManifest;
 use crate::manifest::PathManifest;
 use crate::utils::path::vec_to_path;
 use crate::woodstock::ChunkInformation;
 use crate::woodstock::FileChunk;
-use crate::woodstock::{EntryType, FileManifest, FileManifestJournalEntry};
+use crate::woodstock::{EntryType, FileManifest, FileManifestJournalEntry, FileManifestType};
 
 /// Retrieves a stream of `FileManifestJournalEntry` for files with hash.
 ///
@@ -65,7 +64,7 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
 
             // If the file is in the entry, and the file is a regular file calculate chunk hash
             if index.get_entry(&manifest.path).is_some()
-                && manifest.file_mode() == FileManifestMode::RegularFile
+                && manifest.file_mode() == FileManifestType::RegularFile
             {
                 manifest = calculate_chunk_hash_future(share_path, manifest).await;
             }
@@ -181,7 +180,7 @@ fn caculate_chunk_hash(
     let mut reader = std::io::BufReader::new(file);
 
     // Read small chunk
-    let mut buffer = [0; BUFFER_SIZE];
+    let mut buffer = vec![0; BUFFER_SIZE];
 
     loop {
         let read = reader.read(&mut buffer)?;
