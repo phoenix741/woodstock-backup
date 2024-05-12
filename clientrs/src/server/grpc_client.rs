@@ -1,8 +1,11 @@
 use async_stream::try_stream;
+use eyre::eyre;
 use futures::pin_mut;
 use futures::Stream;
 use log::{error, info};
+use std::path::Path;
 use std::path::PathBuf;
+use tokio::fs::read_to_string;
 use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Identity},
     Request,
@@ -11,6 +14,8 @@ use tonic::{
 use super::client::Client;
 use crate::config::Context;
 use crate::woodstock;
+use crate::ChunkHashReply;
+use crate::ChunkHashRequest;
 use crate::ChunkInformation;
 use crate::ExecuteCommandReply;
 use crate::ExecuteCommandRequest;
@@ -21,8 +26,9 @@ use crate::RefreshCacheRequest;
 use crate::{
     utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient, AuthenticateReply,
-    AuthenticateRequest, Empty as ProtoEmpty, LogEntry, StreamLogRequest,
+    AuthenticateRequest, Empty as ProtoEmpty,
 };
+use eyre::Result;
 
 #[derive(Clone)]
 pub struct BackupGrpcClient {
@@ -35,7 +41,7 @@ pub struct BackupGrpcClient {
 }
 
 impl BackupGrpcClient {
-    fn create_request<T>(&self, request: T) -> Result<Request<T>, tonic::Status> {
+    fn create_request<T>(&self, request: T) -> std::result::Result<Request<T>, tonic::Status> {
         let session_id = self.session_id.clone();
 
         if let Some(session_id) = session_id {
@@ -60,24 +66,21 @@ impl BackupGrpcClient {
         hostname: &str,
         ip: &str,
         certs_path: &PathBuf,
-    ) -> Result<WoodstockClientServiceClient<Channel>, Box<dyn std::error::Error>> {
+    ) -> Result<WoodstockClientServiceClient<Channel>> {
         info!("Connecting to {hostname}, {ip}");
         if ip.is_empty() {
             error!("No IP address provided for {hostname}");
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "No IP address provided",
-            )));
+            return Err(eyre!("No IP address provided"));
         }
 
         let certificate_path = &certs_path;
         let server_root_ca_cert =
-            std::fs::read_to_string(certificate_path.join(format!("{hostname}_ca.pem")))?;
+            read_to_string(certificate_path.join(format!("{hostname}_ca.pem"))).await?;
         let server_root_ca_cert = Certificate::from_pem(server_root_ca_cert);
         let client_cert =
-            std::fs::read_to_string(certificate_path.join(format!("{hostname}_client.pem")))?;
+            read_to_string(certificate_path.join(format!("{hostname}_client.pem"))).await?;
         let client_key =
-            std::fs::read_to_string(certificate_path.join(format!("{hostname}_client.key")))?;
+            read_to_string(certificate_path.join(format!("{hostname}_client.key"))).await?;
         let client_identity = Identity::from_pem(client_cert, client_key);
 
         let tls = ClientTlsConfig::new()
@@ -94,11 +97,7 @@ impl BackupGrpcClient {
         Ok(WoodstockClientServiceClient::new(channel))
     }
 
-    pub async fn new(
-        hostname: &str,
-        ip: &str,
-        ctxt: &Context,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(hostname: &str, ip: &str, ctxt: &Context) -> Result<Self> {
         info!("Creating BackupGrpcClient with hostname = {hostname}, ip = {ip}");
         let certs_path = ctxt.config.path.certificates_path.clone();
         let client = BackupGrpcClient::create_client(hostname, ip, &certs_path).await?;
@@ -111,17 +110,31 @@ impl BackupGrpcClient {
             session_id: None,
         })
     }
+
+    pub fn with_client(
+        hostname: &str,
+        ip: &str,
+        client: WoodstockClientServiceClient<Channel>,
+        certs_path: &Path,
+    ) -> Self {
+        info!("Creating BackupGrpcClient with hostname = {hostname}, ip = {ip}");
+        BackupGrpcClient {
+            hostname: hostname.to_string(),
+            certs_path: certs_path.to_path_buf(),
+
+            client,
+            session_id: None,
+        }
+    }
 }
 
 #[tonic::async_trait]
 impl Client for BackupGrpcClient {
-    async fn authenticate(
-        &mut self,
-        password: &str,
-    ) -> Result<AuthenticateReply, Box<dyn std::error::Error>> {
+    async fn authenticate(&mut self, password: &str) -> Result<AuthenticateReply> {
         let mut client = self.client.clone();
 
-        let token = create_authentification_token(&self.certs_path, &self.hostname, password)?;
+        let token =
+            create_authentification_token(&self.certs_path, &self.hostname, password).await?;
 
         let response = client
             .authenticate(AuthenticateRequest { token, version: 0 })
@@ -133,27 +146,7 @@ impl Client for BackupGrpcClient {
         Ok(response.into_inner())
     }
 
-    fn stream_log(
-        &mut self,
-    ) -> impl Stream<Item = Result<LogEntry, Box<dyn std::error::Error + Send + Sync>>> + '_ {
-        try_stream!({
-            let mut client = self.client.clone();
-
-            let request = self.create_request(StreamLogRequest {})?;
-
-            let logs = client.stream_log(request).await?;
-            let mut logs = logs.into_inner();
-
-            while let Some(log) = logs.message().await? {
-                yield log;
-            }
-        })
-    }
-
-    async fn execute_command(
-        &mut self,
-        command: &str,
-    ) -> Result<ExecuteCommandReply, Box<dyn std::error::Error>> {
+    async fn execute_command(&mut self, command: &str) -> Result<ExecuteCommandReply> {
         let mut client = self.client.clone();
 
         let request = self.create_request(ExecuteCommandRequest {
@@ -168,7 +161,7 @@ impl Client for BackupGrpcClient {
     async fn refresh_cache(
         &mut self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
-    ) -> Result<ProtoEmpty, Box<dyn std::error::Error>> {
+    ) -> Result<ProtoEmpty> {
         let mut client = self.client.clone();
         let request = self.create_request(cache)?;
         let reply = client.refresh_cache(request).await?;
@@ -179,8 +172,7 @@ impl Client for BackupGrpcClient {
     fn download_file_list(
         &mut self,
         request: LaunchBackupRequest,
-    ) -> impl Stream<Item = Result<FileManifestJournalEntry, Box<dyn std::error::Error + Send + Sync>>>
-           + '_ {
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         let client = self.client.clone();
 
         try_stream!({
@@ -197,10 +189,18 @@ impl Client for BackupGrpcClient {
         })
     }
 
-    fn get_chunk(
-        &self,
-        request: ChunkInformation,
-    ) -> impl Stream<Item = Result<FileChunk, Box<dyn std::error::Error + Send + Sync>>> + '_ {
+    async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
+        let client = self.client.clone();
+        let mut client = client;
+
+        let request = self.create_request(request)?;
+
+        let result = client.get_chunk_hash(request).await?;
+
+        Ok(result.into_inner())
+    }
+
+    fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
         try_stream!({
             let client = self.client.clone();
             pin_mut!(client);
@@ -215,17 +215,14 @@ impl Client for BackupGrpcClient {
         })
     }
 
-    async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn close(&self) -> Result<()> {
         let client = self.client.clone();
         let mut client = client;
 
         let request = self.create_request(woodstock::Empty {})?;
 
-        let result = client.close_backup(request).await;
+        client.close_backup(request).await?;
 
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => Err(Box::new(e)),
-        }
+        Ok(())
     }
 }

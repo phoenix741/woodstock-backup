@@ -12,12 +12,13 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
-import { ApplicationConfigService } from '@woodstock/core';
-import { Backup, BackupsService, HostsService, JobBackupData, QueueName } from '@woodstock/server';
+import { ApplicationConfigService } from '@woodstock/shared';
+import { Backup, JobBackupData, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Response } from 'express';
 import { join } from 'path';
 import { getLog, tailLog } from '../utils/log-utils.service.js';
+import { BackupsService, HostsService } from '@woodstock/shared';
 
 @Controller('hosts/:name/backups')
 export class BackupController {

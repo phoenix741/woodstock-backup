@@ -9,6 +9,8 @@ use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 
+use eyre::Result;
+
 /// Represents the configuration for the client.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -93,7 +95,7 @@ impl Default for ClientConfig {
 ///
 /// An error is returned if the file cannot be read or parsed.
 ///
-pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig, Box<dyn std::error::Error>> {
+pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig> {
     debug!(
         "Reading client configuration from file: {:?}",
         path.as_ref().display()

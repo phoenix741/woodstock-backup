@@ -1,23 +1,15 @@
-use std::cmp::min;
-
 use clap::Parser;
 use console::Emoji;
 use console::Term;
-use futures::pin_mut;
-use futures::StreamExt;
+use eyre::Result;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use log::debug;
 use log::error;
 use log::info;
-use log::trace;
-use log::warn;
-use stream_cancel::Valve;
 use woodstock::config::Backups;
 use woodstock::config::Context;
 use woodstock::config::Hosts;
 use woodstock::server::backup_client::BackupClient;
-use woodstock::server::client::Client;
 use woodstock::server::grpc_client::BackupGrpcClient;
 use woodstock::Share;
 
@@ -35,7 +27,9 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     env_logger::init();
 
     let term = Term::stdout();
@@ -44,12 +38,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     let hosts = Hosts::new(&context);
-    let host_configuration = hosts.get_host(&args.hostname)?;
+    let host_configuration = hosts.get_host(&args.hostname).await?;
     let backups = Backups::new(&context);
 
     let backup_number = match args.backup_number {
         Some(backup_number) => backup_number,
-        None => match backups.get_last_backup(&args.hostname) {
+        None => match backups.get_last_backup(&args.hostname).await {
             Some(backup) => backup.number + 1,
             None => 0,
         },
@@ -63,7 +57,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))?;
 
     let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &context).await?;
-    let mut log_client = grpc_client.clone();
 
     let mut client = BackupClient::new(grpc_client, &args.hostname, backup_number, &context);
 
@@ -76,42 +69,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Emoji("🔐 ", "")
     ))?;
 
-    client.init_backup_directory().await?;
+    let shares = host_configuration
+        .operations
+        .operation
+        .as_ref()
+        .map(|op| {
+            op.shares
+                .iter()
+                .map(|share| share.name.as_str())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
-    let (exit, valve) = Valve::new();
-
-    let log_handle = tokio::spawn(async move {
-        let logs = log_client.stream_log();
-        let logs = valve.wrap(logs);
-        pin_mut!(logs);
-
-        debug!("Start getting log from clients");
-        while let Some(log) = logs.next().await {
-            if let Ok(log) = log {
-                match log.level() {
-                    woodstock::LogLevel::Verbose => {
-                        trace!("[{}] {}", log.context, log.line);
-                    }
-                    woodstock::LogLevel::Debug => {
-                        debug!("[{}] {}", log.context, log.line);
-                    }
-                    woodstock::LogLevel::Log => {
-                        info!("[{}] {}", log.context, log.line);
-                    }
-                    woodstock::LogLevel::Warn => {
-                        warn!("[{}] {}", log.context, log.line);
-                    }
-                    woodstock::LogLevel::Error => {
-                        error!("[{}] {}", log.context, log.line);
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-
-        debug!("Client close the connection");
-    });
+    client.init_backup_directory(&shares).await?;
 
     term.write_line(&format!("[3/10] {}Execute pre-commands", Emoji("⚙️ ", "")))?;
 
@@ -176,21 +146,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     term.write_line(&format!("[6/10] {}Download chunks", Emoji("💾 ", "")))?;
 
-    let bar = ProgressBar::new(client.progress().await.progress_max);
+    let progress_max = client.progress().await.progress_max;
+    let bar = ProgressBar::new(progress_max);
     bar.set_style(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% ({bytes_per_sec}) ETA: {eta}",
         )
         .unwrap(),
     );
+
     if let Some(ref operation) = host_configuration.operations.operation {
         for share in &operation.shares {
+            let progress_min = client.progress().await.progress_current;
             term.write_line(&format!("Downloading {}", share.name))?;
 
             if !abort {
                 if let Err(err) = client
                     .create_backup(&share.name, &|progress| {
-                        bar.set_position(min(progress.progress_current, progress.progress_max));
+                        bar.set_position(progress_min + progress.progress_current);
                     })
                     .await
                 {
@@ -234,8 +207,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         error!("Error closing the connection: {}", err);
         abort = true;
     }
-    drop(exit);
-    log_handle.abort();
 
     term.write_line(&format!("[8/10] {}Compact manifests", Emoji("📦 ", "")))?;
 

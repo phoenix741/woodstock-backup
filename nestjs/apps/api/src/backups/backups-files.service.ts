@@ -1,14 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { unmangle } from '@woodstock/core';
-import { BackupsService, FileDescription, FilesService } from '@woodstock/server';
+import { unmangle, FileDescription, BackupsService, FilesService } from '@woodstock/shared';
+import { JsFileManifestType } from '@woodstock/shared-rs';
 import { Archiver } from 'archiver';
 import { toArray } from 'ix/asynciterable';
 import { map } from 'ix/asynciterable/operators';
-import * as Long from 'long';
 
 @Injectable()
 export class BackupsFilesService {
-  constructor(private backupsService: BackupsService, private filesService: FilesService) {}
+  constructor(
+    private backupsService: BackupsService,
+    private filesService: FilesService,
+  ) {}
 
   async listShare(name: string, number: number): Promise<FileDescription[]> {
     const backup = await this.backupsService.getBackup(name, number);
@@ -17,35 +19,41 @@ export class BackupsFilesService {
     }
 
     const startDate = backup.startDate;
-    const shares = this.filesService.listShares(name, number).pipe(
-      map(
-        (path) =>
-          new FileDescription({
-            path,
-            stats: {
-              mode: -1,
-              created: Long.fromNumber(startDate),
-              lastRead: Long.fromNumber(startDate),
-              lastModified: Long.fromNumber(startDate),
-            },
-          }),
-      ),
+    const shares = (await this.filesService.listShares(name, number)).map(
+      (path) =>
+        new FileDescription({
+          path: Buffer.from(path),
+          stats: {
+            mode: -1,
+            created: startDate,
+            lastRead: startDate,
+            lastModified: startDate,
+            ownerId: 0,
+            groupId: 0,
+            size: 0n,
+            compressedSize: 0n,
+            type: JsFileManifestType.Directory,
+            dev: 0n,
+            rdev: 0n,
+            ino: 0n,
+            nlink: 0n,
+          },
+        }),
     );
-
-    return await toArray(shares);
+    return shares;
   }
 
   async list(name: string, number: number, sharePath: string, path = '/'): Promise<FileDescription[]> {
     return (
       await toArray(
         this.filesService
-          .searchFiles(name, number, unmangle(sharePath), unmangle(path))
+          .searchFiles(name, number, sharePath, unmangle(path))
           .pipe(map((file) => new FileDescription(file))),
       )
-    ).sort((a, b) => a.type.localeCompare(b.type) || a.path.compare(b.path));
+    ).sort((a, b) => a.type - b.type || a.path.compare(b.path));
   }
 
   async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path = '') {
-    return this.filesService.createArchive(archiver, hostname, backupNumber, unmangle(sharePath), unmangle(path));
+    return this.filesService.createArchive(archiver, hostname, backupNumber, sharePath, unmangle(path));
   }
 }

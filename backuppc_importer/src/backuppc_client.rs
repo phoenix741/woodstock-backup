@@ -1,30 +1,27 @@
-use std::{
-    collections::HashMap,
-    io::{Error, ErrorKind},
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{collections::HashMap, io::Error, path::PathBuf, sync::Arc, u64::MAX};
 
 use async_stream::{stream, try_stream};
 use async_trait::async_trait;
 use backuppc_pool_reader::{
-    attribute_file::Search,
     decode_attribut::{FileAttributes, FileType},
-    hosts::Hosts,
     view::BackupPC,
 };
-use futures::{pin_mut, stream, Stream, StreamExt};
-use log::{debug, error, info};
+use eyre::{eyre, Result};
+use futures::{pin_mut, Stream, StreamExt};
+use log::{debug, error};
+use sha3::{Digest, Sha3_256};
 use tokio::sync::Mutex;
 use woodstock::{
-    config::BUFFER_SIZE,
+    config::{BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64},
+    file_chunk,
     manifest::IndexManifest,
     refresh_cache_request,
     server::client::Client,
     utils::path::{path_to_vec, vec_to_path},
-    AuthenticateReply, ChunkInformation, Empty as ProtoEmpty, EntryType, ExecuteCommandReply,
-    FileChunk, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
-    FileManifestXAttr, LaunchBackupRequest, LogEntry, RefreshCacheRequest,
+    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, Empty as ProtoEmpty,
+    EntryType, ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
+    FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
+    FileManifestXAttr, LaunchBackupRequest, RefreshCacheRequest,
 };
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
@@ -51,6 +48,7 @@ fn file_attribute_to_manifest(path: &[&str], file: FileAttributes) -> FileManife
 
     FileManifest {
         path: path_to_vec(&PathBuf::from(path)),
+        hash: vec![],
         chunks: vec![],
         acl: vec![],
         symlink: vec![],
@@ -91,11 +89,7 @@ fn file_attribute_to_manifest(path: &[&str], file: FileAttributes) -> FileManife
 }
 
 impl BackupPCClient {
-    pub fn new(backuppc_pool: &str, hostname: &str, number: usize) -> Self {
-        let hosts = Hosts::new(backuppc_pool);
-        let search = Search::new(backuppc_pool);
-        let view = BackupPC::new(backuppc_pool, Box::new(hosts), Box::new(search));
-
+    pub fn new(view: BackupPC, hostname: &str, number: usize) -> Self {
         Self {
             hostname: hostname.to_string(),
             number,
@@ -176,30 +170,18 @@ impl BackupPCClient {
 
 #[async_trait]
 impl Client for BackupPCClient {
-    async fn authenticate(
-        &mut self,
-        _password: &str,
-    ) -> Result<AuthenticateReply, Box<dyn std::error::Error>> {
+    async fn authenticate(&mut self, _password: &str) -> Result<AuthenticateReply> {
         unimplemented!("No authentication required for BackupPCClient");
     }
 
-    fn stream_log(
-        &mut self,
-    ) -> impl Stream<Item = Result<LogEntry, Box<dyn std::error::Error + Send + Sync>>> + '_ {
-        stream::empty()
-    }
-
-    async fn execute_command(
-        &mut self,
-        _command: &str,
-    ) -> Result<ExecuteCommandReply, Box<dyn std::error::Error>> {
+    async fn execute_command(&mut self, _command: &str) -> Result<ExecuteCommandReply> {
         unimplemented!("No command available for import");
     }
 
     async fn refresh_cache(
         &mut self,
         stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
-    ) -> Result<ProtoEmpty, Box<dyn std::error::Error>> {
+    ) -> Result<ProtoEmpty> {
         debug!("Start refreshing cache");
         pin_mut!(stream);
 
@@ -229,18 +211,12 @@ impl Client for BackupPCClient {
                         });
                     } else {
                         error!("Missing header in refresh_cache request");
-                        return Err(Box::new(Error::new(
-                            ErrorKind::InvalidData,
-                            "Missing header in refresh_cache request",
-                        )));
+                        return Err(eyre!("Missing header in refresh_cache request",));
                     }
                 }
                 None => {
                     error!("Unknown message in refresh_cache request");
-                    return Err(Box::new(Error::new(
-                        ErrorKind::InvalidData,
-                        "Unknown message",
-                    )));
+                    return Err(eyre!("Unknown message"));
                 }
             }
         }
@@ -253,8 +229,7 @@ impl Client for BackupPCClient {
     fn download_file_list(
         &mut self,
         request: LaunchBackupRequest,
-    ) -> impl Stream<Item = Result<FileManifestJournalEntry, Box<dyn std::error::Error + Send + Sync>>>
-           + '_ {
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         debug!("Start downloading file list");
         let share = request.share.unwrap();
         let remove_share = share.share_path.clone();
@@ -329,13 +304,58 @@ impl Client for BackupPCClient {
         stream.chain(remove_stream).map(Ok)
     }
 
-    fn get_chunk(
-        &self,
-        request: ChunkInformation,
-    ) -> impl Stream<Item = Result<FileChunk, Box<dyn std::error::Error + Send + Sync>>> + '_ {
+    async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
+        let number = self.number;
+        let number = number.to_string();
+        let hostname = self.hostname.clone();
+        let view = self.view.clone();
+
+        let filename = vec_to_path(&request.filename);
+        let filename = filename.to_str().unwrap_or_default();
+        let filename = filename
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+
+        let mut path = vec![hostname.as_str(), number.as_str()];
+        path.extend(filename);
+        debug!("Calculate chunk for file {:?}", &path);
+
+        let mut view = view.lock().await;
+        let mut file = view
+            .read_file(&path)
+            .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
+
+        let mut file_hasher = Sha3_256::new();
+        let mut chunk_hasher = Sha3_256::new();
+        let mut chunks = Vec::<Vec<u8>>::new();
+
+        let mut buf = vec![0; CHUNK_SIZE];
+
+        loop {
+            let read = file.read(&mut buf)?;
+            if read == 0 {
+                break;
+            }
+
+            chunk_hasher.update(&buf[..read]);
+            file_hasher.update(&buf[..read]);
+
+            let chunk_hash = chunk_hasher.finalize();
+            chunks.push(chunk_hash.to_vec());
+            chunk_hasher = Sha3_256::new();
+        }
+
+        let hash = file_hasher.finalize().to_vec();
+
+        Ok(ChunkHashReply { chunks, hash })
+    }
+
+    fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
         let number = self.number;
         let hostname = self.hostname.clone();
         let view = self.view.clone();
+        let chunks = request.chunks_id.clone();
 
         try_stream!({
             let backup_number = number.to_string();
@@ -348,53 +368,87 @@ impl Client for BackupPCClient {
                 .collect::<Vec<_>>();
             let mut path = vec![hostname.as_str(), backup_number.as_str()];
             path.extend(filename);
-            debug!(
-                "Download chunk {:?} at position {}",
-                &path, request.position
-            );
+
             let mut view = view.lock().await;
             let mut file = view
                 .read_file(&path)
                 .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
 
             let mut buf = vec![0; BUFFER_SIZE];
+            let mut chunk_id = MAX;
+            let mut position: u64 = 0;
+            let mut send_chunk = false;
 
-            // Read and skip until request position
-            let mut remaining = request.position;
+            let mut file_hasher = Sha3_256::new();
+            let mut chunk_hasher = Sha3_256::new();
 
-            while remaining > 0 {
-                let to_read = usize::try_from(std::cmp::min(remaining, BUFFER_SIZE as u64))?;
-                let read = file.read(&mut buf[..to_read])?;
-                remaining -= read as u64;
+            loop {
+                let current_chunk = position / CHUNK_SIZE_U64;
+
+                if current_chunk != chunk_id {
+                    debug!("Chunk change from {chunk_id} to {current_chunk}");
+                    if send_chunk {
+                        debug!("Send footer for chunk {path:?}:{chunk_id}");
+                        let chunk_hash = chunk_hasher.finalize().to_vec();
+                        yield FileChunk {
+                            field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
+                        };
+                        chunk_hasher = Sha3_256::new();
+                    }
+
+                    chunk_id = current_chunk;
+                    send_chunk = chunks.is_empty() || chunks.contains(&chunk_id);
+
+                    if send_chunk {
+                        debug!("Send chunk for chunk {path:?}:{chunk_id}");
+                        yield FileChunk {
+                            field: Some(file_chunk::Field::Header(FileChunkHeader { chunk_id })),
+                        };
+                    }
+                }
+
+                debug!("Read chunk {path:?}:{chunk_id}");
+                let read = file.read(&mut buf)?;
+                if send_chunk && read > 0 {
+                    debug!("Send data for chunk {path:?}:{chunk_id}");
+
+                    chunk_hasher.update(&buf[..read]);
+                    file_hasher.update(&buf[..read]);
+
+                    yield FileChunk {
+                        field: Some(file_chunk::Field::Data(FileChunkData {
+                            data: buf[..read].to_vec(),
+                        })),
+                    };
+                }
+
+                position += read as u64;
 
                 if read == 0 {
-                    info!("End of file");
                     break;
                 }
             }
 
-            // Read the requested chunk
-            let request_size = request.size as usize;
-            let mut readed = 0;
-            while readed < request_size {
-                let to_read = std::cmp::min(request_size - readed, BUFFER_SIZE);
-
-                let read = file.read(&mut buf[..to_read])?;
-                readed += read;
-
+            if (chunks.is_empty() || chunks.contains(&chunk_id)) && chunk_id != MAX {
+                debug!("Send footer for chunk {path:?}:{chunk_id} last");
+                let chunk_hash = chunk_hasher.finalize().to_vec();
                 yield FileChunk {
-                    data: buf[..read].to_vec(),
+                    field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
                 };
+            }
 
-                if read == 0 {
-                    info!("End of file");
-                    break;
-                }
+            let hash = file_hasher.finalize().to_vec();
+
+            debug!("Send EOF for {path:?}");
+            if chunks.is_empty() || usize::try_from(chunk_id).unwrap_or_default() == chunks.len() {
+                yield FileChunk {
+                    field: Some(file_chunk::Field::Eof(FileChunkEndOfFile { hash })),
+                };
             }
         })
     }
 
-    async fn close(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn close(&self) -> Result<()> {
         Ok(())
     }
 }

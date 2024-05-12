@@ -1,7 +1,6 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    rc::Rc,
 };
 
 use async_stream::stream;
@@ -15,11 +14,11 @@ use crate::{proto::save_file, FileManifest, FileManifestJournalEntry, PoolRefCou
 use super::IndexManifest;
 
 pub struct ManifestChunk {
-    pub manifest: Rc<FileManifest>,
     pub sha256: Vec<u8>,
 }
 
 pub struct Manifest {
+    pub manifest_name: String,
     pub manifest_path: PathBuf,
     pub file_list_path: PathBuf,
     pub journal_path: PathBuf,
@@ -30,6 +29,7 @@ impl Manifest {
     #[must_use]
     pub fn new(manifest_name: &str, path: &Path) -> Self {
         Self {
+            manifest_name: manifest_name.to_string(),
             manifest_path: path.join(format!("{manifest_name}.manifest")),
             file_list_path: path.join(format!("{manifest_name}.filelist")),
             journal_path: path.join(format!("{manifest_name}.journal")),
@@ -108,7 +108,7 @@ impl Manifest {
         &self,
         source: impl Stream<Item = FileManifestJournalEntry>,
     ) -> io::Result<()> {
-        save_file(&self.file_list_path, source, true, true).await
+        save_file(&self.file_list_path, source, true, false).await
     }
 
     pub async fn load_index(&self) -> IndexManifest<FileManifest> {
@@ -169,12 +169,9 @@ impl Manifest {
             let messages = self.read_manifest_entries();
             pin_mut!(messages);
 
-            while let Some(message) = messages.next().await {
-                let manifest = Rc::new(message);
-
+            while let Some(manifest) = messages.next().await {
                 for sha256 in &manifest.chunks {
                     yield ManifestChunk {
-                        manifest: Rc::clone(&manifest),
                         sha256: sha256.clone(),
                     };
                 }

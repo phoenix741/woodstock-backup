@@ -5,7 +5,9 @@ use std::{path::Path, time::SystemTime};
 pub use statistics::*;
 use tokio::fs::write;
 
-pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics, Box<dyn std::error::Error>> {
+use eyre::Result;
+
+pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics> {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("statistics.yml");
     let yaml = tokio::fs::read_to_string(filename).await?;
@@ -18,7 +20,7 @@ pub async fn write_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,
     date: &SystemTime,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     // Serialize PoolStatistics in yaml format
     let filename = dirname.join("statistics.yml");
     let yaml = serde_yaml::to_string(statistics)?;
@@ -29,9 +31,7 @@ pub async fn write_statistics(
     Ok(())
 }
 
-pub async fn load_history(
-    dirname: &Path,
-) -> Result<Vec<HistoricalPoolStatistics>, Box<dyn std::error::Error>> {
+pub async fn load_history(dirname: &Path) -> Result<Vec<HistoricalPoolStatistics>> {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("history.yml");
     let yaml = tokio::fs::read_to_string(filename).await?;
@@ -44,7 +44,7 @@ pub async fn append_history_to_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,
     date: &SystemTime,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let mut histories = load_history(dirname).await.unwrap_or_else(|_| Vec::new());
 
     let history = HistoricalPoolStatistics {
@@ -58,6 +58,8 @@ pub async fn append_history_to_statistics(
     };
 
     histories.push(history);
+    // TODO: To Remove ; Sort history by dates (normally useless)
+    histories.sort_by(|a, b| a.date.cmp(&b.date));
 
     // Serialize PoolStatistics in yaml format
     let filename = dirname.join("history.yml");

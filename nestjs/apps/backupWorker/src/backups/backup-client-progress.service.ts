@@ -1,40 +1,58 @@
 import { Injectable } from '@nestjs/common';
-import { longToBigInt } from '@woodstock/core';
-import { BackupClientContext, BackupLogger, isPoolChunkInformation } from '@woodstock/server';
-import { QueueTaskProgression } from '@woodstock/server/tasks';
-import { EntryType, Share } from '@woodstock/shared';
-import * as Long from 'long';
-import { defer, endWith, map, mapTo, Observable, scan, startWith } from 'rxjs';
-import { BackupClient } from './backup-client.service.js';
+import { JsBackupProgression, JsLogEntry, WoodstockBackupClient, WoodstockBackupShare } from '@woodstock/shared-rs';
+import { QueueTaskProgression } from '@woodstock/shared/tasks/index.js';
+import { defer, endWith, map, mapTo, Observable, startWith } from 'rxjs';
+import { BackupsClientService } from './backups-client.service';
+
+function toProgress(value: JsBackupProgression): QueueTaskProgression {
+  return new QueueTaskProgression({
+    startDate: value.startDate,
+    startTransferDate: value.startTransferDate,
+    endTransferDate: value.endTransferDate,
+
+    compressedFileSize: value.compressedFileSize,
+    newCompressedFileSize: value.newCompressedFileSize,
+    modifiedCompressedFileSize: value.modifiedCompressedFileSize,
+
+    fileSize: value.fileSize,
+    newFileSize: value.newFileSize,
+    modifiedFileSize: value.modifiedFileSize,
+
+    fileCount: value.fileCount,
+    newFileCount: value.newFileCount,
+    modifiedFileCount: value.modifiedFileCount,
+    removedFileCount: value.removedFileCount,
+
+    errorCount: value.errorCount,
+
+    progressCurrent: value.progressCurrent,
+    progressMax: value.progressMax,
+  });
+}
 
 @Injectable()
 export class BackupClientProgress {
-  constructor(private backupClient: BackupClient) {}
+  constructor(private backupClient: BackupsClientService) {}
 
-  createContext(
-    ip: string | undefined,
-    hostname: string,
-    currentBackupId: number,
-    pathPrefix?: string,
-    originalDate?: number,
-  ): BackupClientContext {
-    return this.backupClient.createContext(ip, hostname, currentBackupId, pathPrefix, originalDate);
+  async createClient(hostname: string, ip: string, backupNumber: number): Promise<WoodstockBackupClient> {
+    return this.backupClient.createClient(hostname, ip, backupNumber);
   }
 
-  async createConnection(context: BackupClientContext): Promise<void> {
-    await this.backupClient.createConnection(context);
+  authenticate(context: WoodstockBackupClient, password: string): Promise<void> {
+    return this.backupClient.authenticate(context, password);
   }
 
-  authenticate(
-    context: BackupClientContext,
-    logger: BackupLogger,
-    clientLogger: BackupLogger,
-    password: string,
-  ): Promise<void> {
-    return this.backupClient.authenticate(context, logger, clientLogger, password);
+  createBackupDirectory(context: WoodstockBackupClient, shares: Array<string>): Observable<QueueTaskProgression> {
+    const executeCommand$ = defer(() => this.backupClient.createBackupDirectory(context, shares));
+
+    return executeCommand$.pipe(
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      map(() => new QueueTaskProgression()),
+      endWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
+    );
   }
 
-  executeCommand(context: BackupClientContext, command: string): Observable<QueueTaskProgression> {
+  executeCommand(context: WoodstockBackupClient, command: string): Observable<QueueTaskProgression> {
     const executeCommand$ = defer(() => this.backupClient.executeCommand(context, command));
 
     return executeCommand$.pipe(
@@ -44,113 +62,64 @@ export class BackupClientProgress {
     );
   }
 
-  getFileList(context: BackupClientContext, backupShare: Share): Observable<QueueTaskProgression> {
-    const fileList$ = this.backupClient.getFileList(context, backupShare).pipe(
-      scan(
-        (current, value) => {
-          return new QueueTaskProgression({
-            progressMax: current.progressMax + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
-          });
-        },
-        new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n }),
-      ),
+  uploadFileList(context: WoodstockBackupClient, shares: string[]): Observable<QueueTaskProgression> {
+    const refreshCache$ = defer(() => this.backupClient.uploadFileList(context, shares));
+    return refreshCache$.pipe(
+      map(() => new QueueTaskProgression()),
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
-
-    return fileList$;
   }
 
-  createBackup(
-    context: BackupClientContext,
-    backupShare: Share,
-    maxConcurrentDownloads = 10,
-  ): Observable<QueueTaskProgression> {
-    return this.backupClient.createBackup(context, backupShare, maxConcurrentDownloads).pipe(
-      scan(
-        (current, value) => {
-          if (isPoolChunkInformation(value)) {
-            return {
-              ...current,
-              progress: current.progress + value.size,
-            };
-          } else {
-            switch (value.type) {
-              case EntryType.ADD:
-                return {
-                  ...current,
-                  count: current.count + 1,
-                  size: current.size + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
-                  compressedFileSize:
-                    current.compressedFileSize + longToBigInt(value.manifest?.stats?.compressedSize || Long.ZERO),
-                };
-              case EntryType.MODIFY:
-                return {
-                  ...current,
-                  size: current.size + longToBigInt(value.manifest?.stats?.size || Long.ZERO),
-                  compressedFileSize:
-                    current.compressedFileSize + longToBigInt(value.manifest?.stats?.compressedSize || Long.ZERO),
-                };
-              case EntryType.REMOVE:
-                return current;
-            }
-          }
-        },
-        {
-          progress: 0n,
-          count: 0,
-          size: 0n,
-          compressedFileSize: 0n,
-          date: new Date(),
-        },
-      ),
-      map((fileCount) => {
-        const elapsedTime = BigInt(Date.now() - fileCount.date.getTime());
+  downloadFileList(context: WoodstockBackupClient, share: WoodstockBackupShare): Observable<QueueTaskProgression> {
+    return this.backupClient.downloadFileList(context, share).pipe(
+      map((value) => {
+        const progression = toProgress(value);
         return new QueueTaskProgression({
-          newCompressedFileSize: fileCount.compressedFileSize,
-          newFileCount: fileCount.count,
-          newFileSize: fileCount.size,
-          progressCurrent: fileCount.progress,
-          speed: Number(elapsedTime && (fileCount.progress * 1000n) / elapsedTime),
+          startDate: progression.startDate,
+          startTransferDate: progression.startTransferDate,
+          endTransferDate: progression.endTransferDate,
+          progressMax: progression.progressMax,
         });
       }),
-      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
     );
   }
 
-  compact(context: BackupClientContext, sharePath: Buffer): Observable<QueueTaskProgression> {
-    return this.backupClient.compact(context, sharePath).pipe(
-      scan(
-        (current, value) => {
-          return {
-            ...current,
-            progress: current.progress + 1,
-            count: current.count + 1,
-            size: current.size + longToBigInt(value.stats?.size || Long.ZERO),
-            compressedFileSize: current.compressedFileSize + longToBigInt(value.stats?.compressedSize || Long.ZERO),
-          };
-        },
-        {
-          progress: 0,
-          count: 0,
-          size: 0n,
-          compressedFileSize: 0n,
-        },
-      ),
-      map(
-        (fileCount) =>
-          new QueueTaskProgression({
-            compressedFileSize: fileCount.compressedFileSize,
-            fileCount: fileCount.count,
-            fileSize: fileCount.size,
-            progressCurrent: 0n,
-            progressMax: 0n,
-          }),
-      ),
-      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+  createBackup(context: WoodstockBackupClient, sharePath: string): Observable<QueueTaskProgression> {
+    return this.backupClient.createBackup(context, sharePath).pipe(
+      map((value) => {
+        const progression = toProgress(value);
+        return new QueueTaskProgression({
+          startDate: progression.startDate,
+          startTransferDate: progression.startTransferDate,
+          endTransferDate: progression.endTransferDate,
+          progressCurrent: progression.progressCurrent,
+          fileCount: progression.fileCount,
+          newFileCount: progression.newFileCount,
+          modifiedFileCount: progression.modifiedFileCount,
+          removedFileCount: progression.removedFileCount,
+          newFileSize: progression.newFileSize,
+          modifiedFileSize: progression.modifiedFileSize,
+          newCompressedFileSize: progression.newCompressedFileSize,
+          modifiedCompressedFileSize: progression.modifiedCompressedFileSize,
+          errorCount: progression.errorCount,
+        });
+      }),
     );
   }
 
-  countRef(context: BackupClientContext): Observable<QueueTaskProgression> {
-    const countRef$ = defer(() => this.backupClient.countRef(context));
+  compact(context: WoodstockBackupClient, sharePath: string): Observable<QueueTaskProgression> {
+    const compact$ = defer(() => this.backupClient.compact(context, sharePath));
+
+    return compact$.pipe(
+      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      map(() => new QueueTaskProgression()),
+      endWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
+    );
+  }
+
+  countReferences(context: WoodstockBackupClient): Observable<QueueTaskProgression> {
+    const countRef$ = defer(() => this.backupClient.countReferences(context));
 
     return countRef$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
@@ -159,16 +128,17 @@ export class BackupClientProgress {
     );
   }
 
-  refreshCache(context: BackupClientContext, shares: string[]): Observable<QueueTaskProgression> {
-    const refreshCache$ = defer(() => this.backupClient.refreshCache(context, shares));
-    return refreshCache$.pipe(
-      mapTo(new QueueTaskProgression()),
+  saveBackup(context: WoodstockBackupClient, completed: true): Observable<QueueTaskProgression> {
+    const saveBackup$ = defer(() => this.backupClient.saveBackup(context, completed));
+
+    return saveBackup$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
+      mapTo(new QueueTaskProgression()),
       startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }
 
-  close(context: BackupClientContext): void {
-    this.backupClient.close(context);
+  close(context: WoodstockBackupClient): Promise<void> {
+    return this.backupClient.close(context);
   }
 }

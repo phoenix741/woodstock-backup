@@ -1,4 +1,4 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 #[cfg(feature = "client")]
 pub mod client;
@@ -18,6 +18,7 @@ pub mod statistics;
 pub mod utils;
 
 mod woodstock {
+    #![allow(clippy::all, clippy::pedantic)]
     tonic::include_proto!("woodstock");
 }
 

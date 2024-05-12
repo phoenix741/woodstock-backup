@@ -28,6 +28,10 @@ pub struct BackupProgression {
 impl BackupProgression {
     #[must_use]
     pub fn percent(&self) -> f64 {
+        if self.progress_max == 0 {
+            return 0.0;
+        }
+
         let per10_000 = (self.progress_current * 10_000) / self.progress_max;
 
         per10_000 as f64 / 100.0

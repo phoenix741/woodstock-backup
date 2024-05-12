@@ -9,6 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new ApplicationLogger('main'),
   });
+
   app.setGlobalPrefix('/api', { exclude: [{ path: 'metrics', method: RequestMethod.GET }] });
   app.useGlobalPipes(
     new ValidationPipe({

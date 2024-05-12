@@ -5,25 +5,25 @@
 //! It includes methods for authentication, executing commands, refreshing the cache, and launching backups.
 //! The file also includes several modules for authentication, client configuration, commands, manifest handling, and scanning.
 //!
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
+use eyre::Result;
 use log::debug;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use woodstock::client::config::{get_config_path, read_config};
-use woodstock::client::grpc_logger::GrpcLogger;
 use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let grpc_logger = Box::new(GrpcLogger::new());
+async fn main() -> Result<()> {
+    color_eyre::install()?;
+
+    // FIXME: Add File logger
     let env_logger = Box::new(env_logger::Builder::from_default_env().build());
 
-    let rx_logger = grpc_logger.rx.clone();
-
-    multi_log::MultiLogger::init(vec![grpc_logger, env_logger], log::Level::Debug).unwrap();
+    multi_log::MultiLogger::init(vec![env_logger], log::Level::Debug).unwrap();
 
     let config_path = get_config_path();
     debug!("Config path: {}", config_path.display());
@@ -39,8 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let private_key = std::fs::read_to_string(private_key).expect("Failed to private key");
 
     let addr = config.bind.parse()?;
-    let woodstock_client =
-        WoodstockClient::new(std::path::Path::new(&config_path), &config, rx_logger);
+    let woodstock_client = WoodstockClient::new(std::path::Path::new(&config_path), &config);
 
     let identity = Identity::from_pem(public_key, private_key);
     let client_ca_root = tonic::transport::Certificate::from_pem(root_ca);

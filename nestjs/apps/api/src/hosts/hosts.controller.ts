@@ -1,13 +1,25 @@
-import { Controller, Get, Headers, NotFoundException, Param, Res, UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+  ClassSerializerInterceptor,
+  Controller,
+  Get,
+  Headers,
+  NotFoundException,
+  Param,
+  Res,
+  UnsupportedMediaTypeException,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ApiHeader, ApiOkResponse, ApiProduces } from '@nestjs/swagger';
-import { ApplicationConfigService, YamlService } from '@woodstock/core';
-import { BackupsService, HostConfiguration, HostsService } from '@woodstock/server';
+import { ApplicationConfigService, YamlService } from '@woodstock/shared';
+import { HostConfiguration } from '@woodstock/shared';
 import { CertificateService } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { join } from 'path';
 import { HostInformation } from './hosts.dto.js';
+import { BackupsService, HostsService } from '@woodstock/shared';
 
+@UseInterceptors(ClassSerializerInterceptor)
 @Controller('hosts')
 export class HostController {
   constructor(
@@ -26,7 +38,7 @@ export class HostController {
   async list(): Promise<HostInformation[]> {
     return Promise.all(
       (await this.hostsService.getHosts()).map(async (host) => {
-        return new HostInformation(host, await this.backupsService.getLastBackup(host));
+        return new HostInformation(host, (await this.backupsService.getLastBackup(host)) ?? undefined);
       }),
     );
   }
@@ -37,7 +49,7 @@ export class HostController {
     type: HostConfiguration,
   })
   async get(@Param('name') name: string): Promise<HostConfiguration> {
-    const host = await this.hostsService.getHostConfiguration(name);
+    const host = await this.hostsService.getHost(name);
     if (!host) {
       throw new NotFoundException(`Can't find the host with name ${name}`);
     }
@@ -70,7 +82,7 @@ export class HostController {
     // Générer les fichiers pour le host
     await this.certificateService.generateHostCertificate(name);
 
-    const host = await this.hostsService.getHostConfiguration(name);
+    const host = await this.hostsService.getHost(name);
 
     archive.file(join(this.config.certificatePath, 'rootCA.pem'), { name: 'rootCA.pem' });
     archive.file(join(this.config.certificatePath, 'public_key.pem'), { name: 'public_key.pem' });

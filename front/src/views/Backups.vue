@@ -30,7 +30,7 @@
               <BackupView v-model="showDialog[item.columns.number]" :deviceId="deviceId" :backup="item.raw"></BackupView
               >{{ item.columns.number }}
             </template>
-            <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.columns.startDate) }}</template>
+            <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.columns.startDate * 1000) }}</template>
             <template v-slot:[`item.fileSize`]="{ item }">{{ filesize(item.columns.fileSize) }}</template>
             <template v-slot:[`item.existingFileSize`]="{ item }">{{
               filesize(item.columns.existingFileSize)
@@ -41,8 +41,8 @@
               toNumber(item.columns.existingFileCount)
             }}</template>
             <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.columns.newFileCount) }}</template>
-            <template v-slot:[`item.complete`]="{ item }">
-              <v-checkbox readonly v-model="item.columns.complete" disabled></v-checkbox>
+            <template v-slot:[`item.completed`]="{ item }">
+              <v-checkbox readonly v-model="item.columns.completed" disabled></v-checkbox>
             </template>
             <template v-slot:bottom>
               <div class="text-right pa-2">
@@ -92,14 +92,14 @@ const headers = [
   { title: 'Existing Files Size', align: 'end', key: 'existingFileSize' },
   { title: 'New Files Count', align: 'end', key: 'newFileCount' },
   { title: 'New Files Size', align: 'end', key: 'newFileSize' },
-  { title: 'Complete', align: 'center', key: 'complete' },
+  { title: 'Complete', align: 'center', key: 'completed' },
 ];
 
 const { backups, isFetching } = useBackups(deviceId);
 
 const backupsDataTable = computed(() => {
   return backups.value?.map((backup) => ({
-    duration: backup.endDate && toMinutes(backup.endDate - backup.startDate),
+    duration: backup.endDate && toMinutes((backup.endDate - backup.startDate) * 1000),
     ...backup,
   }));
 });

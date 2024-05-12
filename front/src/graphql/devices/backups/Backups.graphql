@@ -1,7 +1,7 @@
 query Backups($hostname: String!) {
   backups(hostname: $hostname) {
     number
-    complete
+    completed
     startDate
     endDate
     fileCount

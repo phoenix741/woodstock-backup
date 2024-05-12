@@ -14,7 +14,7 @@ use tokio::{
 };
 
 pub struct ProtobufWriter<T: Message> {
-    writer: Pin<Box<dyn AsyncWrite>>,
+    writer: Pin<Box<dyn AsyncWrite + Send>>,
     _marker: std::marker::PhantomData<T>,
 
     is_atomic: bool,
@@ -43,7 +43,7 @@ impl<T: Message> ProtobufWriter<T> {
 
         // Create the buffer
         let file = File::create(save_path).await?;
-        let writer: Pin<Box<dyn AsyncWrite>> = if compress {
+        let writer: Pin<Box<dyn AsyncWrite + Send>> = if compress {
             Box::pin(ZlibEncoder::new(BufWriter::new(file)))
         } else {
             Box::pin(BufWriter::new(file))
@@ -143,21 +143,74 @@ pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{proto::ProtobufReader, FileManifestJournalEntry};
+    use crate::{
+        proto::ProtobufReader,
+        scanner::{get_files, CreateManifestOptions},
+        utils::path::list_to_globset,
+        EntryType, FileManifestJournalEntry,
+    };
+    use eyre::Result;
     use futures::StreamExt;
     use std::fs::remove_file;
 
-    struct CleanUp;
+    struct CleanUp {
+        filename: &'static str,
+    }
 
     impl Drop for CleanUp {
         fn drop(&mut self) {
-            remove_file("./data/home.filelist.copy").unwrap();
+            remove_file(self.filename).unwrap();
         }
     }
 
     #[tokio::test]
+    // Generate the file ./data/home.filelist that will take all file of clientrs to generate a filelist
+    async fn generate_test_file() -> Result<()> {
+        let _clean_up = CleanUp {
+            filename: "./data/home.filelist.test",
+        };
+
+        {
+            let share_path = std::env::current_dir()?;
+            let includes = list_to_globset(&[])?;
+            let excludes = list_to_globset(&["target"])?;
+            let options = CreateManifestOptions {
+                with_acl: cfg!(unix),
+                with_xattr: cfg!(unix),
+            };
+
+            let files = get_files(&share_path, &includes, &excludes, &options).map(|m| {
+                FileManifestJournalEntry {
+                    r#type: EntryType::Add as i32,
+                    manifest: Some(m),
+                }
+            });
+            save_file("./data/home.filelist.test", files, true, false).await?;
+        };
+
+        {
+            let mut messages =
+                ProtobufReader::<FileManifestJournalEntry>::new("./data/home.filelist.test", true)
+                    .await?;
+            let mut messages = messages.into_stream();
+
+            let mut count = 0;
+            while let Some(x) = messages.next().await {
+                let _ = x?;
+                count += 1;
+            }
+
+            assert!(count > 50);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_save_file() {
-        let _clean_up = CleanUp;
+        let _clean_up = CleanUp {
+            filename: "./data/home.filelist.copy",
+        };
 
         {
             let mut messages =
@@ -189,7 +242,7 @@ mod tests {
                 count += 1;
             }
 
-            assert_eq!(count, 1000);
+            assert_eq!(count, 76);
         }
     }
 }

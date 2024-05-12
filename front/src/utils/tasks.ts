@@ -101,6 +101,7 @@ function mapProgression({
   progressCurrent,
   progressMax,
   speed,
+  percent,
 }: Partial<JobProgression> | undefined = {}) {
   return {
     compressedFileSize,
@@ -118,6 +119,7 @@ function mapProgression({
     progressMax,
 
     speed,
+    percent,
   };
 }
 

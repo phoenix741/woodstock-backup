@@ -122,7 +122,7 @@ mod tests {
         reader.read_to_end(&mut messages).await.unwrap();
 
         let count = messages.len();
-        assert_eq!(count, 1000);
+        assert_eq!(count, 76);
     }
 
     #[tokio::test]
@@ -137,6 +137,6 @@ mod tests {
 
         let count = iter.count().await;
 
-        assert_eq!(count, 1000);
+        assert_eq!(count, 76);
     }
 }

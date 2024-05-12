@@ -79,6 +79,7 @@ message FileManifest {
   repeated FileManifestAcl acl = 5;
 
   repeated bytes chunks = 6;
+  bytes hash = 8;
 
   map<string, bytes> metadata = 7;
 }
@@ -98,21 +99,6 @@ message FileManifestJournalEntry {
   FileManifest manifest = 2;
 }
 
-enum LogLevel {
-  log = 0;
-  error = 1;
-  warn = 2;
-  debug = 3;
-  verbose = 4;
-}
-
-// Log entry
-message LogEntry {
-  LogLevel level = 1;
-  string context = 2;
-  string line = 3;
-}
-
 message RefreshCacheHeader {
   string sharePath = 1;
 }
@@ -128,17 +114,45 @@ message LaunchBackupRequest {
   Share share = 1;
 }
 
-message ChunkInformation {
+message ChunkHashRequest {
   bytes filename = 1;
-  uint64 position = 2;
-  uint32 size = 3;
 }
 
-message FileChunk {
+message ChunkHashReply {
+  repeated bytes chunks = 1;
+  bytes hash = 2;
+}
+
+message ChunkInformation {
+  bytes filename = 1;
+  // If empty the whole file is requested
+  repeated uint64 chunksId = 2;
+}
+
+message FileChunkData {
   bytes data = 1;
 }
 
-message StreamLogRequest {
+message FileChunkHeader {
+  uint64 chunkId = 1;
+}
+
+message FileChunkFooter {
+  bytes chunkHash = 1;
+}
+
+// Only when whole file is requested
+message FileChunkEndOfFile {
+  bytes hash = 1;
+}
+
+message FileChunk {
+  oneof field {
+    FileChunkHeader header = 1;
+    FileChunkData data = 2;
+    FileChunkFooter footer = 3;
+    FileChunkEndOfFile eof = 4;
+  }
 }
 
 message ExecuteCommandRequest {
@@ -180,12 +194,12 @@ service WoodstockClientService {
   //    and will send all new file to the server
   rpc LaunchBackup(LaunchBackupRequest) returns (stream FileManifestJournalEntry) {}
 
+  // 3. Ask for hash of the file before asking only modified hash of the file
+  rpc GetChunkHash(ChunkHashRequest) returns (ChunkHashReply) {}
+
   // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
   //    and ask all necessary chunk to the client.
   rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
-
-  // In parallele, the server will open a stream for the client to send log file.
-  rpc StreamLog(StreamLogRequest) returns (stream LogEntry) {}
 
   // Free the client
   rpc CloseBackup(Empty) returns (Empty) {}

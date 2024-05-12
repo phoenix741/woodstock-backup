@@ -13,7 +13,7 @@ fn main() -> Result<()> {
             "#[serde_as(as = \"serde_with::hex::Hex\")]",
         )
         .field_attribute(
-            "FileManifest.sha256",
+            "FileManifest.hash",
             "#[serde_as(as = \"serde_with::hex::Hex\")]",
         )
         .field_attribute(

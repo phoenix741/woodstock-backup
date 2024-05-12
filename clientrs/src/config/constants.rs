@@ -2,7 +2,7 @@
 pub const CHUNK_SIZE: usize = 1 << 24; // 16MB
 pub const CHUNK_SIZE_U64: u64 = 1 << 24; // 16MB
 
-/// Size of the buffer used to transfert file on the network
+/// Size of the buffer used to transfert file on the network (should be a multiple of `CHUNK_SIZE`)
 pub const BUFFER_SIZE: usize = 1 << 17; // 128KB (128 * 128Kb = 16MB)
 
 /// SHA256 of empty string

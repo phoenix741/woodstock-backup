@@ -14,14 +14,12 @@ module.exports = [
     env: {
       MAX_BACKUP_TASK: 1,
     },
-    node_args: '--max_old_space_size=4096',
   },
   {
     script: 'apps/refcntWorker/main.js',
     name: 'refcntWorker',
     cwd: '/nestjs',
     instances: process.env.DISABLE_REFCNT === 'true' ? 0 : 1,
-    node_args: '--max_old_space_size=4096',
   },
   {
     script: 'apps/scheduleWorker/main.js',

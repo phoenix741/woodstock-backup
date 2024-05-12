@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ApplicationConfigService, ExecuteCommandService, ToolsService } from '@woodstock/core';
+import { ExecuteCommandService, ToolsService } from '@woodstock/shared';
 import { mkdir } from 'fs/promises';
 import { CommandCheck, ServerChecks } from './server.dto.js';
+import { ApplicationConfigService } from '@woodstock/shared';
 
 @Injectable()
 export class ServerService {

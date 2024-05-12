@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
@@ -9,14 +10,10 @@ use woodstock::{
     utils::path::{list_to_globset, vec_to_str},
 };
 
-pub async fn list_client_files(
-    hostname: &str,
-    share_path: &str,
-    ctxt: &Context,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn list_client_files(hostname: &str, share_path: &str, ctxt: &Context) -> Result<()> {
     // Start by reading the configuration file
     let hosts = Hosts::new(ctxt);
-    let host = hosts.get_host(hostname)?;
+    let host = hosts.get_host(hostname).await?;
 
     if let Some(operation) = host.operations.operation {
         let global_includes = operation.includes.unwrap_or_default();

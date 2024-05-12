@@ -2,16 +2,16 @@
   <v-row>
     <v-col>
       <div class="font-weight-bold">Start date</div>
-      <div>{{ toDateTime(backup.startDate) }}</div>
+      <div>{{ toDateTime(backup.startDate * 1000) }}</div>
     </v-col>
     <v-col>
       <div class="font-weight-bold">End date</div>
-      <div>{{ backup.endDate && toDateTime(backup.endDate) }}</div>
+      <div>{{ backup.endDate && toDateTime(backup.endDate * 1000) }}</div>
     </v-col>
     <v-col>
       <div class="font-weight-bold">Is backup complete</div>
       <div>
-        <v-checkbox readonly :model-value="backup.complete" disabled></v-checkbox>
+        <v-checkbox readonly :model-value="backup.completed" disabled></v-checkbox>
       </div>
     </v-col>
   </v-row>

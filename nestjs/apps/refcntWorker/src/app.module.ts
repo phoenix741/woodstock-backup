@@ -1,13 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CoreModule } from '@woodstock/core';
-import { ServerModule } from '@woodstock/server';
-import { SharedModule } from '@woodstock/shared';
-import { GlobalModule } from './global.module.js';
+import { ApplicationConfigService, ConfigProviderModule, initializeLog, SharedModule } from '@woodstock/shared';
 import { RefcntConsumer } from './refcnt.consumer.js';
 
 @Module({
-  imports: [ConfigModule.forRoot(), GlobalModule, CoreModule, SharedModule, ServerModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), ConfigProviderModule, SharedModule],
   providers: [RefcntConsumer],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationBootstrap {
+  constructor(private readonly config: ApplicationConfigService) {}
+
+  async onApplicationBootstrap() {
+    await initializeLog(this.config.context);
+  }
+}

@@ -1,13 +1,16 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { DiskStatisticsService, QueueName, StatsInstantService } from '@woodstock/server';
+import { DiskStatisticsService, QueueName, StatsInstantService } from '@woodstock/shared';
 import { Job } from 'bullmq';
 
 @Processor(QueueName.STATS_QUEUE)
 export class StatsConsumer extends WorkerHost {
   private logger = new Logger(StatsConsumer.name);
 
-  constructor(private instantService: StatsInstantService, private statsService: DiskStatisticsService) {
+  constructor(
+    private instantService: StatsInstantService,
+    private statsService: DiskStatisticsService,
+  ) {
     super();
   }
 

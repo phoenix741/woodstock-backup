@@ -77,7 +77,8 @@ const devicesDataTable = computed(() => {
   return devices.value?.hosts.map((device) => ({
     name: device.name,
     lastBackupNumber: device.lastBackup?.number,
-    lastBackupAge: device.lastBackup && toDay(new Date().getTime() - new Date(device.lastBackup?.startDate).getTime()),
+    lastBackupAge:
+      device.lastBackup && toDay(new Date().getTime() - new Date(device.lastBackup?.startDate * 1000).getTime()),
     lastBackupSize: device.lastBackup?.fileSize,
     state: getState(device),
     configuration: device.configuration,

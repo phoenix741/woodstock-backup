@@ -1,10 +1,10 @@
 use std::{
-    fs::read_to_string,
     io::{Error, ErrorKind},
     path::PathBuf,
 };
 
-use tokio::fs::{copy, create_dir_all, read_dir};
+use eyre::Result;
+use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
 
 use crate::{manifest::Manifest, utils::path::mangle};
 
@@ -34,6 +34,11 @@ impl Backups {
     }
 
     #[must_use]
+    pub fn get_log_directory(&self, hostname: &str, backup_number: usize) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_number)
+    }
+
+    #[must_use]
     pub fn get_manifest(&self, hostname: &str, backup_number: usize, share: &str) -> Manifest {
         let share = mangle(share);
         Manifest::new(
@@ -48,8 +53,8 @@ impl Backups {
     }
 
     #[must_use]
-    pub fn get_manifests(&self, hostname: &str, backup_number: usize) -> Vec<Manifest> {
-        let shares = self.get_backup_share_paths(hostname, backup_number);
+    pub async fn get_manifests(&self, hostname: &str, backup_number: usize) -> Vec<Manifest> {
+        let shares = self.get_backup_share_paths(hostname, backup_number).await;
         shares
             .iter()
             .map(|share| self.get_manifest(hostname, backup_number, share))
@@ -57,8 +62,8 @@ impl Backups {
     }
 
     #[must_use]
-    pub fn get_backups(&self, hostname: &str) -> Vec<Backup> {
-        let backups = read_to_string(self.get_backup_file(hostname));
+    pub async fn get_backups(&self, hostname: &str) -> Vec<Backup> {
+        let backups = read_to_string(self.get_backup_file(hostname)).await;
 
         match backups {
             Ok(backups) => serde_yaml::from_str(&backups).unwrap_or(vec![]),
@@ -67,8 +72,8 @@ impl Backups {
     }
 
     #[must_use]
-    pub fn get_backup(&self, hostname: &str, backup_number: usize) -> Option<Backup> {
-        let backups = self.get_backups(hostname);
+    pub async fn get_backup(&self, hostname: &str, backup_number: usize) -> Option<Backup> {
+        let backups = self.get_backups(hostname).await;
         let backup = backups
             .iter()
             .find(|&backup| backup.number == backup_number);
@@ -77,16 +82,20 @@ impl Backups {
     }
 
     #[must_use]
-    pub fn get_last_backup(&self, hostname: &str) -> Option<Backup> {
-        let backups = self.get_backups(hostname);
+    pub async fn get_last_backup(&self, hostname: &str) -> Option<Backup> {
+        let backups = self.get_backups(hostname).await;
         let backup = backups.iter().max_by_key(|backup| backup.number);
 
         backup.cloned()
     }
 
     #[must_use]
-    pub fn get_previous_backup(&self, hostname: &str, backup_number: usize) -> Option<Backup> {
-        let backups = self.get_backups(hostname);
+    pub async fn get_previous_backup(
+        &self,
+        hostname: &str,
+        backup_number: usize,
+    ) -> Option<Backup> {
+        let backups = self.get_backups(hostname).await;
         let backup = backups
             .iter()
             .filter(|backup| backup.number < backup_number)
@@ -96,8 +105,12 @@ impl Backups {
     }
 
     #[must_use]
-    pub fn get_backup_share_paths(&self, hostname: &str, backup_number: usize) -> Vec<String> {
-        let shares = read_to_string(self.get_share_file(hostname, backup_number));
+    pub async fn get_backup_share_paths(
+        &self,
+        hostname: &str,
+        backup_number: usize,
+    ) -> Vec<String> {
+        let shares = read_to_string(self.get_share_file(hostname, backup_number)).await;
 
         match shares {
             Ok(shares) => serde_yaml::from_str(&shares).unwrap_or(vec![]),
@@ -110,8 +123,8 @@ impl Backups {
         hostname: &str,
         backup_number: usize,
         share_path: &str,
-    ) -> Result<(), Error> {
-        let mut shares = self.get_backup_share_paths(hostname, backup_number);
+    ) -> Result<()> {
+        let mut shares = self.get_backup_share_paths(hostname, backup_number).await;
 
         if !shares.contains(&share_path.to_string()) {
             shares.push(share_path.to_string());
@@ -148,7 +161,8 @@ impl Backups {
         hostname: &str,
         backup_number: Option<usize>,
         destination_number: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        shares: &[&str],
+    ) -> Result<()> {
         let destination_directory =
             self.get_backup_destination_directory(hostname, destination_number);
 
@@ -157,32 +171,27 @@ impl Backups {
         if let Some(backup_number) = backup_number {
             let source_directory = self.get_backup_destination_directory(hostname, backup_number);
 
-            // Should copy all files from source_directory to destination_directory
-            let mut entries = read_dir(source_directory).await?;
-            while let Some(entry) = entries.next_entry().await? {
-                let path = entry.path();
-                if path.is_file()
-                    && (path.extension().is_some_and(|f| f == "manifest")
-                        || path.file_name().is_some_and(|f| {
-                            f == "shares.yml" || path.file_name().is_some_and(|f| f == "REFCNT")
-                        }))
-                {
-                    let filename = path.file_name().unwrap_or_default();
-                    let dst_path = destination_directory.join(filename);
-                    copy(&path, &dst_path).await?;
-                }
+            // Copy only manifest that correspond to new shares
+            for share in shares {
+                let manifest = self.get_manifest(hostname, backup_number, share);
+                let destination_manifest = self.get_manifest(hostname, destination_number, share);
+
+                copy(&manifest.manifest_path, &destination_manifest.manifest_path).await?;
             }
+
+            // Copy refcnt
+            copy(
+                source_directory.join("REFCNT"),
+                destination_directory.join("REFCNT"),
+            )
+            .await?;
         }
 
         Ok(())
     }
 
-    pub async fn add_or_replace_backup(
-        &self,
-        hostname: &str,
-        backup: &Backup,
-    ) -> Result<(), Error> {
-        let backups = self.get_backups(hostname);
+    pub async fn add_or_replace_backup(&self, hostname: &str, backup: &Backup) -> Result<()> {
+        let backups = self.get_backups(hostname).await;
 
         // Find the index of backup.number in backup_file if found
         let index = backups
@@ -204,12 +213,10 @@ impl Backups {
         Ok(())
     }
 
-    pub async fn remove_backup(
-        &self,
-        hostname: &str,
-        backup_number: usize,
-    ) -> Result<Backup, Error> {
-        let mut backups = self.get_backups(hostname);
+    pub async fn remove_backup(&self, hostname: &str, backup_number: usize) -> Result<Backup> {
+        let backup_destination = self.get_backup_destination_directory(hostname, backup_number);
+
+        let mut backups = self.get_backups(hostname).await;
 
         // Find the index of backup.number in backup_file if found
         let index = backups
@@ -228,10 +235,12 @@ impl Backups {
         // Serialize and save in the backup file
         self.save(hostname, &backups).await?;
 
+        remove_dir_all(&backup_destination).await?;
+
         Ok(backup)
     }
 
-    async fn save(&self, hostname: &str, backups: &Vec<Backup>) -> Result<(), Error> {
+    async fn save(&self, hostname: &str, backups: &Vec<Backup>) -> Result<()> {
         let backups = serde_yaml::to_string(&backups).map_err(|_| {
             Error::new(
                 ErrorKind::InvalidData,

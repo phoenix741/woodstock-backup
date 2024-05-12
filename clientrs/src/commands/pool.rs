@@ -1,9 +1,11 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::SystemTime,
 };
 
 use console::Term;
+use eyre::Result;
 use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use log::{error, info};
 
@@ -19,12 +21,12 @@ pub async fn add_refcnt_to_pool(
     ctxt: &Context,
     hostname: &str,
     backup_number: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let backups = Backups::new(ctxt);
     let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
     info!("Add refcnt to pool for {}", destination_directory.display());
-    let mut backup_refcnt = Refcnt::new(&destination_directory, ctxt);
+    let mut backup_refcnt = Refcnt::new(&destination_directory);
     backup_refcnt.load_refcnt(false).await;
 
     info!("Apply refcnt to pool");
@@ -32,6 +34,7 @@ pub async fn add_refcnt_to_pool(
         &ctxt.config.path.pool_path,
         &backup_refcnt,
         &RefcntApplySens::Increase,
+        &SystemTime::now(),
         ctxt,
     )
     .await?;
@@ -45,17 +48,18 @@ pub async fn remove_refcnt_to_pool(
     ctxt: &Context,
     hostname: &str,
     backup_number: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     let backups = Backups::new(ctxt);
     let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let mut backup_refcnt = Refcnt::new(&destination_directory, ctxt);
+    let mut backup_refcnt = Refcnt::new(&destination_directory);
     backup_refcnt.load_refcnt(false).await;
 
     Refcnt::apply_all_from(
         &ctxt.config.path.pool_path,
         &backup_refcnt,
         &RefcntApplySens::Decrease,
+        &SystemTime::now(),
         ctxt,
     )
     .await?;
@@ -63,8 +67,8 @@ pub async fn remove_refcnt_to_pool(
     Ok(())
 }
 
-pub async fn check_compression(ctxt: &Context) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+pub async fn check_compression(ctxt: &Context) -> Result<()> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
     let mut compressed_size: u64 = 0;
@@ -108,8 +112,8 @@ pub async fn check_compression(ctxt: &Context) -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-pub async fn verify_chunk(ctxt: &Context) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -158,10 +162,7 @@ pub async fn verify_chunk(ctxt: &Context) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-pub async fn verify_refcnt(
-    ctxt: &Context,
-    dry_run: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
     let hosts = Hosts::new(ctxt);
     let backups = Backups::new(ctxt);
 
@@ -169,8 +170,8 @@ pub async fn verify_refcnt(
     let mut total_count = 0;
     let mut count = 1;
 
-    for host in hosts.list_hosts()? {
-        let backups = backups.get_backups(&host);
+    for host in hosts.list_hosts().await? {
+        let backups = backups.get_backups(&host).await;
         count += backups.len() + 1;
     }
 
@@ -183,8 +184,8 @@ pub async fn verify_refcnt(
         .unwrap(),
     );
 
-    for host in hosts.list_hosts()? {
-        let backups = backups.get_backups(&host);
+    for host in hosts.list_hosts().await? {
+        let backups = backups.get_backups(&host).await;
         for backup in backups {
             let result = check_backup_integrity(&host, backup.number, dry_run, ctxt).await?;
 
@@ -220,11 +221,8 @@ pub async fn verify_refcnt(
     Ok(())
 }
 
-pub async fn verify_unused(
-    ctxt: &Context,
-    dry_run: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -263,12 +261,9 @@ pub async fn verify_unused(
     Ok(())
 }
 
-pub async fn clean_unused_pool(
-    ctxt: &Context,
-    target: Option<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result<()> {
     let target = target.map(PathBuf::from);
-    let mut refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+    let mut refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     refcnt.load_unused().await;
 
     let total = Arc::new(Mutex::new(0));
@@ -283,7 +278,7 @@ pub async fn clean_unused_pool(
     );
 
     refcnt
-        .remove_unused_files(target, &|unused| {
+        .remove_unused_files(&ctxt.config.path.pool_path, target, &|unused| {
             let compressed_size = unused
                 .clone()
                 .map(|f| f.compressed_size)

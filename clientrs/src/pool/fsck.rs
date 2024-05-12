@@ -1,4 +1,7 @@
+use std::time::SystemTime;
+
 use async_walkdir::{Filtering, WalkDir};
+use eyre::Result;
 use futures::{pin_mut, StreamExt};
 use log::{error, info};
 
@@ -55,12 +58,12 @@ pub async fn check_backup_integrity(
     backup_number: usize,
     dry_run: bool,
     ctxt: &Context,
-) -> Result<FsckCount, Box<dyn std::error::Error>> {
+) -> Result<FsckCount> {
     let backups = Backups::new(ctxt);
     let destination_backup = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let new_refcnt = Refcnt::apply_from_backup(hostname, backup_number, ctxt).await?;
-    let mut original_refcnt = Refcnt::new(&destination_backup, ctxt);
+    let new_refcnt = Refcnt::new_backup_refcnt_from_manifest(hostname, backup_number, ctxt).await?;
+    let mut original_refcnt = Refcnt::new(&destination_backup);
     original_refcnt.load_refcnt(false).await;
 
     let error_count = check_integrity(&original_refcnt, &new_refcnt);
@@ -69,8 +72,8 @@ pub async fn check_backup_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}/{backup_number}");
-        new_refcnt.finish().await?;
-        new_refcnt.save_refcnt().await?;
+        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
     Ok(FsckCount {
@@ -83,13 +86,13 @@ pub async fn check_host_integrity(
     hostname: &str,
     dry_run: bool,
     ctxt: &Context,
-) -> Result<FsckCount, Box<dyn std::error::Error>> {
+) -> Result<FsckCount> {
     let backups = Backups::new(ctxt);
     let destination_directory = backups.get_host_path(hostname);
 
-    let new_refcnt = Refcnt::apply_from_host(hostname, ctxt).await?;
+    let new_refcnt = Refcnt::new_host_refcnt_from_backups(hostname, ctxt).await?;
 
-    let mut original_refcnt = Refcnt::new(&destination_directory, ctxt);
+    let mut original_refcnt = Refcnt::new(&destination_directory);
     original_refcnt.load_refcnt(false).await;
 
     let error_count = check_integrity(&original_refcnt, &new_refcnt);
@@ -98,8 +101,8 @@ pub async fn check_host_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}");
-        new_refcnt.finish().await?;
-        new_refcnt.save_refcnt().await?;
+        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
     Ok(FsckCount {
@@ -108,14 +111,11 @@ pub async fn check_host_integrity(
     })
 }
 
-pub async fn check_pool_integrity(
-    dry_run: bool,
-    ctxt: &Context,
-) -> Result<FsckCount, Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+pub async fn check_pool_integrity(dry_run: bool, ctxt: &Context) -> Result<FsckCount> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
-    let new_refcnt = Refcnt::apply_from_all(ctxt).await?;
+    let new_refcnt = Refcnt::new_pool_refcnt_from_host(ctxt).await?;
 
     let error_count = check_integrity(&pool_refcnt, &new_refcnt);
 
@@ -123,8 +123,8 @@ pub async fn check_pool_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for pool");
-        new_refcnt.finish().await?;
-        new_refcnt.save_refcnt().await?;
+        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
     Ok(FsckCount {
@@ -137,8 +137,8 @@ pub async fn check_unused(
     dry_run: bool,
     cb: &impl Fn(usize),
     ctxt: &Context,
-) -> Result<FsckUnusedCount, Box<dyn std::error::Error>> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path, ctxt);
+) -> Result<FsckUnusedCount> {
+    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 

@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "backuppc_importer"
+		},
+		{
+			"path": "shared-rs"
 		}
 	],
 	"settings": {
@@ -12,6 +15,11 @@
 		"rust-analyzer.procMacro.enable": true,
 		"rust-analyzer.procMacro.attributes.enable": true,
 		"rust-analyzer.check.features": "all",
-		"rust-analyzer.cargo.features": "all"
+		"rust-analyzer.cargo.features": "all",
+		"rust-analyzer.procMacro.ignored": {
+			"napi-derive": [
+				"napi"
+			]
+		}
 	}
 }

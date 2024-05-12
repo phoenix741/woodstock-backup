@@ -1,6 +1,7 @@
 use futures::stream;
 use log::debug;
 use log::error;
+use log::warn;
 use std::cmp::max;
 use std::collections::HashMap;
 use std::path::Path;
@@ -18,6 +19,7 @@ use crate::statistics::write_statistics;
 use crate::statistics::PoolStatistics;
 use crate::PoolUnused;
 use crate::{proto::ProtobufReader, PoolRefCount};
+use eyre::Result;
 
 use super::PoolChunkWrapper;
 
@@ -26,8 +28,7 @@ pub enum RefcntApplySens {
     Decrease,
 }
 
-pub struct Refcnt<'context> {
-    context: &'context Context,
+pub struct Refcnt {
     path: PathBuf,
     refcnt_path: PathBuf,
     unused_path: PathBuf,
@@ -37,11 +38,10 @@ pub struct Refcnt<'context> {
 }
 
 // FIXME: Add lock (or add it on nodejs part ?)
-impl<'context> Refcnt<'context> {
+impl Refcnt {
     #[must_use]
-    pub fn new(path: &Path, ctxt: &'context Context) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self {
-            context: ctxt,
             path: path.to_path_buf(),
             refcnt_path: path.join("REFCNT"),
             unused_path: path.join("unused"),
@@ -95,16 +95,16 @@ impl<'context> Refcnt<'context> {
         }
     }
 
-    pub async fn apply_from_backup(
+    pub async fn new_backup_refcnt_from_manifest(
         hostname: &str,
         backup_number: usize,
-        ctxt: &'context Context,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+        ctxt: &Context,
+    ) -> Result<Self> {
         let backups = Backups::new(ctxt);
         let refcnt_file = backups.get_backup_destination_directory(hostname, backup_number);
 
-        let manifests = backups.get_manifests(hostname, backup_number);
-        let mut refcnt = Refcnt::new(&refcnt_file, ctxt);
+        let manifests = backups.get_manifests(hostname, backup_number).await;
+        let mut refcnt = Refcnt::new(&refcnt_file);
         refcnt.load_refcnt(true).await;
 
         for manifest in manifests {
@@ -119,22 +119,19 @@ impl<'context> Refcnt<'context> {
         Ok(refcnt)
     }
 
-    pub async fn apply_from_host(
-        hostname: &str,
-        ctxt: &'context Context,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new_host_refcnt_from_backups(hostname: &str, ctxt: &Context) -> Result<Self> {
         let backups_config = Backups::new(ctxt);
         let refcnt_file = backups_config.get_host_path(hostname);
 
-        let backups = backups_config.get_backups(hostname);
+        let backups = backups_config.get_backups(hostname).await;
 
-        let mut new_refcnt = Refcnt::new(&refcnt_file, ctxt);
+        let mut new_refcnt = Refcnt::new(&refcnt_file);
 
         for backup in backups {
             let destination_backup =
                 backups_config.get_backup_destination_directory(hostname, backup.number);
 
-            let mut backup_refcnt = Refcnt::new(&destination_backup, ctxt);
+            let mut backup_refcnt = Refcnt::new(&destination_backup);
             backup_refcnt.load_refcnt(false).await;
 
             for pool_refcnt in backup_refcnt.index.values() {
@@ -145,22 +142,20 @@ impl<'context> Refcnt<'context> {
         Ok(new_refcnt)
     }
 
-    pub async fn apply_from_all(
-        ctxt: &'context Context,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new_pool_refcnt_from_host(ctxt: &Context) -> Result<Self> {
         let hosts_config = Hosts::new(ctxt);
         let backups_config = Backups::new(ctxt);
 
         let refcnt_file = ctxt.config.path.pool_path.clone();
 
-        let hosts = hosts_config.list_hosts()?;
+        let hosts = hosts_config.list_hosts().await?;
 
-        let mut new_refcnt = Refcnt::new(&refcnt_file, ctxt);
+        let mut new_refcnt = Refcnt::new(&refcnt_file);
 
         for host in hosts {
             let destination_host = backups_config.get_host_path(&host);
 
-            let mut host_refcnt = Refcnt::new(&destination_host, ctxt);
+            let mut host_refcnt = Refcnt::new(&destination_host);
             host_refcnt.load_refcnt(false).await;
 
             for pool_refcnt in host_refcnt.index.values() {
@@ -171,13 +166,14 @@ impl<'context> Refcnt<'context> {
         Ok(new_refcnt)
     }
 
-    pub async fn apply_all_from<'a>(
+    pub async fn apply_all_from(
         path: &Path,
-        refcnt: &'a Refcnt<'a>,
+        refcnt: &Refcnt,
         sens: &RefcntApplySens,
-        ctxt: &'context Context,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut new_refcnt = Refcnt::new(path, ctxt);
+        date: &SystemTime,
+        ctxt: &Context,
+    ) -> Result<Self> {
+        let mut new_refcnt = Refcnt::new(path);
         new_refcnt.load_refcnt(false).await;
         new_refcnt.load_unused().await;
 
@@ -186,9 +182,9 @@ impl<'context> Refcnt<'context> {
             new_refcnt.apply(pool_refcnt, sens);
         }
 
-        new_refcnt.finish().await?;
+        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
 
-        new_refcnt.save_refcnt().await?;
+        new_refcnt.save_refcnt(date).await?;
         new_refcnt.save_unused().await?;
 
         Ok(new_refcnt)
@@ -235,16 +231,14 @@ impl<'context> Refcnt<'context> {
 
     pub async fn remove_unused_files(
         &mut self,
+        pool_path: &Path,
         target: Option<PathBuf>,
         callback: &impl Fn(&Option<PoolUnused>),
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         debug!("Remove unused files");
         let unused = self.unused.values().cloned().collect::<Vec<PoolUnused>>();
         for pool_unused in unused {
-            let wrapper = PoolChunkWrapper::new(
-                &self.context.config.path.pool_path,
-                Some(&pool_unused.sha256),
-            );
+            let wrapper = PoolChunkWrapper::new(pool_path, Some(&pool_unused.sha256));
             if let Some(target) = &target {
                 if let Err(e) = wrapper.mv(target).await {
                     error!("Error while moving chunk: {:?}", e);
@@ -264,12 +258,12 @@ impl<'context> Refcnt<'context> {
     }
 
     pub fn apply(&mut self, refcnt: &PoolRefCount, sens: &RefcntApplySens) {
-        let sha256_pool_refcnt = &refcnt.sha256;
-        let hash_str = hex::encode(sha256_pool_refcnt);
+        let sha256_pool_refcnt = refcnt.sha256.clone();
+        let hash_str = hex::encode(&sha256_pool_refcnt);
 
         let cnt = self
             .index
-            .get(sha256_pool_refcnt)
+            .get(&sha256_pool_refcnt)
             .cloned()
             .unwrap_or_default();
 
@@ -286,13 +280,13 @@ impl<'context> Refcnt<'context> {
         }
 
         if cnt.size != refcnt.size && cnt.size != 0 && refcnt.size != 0 {
-            error!("Registered compressed size is different for {hash_str}");
+            error!("Registered size is different for {hash_str}");
         }
 
         self.index.insert(
             sha256_pool_refcnt.clone(),
             PoolRefCount {
-                sha256: sha256_pool_refcnt.clone(),
+                sha256: sha256_pool_refcnt,
                 ref_count,
                 size: if refcnt.size == 0 {
                     cnt.size
@@ -308,15 +302,20 @@ impl<'context> Refcnt<'context> {
         );
     }
 
-    pub async fn finish(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn finish(&mut self, pool_path: &Path) -> Result<()> {
         debug!("Read chunk informations");
         // For each value check chunk informations
         for (sha256_pool_refcnt, pool_refcnt) in &mut self.index {
             if pool_refcnt.size == 0 || pool_refcnt.compressed_size == 0 {
-                let wrapper = PoolChunkWrapper::new(
-                    &self.context.config.path.pool_path,
-                    Some(sha256_pool_refcnt),
+                let wrapper = PoolChunkWrapper::new(pool_path, Some(sha256_pool_refcnt));
+                warn!(
+                    "Missing size or compressed size for {}",
+                    wrapper
+                        .get_hash_str()
+                        .as_ref()
+                        .unwrap_or(&"None".to_string())
                 );
+
                 let informations = wrapper.chunk_information().await?;
 
                 pool_refcnt.size = informations.size;
@@ -367,7 +366,7 @@ impl<'context> Refcnt<'context> {
         Ok(())
     }
 
-    pub async fn save_refcnt(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn save_refcnt(&self, date: &SystemTime) -> Result<()> {
         debug!("Save refcnt");
         // Save the refcnt
         let source = stream::iter(self.index.values().cloned()).filter_map(|refcnt| async {
@@ -379,17 +378,357 @@ impl<'context> Refcnt<'context> {
         });
         save_file(&self.refcnt_path, source, true, true).await?;
 
-        write_statistics(&self.statistics, &self.path, &SystemTime::now()).await?;
+        write_statistics(&self.statistics, &self.path, date).await?;
 
         Ok(())
     }
 
-    pub async fn save_unused(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn save_unused(&self) -> Result<()> {
         debug!("Save unused");
         // Save the unused
         let source = stream::iter(self.unused.values().cloned());
         save_file(&self.unused_path, source, true, true).await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::BTreeSet, fs::remove_dir_all};
+
+    use log::Level;
+
+    use super::*;
+
+    const SHA3_256_1: [u8; 1] = [0x1];
+    const SHA3_256_2: [u8; 1] = [0x2];
+    const SHA3_256_3: [u8; 1] = [0x3];
+    const SHA3_256_4: [u8; 1] = [0x4];
+    const SHA3_256_5: [u8; 1] = [0x5];
+    const SHA3_256_6: [u8; 1] = [0x6];
+
+    struct CleanUp;
+
+    impl Drop for CleanUp {
+        fn drop(&mut self) {
+            // Clean up fixtures
+            let _ = remove_dir_all("./data/pool_refcnt");
+        }
+    }
+
+    fn create_refcnt(context: &Context, hash: Vec<&[u8]>) -> Refcnt {
+        let path = Path::new("/tmp").to_path_buf();
+        let mut refcnt = Refcnt::new(&path);
+
+        for sha256 in hash {
+            refcnt.apply(
+                &PoolRefCount {
+                    sha256: sha256.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5,
+                },
+                &RefcntApplySens::Increase,
+            );
+        }
+
+        refcnt
+    }
+
+    #[tokio::test]
+    async fn test_refcnt() {
+        // The test should create a first Refcnt file, check it
+        // Then create a second Refcnt file, check it
+        let path = PathBuf::from("./data");
+        let context = crate::config::Context::new(path, Level::Debug);
+        let refcnt1 = create_refcnt(&context, vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
+        let refcnt2 = create_refcnt(
+            &context,
+            vec![
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_5,
+            ],
+        );
+
+        let mut refcnt1_values = refcnt1.index.values().collect::<Vec<&PoolRefCount>>();
+        refcnt1_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+        assert_eq!(
+            refcnt1_values,
+            vec![
+                &PoolRefCount {
+                    sha256: SHA3_256_1.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_2.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_3.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                }
+            ]
+        );
+
+        let mut refcnt2_values = refcnt2.index.values().collect::<Vec<&PoolRefCount>>();
+        refcnt2_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+        assert_eq!(
+            refcnt2_values,
+            vec![
+                &PoolRefCount {
+                    sha256: SHA3_256_1.to_vec(),
+                    ref_count: 4,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_5.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_refcnt_pool() {
+        let _clean_up = CleanUp;
+
+        let path = PathBuf::from("./data");
+        let context = crate::config::Context::new(path, Level::Debug);
+        let refcnt1 = create_refcnt(&context, vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
+        let refcnt2 = create_refcnt(
+            &context,
+            vec![
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_1,
+                &SHA3_256_5,
+            ],
+        );
+        let refcnt3 = create_refcnt(&context, vec![&SHA3_256_3, &SHA3_256_4, &SHA3_256_5]);
+        let refcnt4 = create_refcnt(&context, vec![&SHA3_256_6, &SHA3_256_3]);
+
+        // Add all refcnt to the pool
+        let now = SystemTime::now();
+        let pool_path = Path::new("./data/pool_refcnt");
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt1,
+            &RefcntApplySens::Increase,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt2,
+            &RefcntApplySens::Increase,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt3,
+            &RefcntApplySens::Increase,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt4,
+            &RefcntApplySens::Increase,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+
+        // Load refcnt from the pool
+        let mut pool_refcnt = Refcnt::new(pool_path);
+        pool_refcnt.load_refcnt(false).await;
+        pool_refcnt.load_unused().await;
+
+        let mut pool_refcnt_values = pool_refcnt.index.values().collect::<Vec<&PoolRefCount>>();
+        pool_refcnt_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+
+        assert_eq!(
+            pool_refcnt_values,
+            vec![
+                &PoolRefCount {
+                    sha256: SHA3_256_1.to_vec(),
+                    ref_count: 5,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_2.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_3.to_vec(),
+                    ref_count: 3,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_4.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_5.to_vec(),
+                    ref_count: 2,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_6.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+            ]
+        );
+
+        let pool = Refcnt::apply_all_from(
+            pool_path,
+            &refcnt2,
+            &RefcntApplySens::Decrease,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+        let mut pool_refcnt_values = pool.index.values().collect::<Vec<&PoolRefCount>>();
+        pool_refcnt_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+
+        assert_eq!(
+            pool_refcnt_values,
+            vec![
+                &PoolRefCount {
+                    sha256: SHA3_256_1.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_2.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_3.to_vec(),
+                    ref_count: 3,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_4.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_5.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_6.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+            ]
+        );
+
+        let pool = Refcnt::apply_all_from(
+            pool_path,
+            &refcnt3,
+            &RefcntApplySens::Decrease,
+            &now,
+            &context,
+        )
+        .await
+        .unwrap();
+        let mut pool_refcnt_values = pool.index.values().collect::<Vec<&PoolRefCount>>();
+        pool_refcnt_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
+        let unused = pool
+            .unused
+            .values()
+            .map(|f| f.sha256.clone())
+            .collect::<BTreeSet<Vec<u8>>>();
+
+        assert_eq!(
+            pool_refcnt_values,
+            vec![
+                &PoolRefCount {
+                    sha256: SHA3_256_1.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_2.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_3.to_vec(),
+                    ref_count: 2,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_4.to_vec(),
+                    ref_count: 0,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_5.to_vec(),
+                    ref_count: 0,
+                    size: 10,
+                    compressed_size: 5
+                },
+                &PoolRefCount {
+                    sha256: SHA3_256_6.to_vec(),
+                    ref_count: 1,
+                    size: 10,
+                    compressed_size: 5
+                },
+            ]
+        );
+
+        assert_eq!(
+            unused,
+            vec![SHA3_256_4.to_vec(), SHA3_256_5.to_vec()]
+                .into_iter()
+                .collect::<BTreeSet<Vec<u8>>>()
+        );
     }
 }

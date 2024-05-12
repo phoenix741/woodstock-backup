@@ -9,7 +9,7 @@ import {
   PoolUsage,
   Statistics,
   StatsInstantService,
-} from '@woodstock/server';
+} from '@woodstock/shared';
 
 @Resolver(() => Statistics)
 export class StatsResolver {

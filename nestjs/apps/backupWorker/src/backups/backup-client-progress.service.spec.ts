@@ -1,13 +1,11 @@
 import { Logger } from '@nestjs/common';
 import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { bigIntToLong } from '@woodstock/core';
-import { BackupLogger } from '@woodstock/server';
-import { EntryType } from '@woodstock/shared';
+import { bigIntToLong } from '@woodstock/shared';
+import { BackupLogger } from '@woodstock/shared';
 import { from, lastValueFrom, toArray } from 'rxjs';
-import { BackupsGrpcContext } from './backup-client-grpc.class.js';
 import { BackupClientProgress } from './backup-client-progress.service.js';
-import { BackupClient } from './backup-client.service.js';
+import { BackupsClientService } from './backups-client.service.js';
 
 describe('BackupClientProgress', () => {
   const mockBackupClient = {
@@ -44,7 +42,7 @@ describe('BackupClientProgress', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [{ provide: BackupClient, useValue: mockBackupClient }, BackupClientProgress],
+      providers: [{ provide: BackupsClientService, useValue: mockBackupClient }, BackupClientProgress],
     }).compile();
 
     backupClientProgress = module.get<BackupClientProgress>(BackupClientProgress);

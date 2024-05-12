@@ -1,4 +1,4 @@
-FROM node:18 as dependencies
+FROM node:20 as dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src/nestjs
@@ -30,7 +30,7 @@ RUN npm run buildall
 
 #
 # -------- Dist -----------
-FROM node:18 AS dist
+FROM node:20 AS dist
 
 WORKDIR /nestjs
 
@@ -39,7 +39,6 @@ RUN npm install pm2 -g
 COPY --from=dependencies /src/nestjs/node_modules /nestjs/node_modules
 COPY --from=build-back /src/nestjs/config/ /nestjs/config/
 COPY --from=build-back /src/nestjs/dist/ /nestjs/
-COPY --from=build-back /src/nestjs/woodstock.proto /nestjs/
 COPY --from=build-back /src/nestjs/ecosystem.config.js /nestjs/
 COPY --from=build-front /src/front/dist /nestjs/front/
 

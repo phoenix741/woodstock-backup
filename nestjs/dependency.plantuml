@@ -1,0 +1,115 @@
+@startuml
+package "SharedModule" {
+  JobService <|-- QueueEventsHost
+  JobService *-- BACKUP_QUEUE
+  JobService *-- REFCNT_QUEUE
+  JobService *-- LockService
+  JobService *-- HostsService
+  JobService *-- BackupsService
+  JobService *-- SchedulerConfigService
+  JobService *-- PingService
+
+  CertificateService *-- ApplicationConfigService
+
+  BackupLogger <|-- LoggerService
+  BackupLogger *-- BackupsService
+
+  BackupsService *-- CoreBackupsService
+  HostsService *-- CoreHostsService
+  LockService *-- ApplicationConfigService
+
+  PoolService *-- CorePoolService
+
+  ExecuteCommandService *-- ToolsService
+  PingService *-- ExecuteCommandService
+  PingService *-- ResolveService
+  ResolveService *-- ExecuteCommandService
+  ToolsService *-- ApplicationConfigService
+  ToolsService *-- YamlService
+
+  ApplicationConfigService *-- ConfigService
+  SchedulerConfigService *-- ApplicationConfigService
+  SchedulerConfigService *-- YamlService
+
+  FilesService *-- CoreBackupsService
+  FilesService *-- CoreFilesService
+
+  ApplicationLogger <|-- LoggerService
+
+  BullConfigService *-- ApplicationConfigService
+
+  DiskStatisticsService *-- YamlService
+  DiskStatisticsService *-- ApplicationConfigService
+
+  PoolStatisticsService *-- YamlService
+  PoolStatisticsService *-- ApplicationConfigService
+  PoolStatisticsService *-- BackupsService
+
+  StatsInstantService *-- ExecuteCommandService
+  StatsInstantService *-- HostsService
+  StatsInstantService *-- BackupsService
+  StatsInstantService *-- PoolStatisticsService
+
+  JobLogger <|-- LoggerService
+  JobLogger *-- ApplicationConfigService
+}
+
+package ApiModule {
+  BackupsFilesController *-- BackupsFilesService
+  BackupsFilesService *-- BackupsService
+  BackupsFilesService *-- FilesService
+  BackupController *-- BACKUP_QUEUE
+  BackupController *-- ApplicationConfigService
+  BackupController *-- HostsService
+  BackupController *-- BackupsService
+  BackupsResolver *-- BACKUP_QUEUE
+  BackupsResolver *-- BackupsFilesService
+  BackupsResolver *-- HostsService
+  BackupsResolver *-- BackupsService
+
+  HostController *-- ApplicationConfigService
+  HostController *-- CertificateService
+  HostController *-- BackupsService
+  HostController *-- HostsService
+  HostController *-- YamlService
+
+  HostsResolver *-- BACKUP_QUEUE
+  HostsResolver *-- HostsService
+  HostsResolver *-- BackupsService
+
+  PoolResolver *-- REFCNT_QUEUE
+
+  QueueController *-- BACKUP_QUEUE
+  QueueResolver *-- BACKUP_QUEUE
+  QueueResolver *-- REFCNT_QUEUE
+  QueueResolver *-- PubSub
+  QueueResolver *-- SchedulerConfigService
+  QueueResolver *-- QueueUtils
+
+  QueueService *-- BACKUP_QUEUE
+  QueueService *-- PubSub
+  QueueService *-- QueueUtils
+
+  QueueUtils *-- QueueTasksService
+
+  RefcntQueueService <|-- QueueEventsHost
+  RefcntQueueService *-- REFCNT_QUEUE
+  RefcntQueueService *-- PubSub
+  RefcntQueueService *-- QueueUtils
+
+  ServerController *-- ApplicationConfigService
+  ServerController *-- ServerService
+
+  ServerService *-- ApplicationConfigService
+  ServerService *-- ToolsService
+  ServerService *-- ExecuteCommandService
+
+  PrometheusService *-- BACKUP_QUEUE
+  PrometheusService *-- StatsInstantService
+
+  StatsResolver *-- StatsInstantService
+  StatsResolver *-- PoolStatisticsService
+  StatsResolver *-- DiskStatisticsService
+}
+
+@enduml

@@ -28,6 +28,7 @@ export interface ProgressTaskGui {
   progressCurrent?: bigint | null;
   progressMax?: bigint | null;
   speed?: number | null;
+  percent?: number | null;
 }
 export interface JobTaskGui {
   jobType: string;

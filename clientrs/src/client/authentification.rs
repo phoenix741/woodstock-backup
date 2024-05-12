@@ -5,14 +5,13 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
-    error::Error,
-    io,
     path::{Path, PathBuf},
 };
 use uuid::Uuid;
 
 use crate::client::config::ClientConfig;
 use crate::utils::encryption;
+use eyre::{eyre, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
@@ -75,7 +74,7 @@ impl Service {
     ///
     /// An error is returned if the token is invalid.
     ///
-    pub fn authenticate(&mut self, token: &str) -> Result<String, Box<dyn Error>> {
+    pub fn authenticate(&mut self, token: &str) -> Result<String> {
         debug!("Try to authenticate the server for host {}", self.hostname);
 
         // Check the token validity
@@ -126,7 +125,7 @@ impl Service {
     ///
     /// An error is returned if the token is invalid.
     ///
-    pub fn check_context(&self, token: &str) -> Result<String, Box<dyn Error>> {
+    pub fn check_context(&self, token: &str) -> Result<String> {
         debug!("Check the context of the token");
 
         // Decode JWT Token
@@ -143,19 +142,13 @@ impl Service {
                 token_data.claims.session_id
             );
 
-            return Err(Box::new(io::Error::new(
-                io::ErrorKind::Other,
-                "Session not found",
-            )));
+            return Err(eyre!("Session not found"));
         }
 
         if !token_data.claims.is_authenticated {
             warn!("Claim is_authenticated is not activated in the token");
 
-            return Err(Box::new(io::Error::new(
-                io::ErrorKind::Other,
-                "Session not authenticated",
-            )));
+            return Err(eyre!("Session not authenticated"));
         }
 
         debug!("The session id {} is valid", token_data.claims.session_id);
@@ -182,7 +175,7 @@ impl Service {
     ///
     /// An error is returned if the token is invalid.
     ///
-    pub fn logout(&mut self, session_id: &str) -> Result<(), Box<dyn Error>> {
+    pub fn logout(&mut self, session_id: &str) -> Result<()> {
         debug!("Logout the session associated with the token {session_id}");
 
         self.context.remove(session_id);

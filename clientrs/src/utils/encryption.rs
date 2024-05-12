@@ -9,7 +9,10 @@ use rsa::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, error::Error, path::Path};
+use std::{collections::HashSet, path::Path};
+use tokio::fs::read;
+
+use eyre::{eyre, Result};
 
 /// The goal of this module is to provide a way to create and verify a JWT token
 /// using the RS256 algorithm.
@@ -45,7 +48,7 @@ struct Claims {
 ///
 /// * `std::io::Error` - If the keys can't be generated
 ///
-pub fn generate_rsa_key(certificate_path: &Path) -> Result<(), Box<dyn Error>> {
+pub fn generate_rsa_key(certificate_path: &Path) -> Result<()> {
     debug!("Generate a new RSA key pair");
 
     let public_key_path = certificate_path.join("public_key.pem");
@@ -109,15 +112,15 @@ fn create_sha256_hash(data: &str) -> String {
 /// * `std::string::FromUtf8Error` - If the password can't be encoded in UTF-8
 /// * `std::string::FromUtf8Error` - If the password can't be encoded in base64
 ///
-pub fn create_authentification_token(
+pub async fn create_authentification_token(
     certificate_path: &Path,
     host: &str,
     password: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String> {
     debug!("Create a new authentification token for host {host}");
 
     let private_key_path = certificate_path.join("private_key.pem");
-    let private_key = std::fs::read(private_key_path)?;
+    let private_key = read(private_key_path).await?;
     let encoding_key = EncodingKey::from_rsa_pem(&private_key)?;
 
     // Create a sha256 from password
@@ -168,7 +171,7 @@ pub fn verify_authentification_token(
     host: &str,
     token: &str,
     password: &str,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     debug!("Verify the authentification token for host {host}");
 
     let public_key_path = certificate_path.join("public_key.pem");
@@ -187,10 +190,7 @@ pub fn verify_authentification_token(
 
     if token_data.claims.hash != password_hash {
         warn!("Invalid password for host {host}");
-        return Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Invalid password",
-        )));
+        return Err(eyre!("Invalid password"));
     }
 
     debug!("Authentification token for host {host} is valid");

@@ -1,4 +1,3 @@
-use crossbeam_channel::Receiver;
 use futures::{pin_mut, Stream, TryStreamExt};
 use log::{debug, error};
 use std::{
@@ -12,21 +11,20 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
 
-use crate::manifest::IndexManifest;
-use crate::scanner::get_files_with_hash;
-use crate::scanner::read_chunk;
+use crate::manifest::FileManifestLight;
+use crate::scanner::{calculate_chunk_hash_future, read_chunk};
 use crate::utils::path::{list_to_globset, vec_to_str};
 use crate::woodstock::{
     refresh_cache_request, woodstock_client_service_server::WoodstockClientService,
     AuthenticateReply, AuthenticateRequest, Empty as EmptyProto, EntryType, ExecuteCommandReply,
-    ExecuteCommandRequest, FileManifestJournalEntry, LaunchBackupRequest, LogEntry,
-    RefreshCacheRequest, StreamLogRequest,
+    ExecuteCommandRequest, FileManifestJournalEntry, LaunchBackupRequest, RefreshCacheRequest,
 };
+use crate::FileManifest;
 use crate::{client::authentification::Service as AuthService, ChunkInformation};
 use crate::{client::config::ClientConfig, FileChunk};
 use crate::{client::exexcute_command::execute_command, scanner::CreateManifestOptions};
-use crate::{client::grpc_logger::close_log, FileManifest};
-use crate::{client::grpc_logger::CLOSE_LOG_STRING, manifest::FileManifestLight};
+use crate::{manifest::IndexManifest, ChunkHashRequest};
+use crate::{scanner::get_files_with_hash, ChunkHashReply};
 
 #[derive(Default)]
 struct WoodstockContext {
@@ -38,7 +36,6 @@ struct WoodstockContext {
 pub struct WoodstockClient {
     authentification_service: Arc<RwLock<AuthService>>,
     context: Arc<Mutex<HashMap<String, WoodstockContext>>>,
-    rx_logger: Receiver<LogEntry>,
     create_manifest_options: CreateManifestOptions,
 }
 
@@ -54,17 +51,12 @@ impl WoodstockClient {
     ///
     /// A new instance of `WoodstockClient`.
     #[must_use]
-    pub fn new(
-        certificate_path: &Path,
-        config: &ClientConfig,
-        rx_logger: Receiver<LogEntry>,
-    ) -> Self {
+    pub fn new(certificate_path: &Path, config: &ClientConfig) -> Self {
         let authentification_service = AuthService::new(certificate_path, config);
 
         Self {
             authentification_service: Arc::new(RwLock::new(authentification_service)),
             context: Arc::new(Mutex::new(HashMap::new())),
-            rx_logger,
             create_manifest_options: CreateManifestOptions {
                 with_acl: config.acl,
                 with_xattr: config.xattr,
@@ -403,6 +395,21 @@ impl WoodstockClientService for WoodstockClient {
         Ok(Response::new(ReceiverStream::new(rx)))
     }
 
+    async fn get_chunk_hash(
+        &self,
+        request: tonic::Request<ChunkHashRequest>,
+    ) -> std::result::Result<tonic::Response<ChunkHashReply>, tonic::Status> {
+        debug!("Get chunk hash");
+
+        self.check_context(request.metadata()).await?;
+
+        let chunk = request.get_ref();
+
+        let reply = calculate_chunk_hash_future(chunk).await;
+
+        Ok(Response::new(reply))
+    }
+
     type GetChunkStream =
         Pin<Box<dyn Stream<Item = Result<FileChunk, tonic::Status>> + Send + 'static>>;
 
@@ -428,57 +435,6 @@ impl WoodstockClientService for WoodstockClient {
         let replies = read_chunk(chunk).map_err(|f| tonic::Status::invalid_argument(f.to_string()));
 
         Ok(Response::new(Box::pin(replies) as Self::GetChunkStream))
-    }
-
-    type StreamLogStream = ReceiverStream<Result<LogEntry, tonic::Status>>;
-
-    /// Streams log entries.
-    ///
-    /// # Arguments
-    ///
-    /// * `_request` - The stream log request.
-    ///
-    /// # Returns
-    ///
-    /// A stream of log entries.
-    async fn stream_log(
-        &self,
-        request: tonic::Request<StreamLogRequest>,
-    ) -> std::result::Result<tonic::Response<Self::StreamLogStream>, tonic::Status> {
-        debug!("Start streaming log");
-
-        let session_id = self.check_context(request.metadata()).await?;
-        let authentification_service = self.authentification_service.clone();
-
-        let rx_logger = self.rx_logger.clone();
-        let (tx, rx) = mpsc::channel(100_000);
-        tokio::spawn(async move {
-            loop {
-                let log = rx_logger.recv();
-
-                match log {
-                    Err(_) => break,
-                    Ok(log) => {
-                        if log.context.eq(CLOSE_LOG_STRING) {
-                            // If the sender is closed, break the loop, check if authentification_service is present
-                            let service = authentification_service.read().await;
-                            if !service.validate_session(&session_id) {
-                                // println!("This is the end of the log");
-                                break;
-                            }
-                        }
-
-                        let result = tx.send(Ok(log)).await;
-                        if result.is_err() {
-                            error!("Failed to send log entry");
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-
-        Ok(Response::new(ReceiverStream::new(rx)))
     }
 
     /// Closes a backup operation.
@@ -508,9 +464,6 @@ impl WoodstockClientService for WoodstockClient {
             .await
             .logout(&session_id)
             .map_err(|err| tonic::Status::permission_denied(err.to_string()))?;
-
-        // Ensure that the logger is close
-        close_log();
 
         Ok(Response::new(EmptyProto {}))
     }

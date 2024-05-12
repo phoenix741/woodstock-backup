@@ -1,5 +1,5 @@
 import { ObjectType } from '@nestjs/graphql';
-import { Backup } from '@woodstock/server';
+import { Backup } from '@woodstock/shared';
 
 @ObjectType()
 export class Host {
@@ -7,5 +7,8 @@ export class Host {
 }
 
 export class HostInformation {
-  constructor(public name: string, public lastBackup?: Backup) {}
+  constructor(
+    public name: string,
+    public lastBackup?: Backup,
+  ) {}
 }

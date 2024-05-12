@@ -9,7 +9,7 @@ export function getState(host: HostsQuery["hosts"][0]) {
     return "disabled";
   } else if (host.lastBackupState) {
     return host.lastBackupState;
-  } else if (host.lastBackup?.complete) {
+  } else if (host.lastBackup?.completed) {
     return "failed";
   } else {
     return "idle";

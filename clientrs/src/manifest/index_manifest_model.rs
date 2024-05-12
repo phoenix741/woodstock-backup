@@ -92,9 +92,12 @@ impl<T: PathManifest> IndexManifest<T> {
     }
 
     /// Marks a file as viewed in the index.
-    pub fn mark(&mut self, file_path: &Vec<u8>) {
+    pub fn mark(&mut self, file_path: &Vec<u8>) -> Option<&IndexFileEntry<T>> {
         if let Some(entry) = self.files.get_mut(file_path) {
             entry.mark_viewed = true;
+            Some(entry)
+        } else {
+            None
         }
     }
 

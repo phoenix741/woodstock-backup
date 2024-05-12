@@ -226,6 +226,7 @@ fn create_manifest_from_file(
         xattr,
         acl,
         chunks: Vec::new(),
+        hash: Vec::new(),
         symlink,
 
         metadata: HashMap::new(),
@@ -249,7 +250,7 @@ fn get_files_recursive(
             return Ok(Vec::new());
         }
 
-        let mut dir = tokio::fs::read_dir(path).await?;
+        let mut dir = tokio::fs::read_dir(&path).await?;
         let mut files = Vec::new();
 
         while let Some(child) = dir.next_entry().await? {
@@ -257,7 +258,10 @@ fn get_files_recursive(
                 to_visit.push(child.path());
             }
 
-            files.push(child);
+            let file = reduced_path.join(child.file_name());
+            if is_file_authorized(&file, includes, excludes) {
+                files.push(child);
+            }
         }
 
         Ok(files)

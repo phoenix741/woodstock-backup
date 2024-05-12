@@ -1,10 +1,12 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ApplicationConfigService, isExists, WorkerType, WORKER_TYPE } from '@woodstock/core';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import type { pki as PKI } from 'node-forge';
 import { md, pki } from 'node-forge';
 import { join } from 'path';
+
+import { ApplicationConfigService } from '../config';
+import { isExists } from '../utils';
 
 const CERTIFICATE_ATTRS = [
   {
@@ -30,19 +32,10 @@ const CERTIFICATE_ATTRS = [
 ];
 
 @Injectable()
-export class CertificateService implements OnModuleInit {
+export class CertificateService {
   #logger = new Logger(CertificateService.name);
 
-  constructor(
-    @Inject(WORKER_TYPE) private workerType: WorkerType,
-    private config: ApplicationConfigService,
-  ) {}
-
-  async onModuleInit() {
-    if (this.workerType === WorkerType.api) {
-      await this.generateCertificate();
-    }
-  }
+  constructor(private config: ApplicationConfigService) {}
 
   #createCertificate(
     host: string,

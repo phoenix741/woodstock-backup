@@ -1,44 +1,22 @@
 use async_compression::tokio::bufread::ZlibDecoder;
-use async_compression::tokio::write::ZlibEncoder;
+use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
-use log::{debug, error};
+use log::error;
 use prost::Message;
-use rand::Rng;
 use sha2::Digest;
 use sha3::Sha3_256;
 use std::path::{Path, PathBuf};
 use tokio::{
-    fs::{copy, create_dir_all, metadata, remove_file, rename, File},
+    fs::{copy, remove_file, rename, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use crate::config::{BUFFER_SIZE, CHUNK_SIZE};
-use crate::utils::path::vec_to_path;
+use crate::config::BUFFER_SIZE;
 
-use super::pool_chunk_information::PoolChunkInformation;
-
-fn calculate_chunk_path(pool_path: &Path, chunk: &str) -> PathBuf {
-    let part1 = &chunk[0..2];
-    let part2 = &chunk[2..4];
-    let part3 = &chunk[4..6];
-
-    Path::new(pool_path)
-        .join(part1)
-        .join(part2)
-        .join(part3)
-        .join(chunk.to_string() + "-sha256.zz")
-}
-
-fn get_temp_chunk_path(pool_path: &Path) -> PathBuf {
-    // Generate a string of 30 characters with random characters (base 36)
-    let temporary_filename = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(30)
-        .map(char::from)
-        .collect::<String>();
-
-    Path::new(pool_path).join("_new").join(temporary_filename)
-}
+use super::{
+    calculate_chunk_path, get_temp_chunk_path, pool_chunk_information::PoolChunkInformation,
+    PoolChunkWriter,
+};
 
 struct DropTempFile {
     path: PathBuf,
@@ -117,10 +95,10 @@ impl PoolChunkWrapper {
         self.chunk_path().with_extension("info")
     }
 
-    async fn write_chunk_information(
+    pub async fn write_chunk_information(
         &self,
         chunk_information: &PoolChunkInformation,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         let filename = self.chunk_path_information();
         let file = File::create(&filename).await?;
         let mut file = tokio::io::BufWriter::new(file);
@@ -133,9 +111,7 @@ impl PoolChunkWrapper {
         Ok(())
     }
 
-    pub async fn chunk_information(
-        &self,
-    ) -> Result<PoolChunkInformation, Box<dyn std::error::Error>> {
+    pub async fn chunk_information(&self) -> Result<PoolChunkInformation> {
         let filename = self.chunk_path_information();
         let file = File::open(&filename).await?;
         let mut file = tokio::io::BufReader::new(file);
@@ -148,7 +124,7 @@ impl PoolChunkWrapper {
         Ok(chunk_information)
     }
 
-    pub async fn check_chunk_information(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub async fn check_chunk_information(&self) -> Result<bool> {
         let file = File::open(self.chunk_path()).await?;
         let file = tokio::io::BufReader::new(file);
         let mut file = ZlibDecoder::new(file);
@@ -178,36 +154,25 @@ impl PoolChunkWrapper {
         Ok(true)
     }
 
+    pub async fn writer(&self) -> Result<PoolChunkWriter> {
+        let pool_path = self.pool_path.clone();
+        PoolChunkWriter::new(&pool_path).await
+    }
+
     pub async fn write(
         &mut self,
-        data: impl Stream<Item = Result<Vec<u8>, Box<dyn std::error::Error + Sync + Send>>>,
+        data: impl Stream<Item = Result<Vec<u8>>>,
         debug_filename: &[u8],
-    ) -> Result<PoolChunkInformation, Box<dyn std::error::Error>> {
-        let tempfilename = get_temp_chunk_path(&self.pool_path);
-        if let Some(path) = tempfilename.parent() {
-            create_dir_all(path).await?;
-        }
-
-        let _drop_temp_file = DropTempFile {
-            path: tempfilename.clone(),
-        };
-
-        let file = File::create(&tempfilename).await?;
-        let file = tokio::io::BufWriter::new(file);
-        let mut file = ZlibEncoder::new(file);
+    ) -> Result<PoolChunkInformation> {
+        let mut writer = self.writer().await?;
 
         pin_mut!(data);
 
         // Write the data
-        let mut uncompressed_size = 0;
-        let mut file_hasher = Sha3_256::new();
         while let Some(chunk) = data.next().await {
             match chunk {
                 Ok(chunk) => {
-                    uncompressed_size += chunk.len();
-
-                    file.write_all(&chunk).await?;
-                    file_hasher.update(&chunk[..]);
+                    writer.write(&chunk).await?;
                 }
                 Err(e) => {
                     error!("Error while reading the chunk: {:?}", e);
@@ -215,47 +180,7 @@ impl PoolChunkWrapper {
                 }
             };
         }
-        file.shutdown().await?;
-        let file_hash: Vec<u8> = file_hasher.finalize().to_vec();
-
-        // Add a control
-        if uncompressed_size > CHUNK_SIZE {
-            if let Some(hash) = &self.hash_str {
-                error!("Chunk {hash} has not the right size length {uncompressed_size}");
-            }
-        }
-
-        if let Some(hash) = &self.hash {
-            if hash.ne(&file_hash) {
-                error!(
-                    "When writing the chunk (for file {:?}), the hash should be {} but is {}",
-                    vec_to_path(debug_filename),
-                    hex::encode(hash),
-                    hex::encode(&file_hash)
-                );
-            }
-        }
-
-        let metadata = metadata(&tempfilename).await?;
-        let chunk_information = PoolChunkInformation {
-            size: u64::try_from(uncompressed_size)?,
-            compressed_size: metadata.len(),
-            sha256: file_hash.clone(),
-        };
-
-        self.set_hash(Some(&file_hash));
-
-        if self.exists() {
-            debug!("Chunk {:?} already exists", vec_to_path(debug_filename));
-        } else {
-            let chunk_path = self.chunk_path();
-            if let Some(path) = chunk_path.parent() {
-                create_dir_all(path).await?;
-            }
-
-            self.write_chunk_information(&chunk_information).await?;
-            rename(tempfilename, chunk_path).await?;
-        }
+        let chunk_information = writer.shutdown(self, debug_filename).await?;
 
         Ok(chunk_information)
     }

@@ -1,13 +1,13 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
-import { SchedulerConfigService } from '@woodstock/core';
-import { Job, JobBackupData, QueueListInput, QueueName, RefcntJobData } from '@woodstock/server';
+import { Job, JobBackupData, QueueListInput, QueueName, RefcntJobData } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.dto.js';
 import { QueueUtils } from './queue.utils.js';
+import { SchedulerConfigService } from '@woodstock/shared';
 
 @Resolver()
 export class QueueResolver {

@@ -15,12 +15,18 @@ use super::file_browser::get_files;
 use super::CreateManifestOptions;
 use crate::config::BUFFER_SIZE;
 use crate::config::CHUNK_SIZE;
+use crate::config::CHUNK_SIZE_U64;
 use crate::manifest::IndexManifest;
 use crate::manifest::PathManifest;
 use crate::utils::path::vec_to_path;
 use crate::woodstock::ChunkInformation;
 use crate::woodstock::FileChunk;
-use crate::woodstock::{EntryType, FileManifest, FileManifestJournalEntry, FileManifestType};
+use crate::woodstock::{
+    file_chunk, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter, FileChunkHeader,
+    FileManifest, FileManifestJournalEntry,
+};
+use crate::ChunkHashReply;
+use crate::ChunkHashRequest;
 
 /// Retrieves a stream of `FileManifestJournalEntry` for files with hash.
 ///
@@ -60,13 +66,6 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
             // If the file isn't modified, skip it
             if !is_modified(index, &manifest) {
                 continue;
-            }
-
-            // If the file is in the entry, and the file is a regular file calculate chunk hash
-            if index.get_entry(&manifest.path).is_some()
-                && manifest.file_mode() == FileManifestType::RegularFile
-            {
-                manifest = calculate_chunk_hash_future(share_path, manifest).await;
             }
 
             yield FileManifestJournalEntry {
@@ -127,24 +126,22 @@ fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifes
 ///
 /// The updated `FileManifest` with chunk hash information.
 ///
-async fn calculate_chunk_hash_future(share_path: &Path, file: FileManifest) -> FileManifest {
-    let share_path = share_path.to_path_buf();
-    let original = file.clone();
+pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHashReply {
+    let request = request.clone();
     let manifest = tokio::task::spawn_blocking(move || {
-        let path = vec_to_path(&file.path);
-        debug!(
-            "Calculating chunk hash for {}/{}",
-            share_path.display(),
-            &path.display()
-        );
+        let path = vec_to_path(&request.filename);
+        debug!("Calculating chunk hash for {}", &path.display());
 
-        let manifest = caculate_chunk_hash(&share_path, file);
+        let manifest = caculate_chunk_hash(&request);
 
         match manifest {
             Ok(manifest) => manifest,
             Err(e) => {
                 error!("Can't read the file file {}: {e}", path.display());
-                original
+                ChunkHashReply {
+                    hash: Vec::new(),
+                    chunks: Vec::new(),
+                }
             }
         }
     });
@@ -165,17 +162,13 @@ async fn calculate_chunk_hash_future(share_path: &Path, file: FileManifest) -> F
 ///
 /// The updated `FileManifest` with chunk hash information.
 ///
-fn caculate_chunk_hash(
-    share_path: &Path,
-    mut manifest: FileManifest,
-) -> Result<FileManifest, Box<dyn Error>> {
+fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box<dyn Error>> {
+    let mut file_hasher = Sha3_256::new();
     let mut chunk_hasher = Sha3_256::new();
-    let mut chunks = Vec::<[u8; 32]>::new();
+    let mut chunks = Vec::<Vec<u8>>::new();
     let mut chunk_read = 0;
 
-    let path = vec_to_path(&manifest.path);
-
-    let file = share_path.join(path);
+    let file = vec_to_path(&request.filename);
     let file = std::fs::File::open(file)?;
     let mut reader = std::io::BufReader::new(file);
 
@@ -195,7 +188,7 @@ fn caculate_chunk_hash(
             chunk_hasher.update(&buffer[..(read - (overflow))]);
 
             let chunk_hash = chunk_hasher.finalize();
-            chunks.push(chunk_hash.into());
+            chunks.push(chunk_hash.to_vec());
 
             chunk_hasher = Sha3_256::new();
             chunk_read = overflow;
@@ -205,22 +198,16 @@ fn caculate_chunk_hash(
         } else {
             chunk_hasher.update(&buffer[..read]);
         }
+
+        file_hasher.update(&buffer[..read]);
     }
 
     let chunk_hash = chunk_hasher.finalize();
-    chunks.push(chunk_hash.into());
+    chunks.push(chunk_hash.to_vec());
 
-    manifest.chunks = chunks.into_iter().map(|chunk| chunk.to_vec()).collect();
+    let hash = file_hasher.finalize().to_vec();
 
-    // Ensure the number of chunk is equals to the size divid by CHUNK_SIZE
-    // File size can be readed in Some(manifest.size).size
-    let stats = manifest.stats.clone();
-    assert_eq!(
-        manifest.chunks.len(),
-        usize::try_from(stats.unwrap().size / CHUNK_SIZE as u64)? + 1
-    );
-
-    Ok(manifest)
+    Ok(ChunkHashReply { chunks, hash })
 }
 
 /// Reads a chunk of a file.
@@ -239,38 +226,82 @@ pub fn read_chunk(
     chunk: &ChunkInformation,
 ) -> impl Stream<Item = Result<FileChunk, std::io::Error>> {
     let path = vec_to_path(&chunk.filename);
-    let position = chunk.position;
-    let size = usize::try_from(chunk.size).unwrap_or(0);
+    let mut chunks = chunk.chunks_id.clone();
+    chunks.sort_unstable();
 
-    debug!(
-        "Reading chunk for path {}:{position}:{size}",
-        path.display()
-    );
-
-    let mut remaining = size;
+    debug!("Reading file {}", path.display());
 
     try_stream!({
+        // Calculate the chunk count depending on the file size
+        let file_size = tokio::fs::metadata(&path).await?.len();
+        let chunk_count = file_size / CHUNK_SIZE_U64;
+        let chunk_count = if file_size % CHUNK_SIZE_U64 > 0 {
+            chunk_count + 1
+        } else {
+            chunk_count
+        };
+        let chunks = if chunks.is_empty() {
+            (0..chunk_count).collect()
+        } else {
+            chunks
+        };
+
+        // Open the file and read it
         let file = File::open(path).await?;
         let mut reader = BufReader::new(file);
         let mut buffer = vec![0; BUFFER_SIZE];
 
-        reader.seek(SeekFrom::Start(position)).await?;
+        let mut file_hasher = Sha3_256::new();
 
-        loop {
-            if remaining == 0 {
-                break;
-            }
+        for chunk in &chunks {
+            let position = chunk * CHUNK_SIZE_U64;
+            let mut remaining = CHUNK_SIZE;
 
-            let read = reader.read(&mut buffer).await?;
-            if read == 0 {
-                break;
-            }
-
-            let length_to_return = min(read, remaining);
-            remaining -= length_to_return;
+            reader.seek(SeekFrom::Start(position)).await?;
 
             yield FileChunk {
-                data: buffer[..length_to_return].to_vec(),
+                field: Some(file_chunk::Field::Header(FileChunkHeader {
+                    chunk_id: *chunk,
+                })),
+            };
+
+            let mut chunk_hasher = Sha3_256::new();
+
+            loop {
+                if remaining == 0 {
+                    break;
+                }
+
+                let read = reader.read(&mut buffer).await?;
+                if read == 0 {
+                    break;
+                }
+
+                let length_to_return = min(read, remaining);
+                remaining -= length_to_return;
+
+                chunk_hasher.update(&buffer[..length_to_return]);
+                file_hasher.update(&buffer[..length_to_return]);
+
+                yield FileChunk {
+                    field: Some(file_chunk::Field::Data(FileChunkData {
+                        data: buffer[..length_to_return].to_vec(),
+                    })),
+                };
+            }
+
+            let chunk_hash = chunk_hasher.finalize().to_vec();
+
+            yield FileChunk {
+                field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
+            };
+        }
+
+        let hash = file_hasher.finalize().to_vec();
+
+        if usize::try_from(chunk_count).unwrap_or_default() == chunks.len() {
+            yield FileChunk {
+                field: Some(file_chunk::Field::Eof(FileChunkEndOfFile { hash })),
             };
         }
     })

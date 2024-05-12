@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 //! The goal of this module is to permit to manage the pool.
 //!
 //! The command can be used to
@@ -8,6 +10,9 @@
 //!
 
 use clap::{Parser, Subcommand};
+use commands::file_manifest::compare;
+use commands::read_chunk::search_chunk;
+use eyre::Result;
 
 mod commands;
 
@@ -50,6 +55,12 @@ enum Commands {
         chunk: String,
     },
 
+    /// Searcg manifest that contains the chunk
+    SearchChunk {
+        /// The chunk to get
+        chunk: String,
+    },
+
     AddRefCntToPool {
         /// The hostname of the backup to add to pool
         hostname: String,
@@ -85,6 +96,13 @@ enum Commands {
         dry_run: bool,
     },
 
+    /// Can be used to compare two file manifest (and generate a journal file)
+    Compare {
+        file_manifest_source: String,
+
+        file_manifest_target: String,
+    },
+
     /// List directory like the client will do on the share directory
     /// The scan is made on the computer where the command is run but the config
     /// will be take in the CONFIG_DIRECTORY (like on server)
@@ -100,7 +118,9 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
+    color_eyre::install()?;
+
     env_logger::init();
 
     let context = Context::default();
@@ -120,6 +140,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Commands::GetChunk { chunk } => {
             read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");
+        }
+        Commands::SearchChunk { chunk } => {
+            search_chunk(&context, &chunk)
+                .await
+                .expect("Failed to search chunk");
         }
         Commands::AddRefCntToPool {
             hostname,
@@ -157,6 +182,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             verify_unused(&context, dry_run)
                 .await
                 .expect("Can't verify unused");
+        }
+        Commands::Compare {
+            file_manifest_source,
+            file_manifest_target,
+        } => {
+            compare(&file_manifest_source, &file_manifest_target)
+                .await
+                .expect("Failed to compare file manifest");
         }
         Commands::ListDirectory {
             hostname,

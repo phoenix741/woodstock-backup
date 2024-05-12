@@ -47,7 +47,7 @@
           </tr>
           <tr v-if="selected.file.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.file.stats.lastModified)) }}</td>
+            <td>{{ toDateTime(parseInt(selected.file.stats.lastModified) * 1000) }}</td>
           </tr>
         </tbody>
         <tfoot>
