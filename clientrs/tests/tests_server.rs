@@ -1,6 +1,5 @@
 use std::{path::PathBuf, sync::Arc};
 
-use crossbeam_channel::unbounded;
 use eyre::Result;
 use futures::Future;
 use tempfile::NamedTempFile;
@@ -52,9 +51,8 @@ async fn server_and_client_stub(
         xattr: false,
         backup_timeout: 1000,
     };
-    let (_s, r) = unbounded();
 
-    let woodstock_client = WoodstockClient::new(config_path, &config, r);
+    let woodstock_client = WoodstockClient::new(config_path, &config);
 
     let socket = NamedTempFile::new().unwrap();
     let socket = Arc::new(socket.into_temp_path());

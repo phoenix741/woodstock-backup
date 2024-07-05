@@ -1,6 +1,5 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use crossbeam_channel::unbounded;
 use futures::{pin_mut, Future};
 use tempfile::NamedTempFile;
 use tokio::net::{UnixListener, UnixStream};
@@ -34,9 +33,8 @@ async fn server_and_client_stub() -> (
         xattr: false,
         backup_timeout: 300,
     };
-    let (_s, r) = unbounded();
 
-    let woodstock_client = WoodstockClient::new(config_path, &config, r);
+    let woodstock_client = WoodstockClient::new(config_path, &config);
 
     let socket = NamedTempFile::new().unwrap();
     let socket = Arc::new(socket.into_temp_path());

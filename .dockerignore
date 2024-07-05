@@ -34,19 +34,33 @@ lerna-debug.log*
 
 ########### CLIENT ##########
 
-/client/node_modules
-/client/dist
-
-# local env files
-.env.local
-.env.*.local
+/shared-rs/shared-rs.*
+/shared-rs/index.js
+/shared-rs/index.d.ts
+/target
 
 ########## SERVER ###########
 
 # compiled output
-/server/dist
-/server/node_modules
+/nestjs/dist
+/nestjs/node_modules
+/nestjs/log
+/nestjs/.env
+/nestjs/.env.local
+/nestjs/.env.*.local
 
 # Tests
-/server/coverage
-/server/.nyc_output
+/nestjs/coverage
+/nestjs/.nyc_output
+
+########## FRONT ###########
+
+# compiled output
+/front/dist
+/front/node_modules
+/front/.env.local
+/front/.env.*.local
+
+# Tests
+/nestjs/coverage
+/nestjs/.nyc_output

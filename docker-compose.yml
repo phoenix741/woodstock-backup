@@ -24,12 +24,12 @@ services:
     volumes:
       - "backups_storage:/backups"
 
-  woodstock_client:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/client/main.js
-    environment:
-      - LOG_LEVEL=debug
-      - NODE_ENV=development
+  # woodstock_client:
+  #   image: phoenix741/woodstock-backup:develop
+  #   command: /nestjs/apps/client/main.js
+  #   environment:
+  #     - LOG_LEVEL=debug
+  #     - NODE_ENV=development
 
   redis:
     image: "bitnami/redis:7.2"

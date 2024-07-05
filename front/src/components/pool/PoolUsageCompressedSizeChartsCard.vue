@@ -63,7 +63,7 @@ const option = computed(() => ({
       smooth: true,
       symbol: 'none',
       areaStyle: {},
-      data: props.compressedSizeRange.map(({ time, value }) => [time, Number(value / 1024n / 1024n)]),
+      data: props.compressedSizeRange.map(({ time, value }) => [time * 1000, Number(value / 1024n / 1024n)]),
     },
   ],
 }));

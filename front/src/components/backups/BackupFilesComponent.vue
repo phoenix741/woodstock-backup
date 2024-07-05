@@ -39,7 +39,7 @@
           </tr>
           <tr v-if="selected.file.stats?.mode">
             <td>Mode</td>
-            <td>{{ (parseInt(selected.file.stats.mode) & 0o7777).toString(8) }}</td>
+            <td>{{ (selected.file.stats.mode & 0o7777).toString(8) }}</td>
           </tr>
           <tr v-if="selected.file.stats?.size">
             <td>Size</td>

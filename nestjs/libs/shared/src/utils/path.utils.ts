@@ -8,17 +8,6 @@ export const tmpNameAsync = promisify((options: tmp.TmpNameOptions, cb: tmp.TmpN
   tmp.tmpName(options, cb),
 );
 
-export function joinBuffer(...entries: Buffer[]): Buffer {
-  return entries
-    .filter((v) => !!v.length)
-    .reduce((prev, next) => {
-      if (String.fromCharCode(prev[prev.length - 1]) === sep || String.fromCharCode(next[0]) === sep) {
-        return Buffer.concat([prev, next]);
-      }
-      return Buffer.concat([prev, SEPARATOR, next]);
-    });
-}
-
 export function splitBuffer(buffer: Buffer, delimiter: Buffer = SEPARATOR): Buffer[] {
   let search = -1;
   const result: Buffer[] = [];
@@ -38,11 +27,6 @@ export function splitBuffer(buffer: Buffer, delimiter: Buffer = SEPARATOR): Buff
   return result;
 }
 
-export function basenameBuffer(buffer: Buffer | undefined): Buffer {
-  const parts = splitBuffer(buffer || Buffer.alloc(0));
-  return parts[parts.length - 1];
-}
-
 export function mangle(buffer: Buffer | string): string {
   return encodeURIComponent(buffer as unknown as string);
 }
@@ -51,6 +35,4 @@ export function unmangle(path: string): Buffer {
   return Buffer.from(decodeURIComponent(path), 'utf-8');
 }
 
-export function getTemporaryFileName(): string {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
+

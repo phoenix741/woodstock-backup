@@ -176,15 +176,17 @@ impl Backups {
                 let manifest = self.get_manifest(hostname, backup_number, share);
                 let destination_manifest = self.get_manifest(hostname, destination_number, share);
 
-                copy(&manifest.manifest_path, &destination_manifest.manifest_path).await?;
+                // Copy only if exist
+                if manifest.manifest_path.exists() {
+                    copy(&manifest.manifest_path, &destination_manifest.manifest_path).await?;
+                }
             }
 
             // Copy refcnt
-            copy(
-                source_directory.join("REFCNT"),
-                destination_directory.join("REFCNT"),
-            )
-            .await?;
+            let refcnt = source_directory.join("REFCNT");
+            if refcnt.exists() {
+                copy(&refcnt, destination_directory.join("REFCNT")).await?;
+            }
         }
 
         Ok(())

@@ -1,6 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { from, reduce } from 'ix/asynciterable';
-import { concatMap } from 'ix/asynciterable/operators';
 
 import { PoolStatisticsService } from './pool-statistics.service.js';
 import { PoolStatistics } from './statistics.interface.js';
@@ -8,6 +6,7 @@ import { HostsStatsUsage, StatsDiskUsage } from './statistics.interface.js';
 import { ExecuteCommandService } from '../commands/execute-command.service.js';
 import { HostsService } from '../backups/hosts.service.js';
 import { BackupsService } from '../backups/backups.service.js';
+import { concatMap, from, lastValueFrom, mergeMap, reduce, tap } from 'rxjs';
 
 @Injectable()
 export class StatsInstantService {
@@ -31,11 +30,17 @@ export class StatsInstantService {
   }
 
   async getHostsStatsUsage(): Promise<HostsStatsUsage> {
-    return await reduce(from(this.hostsService.getHosts()).pipe(concatMap((hosts) => from(hosts))), {
-      callback: async (acc, host) => {
-        const backups = await this.backupsService.getBackups(host);
-        const hostStats = await this.statsService.readHostStatistics(host);
-
+    const host$ = from(this.hostsService.getHosts());
+    const statUsage$ = host$.pipe(
+      concatMap((hosts) => hosts),
+      mergeMap(async (host) => {
+        return {
+          host,
+          backups: await this.backupsService.getBackups(host),
+          stats: await this.statsService.readHostStatistics(host),
+        };
+      }),
+      reduce((acc, { host, backups, stats: hostStats }) => {
         if (backups.length > 0) {
           const lastBackup = backups[backups.length - 1];
           const stats = {
@@ -50,9 +55,9 @@ export class StatsInstantService {
           acc[host] = stats;
         }
         return acc;
-      },
-      seed: {} as HostsStatsUsage,
-    });
+      }, {} as HostsStatsUsage),
+    );
+    return await lastValueFrom(statUsage$);
   }
 
   async getPoolStatsUsage(): Promise<PoolStatistics> {

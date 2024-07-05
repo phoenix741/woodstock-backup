@@ -14,9 +14,11 @@ use backuppc_pool_reader::view::BackupPC;
 use clap::{command, Parser};
 use console::Emoji;
 use console::Term;
+use eyre::Result;
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use log::debug;
 use log::error;
 use log::info;
 use woodstock::config::{Backups, Context, Hosts};
@@ -300,8 +302,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut woodstock_backups = list_woodstock_backups(&context).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
 
+    for woodstock in &woodstock_backups {
+        debug!(
+            "Woodstock backup {}/{}: {}",
+            woodstock.hostname, woodstock.backup_number, woodstock.size
+        )
+    }
+
     let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool);
     backuppc_backups.sort_by_key(|backup| backup.start_time);
+
+    for backuppc in &backuppc_backups {
+        debug!(
+            "BackupPC backup {}/{}: {}",
+            backuppc.hostname, backuppc.backup_number, backuppc.size
+        )
+    }
 
     // Remove from backuppc_backups the backups that are already in woodstock_backups
     let backuppc_backups = backuppc_backups
@@ -333,6 +349,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .reduce(|acc, size| acc + size)
         .unwrap_or_default();
     let length = backuppc_backups.len();
+
+    for backuppc in &backuppc_backups {
+        info!(
+            "BackupPC backup {}/{}: {}",
+            backuppc.hostname, backuppc.backup_number, backuppc.size
+        )
+    }
 
     let multi = MultiProgress::new();
 
@@ -392,6 +415,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
             })
             .collect::<Vec<_>>();
+
+        for woodstock in &woodstock_backups_to_remove {
+            info!(
+                "Backup to remove {}/{}: {}",
+                woodstock.hostname, woodstock.backup_number, woodstock.size
+            )
+        }
 
         let total_bar = ProgressBar::new(size);
         total_bar.set_style(
