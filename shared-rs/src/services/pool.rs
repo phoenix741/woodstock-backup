@@ -1,4 +1,4 @@
-use std::{sync::atomic::AtomicUsize, time::SystemTime};
+use std::sync::atomic::AtomicUsize;
 
 use napi::{
   bindgen_prelude::BigInt,
@@ -6,10 +6,10 @@ use napi::{
   Error, JsFunction, Result,
 };
 use woodstock::{
-  config::{Backups, Context},
+  config::Context,
   pool::{
-    check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused, FsckCount,
-    FsckUnusedCount, PoolChunkWrapper, Refcnt, RefcntApplySens,
+    add_refcnt_to_pool, check_backup_integrity, check_host_integrity, check_pool_integrity,
+    check_unused, remove_refcnt_to_pool, FsckCount, FsckUnusedCount, PoolChunkWrapper, Refcnt,
   },
   PoolUnused,
 };
@@ -56,7 +56,6 @@ pub struct VerifyChunkMessage {
 #[napi(js_name = "CorePoolService")]
 pub struct JsPoolService {
   context: Context,
-  backups: Backups,
 }
 
 #[napi(object)]
@@ -115,7 +114,6 @@ impl JsPoolService {
 
     Self {
       context: context.clone(),
-      backups: Backups::new(&context),
     }
   }
 
@@ -123,24 +121,10 @@ impl JsPoolService {
   pub async fn add_refcnt_of_pool(&self, hostname: String, backup_number: u32) -> Result<()> {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
-    let from_directory = self
-      .backups
-      .get_backup_destination_directory(&hostname, backup_number);
 
-    let pool_directory = &self.context.config.path.pool_path;
-
-    let mut backup_refcnt = Refcnt::new(&from_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    Refcnt::apply_all_from(
-      pool_directory,
-      &backup_refcnt,
-      &RefcntApplySens::Increase,
-      &SystemTime::now(),
-      &self.context,
-    )
-    .await
-    .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
+    add_refcnt_to_pool(&self.context, &hostname, backup_number)
+      .await
+      .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
 
     Ok(())
   }
@@ -149,24 +133,10 @@ impl JsPoolService {
   pub async fn remove_refcnt_of_pool(&self, hostname: String, backup_number: u32) -> Result<()> {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
-    let from_directory = self
-      .backups
-      .get_backup_destination_directory(&hostname, backup_number);
 
-    let pool_directory = &self.context.config.path.pool_path;
-
-    let mut backup_refcnt = Refcnt::new(&from_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    Refcnt::apply_all_from(
-      pool_directory,
-      &backup_refcnt,
-      &RefcntApplySens::Decrease,
-      &SystemTime::now(),
-      &self.context,
-    )
-    .await
-    .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
+    remove_refcnt_to_pool(&self.context, &hostname, backup_number)
+      .await
+      .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
 
     Ok(())
   }

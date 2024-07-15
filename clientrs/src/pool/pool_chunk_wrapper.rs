@@ -18,16 +18,6 @@ use super::{
     PoolChunkWriter,
 };
 
-struct DropTempFile {
-    path: PathBuf,
-}
-
-impl Drop for DropTempFile {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
-
 pub struct PoolChunkWrapper {
     pool_path: PathBuf,
     hash_str: Option<String>,

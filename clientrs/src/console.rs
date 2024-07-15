@@ -18,12 +18,12 @@ mod commands;
 
 use crate::commands::client::list_client_files;
 use crate::commands::pool::{
-    add_refcnt_to_pool, check_compression, clean_unused_pool, remove_refcnt_to_pool, verify_chunk,
-    verify_refcnt, verify_unused,
+    check_compression, clean_unused_pool, verify_chunk, verify_refcnt, verify_unused,
 };
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
 use woodstock::config::Context;
+use woodstock::pool::{add_refcnt_to_pool, remove_refcnt_to_pool};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

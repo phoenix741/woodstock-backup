@@ -1,73 +1,24 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::SystemTime,
 };
 
 use console::Term;
 use eyre::Result;
 use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
-use log::{error, info};
+use log::error;
 
 use woodstock::{
     config::{Backups, Context, Hosts},
     pool::{
         check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
-        PoolChunkWrapper, Refcnt, RefcntApplySens,
+        PoolChunkWrapper, PoolLock, Refcnt,
     },
 };
 
-pub async fn add_refcnt_to_pool(
-    ctxt: &Context,
-    hostname: &str,
-    backup_number: usize,
-) -> Result<()> {
-    let backups = Backups::new(ctxt);
-    let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
-
-    info!("Add refcnt to pool for {}", destination_directory.display());
-    let mut backup_refcnt = Refcnt::new(&destination_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    info!("Apply refcnt to pool");
-    Refcnt::apply_all_from(
-        &ctxt.config.path.pool_path,
-        &backup_refcnt,
-        &RefcntApplySens::Increase,
-        &SystemTime::now(),
-        ctxt,
-    )
-    .await?;
-
-    info!("Refcnt applied to pool");
-
-    Ok(())
-}
-
-pub async fn remove_refcnt_to_pool(
-    ctxt: &Context,
-    hostname: &str,
-    backup_number: usize,
-) -> Result<()> {
-    let backups = Backups::new(ctxt);
-    let destination_directory = backups.get_backup_destination_directory(hostname, backup_number);
-
-    let mut backup_refcnt = Refcnt::new(&destination_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    Refcnt::apply_all_from(
-        &ctxt.config.path.pool_path,
-        &backup_refcnt,
-        &RefcntApplySens::Decrease,
-        &SystemTime::now(),
-        ctxt,
-    )
-    .await?;
-
-    Ok(())
-}
-
 pub async fn check_compression(ctxt: &Context) -> Result<()> {
+    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+
     let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
@@ -113,6 +64,8 @@ pub async fn check_compression(ctxt: &Context) -> Result<()> {
 }
 
 pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
+    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+
     let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
@@ -163,6 +116,8 @@ pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
 }
 
 pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
+    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+
     let hosts = Hosts::new(ctxt);
     let backups = Backups::new(ctxt);
 
@@ -222,6 +177,8 @@ pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
 }
 
 pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
+    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+
     let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
@@ -262,6 +219,8 @@ pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
 }
 
 pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result<()> {
+    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+
     let target = target.map(PathBuf::from);
     let mut refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     refcnt.load_unused().await;

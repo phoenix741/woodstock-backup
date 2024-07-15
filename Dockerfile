@@ -1,8 +1,6 @@
 FROM rust:1 AS build-chef
 
-# Install musl-dev on Alpine to avoid error "ld: cannot find crti.o: No such file or directory"
-RUN ((cat /etc/os-release | grep ID | grep alpine) && apk add --no-cache musl-dev || true) \
-  && cargo install cargo-chef 
+RUN cargo install cargo-chef 
 
 FROM build-chef AS planner
 
@@ -60,12 +58,18 @@ RUN npm run buildall
 
 #
 # -------- Dist -----------
-FROM node:20 AS dist
+FROM node:20-slim AS dist
 
 WORKDIR /nestjs
 
+RUN apt-get update && apt-get install -y libacl1 && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 RUN npm install pm2 -g
 
+COPY --from=build-sharedrs /src/target/release/backuppc_importer /nestjs/
+COPY --from=build-sharedrs /src/target/release/client /nestjs/
+COPY --from=build-sharedrs /src/target/release/console /nestjs/
+COPY --from=build-sharedrs /src/target/release/ws_sync /nestjs/
 COPY --from=build-sharedrs /src/shared-rs/* /shared-rs/
 COPY --from=dependencies /src/nestjs/node_modules /nestjs/node_modules
 COPY --from=build-back /src/nestjs/config/ /nestjs/config/
