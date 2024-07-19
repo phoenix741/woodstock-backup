@@ -30,5 +30,10 @@ fn main() -> Result<()> {
         )
         .compile(&["./woodstock.proto"], &["./"])?;
 
+    // If musl
+    if std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "musl" {
+        println!("cargo:rustc-link-lib=m");
+    }
+
     Ok(())
 }

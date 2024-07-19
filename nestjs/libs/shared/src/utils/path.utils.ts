@@ -34,5 +34,3 @@ export function mangle(buffer: Buffer | string): string {
 export function unmangle(path: string): Buffer {
   return Buffer.from(decodeURIComponent(path), 'utf-8');
 }
-
-

@@ -9,7 +9,6 @@ import { BullConfigService, RegisteredQueue } from './queue';
 import { DiskStatisticsService, PoolStatisticsService, StatsInstantService } from './statistics';
 import { QueueTasksService } from './tasks';
 import { BullModule } from '@nestjs/bullmq';
-import { ConfigModule } from '@nestjs/config';
 import { ExecuteCommandService } from './commands/execute-command.service';
 import { PingService } from './commands/ping.service';
 import { ResolveService } from './commands/resolve.service';

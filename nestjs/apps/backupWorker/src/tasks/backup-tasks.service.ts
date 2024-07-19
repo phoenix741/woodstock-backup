@@ -17,7 +17,6 @@ import {
 } from '@woodstock/shared';
 import { Job } from 'bullmq';
 import { BackupClientProgress } from '../backups/backup-client-progress.service';
-import { LogLevel } from '@woodstock/shared-rs';
 
 @Injectable()
 export class BackupTasksService {

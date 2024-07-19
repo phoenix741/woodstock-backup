@@ -119,9 +119,9 @@ export class QueueTaskProgression {
   }
 
   get speed(): number {
-    let endTransferDate = this.endTransferDate ?? new Date().getTime() / 1000;
-    let startTransferDate = this.startTransferDate ?? this.startDate ?? new Date().getTime() / 1000;
-    let duration = Math.round(endTransferDate - startTransferDate);
+    const endTransferDate = this.endTransferDate ?? new Date().getTime() / 1000;
+    const startTransferDate = this.startTransferDate ?? this.startDate ?? new Date().getTime() / 1000;
+    const duration = Math.round(endTransferDate - startTransferDate);
 
     if (duration === 0) {
       return 0.0;

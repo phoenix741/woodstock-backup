@@ -6,9 +6,7 @@ use tempfile::NamedTempFile;
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
-    net::{UnixListener, UnixStream},
 };
-use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::{Endpoint, Server, Uri};
 use tower::service_fn;
 use woodstock::{
@@ -19,6 +17,16 @@ use woodstock::{
     woodstock_client_service_server::WoodstockClientServiceServer,
     Share,
 };
+
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
+#[cfg(unix)]
+use tokio_stream::wrappers::UnixListenerStream;
+
+#[cfg(windows)]
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(windows)]
+use tokio_stream::wrappers::TcpListenerStream;
 
 fn create_context() -> Context {
     Context {
@@ -56,10 +64,24 @@ async fn server_and_client_stub(
 
     let socket = NamedTempFile::new().unwrap();
     let socket = Arc::new(socket.into_temp_path());
-    std::fs::remove_file(&*socket).unwrap();
+    std::fs::remove_file(socket.as_ref()).unwrap();
 
-    let uds = UnixListener::bind(&*socket).unwrap();
-    let stream = UnixListenerStream::new(uds);
+    #[cfg(unix)]
+    let stream = {
+        let uds = UnixListener::bind(&*socket).unwrap();
+        UnixListenerStream::new(uds)
+    };
+
+    #[cfg(windows)]
+    let random_port = rand::random::<u16>() % 1000 + 1000;
+
+    #[cfg(windows)]
+    let stream = {
+        let listener = TcpListener::bind(format!("127.0.0.1:{random_port}"))
+            .await
+            .unwrap();
+        TcpListenerStream::new(listener)
+    };
 
     let serve_future = async {
         let result = Server::builder()
@@ -70,14 +92,24 @@ async fn server_and_client_stub(
         assert!(result.is_ok());
     };
 
-    let socket = Arc::clone(&socket);
     // Connect to the server over a Unix socket
     // The URL will be ignored.
+    #[cfg(unix)]
+    let socket = Arc::clone(&socket);
     let channel = Endpoint::try_from("http://any.url")
         .unwrap()
         .connect_with_connector(service_fn(move |_: Uri| {
+            #[cfg(unix)]
             let socket = Arc::clone(&socket);
-            async move { UnixStream::connect(&*socket).await }
+
+            async move {
+                #[cfg(unix)]
+                let stream = UnixStream::connect(&*socket);
+                #[cfg(windows)]
+                let stream = TcpStream::connect(format!("127.0.0.1:{random_port}"));
+
+                stream.await
+            }
         }))
         .await
         .unwrap();

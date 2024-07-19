@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { HostConfiguration } from '../models';
 import { BackupLogger } from './backup.logger';
 import { WoodstockBackupClient } from '@woodstock/shared-rs';
-import { Subscriber, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 
 export enum BackupNameTask {
   GROUP_INIT_TASK = 'init',

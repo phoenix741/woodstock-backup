@@ -1,6 +1,6 @@
 {
   "name": "@woodstock/shared-rs",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
@@ -9,7 +9,8 @@
       "defaults": false,
       "additional": [
         "x86_64-pc-windows-msvc",
-        "x86_64-unknown-linux-gnu"
+        "x86_64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl"
       ]
     }
   },

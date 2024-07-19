@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   CorePoolService,
   JsFsckCount,
-  JsFsckUnusedCount,
   JsPoolUnused,
   VerifyChunkCount,
   VerifyChunkProgress,
@@ -37,10 +36,10 @@ export class PoolService {
   }
 
   removeUnused(target?: string): Observable<JsPoolUnused> {
-    let removeUnused = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
+    const removeUnused = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<JsPoolUnused>((observer) => {
         let abortMethod: () => void = () => {};
-        let abortHandle = this.poolService.removeUnused(target, (result) => {
+        const abortHandle = this.poolService.removeUnused(target, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
@@ -70,10 +69,10 @@ export class PoolService {
   }
 
   verifyChunk(): Observable<VerifyChunkCount> {
-    let verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
+    const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<VerifyChunkCount>((observer) => {
         let abortMethod: () => void = () => {};
-        let abortHandle = this.poolService.verifyChunk((result) => {
+        const abortHandle = this.poolService.verifyChunk((result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
@@ -117,10 +116,10 @@ export class PoolService {
   }
 
   processUnused(dryRun: boolean): Observable<VerifyChunkProgress> {
-    let verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
+    const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<VerifyChunkProgress>((observer) => {
         let abortMethod: () => void = () => {};
-        let abortHandle = this.poolService.checkUnused(dryRun, (result) => {
+        const abortHandle = this.poolService.checkUnused(dryRun, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }

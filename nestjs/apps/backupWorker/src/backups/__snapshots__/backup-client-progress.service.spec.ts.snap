@@ -1,0 +1,1011 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`BackupClientProgress #authenticate: result 1`] = `undefined`;
+
+exports[`BackupClientProgress #createBackup: result 1`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 2`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 3`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 4`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 5`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 6`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 7`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 8`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 9`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 10`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 11`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 12`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 13`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 14`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 15`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 16`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 17`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 18`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 19`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 20`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 21`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 22`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 23`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 24`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 25`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 26`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 27`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 28`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 29`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 30`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 31`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 32`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 33`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 34`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 35`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 36`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 37`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #createBackup: result 38`] = `
+{
+  "compressedFileSize": 0n,
+  "endTransferDate": undefined,
+  "errorCount": undefined,
+  "fileCount": undefined,
+  "fileSize": 0n,
+  "modifiedCompressedFileSize": undefined,
+  "modifiedFileCount": undefined,
+  "modifiedFileSize": undefined,
+  "newCompressedFileSize": undefined,
+  "newFileCount": undefined,
+  "newFileSize": undefined,
+  "progressCurrent": undefined,
+  "progressMax": 0n,
+  "removedFileCount": undefined,
+  "speed": Any<Number>,
+  "startDate": undefined,
+  "startTransferDate": undefined,
+}
+`;
+
+exports[`BackupClientProgress #executeCommand: result 1`] = `
+[
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": 0n,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": 0n,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 1n,
+    "progressMax": 1n,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+]
+`;
+
+exports[`BackupClientProgress #getFileList: result 1`] = `
+[
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+  QueueTaskProgression {
+    "compressedFileSize": 0n,
+    "endTransferDate": undefined,
+    "errorCount": 0,
+    "fileCount": 0,
+    "fileSize": 0n,
+    "modifiedCompressedFileSize": 0n,
+    "modifiedFileCount": 0,
+    "modifiedFileSize": 0n,
+    "newCompressedFileSize": 0n,
+    "newFileCount": 0,
+    "newFileSize": 0n,
+    "progressCurrent": 0n,
+    "progressMax": undefined,
+    "removedFileCount": 0,
+    "startDate": undefined,
+    "startTransferDate": undefined,
+  },
+]
+`;

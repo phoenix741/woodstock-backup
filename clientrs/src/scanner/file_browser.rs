@@ -115,42 +115,41 @@ fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat 
 
 #[must_use]
 pub fn read_xattr(file: &Path) -> Vec<FileManifestXAttr> {
-    let mut xattr = Vec::new();
-
-    #[cfg(unix)]
-    #[cfg(feature = "xattr")]
+    #[cfg(all(unix, feature = "xattr"))]
     {
-        if let Ok(attrs) = xattr::list(file) {
-            for attr in attrs {
-                let value = if let Ok(value) = xattr::get(file, &attr) {
-                    value.unwrap_or_else(Vec::new)
-                } else {
-                    Vec::new()
-                };
-
-                let key = attr.as_encoded_bytes().to_vec();
-                xattr.push(FileManifestXAttr { key, value });
-            }
-        }
+        xattr::list(file)
+            .map(|attrs| {
+                attrs
+                    .filter_map(|attr| {
+                        xattr::get(file, &attr).ok()?.map(|value| {
+                            let key = attr.as_encoded_bytes().to_vec();
+                            FileManifestXAttr { key, value }
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|_| Vec::new())
     }
-
-    xattr
+    #[cfg(not(all(unix, feature = "xattr")))]
+    {
+        let _file = file;
+        Vec::new()
+    }
 }
 
 #[must_use]
 pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
-    let mut results = Vec::new();
-
-    #[cfg(unix)]
-    #[cfg(feature = "acl")]
+    #[cfg(all(unix, feature = "acl"))]
     {
         use crate::FileManifestAclQualifier;
         use posix_acl::{PosixACL, Qualifier};
 
         let acls: Result<PosixACL, posix_acl::ACLError> = PosixACL::read_acl(file);
 
-        if let Ok(acl) = acls {
-            for entry in acl.entries() {
+        acls.map(|acls| acls.entries())
+            .unwrap_or_else(|_| Vec::new())
+            .iter()
+            .map(|entry| {
                 let mut id = 0;
                 let qualifier = match entry.qual {
                     Qualifier::Undefined => FileManifestAclQualifier::Undefined,
@@ -168,16 +167,20 @@ pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
                     Qualifier::Other => FileManifestAclQualifier::Other,
                 };
 
-                results.push(FileManifestAcl {
+                FileManifestAcl {
                     qualifier: qualifier as i32,
                     id,
                     perm: entry.perm,
-                });
-            }
-        }
+                }
+            })
+            .collect()
     }
 
-    results
+    #[cfg(not(all(unix, feature = "acl")))]
+    {
+        let _file = file;
+        Vec::new()
+    }
 }
 
 /// Creates a `FileManifest` from a file.

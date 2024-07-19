@@ -1,24 +1,25 @@
-import { Logger } from '@nestjs/common';
-import { ClientGrpcProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { bigIntToLong } from '@woodstock/shared';
-import { BackupLogger } from '@woodstock/shared';
 import { from, lastValueFrom, toArray } from 'rxjs';
 import { BackupClientProgress } from './backup-client-progress.service.js';
 import { BackupsClientService } from './backups-client.service.js';
+import { JsEntryType, WoodstockBackupClient } from '@woodstock/shared-rs';
 
 describe('BackupClientProgress', () => {
   const mockBackupClient = {
+    createClient: () => 0,
     authenticate: () => 0,
+    createBackupDirectory: () => 0,
     executeCommand: () => 0,
-    getFileList: () => 0,
+    uploadFileList: () => 0,
+    downloadFileList: () => 0,
     createBackup: () => 0,
-    refreshCache: () => 0,
-    countRef: () => 0,
+    compact: () => 0,
+    countReferences: () => 0,
+    saveBackup: () => 0,
     close: () => 0,
   };
 
-  const fakeClient = {} as ClientGrpcProxy;
+  const fakeClient = {} as WoodstockBackupClient;
 
   let backupClientProgress: BackupClientProgress;
 
@@ -52,13 +53,8 @@ describe('BackupClientProgress', () => {
     // GIVEN
     mockBackupClient.authenticate = jest.fn().mockResolvedValue(undefined);
 
-    const logger = new Logger('FakeLogger') as unknown as BackupLogger;
-    const clientLogger = new Logger('FakeClientLogger') as unknown as BackupLogger;
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
-    ctxt.client = fakeClient;
-
     // WHEN
-    const result = await backupClientProgress.authenticate(ctxt, logger, clientLogger, 'password');
+    const result = await backupClientProgress.authenticate(fakeClient, 'password');
 
     // THEN
     expect(result).toMatchSnapshot('result');
@@ -68,11 +64,8 @@ describe('BackupClientProgress', () => {
     // GIVEN
     mockBackupClient.executeCommand = jest.fn().mockResolvedValue(undefined);
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
-    ctxt.client = fakeClient;
-
     // WHEN
-    const observable = backupClientProgress.executeCommand(ctxt, 'command');
+    const observable = backupClientProgress.executeCommand(fakeClient, 'command');
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN
@@ -82,21 +75,18 @@ describe('BackupClientProgress', () => {
   it('#getFileList', async () => {
     // GIVEN
     const it = [
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file1'), stats: { size: bigIntToLong(100n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file2'), stats: { size: bigIntToLong(200n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file3'), stats: { size: bigIntToLong(300n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file4'), stats: { size: bigIntToLong(400n) } } },
-      { type: EntryType.ADD, manifest: { path: Buffer.from('file5'), stats: { size: bigIntToLong(500n) } } },
-      { type: EntryType.REMOVE, manifest: { path: Buffer.from('file6') } },
+      { type: JsEntryType.Add, manifest: { path: Buffer.from('file1'), stats: { size: 100n } } },
+      { type: JsEntryType.Add, manifest: { path: Buffer.from('file2'), stats: { size: 200n } } },
+      { type: JsEntryType.Add, manifest: { path: Buffer.from('file3'), stats: { size: 300n } } },
+      { type: JsEntryType.Add, manifest: { path: Buffer.from('file4'), stats: { size: 400n } } },
+      { type: JsEntryType.Add, manifest: { path: Buffer.from('file5'), stats: { size: 500n } } },
+      { type: JsEntryType.Remove, manifest: { path: Buffer.from('file6') } },
     ];
-    mockBackupClient.getFileList = jest.fn().mockReturnValue(from(it));
-
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
-    ctxt.client = fakeClient;
+    mockBackupClient.downloadFileList = jest.fn().mockReturnValue(from(it));
 
     // WHEN
-    const observable = backupClientProgress.getFileList(ctxt, {
-      sharePath: Buffer.from('sharePath'),
+    const observable = backupClientProgress.downloadFileList(fakeClient, {
+      sharePath: 'sharePath',
       includes: [],
       excludes: [],
     });
@@ -111,64 +101,57 @@ describe('BackupClientProgress', () => {
     const it = [
       ...createChunks(100n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file1'),
-          stats: { size: bigIntToLong(100n), compressedSize: bigIntToLong(50n) },
+          stats: { size: 100n, compressedSize: 50n },
         },
       },
       ...createChunks(200n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file2'),
-          stats: { size: bigIntToLong(200n), compressedSize: bigIntToLong(100n) },
+          stats: { size: 200n, compressedSize: 100n },
         },
       },
       ...createChunks(300n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file3'),
-          stats: { size: bigIntToLong(300n), compressedSize: bigIntToLong(150n) },
+          stats: { size: 300n, compressedSize: 150n },
         },
       },
       ...createChunks(400n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file4'),
-          stats: { size: bigIntToLong(400n), compressedSize: bigIntToLong(200n) },
+          stats: { size: 400n, compressedSize: 200n },
         },
       },
       ...createChunks(500n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file5'),
-          stats: { size: bigIntToLong(500n), compressedSize: bigIntToLong(250n) },
+          stats: { size: 500n, compressedSize: 250n },
         },
       },
       ...createChunks(600n),
       {
-        type: EntryType.ADD,
+        type: JsEntryType.Add,
         manifest: {
           path: Buffer.from('file6'),
-          stats: { size: bigIntToLong(600n), compressedSize: bigIntToLong(600n) },
+          stats: { size: 600n, compressedSize: 600n },
         },
       },
     ];
     mockBackupClient.createBackup = jest.fn().mockReturnValue(from(it));
 
-    const ctxt = new BackupsGrpcContext('host', 'ip', 1);
-    ctxt.client = fakeClient;
-
     // WHEN
-    const observable = backupClientProgress.createBackup(ctxt, {
-      sharePath: Buffer.from('sharePath'),
-      includes: [],
-      excludes: [],
-    });
+    const observable = backupClientProgress.createBackup(fakeClient, 'sharePath');
     const result = await lastValueFrom(observable.pipe(toArray()));
 
     // THEN

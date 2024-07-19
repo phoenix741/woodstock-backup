@@ -6,7 +6,7 @@ import { HostsStatsUsage, StatsDiskUsage } from './statistics.interface.js';
 import { ExecuteCommandService } from '../commands/execute-command.service.js';
 import { HostsService } from '../backups/hosts.service.js';
 import { BackupsService } from '../backups/backups.service.js';
-import { concatMap, from, lastValueFrom, mergeMap, reduce, tap } from 'rxjs';
+import { concatMap, from, lastValueFrom, mergeMap, reduce } from 'rxjs';
 
 @Injectable()
 export class StatsInstantService {

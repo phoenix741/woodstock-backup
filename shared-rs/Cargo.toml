@@ -16,7 +16,8 @@ napi = { version = "^2.16", default-features = false, features = [
   "tokio_rt",
 ] }
 napi-derive = "^2.16"
-log = { version = "0.4.21", features = [
+log = { version = "0.4.21", default-features = false, features = [
+  "std",
   "max_level_debug",
   "release_max_level_info",
 ] }

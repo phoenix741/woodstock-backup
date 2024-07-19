@@ -1,5 +1,5 @@
 {
-  "name": "@woodstock/shared",
+  "name": "@woodstock/server",
   "version": "0.0.1",
   "description": "",
   "author": "",
@@ -41,7 +41,7 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./apps/servers/test/jest-e2e.json"
+    "test:e2e": "jest --config ./apps/api/test/jest-e2e.json"
   },
   "dependencies": {
     "@apollo/server": "^4.10.4",
@@ -56,7 +56,7 @@
     "@nestjs/platform-express": "^10.3.10",
     "@nestjs/serve-static": "^4.0.2",
     "@nestjs/swagger": "^7.4.0",
-    "@woodstock/shared-rs": "file:../shared-rs",
+    "@woodstock/shared-rs": "^0.0.1",
     "apollo-server-core": "~3.13.0",
     "archiver": "^7.0.1",
     "bullmq": "^5.8.3",
@@ -142,7 +142,7 @@
       ".ts"
     ],
     "moduleNameMapper": {
-      "^@woodstock/shared(|/.*)$": "<rootDir>/libs/server/src/$1",
+      "^@woodstock/shared(|/.*)$": "<rootDir>/libs/shared/src/$1",
       "(.+)\\.js": "$1"
     }
   }

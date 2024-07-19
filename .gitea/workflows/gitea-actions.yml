@@ -6,20 +6,37 @@ on:
 jobs:
   # Build the Rust application in the clientrs directory
   # Launch the tests
-  rust_lib:
-    runs-on: ubuntu-latest
-    matrix:
-      include:
-        - target: x86_64-unknown-linux-musl
-        - target: x86_64-pc-windows-gnu
+  build_tu:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node-version: 20.x
+            features: --features all
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node-version: 20.x
+            features: --no-default-features --features "client,pool,server"
+          # Disabled musl target for (depending of libm, libc,...)
+          # - os: ubuntu-latest
+          #   target: x86_64-unknown-linux-musl
+          #   node-version: 20.x
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            node-version: 20.x
+            features: --features all
 
     steps:
-      - name: Install protoc
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake git-lfs libacl1-dev
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev musl-dev musl-tools
 
-      - uses: actions/checkout@v3
+      - name: Checkout project
+        uses: actions/checkout@v3
         with:
           lfs: true
 
@@ -29,62 +46,100 @@ jobs:
           path: |
             ~/.cargo/registry
             ./target
-          key: build-cargo-registry-${{matrix.TARGET}}
+          key: build-cargo-registry-${{ matrix.target }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          targets: ${{ matrix.target }}
+          target: ${{ matrix.target }}
 
-      - name: Test
-        run: cargo test
-        working-directory: ./clientrs
-
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Build
-        run: cross build --verbose --release --target ${{ matrix.target }}
-        working-directory: ./clientrs
-
-  backend:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-
-    steps:
-      - run: "apt-get update && apt-get install -y git-lfs"
-      - uses: actions/checkout@v3
-        with:
-          lfs: true
-
-      - uses: actions/setup-node@v3
+      - name: Install Node.JS
+        uses: actions/setup-node@v3
+        if: matrix.os == 'ubuntu-latest'
         with:
           node-version: ${{ matrix.node-version }}
 
-      - run: |
-          cd nestjs
+      - name: Unit test (release)
+        run: cargo test --release --target ${{ matrix.target }} ${{ matrix.features }} -- --nocapture
+        env:
+          RUST_LOG: debug
+
+      - name: Build (release)
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      - name: Install Node.JS dependencies
+        run: |
           npm ci
+
+      - name: Build shared (rust + nodejs)
+        run: |
+          cd shared-rs
+          npm run build
+          cd ..
+
+      - name: Build server
+        run: |
+          cd nestjs
           npm run lint
           npm run test
           npm run buildall
+          cd ..
 
-  frontend:
+      - name: Build front
+        run: |
+          cd front
+          npm run lint
+          npm run build
+          cd ..
+
+  docker:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust_version: 1
+            node_version: 20-slim
+            features: --features all
+          # - rust_version: 1
+          #   node_version: 20-slim
+          #   features: --no-default-features --features "client,pool,server"
+          # - rust_version: 1-alpine
+          #   node_version: 20-alpine
+
+    container:
+      image: catthehacker/ubuntu:act-latest
     steps:
-      - run: "apt-get update && apt-get install -y git-lfs"
       - uses: actions/checkout@v3
         with:
           lfs: true
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18.x
+      - name: Setup docker
+        uses: docker/setup-buildx-action@v3
 
-      - run: |
-          cd front
-          npm ci
-          npm run lint
-          npm run build
+      - name: Build Server Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: Dockerfile
+          context: .
+          load: true
+          tags: phoenix741/woodstock-backup:develop
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            RUST_VERSION=${{matrix.rust_version}}
+            NODE_VERSION=${{matrix.node_version}}
+            FEATURES=${{matrix.features}}
+
+      - name: Build Website Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: ./docs/website/Dockerfile
+          context: ./docs/website
+          load: true
+          tags: phoenix741/woodstock-backup-website:develop
+          cache-from: type=gha
+          cache-to: type=gha

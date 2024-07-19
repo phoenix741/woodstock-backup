@@ -1,5 +1,5 @@
 use eyre::Result;
-use log::{debug, warn};
+use log::{debug, error, warn};
 use prost::Message;
 use std::path::{Path, PathBuf};
 use tokio::fs::OpenOptions;
@@ -8,9 +8,11 @@ use tokio::io::AsyncWriteExt;
 #[derive(Clone, PartialEq, ::prost::Message)]
 struct LockFileData {
     #[prost(uint64, tag = "1")]
-    pid: u64,
+    pub pid: u64,
     #[prost(uint64, tag = "2")]
-    timestamp: u64,
+    pub timestamp: u64,
+    #[prost(string, tag = "3")]
+    pub lock_name: String,
 }
 
 const CHECK_INTERVAL: u64 = 5; // seconds
@@ -31,14 +33,25 @@ const MAX_WAIT_TIME: u64 = 3_600; // seconds
 ///
 /// The `async_fd_lock` crate will be used when file storage is used as the pool.
 pub struct PoolLock {
+    name: String,
     lock_file: PathBuf,
     locked: bool,
     abort_handle: Option<tokio::task::AbortHandle>,
 }
 
 impl PoolLock {
+    pub fn new_with_name(path: &Path, name: &str) -> Self {
+        PoolLock {
+            name: name.to_string(),
+            lock_file: path.join("lock"),
+            locked: false,
+            abort_handle: None,
+        }
+    }
+
     pub fn new(path: &Path) -> Self {
         PoolLock {
+            name: path.to_str().map(|s| s.to_string()).unwrap_or_default(),
             lock_file: path.join("lock"),
             locked: false,
             abort_handle: None,
@@ -52,9 +65,10 @@ impl PoolLock {
         // Like update_interval
         let update_interval = UPDATE_INTERVAL
             + (UPDATE_INTERVAL as f64 * (rand::random::<f64>() - 0.5) * 0.6).round() as u64;
+
         debug!(
-            "Locking pool with check_interval: {}, update_interval: {}",
-            check_interval, update_interval
+            "Locking pool {}, with check_interval: {}, update_interval: {}",
+            self.name, check_interval, update_interval
         );
 
         // We start by waiting for the lock to be free
@@ -63,13 +77,17 @@ impl PoolLock {
             check_interval,
             MAX_WAIT_TIME,
             UPDATE_INTERVAL,
+            &self.name,
         )
         .await?;
+
+        debug!("Lock acquired for pool {}", self.name);
 
         self.locked = true;
 
         // Update the lock file every n seconds
-        let abort_handle = update_lock_file_thread(&self.lock_file, update_interval).await;
+        let abort_handle =
+            update_lock_file_thread(&self.lock_file, update_interval, &self.name).await;
         self.abort_handle.replace(abort_handle);
 
         Ok(self)
@@ -78,26 +96,35 @@ impl PoolLock {
 
 impl Drop for PoolLock {
     fn drop(&mut self) {
+        debug!("Dropping lock for pool {}", self.name);
+
         if let Some(abort_handle) = self.abort_handle.take() {
+            debug!("Stop update lock file thread of {}", self.name);
             abort_handle.abort();
         }
 
         // If lock file, we can remove it
         if self.locked {
             // Remove the lock file
+            debug!(
+                "Remove lock file {} for {}",
+                self.lock_file.display(),
+                self.name
+            );
             let _ = std::fs::remove_file(&self.lock_file);
         }
     }
 }
 
-async fn create_lock_file(lock_file: &Path) -> Result<bool> {
-    debug!("Try to create lock file {}", lock_file.display());
+async fn create_lock_file(lock_file: &Path, name: &str) -> Result<bool> {
+    debug!("Try to create lock file {} for {name}", lock_file.display());
 
     let lock_file_data = LockFileData {
         pid: std::process::id() as u64,
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs(),
+        lock_name: name.to_string(),
     };
 
     // Convert to protobuf
@@ -110,6 +137,7 @@ async fn create_lock_file(lock_file: &Path) -> Result<bool> {
     let mut file = match options.open(&lock_file).await {
         Ok(file) => file,
         Err(e) => {
+            warn!("Can't create lock file: {e} for {name}");
             if e.kind() == std::io::ErrorKind::AlreadyExists {
                 return Ok(false);
             } else {
@@ -147,11 +175,15 @@ async fn update_lock_file(lock_file: &Path) -> Result<()> {
 async fn update_lock_file_thread(
     lock_file: &Path,
     update_interval: u64,
+    name: &str,
 ) -> tokio::task::AbortHandle {
     let lock_file = lock_file.to_path_buf();
+    let name = name.to_string();
+
     let handle = tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(update_interval)).await;
+            debug!("Update lock file for {}", name);
             update_lock_file(&lock_file).await.unwrap();
         }
     });
@@ -164,6 +196,7 @@ async fn wait_for_lock(
     check_interval: u64,
     max_wait_time: u64,
     update_interval: u64,
+    name: &str,
 ) -> Result<()> {
     let start = std::time::SystemTime::now();
 
@@ -172,7 +205,7 @@ async fn wait_for_lock(
 
         // If no file, lock is free
         if lock_file_data.is_err() {
-            let created = create_lock_file(lock_file).await?;
+            let created = create_lock_file(lock_file, name).await?;
             if created {
                 break;
             }
@@ -180,7 +213,7 @@ async fn wait_for_lock(
 
         if let Ok(lock_file_data) = lock_file_data {
             debug!(
-                "Lock file is owned by pid: {} at {}",
+                "Lock file is owned by pid: {} at {} by {name}",
                 lock_file_data.pid, lock_file_data.timestamp
             );
 
@@ -190,12 +223,16 @@ async fn wait_for_lock(
                 .as_secs()
                 - 3 * update_interval;
             if lock_file_data.timestamp < timestamp_check {
-                warn!("Stale lock file {}, removing it", lock_file.display());
+                error!(
+                    "Stale lock file {} from {}, removing it for {name}",
+                    lock_file.display(),
+                    lock_file_data.lock_name,
+                );
                 // Remove old lock file
                 let _ = tokio::fs::remove_file(lock_file).await;
 
                 // Create the lock file
-                let created = create_lock_file(lock_file).await?;
+                let created = create_lock_file(lock_file, name).await?;
                 if created {
                     break;
                 }
@@ -208,7 +245,7 @@ async fn wait_for_lock(
             return Err(eyre::eyre!("Can't acquire lock"));
         }
 
-        warn!("Lock is busy, waiting for {check_interval} seconds");
+        warn!("Lock is busy, waiting for {check_interval} seconds {name}");
         tokio::time::sleep(std::time::Duration::from_secs(check_interval)).await;
     }
 
@@ -219,21 +256,22 @@ async fn wait_for_lock(
 mod tests {
     use super::*;
     use std::path::Path;
+    use test_log::test;
 
     #[test]
     fn test_pool_lock_new() {
-        let path = Path::new("/tmp");
-        let lock = PoolLock::new(path);
+        let path = Path::new("./data/");
+        let lock = PoolLock::new_with_name(path, "test_pool_lock_new");
 
         assert_eq!(lock.lock_file, path.join("lock"));
         assert!(!lock.locked);
         assert!(lock.abort_handle.is_none());
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_pool_lock_lock() {
-        let path = Path::new("/tmp");
-        let lock = PoolLock::new(path);
+        let path = Path::new("./data/");
+        let lock = PoolLock::new_with_name(path, "test_pool_lock_lock");
         let result = lock.lock().await;
 
         assert!(result.is_ok());
@@ -245,10 +283,10 @@ mod tests {
         assert!(path.join("lock").exists());
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_pool_lock_drop() {
-        let path = Path::new("/tmp");
-        let lock = PoolLock::new(path);
+        let path = Path::new("./data/");
+        let lock = PoolLock::new_with_name(path, "test_pool_lock_drop");
         let result = lock.lock().await;
 
         assert!(result.is_ok());
@@ -264,11 +302,11 @@ mod tests {
         assert!(!path.join("lock").exists());
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_pool_lock_blocked() {
         // Create a first lock
-        let path = Path::new("/tmp");
-        let lock = PoolLock::new(path);
+        let path = Path::new("./data/");
+        let lock = PoolLock::new_with_name(path, "test_pool_lock_blocked_1");
 
         let result = lock.lock().await;
 
@@ -279,7 +317,7 @@ mod tests {
         // and drop the first lock, the second lock should release 5 secondes after
         let path2 = path.to_path_buf();
         let handle = tokio::spawn(async move {
-            let lock2 = PoolLock::new(&path2);
+            let lock2 = PoolLock::new_with_name(&path2, "test_pool_lock_blocked_2");
             let result = lock2.lock().await;
             assert!(result.is_ok());
 

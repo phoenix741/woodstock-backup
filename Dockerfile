@@ -1,6 +1,19 @@
-FROM rust:1 AS build-chef
+#
+# -------- Base Rust -----------
+ARG RUST_VERSION=1-alpine
+ARG NODE_VERSION=20-alpine
+ARG FEATURES=all
 
-RUN cargo install cargo-chef 
+FROM rust:$RUST_VERSION AS build-chef
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
+  apk add --no-cache musl-dev clang clang-dev alpine-sdk cmake protoc acl-dev nodejs npm; \
+  else \
+  apt-get update && apt-get install -y cmake protobuf-c-compiler protobuf-codegen protobuf-compiler libacl1-dev nodejs npm; \
+  fi
+
+RUN cargo install cargo-chef --locked && rm -rf $CARGO_HOME/registry/
 
 FROM build-chef AS planner
 
@@ -8,9 +21,10 @@ WORKDIR /src/
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-FROM build-chef AS build-sharedrs
+#
+# -------- Build shared-rs -----------
 
-RUN apt-get update && apt-get install -y cmake protobuf-c-compiler protobuf-codegen protobuf-compiler libacl1-dev nodejs npm && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM build-chef AS build-sharedrs
 
 WORKDIR /src/
 COPY --from=planner /src/recipe.json /src/recipe.json
@@ -21,16 +35,30 @@ COPY ./clientrs /src/clientrs/
 COPY ./backuppc_importer /src/backuppc_importer/
 COPY ./shared-rs /src/shared-rs/
 
-RUN cargo build --release --no-default-features -F pool,client,server,acl,xattr
+RUN cargo build --release $FEATURES
 WORKDIR /src/shared-rs
 RUN npm install && npm run build
 
-FROM node:20 AS dependencies
+#
+# -------- Dependencies -------
+
+FROM node:$NODE_VERSION AS dependencies
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
-WORKDIR /src/nestjs
-COPY nestjs/package.json /src/nestjs
-COPY nestjs/package-lock.json /src/nestjs
+WORKDIR /src
+
+RUN mkdir -p /src/{nestjs,shared-rs,front,docs} && mkdir -p /src/docs/website
+COPY package*.json /src
+COPY front/package*.json /src/front/
+COPY nestjs/package*.json /src/nestjs/
+COPY shared-rs/package*.json /src/shared-rs/
+COPY docs/website/package*.json /src/docs/website/
+
+RUN npm ci
+
+FROM dependencies AS prod-dependencies
+
+WORKDIR /src
 RUN npm ci --production
 
 #
@@ -38,10 +66,6 @@ RUN npm ci --production
 FROM dependencies AS build-front
 
 WORKDIR /src/front
-COPY front/package.json /src/front
-COPY front/package-lock.json /src/front
-RUN npm ci
-
 COPY front/ /src/front/
 RUN npm run build 
 
@@ -50,7 +74,6 @@ RUN npm run build
 FROM dependencies AS build-back
 
 WORKDIR /src/nestjs
-RUN npm ci
 
 COPY --from=build-sharedrs /src/shared-rs/* /src/shared-rs/
 COPY nestjs/ /src/nestjs/
@@ -58,26 +81,34 @@ RUN npm run buildall
 
 #
 # -------- Dist -----------
-FROM node:20-slim AS dist
+FROM node:$NODE_VERSION AS dist
 
-WORKDIR /nestjs
-
-RUN apt-get update && apt-get install -y libacl1 && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
+  apk add --no-cache acl; \
+  else \
+  apt-get update && apt-get install -y libacl1 && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+  fi
 
 RUN npm install pm2 -g
 
-COPY --from=build-sharedrs /src/target/release/backuppc_importer /nestjs/
-COPY --from=build-sharedrs /src/target/release/client /nestjs/
-COPY --from=build-sharedrs /src/target/release/console /nestjs/
-COPY --from=build-sharedrs /src/target/release/ws_sync /nestjs/
-COPY --from=build-sharedrs /src/shared-rs/* /shared-rs/
-COPY --from=dependencies /src/nestjs/node_modules /nestjs/node_modules
-COPY --from=build-back /src/nestjs/config/ /nestjs/config/
-COPY --from=build-back /src/nestjs/dist/ /nestjs/
-COPY --from=build-back /src/nestjs/ecosystem.config.js /nestjs/
-COPY --from=build-front /src/front/dist /nestjs/front/
+WORKDIR /app/nestjs
 
-ENV STATIC_PATH=/nestjs/front/
+COPY --from=build-sharedrs /src/target/release/backuppc_importer /app/cli/
+COPY --from=build-sharedrs /src/target/release/client /app/cli/
+COPY --from=build-sharedrs /src/target/release/console /app/cli/
+COPY --from=build-sharedrs /src/target/release/ws_sync /app/cli/
+
+COPY --from=build-sharedrs /src/shared-rs/index.* /app/shared-rs/
+COPY --from=build-sharedrs /src/shared-rs/shared-rs.* /app/shared-rs/
+
+COPY --from=prod-dependencies /src/nestjs/node_modules /app/nestjs/node_modules
+COPY --from=prod-dependencies /src/node_modules /app/node_modules
+COPY --from=build-back /src/nestjs/config/ /app/nestjs/config/
+COPY --from=build-back /src/nestjs/dist/ /app/nestjs/
+COPY --from=build-back /src/nestjs/ecosystem.config.js /app/nestjs/
+COPY --from=build-front /src/front/dist /app/nestjs/front/
+
+ENV STATIC_PATH=/app/nestjs/front/
 ENV NODE_ENV=production
 ENV BACKUP_PATH=/backups
 ENV LOG_LEVEL=info

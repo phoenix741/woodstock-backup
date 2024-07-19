@@ -10,6 +10,9 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1
+        - NODE_VERSION=20-slim
     image: phoenix741/woodstock-backup:develop
     ports:
       - 3000:3000

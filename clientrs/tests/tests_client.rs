@@ -2,8 +2,6 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use futures::{pin_mut, Future};
 use tempfile::NamedTempFile;
-use tokio::net::{UnixListener, UnixStream};
-use tokio_stream::{wrappers::UnixListenerStream, StreamExt};
 use tonic::{
     transport::{Channel, Endpoint, Server, Uri},
     Request,
@@ -19,6 +17,16 @@ use woodstock::{
     LaunchBackupRequest, RefreshCacheHeader, RefreshCacheRequest, Share,
 };
 
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
+#[cfg(unix)]
+use tokio_stream::{wrappers::UnixListenerStream, StreamExt};
+
+#[cfg(windows)]
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(windows)]
+use tokio_stream::{wrappers::TcpListenerStream, StreamExt};
+
 async fn server_and_client_stub() -> (
     impl Future<Output = ()>,
     WoodstockClientServiceClient<Channel>,
@@ -31,17 +39,30 @@ async fn server_and_client_stub() -> (
         secret: "secret".to_string(),
         acl: false,
         xattr: false,
-        backup_timeout: 300,
+        backup_timeout: 3600,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);
 
     let socket = NamedTempFile::new().unwrap();
     let socket = Arc::new(socket.into_temp_path());
-    std::fs::remove_file(&*socket).unwrap();
+    std::fs::remove_file(socket.as_ref()).unwrap();
 
-    let uds = UnixListener::bind(&*socket).unwrap();
-    let stream = UnixListenerStream::new(uds);
+    #[cfg(unix)]
+    let stream = {
+        let uds = UnixListener::bind(&*socket).unwrap();
+        UnixListenerStream::new(uds)
+    };
+
+    #[cfg(windows)]
+    let random_port = rand::random::<u16>() % 1000 + 1000;
+    #[cfg(windows)]
+    let stream = {
+        let listener = TcpListener::bind(format!("127.0.0.1:{random_port}"))
+            .await
+            .unwrap();
+        TcpListenerStream::new(listener)
+    };
 
     let serve_future = async {
         let result = Server::builder()
@@ -52,14 +73,24 @@ async fn server_and_client_stub() -> (
         assert!(result.is_ok());
     };
 
-    let socket = Arc::clone(&socket);
     // Connect to the server over a Unix socket
     // The URL will be ignored.
+    #[cfg(unix)]
+    let socket = Arc::clone(&socket);
     let channel = Endpoint::try_from("http://any.url")
         .unwrap()
         .connect_with_connector(service_fn(move |_: Uri| {
+            #[cfg(unix)]
             let socket = Arc::clone(&socket);
-            async move { UnixStream::connect(&*socket).await }
+
+            async move {
+                #[cfg(unix)]
+                let stream = UnixStream::connect(&*socket);
+                #[cfg(windows)]
+                let stream = TcpStream::connect(format!("127.0.0.1:{random_port}"));
+
+                stream.await
+            }
         }))
         .await
         .unwrap();
@@ -149,23 +180,38 @@ async fn test_client_execute_command() {
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
 
-        let command = create_request(
-            &session_id,
-            ExecuteCommandRequest {
-                command: "ls".to_string(),
-            },
-        )
-        .await
-        .unwrap();
+        // Command depending on windows or unix
+        let command = if cfg!(unix) {
+            "ls"
+        } else {
+            "cmd /c \"dir /b\""
+        }
+        .to_string();
+
+        let command = create_request(&session_id, ExecuteCommandRequest { command })
+            .await
+            .unwrap();
 
         let result = client.execute_command(command).await.unwrap();
 
+        let sep = if cfg!(unix) { "\n" } else { "\r\n" };
+        let stdout = result.get_ref().stdout.clone();
+        let mut stdout = stdout
+            .split(sep)
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+        stdout.sort();
+        let stdout = stdout.join("\n");
+
         // Assert result is error
+        let result_stdout = if cfg!(unix) {
+            "Cargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+        } else {
+            ".gitignore\n.vscode\nCargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+        };
         assert_eq!(result.get_ref().code, 0);
-        assert_eq!(
-            result.get_ref().stdout,
-            "build.rs\nCargo.lock\nCargo.toml\ndata\nsrc\ntests\nwoodstock.proto\n"
-        );
+        assert_eq!(stdout, result_stdout);
     };
 
     // Wait for completion, when the client request future completes

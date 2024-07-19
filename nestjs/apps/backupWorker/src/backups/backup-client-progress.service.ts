@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { JsBackupProgression, JsLogEntry, WoodstockBackupClient, WoodstockBackupShare } from '@woodstock/shared-rs';
-import { QueueTaskProgression } from '@woodstock/shared/tasks/index.js';
-import { defer, endWith, map, mapTo, Observable, startWith } from 'rxjs';
+import { JsBackupProgression, WoodstockBackupClient, WoodstockBackupShare } from '@woodstock/shared-rs';
+import { QueueTaskProgression } from '@woodstock/shared';
+import { defer, endWith, map, Observable, startWith } from 'rxjs';
 import { BackupsClientService } from './backups-client.service';
 
 function toProgress(value: JsBackupProgression): QueueTaskProgression {
@@ -123,7 +123,7 @@ export class BackupClientProgress {
 
     return countRef$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
-      mapTo(new QueueTaskProgression()),
+      map(() => new QueueTaskProgression()),
       startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }
@@ -133,7 +133,7 @@ export class BackupClientProgress {
 
     return saveBackup$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
-      mapTo(new QueueTaskProgression()),
+      map(() => new QueueTaskProgression()),
       startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
     );
   }

@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { ApplicationConfigService } from '@woodstock/shared';
 import {
   JsBackupProgression,
-  JsLogEntry,
   WoodstockBackupClient,
   WoodstockBackupCommandReply,
   WoodstockBackupShare,
@@ -41,7 +40,7 @@ export class BackupsClientService {
   ): Observable<JsBackupProgression> {
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
-      let abortHandle = context.downloadFileList(share, (result) => {
+      const abortHandle = context.downloadFileList(share, (result) => {
         if (result.progress) {
           observer.next(result.progress);
         }
@@ -71,7 +70,7 @@ export class BackupsClientService {
   ): Observable<JsBackupProgression> {
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
-      let abortHandle = context.createBackup(sharePath, (result) => {
+      const abortHandle = context.createBackup(sharePath, (result) => {
         if (result.progress) {
           observer.next(result.progress);
         }

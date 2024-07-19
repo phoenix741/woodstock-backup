@@ -17,9 +17,10 @@ console = "0.15.8"
 env_logger = "0.11.3"
 futures = "0.3.30"
 indicatif = "0.17.8"
-log = { version = "0.4", features = [
+log = { version = "0.4.21", default-features = false, features = [
+  "std",
   "max_level_debug",
-  "release_max_level_debug",
+  "release_max_level_info",
 ] }
 tokio = "1.37.0"
 lru = "0.12.3"

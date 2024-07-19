@@ -26,10 +26,10 @@
             @click:row="navigateTo"
           >
             <template v-slot:[`item.state`]="{ item }">
-              <v-chip v-if="item.columns.state" :color="getColor(item.columns.state)">{{ item.columns.state }}</v-chip>
+              <v-chip v-if="item.state" :color="getColor(item.state)">{{ item.state }}</v-chip>
             </template>
             <template v-slot:[`item.lastBackupSize`]="{ item }">
-              <template v-if="item.columns.lastBackupSize">{{ filesize(item.columns.lastBackupSize) }}</template>
+              <template v-if="item.lastBackupSize">{{ filesize(item.lastBackupSize) }}</template>
             </template>
           </v-data-table>
         </v-sheet>
@@ -46,21 +46,24 @@ import { getColor, getState, toDay } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { VDataTable } from 'vuetify/components';
 
 import { useDevices } from '../utils/devices';
 import { useDiskUsageStats } from '../utils/stats';
+
+type ReadonlyHeaders = VDataTable['$props']['headers'];
 
 const router = useRouter();
 const { devices, isDeviceFetching, devicesByState } = useDevices();
 const { devicesBySize, isStatsFetching } = useDiskUsageStats();
 
-function navigateTo(event: PointerEvent, { item }: { item: { raw: Record<string, unknown> } }) {
-  router.push(`/backups/${item.raw.name}`);
+function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknown> }) {
+  router.push(`/backups/${item.name}`);
 }
 
 let itemsPerPage = ref(25);
 
-const headers = [
+const headers: ReadonlyHeaders = [
   {
     title: 'Device',
     align: 'start',

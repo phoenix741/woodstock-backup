@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import format from 'date-fns/format';
+import { format } from 'date-fns';
 import { HeatmapChart } from 'echarts/charts';
 import { CalendarComponent, TooltipComponent, VisualMapComponent } from 'echarts/components';
 import { use } from 'echarts/core';
