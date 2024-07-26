@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ServeStaticModuleOptions, ServeStaticModuleOptionsFactory } from '@nestjs/serve-static';
-import { ApplicationConfigService } from '@woodstock/core';
+import { ApplicationConfigService } from '@woodstock/shared';
 
 @Injectable()
 export class ServeStaticService implements ServeStaticModuleOptionsFactory {

@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ApplicationConfigService } from '@woodstock/core';
 import * as childProcess from 'child_process';
 import { EventEmitter } from 'events';
 import { Response } from 'express';
 import { join } from 'path';
 import { ServerController } from './server.controller.js';
 import { ServerService } from './server.service.js';
+import { ApplicationConfigService } from '@woodstock/shared';
 
 jest.mock('child_process');
 

@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { SchedulerConfigService } from '@woodstock/core';
-import { QueueName } from '@woodstock/server';
+import { SchedulerConfigService } from '@woodstock/shared';
+import { QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 
 @Injectable()

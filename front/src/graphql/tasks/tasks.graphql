@@ -12,6 +12,8 @@ fragment ProgressTask on JobProgression {
   newFileCount
 
   errorCount
+
+  percent
 }
 
 fragment TaskDescription on SubTaskOrGroupTasks {
@@ -51,6 +53,7 @@ fragment JobProgression on JobProgression {
   fileCount
   progressCurrent
   progressMax
+  percent
   speed
 }
 

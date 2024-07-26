@@ -1,0 +1,131 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`FilesService createArchive create archive: append 1`] = `[MockFunction]`;
+
+exports[`FilesService createArchive create archive: readFileStream 1`] = `[MockFunction]`;
+
+exports[`FilesService createArchive create archive: symlink 1`] = `[MockFunction]`;
+
+exports[`FilesService listShares list share from a directory: res 1`] = `
+[
+  "file1",
+  "file3",
+]
+`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 1`] = `"chunks1"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 2`] = `"chunks2"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 3`] = `"chunks3"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 4`] = `"chunks4"`;
+
+exports[`FilesService readFileStream read file stream regular file: chunk 5`] = `"chunks5"`;
+
+exports[`FilesService searchFiles search files in directory: res 1`] = `
+[
+  {
+    "path": "d0/ax",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d0",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d1/dd1/ddd1",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d1/dd1/ddd2",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d1/dd1/ddd3",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd1",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd1/abcd",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd1/efgh",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd1/ijkl",
+    "stats": {
+      "mode": 40960,
+    },
+    "symlink": {
+      "data": [
+        115,
+        121,
+        109,
+        108,
+        105,
+        110,
+        107,
+      ],
+      "type": "Buffer",
+    },
+  },
+  {
+    "path": "d1/dd2/ddd1/mnop",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd2",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d1/dd2/ddd3",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d2/dd1/ddd1",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+  {
+    "path": "d2/dd1/ddd1",
+    "stats": {
+      "mode": 32768,
+    },
+  },
+  {
+    "path": "d3/dd1/ddd1",
+    "stats": {
+      "mode": 16384,
+    },
+  },
+]
+`;

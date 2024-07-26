@@ -7,7 +7,7 @@ import {
   QueueName,
   StatsDiskUsage,
   StatsInstantService,
-} from '@woodstock/server';
+} from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import * as promClient from 'prom-client';
 

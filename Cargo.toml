@@ -1,0 +1,15 @@
+[workspace]
+members = ["backuppc_importer", "clientrs", "shared-rs"]
+resolver = "2"
+
+[profile.dev.package.flate2]
+opt-level = 3
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[workspace.metadata.cross.build]
+pre-build = ["apt-get install -y protobuf-compiler"]

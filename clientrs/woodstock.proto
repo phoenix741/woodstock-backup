@@ -1,0 +1,206 @@
+syntax = "proto3";
+
+package woodstock;
+
+message Empty {
+
+}
+
+message PoolUnused {
+  bytes sha256 = 1;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
+}
+
+message PoolRefCount {
+  bytes sha256 = 1;
+  uint32 refCount = 2;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
+}
+
+enum FileManifestType {
+    RegularFile = 0;
+    Symlink = 1;
+    Directory = 2;
+    BlockDevice = 3;
+    CharacterDevice = 4;
+    Fifo = 5;
+    Socket = 6;
+    Unknown = 99;
+}
+
+message FileManifestStat {
+  uint32 ownerId = 1;
+  uint32 groupId = 2;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
+  int64 lastRead = 5;
+  int64 lastModified = 6;
+  int64 created = 7;
+  uint32 mode = 8;
+  FileManifestType type = 9;
+
+  uint64 dev = 10;
+  uint64 rdev = 11;
+
+  uint64 ino = 12;
+  uint64 nlink = 13;
+}
+
+enum FileManifestAclQualifier {
+    UNDEFINED = 0;
+    USER_OBJ = 1;
+    GROUP_OBJ = 2;
+    OTHER = 3;
+    USER_ID = 4;
+    GROUP_ID = 5;
+    MASK = 6;
+}
+
+message FileManifestAcl {
+  FileManifestAclQualifier qualifier = 1;
+  uint32 id = 2;
+  uint32 perm = 3;
+}
+
+message FileManifestXAttr {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// File manifest used to store the content of a file
+message FileManifest {
+  bytes path = 1;
+  FileManifestStat stats = 2;
+  bytes symlink = 3;
+
+  repeated FileManifestXAttr xattr = 4;
+  repeated FileManifestAcl acl = 5;
+
+  repeated bytes chunks = 6;
+  bytes hash = 8;
+
+  map<string, bytes> metadata = 7;
+}
+
+enum EntryType {
+  // Add a new file
+  ADD = 0;
+  // Modify a file
+  MODIFY = 1;
+  // Remove a file
+  REMOVE = 2;
+}
+
+// Journal entry
+message FileManifestJournalEntry {
+  EntryType type = 1;
+  FileManifest manifest = 2;
+}
+
+message RefreshCacheHeader {
+  string sharePath = 1;
+}
+
+message RefreshCacheRequest {
+  oneof field {
+    RefreshCacheHeader header = 1;
+    FileManifest fileManifest = 2;
+  }
+}
+
+message LaunchBackupRequest {
+  Share share = 1;
+}
+
+message ChunkHashRequest {
+  bytes filename = 1;
+}
+
+message ChunkHashReply {
+  repeated bytes chunks = 1;
+  bytes hash = 2;
+}
+
+message ChunkInformation {
+  bytes filename = 1;
+  // If empty the whole file is requested
+  repeated uint64 chunksId = 2;
+}
+
+message FileChunkData {
+  bytes data = 1;
+}
+
+message FileChunkHeader {
+  uint64 chunkId = 1;
+}
+
+message FileChunkFooter {
+  bytes chunkHash = 1;
+}
+
+// Only when whole file is requested
+message FileChunkEndOfFile {
+  bytes hash = 1;
+}
+
+message FileChunk {
+  oneof field {
+    FileChunkHeader header = 1;
+    FileChunkData data = 2;
+    FileChunkFooter footer = 3;
+    FileChunkEndOfFile eof = 4;
+  }
+}
+
+message ExecuteCommandRequest {
+  string command = 1;
+}
+
+message ExecuteCommandReply {
+  int32 code = 1;
+  string stdout = 2;
+  string stderr = 3;
+}
+
+message Share {
+  string sharePath = 1;
+  repeated string includes = 2;
+  repeated string excludes = 3;
+}
+
+message AuthenticateRequest {
+  uint32 version = 1;
+  string token = 2;
+}
+
+message AuthenticateReply {
+  string sessionId = 3;
+}
+
+service WoodstockClientService {
+  // 0. Authenticate
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateReply);
+
+  // 1. Execute a command directly on the client
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
+
+  // 2. The server send the last cache version to the client
+  rpc RefreshCache(stream RefreshCacheRequest) returns (Empty) {}
+
+  // 3. The server launch the backup with a new number. The client will browse the client computer
+  //    and will send all new file to the server
+  rpc LaunchBackup(LaunchBackupRequest) returns (stream FileManifestJournalEntry) {}
+
+  // 3. Ask for hash of the file before asking only modified hash of the file
+  rpc GetChunkHash(ChunkHashRequest) returns (ChunkHashReply) {}
+
+  // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
+  //    and ask all necessary chunk to the client.
+  rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
+
+  // Free the client
+  rpc CloseBackup(Empty) returns (Empty) {}
+}

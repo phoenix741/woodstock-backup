@@ -1,10 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, BackupsService, FileDescription, HostsService, JobBackupData, QueueName } from '@woodstock/server';
+import { Backup, FileDescription, JobBackupData, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service.js';
 import { JobResponse } from './backups.dto.js';
+import { BackupsService, HostsService } from '@woodstock/shared';
 
 interface ExtendedBackup extends Backup {
   hostname: string;

@@ -19,9 +19,15 @@
             </v-row>
             <v-row class="pt-5" no-gutters v-if="task.state === QueueTaskState.Running">
               <v-col cols="12">
-                <v-progress-linear color="primary" striped :model-value="progress" :indeterminate="false" height="25">
+                <v-progress-linear
+                  color="primary"
+                  striped
+                  :model-value="task.progression?.percent ?? 0"
+                  :indeterminate="false"
+                  height="25"
+                >
                   <strong
-                    >{{ toPercent(progress) }}
+                    >{{ toPercent(task.progression?.percent ?? 0) }}
                     <template v-if="task.progression?.speed"
                       >({{ filesize(task.progression.speed) }}/s)</template
                     ></strong
@@ -37,7 +43,13 @@
             </v-row>
             <v-row class="pt-5" no-gutters v-if="task.state === QueueTaskState.Failed">
               <v-col cols="12">
-                <v-progress-linear color="error" striped :model-value="progress" :indeterminate="false" height="25">
+                <v-progress-linear
+                  color="error"
+                  striped
+                  :model-value="task.progression?.percent ?? 0"
+                  :indeterminate="false"
+                  height="25"
+                >
                   <strong>{{ task.failedReason }}</strong>
                 </v-progress-linear>
               </v-col>
@@ -106,14 +118,6 @@ const message = computed(() => {
     } files`;
   }
   return undefined;
-});
-
-const progress = computed(() => {
-  if (!props.task.progression?.progressCurrent || !props.task.progression?.progressMax) {
-    return undefined;
-  }
-
-  return Number((props.task.progression?.progressCurrent * 100n) / props.task.progression?.progressMax);
 });
 
 const taskRunning = computed(() => {

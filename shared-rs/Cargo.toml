@@ -1,0 +1,28 @@
+[package]
+edition = "2021"
+name = "woodstock_shared-rs"
+version = "0.0.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
+woodstock_client-rs = { path = "../clientrs", default-features = false, features = [
+  "server",
+] }
+napi = { version = "^2.16", default-features = false, features = [
+  "napi8",
+  "tokio_rt",
+] }
+napi-derive = "^2.16"
+log = { version = "0.4.21", default-features = false, features = [
+  "std",
+  "max_level_debug",
+  "release_max_level_info",
+] }
+futures-util = "0.3.30"
+tokio = "1.37.0"
+
+[build-dependencies]
+napi-build = "^2.1"

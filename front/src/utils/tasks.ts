@@ -101,6 +101,7 @@ function mapProgression({
   progressCurrent,
   progressMax,
   speed,
+  percent,
 }: Partial<JobProgression> | undefined = {}) {
   return {
     compressedFileSize,
@@ -118,6 +119,7 @@ function mapProgression({
     progressMax,
 
     speed,
+    percent,
   };
 }
 
@@ -175,7 +177,7 @@ function toBackupTask(job: FragmentType<typeof JobFragmentDoc>): JobTaskGui {
 export function useTasks(
   taskFilter: Ref<string[]>,
   queueName: Ref<string | undefined>,
-  refetch?: UseQueryReturn<unknown, undefined>['refetch'],
+  refetch?: UseQueryReturn<unknown, never>['refetch'],
 ) {
   const variables = computed(() => ({
     input: {

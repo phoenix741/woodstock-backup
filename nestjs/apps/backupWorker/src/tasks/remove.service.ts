@@ -1,15 +1,13 @@
 import { BadRequestException, Injectable, LoggerService } from '@nestjs/common';
-import { ApplicationConfigService } from '@woodstock/core';
-import { BackupsService, JobBackupData, JobService, RefCntService, ReferenceCount } from '@woodstock/server';
+import { BackupsService, JobBackupData, JobService } from '@woodstock/shared';
 import {
   QueueSubTask,
   QueueTaskContext,
   QueueTasks,
   QueueTasksInformations,
   QueueTasksService,
-} from '@woodstock/server/tasks';
+} from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
-import { RedlockAbortSignal } from 'redlock';
 
 export enum RemoveTaskName {
   REMOVE_REFCNT_POOL_TASK = 'REMOVE_REFCNT_POOL_TASK',
@@ -20,33 +18,25 @@ export enum RemoveTaskName {
 @Injectable()
 export class RemoveService {
   constructor(
-    private applicationConfig: ApplicationConfigService,
     private backupsService: BackupsService,
-    private refcntService: RefCntService,
     private queueTasksService: QueueTasksService,
     private jobService: JobService,
   ) {}
 
   #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number, logger: LoggerService) {
-    const refcnt = new ReferenceCount(
-      this.backupsService.getHostDirectory(hostname),
-      this.backupsService.getDestinationDirectory(hostname, backupNumber),
-      this.applicationConfig.poolPath,
-    );
-
-    const globalContext = new QueueTaskContext(refcnt, logger);
+    const globalContext = new QueueTaskContext({}, logger);
 
     globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_POOL_TASK, async () => {
       await this.jobService.launchRefcntJob(
-        job.id || '',
+        job.id ?? '',
         `${job.prefix}:${job.queueName}`,
-        hostname,
-        backupNumber,
+        job.data.host,
+        job.data.number ?? 0,
         'remove_backup',
       );
     });
     globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, async () => {
-      await this.refcntService.removeBackupRefcntTo(refcnt.hostPath, refcnt.backupPath);
+      await this.backupsService.removeRefcntOfHost(hostname, backupNumber);
     });
     globalContext.commands.set(RemoveTaskName.REMOVE_BACKUP_TASK, async () => {
       await this.backupsService.removeBackup(hostname, backupNumber);
@@ -69,14 +59,10 @@ export class RemoveService {
     return new QueueTasksInformations(task, this.#createGlobalContext(job, host, number, logger));
   }
 
-  launchRemoveTask(
-    job: Job<JobBackupData>,
-    informations: QueueTasksInformations<ReferenceCount>,
-    signal: RedlockAbortSignal,
-  ) {
+  launchRemoveTask(job: Job<JobBackupData>, informations: QueueTasksInformations<unknown>, signal: AbortSignal) {
     return this.queueTasksService.executeTasksFromJob(job, informations, async () => {
       if (signal.aborted) {
-        throw signal.error;
+        throw new Error('Aborted task');
       }
     });
   }

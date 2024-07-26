@@ -1,6 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
-import { ResolveService } from '@woodstock/core';
+import { ResolveService } from '@woodstock/shared';
 import {
   BackupLogger,
   BackupsService,
@@ -8,7 +8,7 @@ import {
   JobService,
   QueueName,
   QUEUE_TASK_FAILED_STATE,
-} from '@woodstock/server';
+} from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { inspect } from 'util';
 import { LaunchBackupError } from '../backups/backup.error.js';
@@ -74,7 +74,7 @@ export class HostConsumer extends WorkerHost {
         this.logger.debug(`Get the next backup number - JOB ID = ${job.id}`);
         if (backupTask.number === undefined) {
           Object.assign(backupTask, await this.jobService.getNextBackup(backupTask.host));
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
@@ -83,13 +83,13 @@ export class HostConsumer extends WorkerHost {
           if (!backupTask.ip) {
             throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
           }
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         this.logger.debug(`Define the start date - JOB ID = ${job.id}`);
         if (!backupTask.startDate) {
           backupTask.startDate = Date.now();
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         // Set the logger
@@ -97,21 +97,20 @@ export class HostConsumer extends WorkerHost {
         const clientLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number, true);
 
         this.logger.debug(`Prepare the backup job - JOB ID = ${job.id}`);
-        const informations = this.backupTasksService.prepareBackupTask(job, clientLogger, backupLogger);
+        const informations = await this.backupTasksService.prepareBackupTask(job, clientLogger, backupLogger);
 
         this.logger.debug(`Launch the backup job - JOB ID = ${job.id}`);
         await this.backupTasksService.launchBackupTask(job, informations, signal);
 
         this.logger.verbose(
           `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
-            this.backupTasksService.toBackup(informations),
+            informations.tasks.progression,
           )} because of ${inspect(this.backupTasksService.serializeBackupTask(informations.tasks), {
             showHidden: false,
             depth: null,
             colors: true,
           })}  - JOB ID = ${job.id}`,
         );
-        await this.backupsService.addOrReplaceBackup(job.data.host, this.backupTasksService.toBackup(informations));
 
         if (QUEUE_TASK_FAILED_STATE.includes(informations.tasks.state)) {
           throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${informations.tasks.state}`);
@@ -122,7 +121,7 @@ export class HostConsumer extends WorkerHost {
       } finally {
         // Check if the previous backup is incomplete, we can remove it
         const mayBeIncompleteBackup = await this.backupsService.getPreviousBackup(job.data.host, job.data.number || -1);
-        if (mayBeIncompleteBackup && !mayBeIncompleteBackup.complete) {
+        if (mayBeIncompleteBackup && !mayBeIncompleteBackup.completed) {
           await this.hostsQueue.add('remove_backup', { host: job.data.host, number: mayBeIncompleteBackup.number });
         }
       }
@@ -139,7 +138,7 @@ export class HostConsumer extends WorkerHost {
 
         if (!backupTask.startDate) {
           backupTask.startDate = Date.now();
-          job.update(backupTask);
+          job.updateData(backupTask);
         }
 
         const informations = this.removeService.prepareRemoveTask(job, removeLogger);

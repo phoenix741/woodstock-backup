@@ -3,15 +3,18 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
-import { CoreModule } from '@woodstock/core';
-import { ServerModule } from '@woodstock/server';
-import { SharedModule } from '@woodstock/shared';
+import {
+  ApplicationConfigService,
+  CertificateService,
+  ConfigProviderModule,
+  SharedModule,
+  initializeLog,
+} from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller.js';
 import { BackupsFilesService } from './backups/backups-files.service.js';
 import { BackupController } from './backups/backups.controller.js';
 import { BackupsResolver } from './backups/backups.resolver.js';
-import { GlobalModule } from './global.module.js';
 import { HostController } from './hosts/hosts.controller.js';
 import { HostsResolver } from './hosts/hosts.resolver.js';
 import { PoolResolver } from './pool/pool.resolver.js';
@@ -27,14 +30,13 @@ import { PrometheusController } from './stats/prometheus.controller.js';
 import { PrometheusService } from './stats/prometheus.service.js';
 import { StatsResolver } from './stats/stats.resolver.js';
 import { BigIntScalar } from './utils/bigint.scalar.js';
+import { generateRsaKey } from '@woodstock/shared-rs';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
-    GlobalModule,
-    CoreModule,
+    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigProviderModule,
     SharedModule,
-    ServerModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       fieldResolverEnhancers: ['interceptors'],
@@ -46,7 +48,7 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     }),
     ServeStaticModule.forRootAsync({
       useClass: ServeStaticService,
-      imports: [CoreModule],
+      imports: [ConfigProviderModule],
     }),
   ],
   controllers: [
@@ -83,9 +85,17 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
   ],
 })
 export class AppModule implements OnApplicationBootstrap {
-  constructor(private readonly serverService: ServerService) {}
+  constructor(
+    private readonly serverService: ServerService,
+    private readonly config: ApplicationConfigService,
+    private readonly certificateService: CertificateService,
+  ) {}
 
   async onApplicationBootstrap() {
+    await initializeLog(this.config.context);
+
     await this.serverService.check();
+    await this.certificateService.generateCertificate();
+    generateRsaKey(this.config.context);
   }
 }

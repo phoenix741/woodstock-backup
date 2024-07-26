@@ -1,4 +1,10 @@
 {
   "name": "root",
-  "private": true
+  "private": true,
+  "workspaces": [
+    "docs/website",
+    "front",
+    "nestjs",
+    "shared-rs"
+  ]
 }

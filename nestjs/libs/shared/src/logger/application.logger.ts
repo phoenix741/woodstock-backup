@@ -1,6 +1,6 @@
 import { Injectable, LoggerService } from '@nestjs/common';
+import { mkdirSync } from 'fs';
 import * as logform from 'logform';
-import { mkdirp } from 'mkdirp';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
 import 'winston-daily-rotate-file';
@@ -15,9 +15,12 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 export class ApplicationLogger implements LoggerService {
   #logger: Logger;
 
-  constructor(readonly worker?: string, readonly console = true) {
+  constructor(
+    readonly worker?: string,
+    readonly console = true,
+  ) {
     const logPath = join(process.env.BACKUP_PATH || '', 'log');
-    mkdirp(logPath);
+    mkdirSync(logPath, { recursive: true });
 
     this.#logger = createLogger({
       level: process.env.LOG_LEVEL || 'info',

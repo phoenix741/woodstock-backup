@@ -1,34 +1,26 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { bigIntMax } from '@woodstock/core';
 import {
   BackupContext,
   BackupLogger,
   BackupNameTask,
   BackupOperation,
-  BackupsService,
   ExecuteCommandOperation,
   JobBackupData,
   JobService,
-} from '@woodstock/server';
-import {
   QueueGroupTasks,
   QueueSubTask,
   QueueTaskContext,
   QueueTaskPriority,
   QueueTasks,
   QueueTasksInformations,
-  QUEUE_TASK_SUCCESS_STATE,
-} from '@woodstock/server/tasks/queue-tasks.model';
-import { QueueTasksService } from '@woodstock/server/tasks/queue-tasks.service';
+  QueueTasksService,
+} from '@woodstock/shared';
 import { Job } from 'bullmq';
-import mkdirp from 'mkdirp';
-import { RedlockAbortSignal } from 'redlock';
 import { BackupClientProgress } from '../backups/backup-client-progress.service';
 
 @Injectable()
 export class BackupTasksService {
   constructor(
-    private backupsService: BackupsService,
     private backupsClient: BackupClientProgress,
     private jobService: JobService,
     private queueTasksService: QueueTasksService,
@@ -52,9 +44,9 @@ export class BackupTasksService {
     const backupGroup = new QueueGroupTasks(BackupNameTask.BACKUP_TASK);
 
     for (const share of backup.shares) {
-      const includes = [...(share.includes || []), ...(backup.includes || [])].map((s) => Buffer.from(s));
-      const excludes = [...(share.excludes || []), ...(backup.excludes || [])].map((s) => Buffer.from(s));
-      const sharePath = Buffer.from(share.name);
+      const includes = [...(share.includes || []), ...(backup.includes || [])];
+      const excludes = [...(share.excludes || []), ...(backup.excludes || [])];
+      const sharePath = share.name;
 
       backupGroup.add(
         new QueueGroupTasks(BackupNameTask.GROUP_SHARE_TASK, {
@@ -89,36 +81,23 @@ export class BackupTasksService {
     return backupGroup;
   }
 
-  #createGlobalContext(job: Job<JobBackupData>, clientLogger: BackupLogger, logger: BackupLogger) {
-    const connection = this.backupsClient.createContext(
-      job.data.ip,
-      job.data.host,
-      job.data.number ?? 0,
-      job.data.pathPrefix,
-      job.data.originalStartDate,
-    );
+  async #createGlobalContext(job: Job<JobBackupData>, clientLogger: BackupLogger, logger: BackupLogger) {
+    if (job.data.ip === undefined) {
+      throw new InternalServerErrorException('No IP provided');
+    }
+
+    const connection = await this.backupsClient.createClient(job.data.host, job.data.ip, job.data.number ?? 0);
     const globalContext = new QueueTaskContext(new BackupContext(job.data, clientLogger, connection), logger);
 
-    globalContext.commands.set(BackupNameTask.INIT_DIRECTORY_TASK, async (gc) => {
-      await mkdirp(this.backupsService.getDestinationDirectory(gc.globalContext.host, gc.globalContext.number));
-      await this.backupsService.cloneBackup(
-        gc.globalContext.host,
-        gc.globalContext.previousNumber,
-        gc.globalContext.number,
-      );
-    });
     globalContext.commands.set(BackupNameTask.CONNECTION_TASK, async (gc) => {
       if (!gc.globalContext.config?.password) {
         throw new InternalServerErrorException('No password provided');
       }
 
-      await this.backupsClient.createConnection(gc.globalContext.connection);
-      await this.backupsClient.authenticate(
-        gc.globalContext.connection,
-        logger,
-        gc.globalContext.clientLogger,
-        gc.globalContext.config?.password,
-      );
+      await this.backupsClient.authenticate(gc.globalContext.connection, gc.globalContext.config?.password);
+    });
+    globalContext.commands.set(BackupNameTask.INIT_DIRECTORY_TASK, (gc, lc) => {
+      return this.backupsClient.createBackupDirectory(gc.globalContext.connection, lc.shares ?? []);
     });
 
     globalContext.commands.set(BackupNameTask.COMMAND_TASK, (gc, lc) => {
@@ -132,25 +111,21 @@ export class BackupTasksService {
       if (!lc.shares) {
         throw new InternalServerErrorException('No shares provided');
       }
-      return this.backupsClient.refreshCache(gc.globalContext.connection, lc.shares);
+      return this.backupsClient.uploadFileList(gc.globalContext.connection, lc.shares);
     });
     globalContext.commands.set(BackupNameTask.FILELIST_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
         throw new InternalServerErrorException('No includes, excludes or sharePath provided');
       }
 
-      return this.backupsClient.getFileList(gc.globalContext.connection, { includes, excludes, sharePath });
+      return this.backupsClient.downloadFileList(gc.globalContext.connection, { includes, excludes, sharePath });
     });
     globalContext.commands.set(BackupNameTask.CHUNKS_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
         throw new InternalServerErrorException('No includes, excludes or sharePath provided');
       }
 
-      return this.backupsClient.createBackup(
-        gc.globalContext.connection,
-        { includes, excludes, sharePath },
-        gc.globalContext.config.maxConcurrentDownloads,
-      );
+      return this.backupsClient.createBackup(gc.globalContext.connection, sharePath);
     });
     globalContext.commands.set(BackupNameTask.COMPACT_TASK, (gc, lc) => {
       if (!lc.sharePath) {
@@ -160,14 +135,15 @@ export class BackupTasksService {
       return this.backupsClient.compact(gc.globalContext.connection, lc.sharePath);
     });
     globalContext.commands.set(BackupNameTask.CLOSE_CONNECTION_TASK, async (gc) => {
-      this.backupsClient.close(gc.globalContext.connection);
+      gc.globalContext.logSubscriber?.unsubscribe();
+      return this.backupsClient.close(gc.globalContext.connection);
     });
     globalContext.commands.set(BackupNameTask.REFCNT_HOST_TASK, (gc) => {
       if (!gc.globalContext.connection) {
         throw new InternalServerErrorException('No connection to backup server');
       }
 
-      return this.backupsClient.countRef(gc.globalContext.connection);
+      return this.backupsClient.countReferences(gc.globalContext.connection);
     });
     globalContext.commands.set(BackupNameTask.REFCNT_POOL_TASK, async () => {
       if (!job.id) {
@@ -183,25 +159,33 @@ export class BackupTasksService {
         job.data.host,
         job.data.number,
         'add_backup',
-        job.data.originalStartDate,
       );
+    });
+    globalContext.commands.set(BackupNameTask.SAVE_BACKUP_TASK, (gc) => {
+      return this.backupsClient.saveBackup(gc.globalContext.connection, true);
     });
 
     return globalContext;
   }
 
-  prepareBackupTask(
+  async prepareBackupTask(
     job: Job<JobBackupData>,
     clientLogger: BackupLogger,
     logger: BackupLogger,
-  ): QueueTasksInformations<BackupContext> {
+  ): Promise<QueueTasksInformations<BackupContext>> {
     const config = job.data.config;
 
     const task = new QueueTasks('GLOBAL')
       .add(
         new QueueGroupTasks(BackupNameTask.GROUP_INIT_TASK)
           .add(new QueueSubTask(BackupNameTask.CONNECTION_TASK, {}, QueueTaskPriority.INITIALISATION))
-          .add(new QueueSubTask(BackupNameTask.INIT_DIRECTORY_TASK, {}, QueueTaskPriority.INITIALISATION))
+          .add(
+            new QueueSubTask(
+              BackupNameTask.INIT_DIRECTORY_TASK,
+              { shares: config?.operations?.operation?.shares.map((share) => share.name) || [] },
+              QueueTaskPriority.INITIALISATION,
+            ),
+          )
           .add(
             new QueueSubTask(
               BackupNameTask.REFRESH_CACHE_TASK,
@@ -217,22 +201,17 @@ export class BackupTasksService {
         new QueueGroupTasks(BackupNameTask.GROUP_END_TASK)
           .add(new QueueSubTask(BackupNameTask.CLOSE_CONNECTION_TASK, {}, QueueTaskPriority.POST_PROCESSING))
           .add(new QueueSubTask(BackupNameTask.REFCNT_HOST_TASK, {}, QueueTaskPriority.FINALISATION))
-          .add(new QueueSubTask(BackupNameTask.REFCNT_POOL_TASK, {}, QueueTaskPriority.FINALISATION)),
+          .add(new QueueSubTask(BackupNameTask.REFCNT_POOL_TASK, {}, QueueTaskPriority.FINALISATION))
+          .add(new QueueSubTask(BackupNameTask.SAVE_BACKUP_TASK, {}, QueueTaskPriority.FINALISATION)),
       );
 
-    return new QueueTasksInformations(task, this.#createGlobalContext(job, clientLogger, logger));
+    return new QueueTasksInformations(task, await this.#createGlobalContext(job, clientLogger, logger));
   }
 
-  launchBackupTask(
-    job: Job<JobBackupData>,
-    informations: QueueTasksInformations<BackupContext>,
-    signal: RedlockAbortSignal,
-  ) {
-    return this.queueTasksService.executeTasksFromJob(job, informations, async (informations) => {
-      await this.backupsService.addOrReplaceBackup(job.data.host, this.toBackup(informations));
-
+  launchBackupTask(job: Job<JobBackupData>, informations: QueueTasksInformations<BackupContext>, signal: AbortSignal) {
+    return this.queueTasksService.executeTasksFromJob(job, informations, async () => {
       if (signal.aborted) {
-        throw signal.error;
+        throw new Error('Aborted task');
       }
     });
   }
@@ -243,40 +222,5 @@ export class BackupTasksService {
 
   deserializeBackupTask(data: object): QueueTasks {
     return this.queueTasksService.deserializeBackupTask(data);
-  }
-
-  toBackup(informations: QueueTasksInformations<BackupContext>) {
-    const progression = informations.tasks.progression;
-    const jobData = informations.context.globalContext;
-
-    let diffTime = 0;
-    if (jobData.originalStartDate) {
-      diffTime = jobData.startDate - jobData.originalStartDate;
-    }
-
-    const startDate = jobData.startDate - diffTime;
-    const endDate = new Date().getTime() - diffTime;
-
-    return {
-      number: jobData.number,
-      complete: QUEUE_TASK_SUCCESS_STATE.includes(informations.tasks.state),
-
-      startDate,
-      endDate,
-
-      fileCount: progression.fileCount,
-      newFileCount: progression.newFileCount,
-      existingFileCount: Math.max(progression.fileCount - progression.newFileCount, 0),
-
-      fileSize: progression.fileSize,
-      newFileSize: progression.newFileSize,
-      existingFileSize: bigIntMax(progression.fileSize - progression.newFileSize, 0n),
-
-      compressedFileSize: progression.compressedFileSize,
-      existingCompressedFileSize: bigIntMax(progression.compressedFileSize - progression.newCompressedFileSize, 0n),
-      newCompressedFileSize: progression.newCompressedFileSize,
-
-      speed: Number(progression.newFileSize / BigInt(endDate - jobData.startDate)) * 1000,
-    };
   }
 }

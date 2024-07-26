@@ -11,8 +11,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiHeader, ApiProduces } from '@nestjs/swagger';
-import { splitBuffer, unmangle } from '@woodstock/core';
-import { FileDescription } from '@woodstock/server';
+import { splitBuffer, unmangle } from '@woodstock/shared';
+import { FileDescription } from '@woodstock/shared';
 import * as archiver from 'archiver';
 import { Response } from 'express';
 import { BackupsFilesService } from './backups-files.service.js';

@@ -25,7 +25,7 @@ const option = computed(() => ({
       type: 'category',
       axisLabel: {
         rotate: 45,
-        formatter: (f: string) => toDate(parseInt(f)),
+        formatter: (f: string) => toDate(parseInt(f) * 1000),
       },
     },
   ],

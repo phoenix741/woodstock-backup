@@ -8,7 +8,7 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "lib": [
-      "es2022"
+      "ES2023"
     ],
     "target": "es2022",
     "sourceMap": true,
@@ -27,18 +27,6 @@
       ],
       "@woodstock/shared/*": [
         "libs/shared/src/*"
-      ],
-      "@woodstock/core": [
-        "libs/core/src"
-      ],
-      "@woodstock/core/*": [
-        "libs/core/src/*"
-      ],
-      "@woodstock/server": [
-        "libs/server/src"
-      ],
-      "@woodstock/server/*": [
-        "libs/server/src/*"
       ]
     }
   }

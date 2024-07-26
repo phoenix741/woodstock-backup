@@ -1,16 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { ApplicationConfigService } from '@woodstock/core';
-import {
-  BackupLogger,
-  BackupsService,
-  FsckService,
-  HostsService,
-  PoolService,
-  RefcntJobData,
-  RefCntService,
-  ReferenceCount,
-} from '@woodstock/server';
+import { ApplicationConfigService, PoolService } from '@woodstock/shared';
+import { BackupLogger, BackupsService, HostsService, RefcntJobData } from '@woodstock/shared';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -19,10 +10,10 @@ import {
   QueueTasks,
   QueueTasksInformations,
   QueueTasksService,
-} from '@woodstock/server/tasks';
-import { JobLogger } from '@woodstock/server/tasks';
+} from '@woodstock/shared/tasks';
+import { JobLogger } from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
-import { scan } from 'rxjs';
+import { map, scan } from 'rxjs';
 
 enum RefcntTaskNameEnum {
   // Add backup to refcnt pool
@@ -61,10 +52,8 @@ export class RefcntConsumer extends WorkerHost {
     private applicationConfig: ApplicationConfigService,
     private hostService: HostsService,
     private backupsService: BackupsService,
-    private refcntService: RefCntService,
     private poolService: PoolService,
     private queueTasksService: QueueTasksService,
-    private fsckService: FsckService,
   ) {
     super();
   }
@@ -104,14 +93,14 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   #prepareAddBackupTask(job: Job<RefcntJobData>) {
-    const { host, number, originalDate } = job.data;
+    const { host, number } = job.data;
     if (!host || number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);
     }
 
     const task = new QueueTasks('GLOBAL', {}).add(new QueueSubTask(RefcntTaskNameEnum.ADD_REFCNT_POOL_TASK));
 
-    return new QueueTasksInformations(task, this.#createGlobalContext(host, number, undefined, originalDate));
+    return new QueueTasksInformations(task, this.#createGlobalContext(host, number, undefined));
   }
 
   #prepareRemoveBackupTask(job: Job<RefcntJobData>) {
@@ -162,15 +151,29 @@ export class RefcntConsumer extends WorkerHost {
       if (!host) throw new Error('host is required');
       if (number === undefined) throw new Error('number is required');
 
-      return await this.fsckService.checkBackupIntegrity(logger, host, number, dryRun);
+      await this.poolService.checkBackupIntegrity(host, number, dryRun);
+
+      return new QueueTaskProgression({ progressCurrent: 1n });
     });
     globalContext.commands.set('refcnt_host', async (gc, { host }) => {
       if (!host) throw new Error('host is required');
 
-      return await this.fsckService.checkHostIntegrity(logger, host, dryRun);
+      await this.poolService.checkHostIntegrity(host, dryRun);
+
+      return new QueueTaskProgression({ progressCurrent: 1n });
     });
-    globalContext.commands.set('refcnt_pool', async () => this.fsckService.checkPoolIntegrity(logger, dryRun));
-    globalContext.commands.set('refcnt_unused', () => this.fsckService.processUnused(logger, dryRun));
+    globalContext.commands.set('refcnt_pool', async () => {
+      await this.poolService.checkPoolIntegrity(dryRun);
+
+      return new QueueTaskProgression({ progressCurrent: 1n });
+    });
+    globalContext.commands.set('refcnt_unused', () => {
+      return this.poolService
+        .processUnused(dryRun)
+        .pipe(
+          map((val) => new QueueTaskProgression({ progressCurrent: val.progressCount, progressMax: val.totalCount })),
+        );
+    });
 
     const tasks = new QueueTasks('GLOBAL', {}).add(new QueueSubTask('prepare', {}, QueueTaskPriority.INITIALISATION));
 
@@ -197,10 +200,12 @@ export class RefcntConsumer extends WorkerHost {
     const globalContext = new QueueTaskContext({}, logger);
 
     globalContext.commands.set('prepare', async () => {
-      return new QueueTaskProgression({ progressMax: BigInt(await this.fsckService.countAllChunks()) });
+      return new QueueTaskProgression({ progressMax: await this.poolService.countChunk() });
     });
     globalContext.commands.set(RefcntTaskNameEnum.VERIFY_CHECKSUM, () => {
-      return this.fsckService.processVerifyChunk(logger);
+      return this.poolService
+        .verifyChunk()
+        .pipe(map((val) => new QueueTaskProgression({ progressCurrent: val.totalCount })));
     });
 
     const tasks = new QueueTasks('GLOBAL', {}).add(new QueueSubTask('prepare', {}, QueueTaskPriority.INITIALISATION));
@@ -210,36 +215,33 @@ export class RefcntConsumer extends WorkerHost {
     return new QueueTasksInformations(tasks, globalContext);
   }
 
-  #createGlobalContext(hostname?: string, backupNumber?: number, target?: string, originalDate?: number) {
+  #createGlobalContext(hostname?: string, backupNumber?: number, target?: string) {
     const logger = new BackupLogger(this.backupsService, hostname ?? 'refcnt', backupNumber);
-    const refcnt = new ReferenceCount(
-      (hostname && this.backupsService.getHostDirectory(hostname)) ?? '',
-      (hostname && backupNumber?.toString() && this.backupsService.getDestinationDirectory(hostname, backupNumber)) ??
-        '',
-      this.applicationConfig.poolPath,
-    );
 
-    const globalContext = new QueueTaskContext(refcnt, logger);
+    const globalContext = new QueueTaskContext({}, logger);
 
     globalContext.commands.set(RefcntTaskNameEnum.ADD_REFCNT_POOL_TASK, async () => {
-      await this.refcntService.addBackupRefcntTo(
-        refcnt.poolPath,
-        refcnt.backupPath,
-        refcnt.unusedPoolPath,
-        originalDate,
-      );
+      if (hostname === undefined || backupNumber === undefined) {
+        throw new Error('Hostname and backup number are required');
+      }
+
+      await this.poolService.addRefcntOfPool(hostname, backupNumber);
     });
     globalContext.commands.set(RefcntTaskNameEnum.REMOVE_REFCNT_POOL_TASK, async () => {
-      await this.refcntService.removeBackupRefcntTo(refcnt.poolPath, refcnt.backupPath, refcnt.unusedPoolPath);
+      if (hostname === undefined || backupNumber === undefined) {
+        throw new Error('Hostname and backup number are required');
+      }
+
+      await this.poolService.removeRefcntOfPool(hostname, backupNumber);
     });
     globalContext.commands.set(RefcntTaskNameEnum.PREPARE_CLEAN_UNUSED_POOL_TASK, async () => {
-      const numberOfUnusedFiles = await this.poolService.countUnusedFiles();
+      const numberOfUnusedFiles = await this.poolService.countUnused();
       return new QueueTaskProgression({
         progressMax: BigInt(numberOfUnusedFiles),
       });
     });
     globalContext.commands.set(RefcntTaskNameEnum.CLEAN_UNUSED_POOL_TASK, () => {
-      return this.poolService.removeUnusedFiles(target).pipe(
+      return this.poolService.removeUnused(target).pipe(
         scan((acc, val) => {
           return new QueueTaskProgression({
             progressCurrent: acc.progressCurrent + 1n,

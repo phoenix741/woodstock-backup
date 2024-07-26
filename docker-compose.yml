@@ -1,5 +1,3 @@
-version: "2"
-
 services:
   website:
     build:
@@ -12,10 +10,13 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1
+        - NODE_VERSION=20-slim
     image: phoenix741/woodstock-backup:develop
     ports:
       - 3000:3000
-    links:
+    depends_on:
       - redis
     environment:
       - REDIS_HOST=redis
@@ -26,30 +27,30 @@ services:
     volumes:
       - "backups_storage:/backups"
 
-  woodstock_client:
-    image: phoenix741/woodstock-backup:develop
-    command: /nestjs/apps/client/main.js
-    environment:
-      - LOG_LEVEL=debug
-      - NODE_ENV=development
+  # woodstock_client:
+  #   image: phoenix741/woodstock-backup:develop
+  #   command: /nestjs/apps/client/main.js
+  #   environment:
+  #     - LOG_LEVEL=debug
+  #     - NODE_ENV=development
 
   redis:
-    image: "bitnami/redis:6.2"
+    image: "bitnami/redis:7.2"
     environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
     ports:
       - "6379:6379"
     volumes:
       - "redis_data:/bitnami/redis/data"
+
   prometheus:
     image: bitnami/prometheus:2
-
     volumes:
       - prometheus_storage:/opt/bitnami/prometheus/data
       - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
     network_mode: "host"
+
 volumes:
   redis_data:
     driver: local

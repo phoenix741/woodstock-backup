@@ -21,12 +21,13 @@ module.exports = function (options) {
     },
     externals: [
       function ({ request }, callback) {
-        if (request === 'file-type') {
-          callback(null, request, 'module');
+        if (/shared-rs/.test(request)) {
+          callback(null, '@woodstock/shared-rs');
           return;
         }
         callback();
       },
+
       ...oldExternals,
     ],
     plugins: [

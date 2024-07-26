@@ -39,7 +39,7 @@
           </tr>
           <tr v-if="selected.file.stats?.mode">
             <td>Mode</td>
-            <td>{{ (parseInt(selected.file.stats.mode) & 0o7777).toString(8) }}</td>
+            <td>{{ (selected.file.stats.mode & 0o7777).toString(8) }}</td>
           </tr>
           <tr v-if="selected.file.stats?.size">
             <td>Size</td>
@@ -47,7 +47,7 @@
           </tr>
           <tr v-if="selected.file.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.file.stats.lastModified)) }}</td>
+            <td>{{ toDateTime(parseInt(selected.file.stats.lastModified) * 1000) }}</td>
           </tr>
         </tbody>
         <tfoot>

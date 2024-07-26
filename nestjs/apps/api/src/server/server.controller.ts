@@ -1,15 +1,18 @@
 import { Controller, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
-import { ApplicationConfigService } from '@woodstock/core';
 import { Response } from 'express';
 import { join } from 'path';
 import { getLog, tailLog } from '../utils/log-utils.service.js';
 import { ServerChecks } from './server.dto.js';
 import { ServerService } from './server.service.js';
+import { ApplicationConfigService } from '@woodstock/shared';
 
 @Controller('server')
 export class ServerController {
-  constructor(public applicationConfig: ApplicationConfigService, public serverService: ServerService) {}
+  constructor(
+    public applicationConfig: ApplicationConfigService,
+    public serverService: ServerService,
+  ) {}
 
   @Get('status')
   @ApiOkResponse({

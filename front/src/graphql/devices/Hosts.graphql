@@ -5,7 +5,7 @@ query Hosts {
       number
       startDate
       fileSize
-      complete
+      completed
     }
     lastBackupState
     configuration {

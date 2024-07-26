@@ -9,7 +9,7 @@ import {
   QueueTasksService,
   RefcntJobData,
   TaskLocalContext,
-} from '@woodstock/server';
+} from '@woodstock/shared';
 import Bull from 'bullmq';
 import { plainToInstance } from 'class-transformer';
 
@@ -18,7 +18,7 @@ export class QueueUtils {
   constructor(private queueTasksService: QueueTasksService) {}
 
   #getDescription(localContext: TaskLocalContext) {
-    const sharePath = localContext.sharePath?.toString('utf-8');
+    const sharePath = localContext.sharePath;
     const host = localContext.host;
     const number = localContext.number;
 
@@ -75,7 +75,12 @@ export class QueueUtils {
         startDate: job.processedOn ?? job.timestamp,
 
         state: progress.state,
-        progression: progress.progression,
+        progression: {
+          ...progress.progression,
+
+          percent: progress.progression?.percent,
+          speed: progress.progression?.speed,
+        },
         subtasks,
       },
 

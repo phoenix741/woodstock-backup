@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ApplicationConfigService, ExecuteCommandService, ToolsService } from '@woodstock/core';
-import { mkdirp } from 'mkdirp';
+import { ExecuteCommandService, ToolsService } from '@woodstock/shared';
+import { mkdir } from 'fs/promises';
 import { CommandCheck, ServerChecks } from './server.dto.js';
+import { ApplicationConfigService } from '@woodstock/shared';
 
 @Injectable()
 export class ServerService {
@@ -14,11 +15,11 @@ export class ServerService {
   ) {}
 
   async check(): Promise<ServerChecks> {
-    await mkdirp(this.applicationConfig.poolPath);
-    await mkdirp(this.applicationConfig.backupPath);
-    await mkdirp(this.applicationConfig.hostPath);
-    await mkdirp(this.applicationConfig.configPath);
-    await mkdirp(this.applicationConfig.logPath);
+    await mkdir(this.applicationConfig.poolPath, { recursive: true });
+    await mkdir(this.applicationConfig.backupPath, { recursive: true });
+    await mkdir(this.applicationConfig.hostPath, { recursive: true });
+    await mkdir(this.applicationConfig.configPath, { recursive: true });
+    await mkdir(this.applicationConfig.logPath, { recursive: true });
 
     const checks = new ServerChecks();
 

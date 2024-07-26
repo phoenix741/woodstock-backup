@@ -5,60 +5,66 @@ export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
+export type MakeEmpty<T extends { [key: string]: unknown }, K extends keyof T> = { [_ in K]?: never };
+export type Incremental<T> = T | { [P in keyof T]?: P extends ' $fragmentName' | '__typename' ? T[P] : never };
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
-  ID: string;
-  String: string;
-  Boolean: boolean;
-  Int: number;
-  Float: number;
+  ID: { input: string; output: string; }
+  String: { input: string; output: string; }
+  Boolean: { input: boolean; output: boolean; }
+  Int: { input: number; output: number; }
+  Float: { input: number; output: number; }
   /** The `BigInt` scalar type represents non-fractional signed whole numeric values. BigInt can represent values between -(2^63) + 1 and 2^63 - 1. */
-  BigInt: bigint;
+  BigInt: { input: bigint; output: bigint; }
 };
 
 export type Backup = {
   __typename?: 'Backup';
-  complete: Scalars['Boolean'];
-  compressedFileSize: Scalars['BigInt'];
-  endDate?: Maybe<Scalars['Float']>;
-  existingCompressedFileSize: Scalars['BigInt'];
-  existingFileCount: Scalars['Float'];
-  existingFileSize: Scalars['BigInt'];
-  fileCount: Scalars['Float'];
-  fileSize: Scalars['BigInt'];
+  completed: Scalars['Boolean']['output'];
+  compressedFileSize: Scalars['BigInt']['output'];
+  endDate?: Maybe<Scalars['Float']['output']>;
+  existingCompressedFileSize: Scalars['BigInt']['output'];
+  existingFileCount: Scalars['Float']['output'];
+  existingFileSize: Scalars['BigInt']['output'];
+  fileCount: Scalars['Float']['output'];
+  fileSize: Scalars['BigInt']['output'];
   files: Array<FileDescription>;
-  newCompressedFileSize: Scalars['BigInt'];
-  newFileCount: Scalars['Float'];
-  newFileSize: Scalars['BigInt'];
-  number: Scalars['Float'];
+  modifiedCompressedFileSize: Scalars['BigInt']['output'];
+  modifiedFileCount: Scalars['Float']['output'];
+  modifiedFileSize: Scalars['BigInt']['output'];
+  newCompressedFileSize: Scalars['BigInt']['output'];
+  newFileCount: Scalars['Float']['output'];
+  newFileSize: Scalars['BigInt']['output'];
+  number: Scalars['Float']['output'];
+  removedFileCount: Scalars['Float']['output'];
   shares: Array<FileDescription>;
-  speed: Scalars['Float'];
-  startDate: Scalars['Float'];
+  speed: Scalars['Float']['output'];
+  startDate: Scalars['Float']['output'];
 };
 
 
 export type BackupFilesArgs = {
-  path: Scalars['String'];
-  sharePath: Scalars['String'];
+  path: Scalars['String']['input'];
+  sharePath: Scalars['String']['input'];
 };
 
 export type BackupOperation = {
   __typename?: 'BackupOperation';
-  excludes?: Maybe<Array<Scalars['String']>>;
-  includes?: Maybe<Array<Scalars['String']>>;
+  excludes?: Maybe<Array<Scalars['String']['output']>>;
+  includes?: Maybe<Array<Scalars['String']['output']>>;
   shares: Array<BackupTaskShare>;
-  timeout?: Maybe<Scalars['Float']>;
+  timeout?: Maybe<Scalars['Float']['output']>;
 };
 
 export type BackupTask = {
   __typename?: 'BackupTask';
-  description?: Maybe<Scalars['String']>;
-  groupName?: Maybe<Scalars['String']>;
-  host?: Maybe<Scalars['String']>;
-  ip?: Maybe<Scalars['String']>;
-  number?: Maybe<Scalars['Float']>;
+  description?: Maybe<Scalars['String']['output']>;
+  groupName?: Maybe<Scalars['String']['output']>;
+  host?: Maybe<Scalars['String']['output']>;
+  ip?: Maybe<Scalars['String']['output']>;
+  number?: Maybe<Scalars['Float']['output']>;
   progression?: Maybe<JobProgression>;
-  startDate?: Maybe<Scalars['Float']>;
+  startDate?: Maybe<Scalars['Float']['output']>;
   state?: Maybe<QueueTaskState>;
   subtasks: Array<SubTaskOrGroupTasks>;
 };
@@ -70,15 +76,15 @@ export type BackupTask = {
  */
 export type BackupTaskShare = {
   __typename?: 'BackupTaskShare';
-  excludes?: Maybe<Array<Scalars['String']>>;
-  includes?: Maybe<Array<Scalars['String']>>;
-  name: Scalars['String'];
+  excludes?: Maybe<Array<Scalars['String']['output']>>;
+  includes?: Maybe<Array<Scalars['String']['output']>>;
+  name: Scalars['String']['output'];
 };
 
 export type BigIntTimeSerie = {
   __typename?: 'BigIntTimeSerie';
-  time: Scalars['Float'];
-  value: Scalars['BigInt'];
+  time: Scalars['Float']['output'];
+  value: Scalars['BigInt']['output'];
 };
 
 /**
@@ -88,73 +94,88 @@ export type BigIntTimeSerie = {
  */
 export type DhcpAddress = {
   __typename?: 'DhcpAddress';
-  address: Scalars['String'];
-  end: Scalars['Float'];
-  start: Scalars['Float'];
+  address: Scalars['String']['output'];
+  end: Scalars['Float']['output'];
+  start: Scalars['Float']['output'];
 };
 
 export type DiskUsage = {
   __typename?: 'DiskUsage';
-  free?: Maybe<Scalars['BigInt']>;
-  freeLastMonth?: Maybe<Scalars['BigInt']>;
+  free?: Maybe<Scalars['BigInt']['output']>;
+  freeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   freeRange?: Maybe<Array<BigIntTimeSerie>>;
-  total?: Maybe<Scalars['BigInt']>;
-  totalLastMonth?: Maybe<Scalars['BigInt']>;
+  total?: Maybe<Scalars['BigInt']['output']>;
+  totalLastMonth?: Maybe<Scalars['BigInt']['output']>;
   totalRange?: Maybe<Array<BigIntTimeSerie>>;
-  used?: Maybe<Scalars['BigInt']>;
-  usedLastMonth?: Maybe<Scalars['BigInt']>;
+  used?: Maybe<Scalars['BigInt']['output']>;
+  usedLastMonth?: Maybe<Scalars['BigInt']['output']>;
   usedRange?: Maybe<Array<BigIntTimeSerie>>;
 };
 
 export enum EnumFileType {
-  BlockDevice = 'BLOCK_DEVICE',
-  CharacterDevice = 'CHARACTER_DEVICE',
-  Directory = 'DIRECTORY',
-  Fifo = 'FIFO',
-  RegularFile = 'REGULAR_FILE',
-  Share = 'SHARE',
-  Socket = 'SOCKET',
-  SymbolicLink = 'SYMBOLIC_LINK',
-  Unknown = 'UNKNOWN'
+  BlockDevice = 'BlockDevice',
+  CharacterDevice = 'CharacterDevice',
+  Directory = 'Directory',
+  Fifo = 'Fifo',
+  RegularFile = 'RegularFile',
+  Socket = 'Socket',
+  Symlink = 'Symlink',
+  Unknown = 'Unknown'
 }
 
 export type ExecuteCommandOperation = {
   __typename?: 'ExecuteCommandOperation';
-  command: Scalars['String'];
+  command: Scalars['String']['output'];
 };
 
 export type FileAcl = {
   __typename?: 'FileAcl';
-  group?: Maybe<Scalars['String']>;
-  mask?: Maybe<Scalars['Float']>;
-  other?: Maybe<Scalars['Float']>;
-  user?: Maybe<Scalars['String']>;
+  id: Scalars['Int']['output'];
+  perm: Scalars['Int']['output'];
+  qualifier: FileManifestAclQualifier;
 };
 
 export type FileDescription = {
   __typename?: 'FileDescription';
-  acl: Array<FileAcl>;
-  path: Scalars['String'];
+  acl: FileAcl;
+  path: Scalars['String']['output'];
   stats?: Maybe<FileStat>;
-  symlink?: Maybe<Scalars['String']>;
+  symlink: Scalars['String']['output'];
   type: EnumFileType;
-  xattr: Scalars['String'];
+  xattr: FileXattr;
 };
+
+export enum FileManifestAclQualifier {
+  GroupId = 'GroupId',
+  GroupObj = 'GroupObj',
+  Mask = 'Mask',
+  Other = 'Other',
+  Undefined = 'Undefined',
+  UserId = 'UserId',
+  UserObj = 'UserObj'
+}
 
 export type FileStat = {
   __typename?: 'FileStat';
-  compressedSize?: Maybe<Scalars['String']>;
-  created?: Maybe<Scalars['String']>;
-  dev?: Maybe<Scalars['String']>;
-  groupId?: Maybe<Scalars['String']>;
-  ino?: Maybe<Scalars['String']>;
-  lastModified?: Maybe<Scalars['String']>;
-  lastRead?: Maybe<Scalars['String']>;
-  mode?: Maybe<Scalars['String']>;
-  nlink?: Maybe<Scalars['String']>;
-  ownerId?: Maybe<Scalars['String']>;
-  rdev?: Maybe<Scalars['String']>;
-  size?: Maybe<Scalars['String']>;
+  compressedSize: Scalars['String']['output'];
+  created: Scalars['String']['output'];
+  dev: Scalars['BigInt']['output'];
+  groupId: Scalars['Int']['output'];
+  ino: Scalars['BigInt']['output'];
+  lastModified: Scalars['String']['output'];
+  lastRead: Scalars['String']['output'];
+  mode: Scalars['Int']['output'];
+  nlink: Scalars['BigInt']['output'];
+  ownerId: Scalars['Int']['output'];
+  rdev: Scalars['BigInt']['output'];
+  size: Scalars['String']['output'];
+  type: EnumFileType;
+};
+
+export type FileXattr = {
+  __typename?: 'FileXattr';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
 };
 
 export type Host = {
@@ -162,8 +183,8 @@ export type Host = {
   backups: Array<Backup>;
   configuration: HostConfiguration;
   lastBackup?: Maybe<Backup>;
-  lastBackupState?: Maybe<Scalars['String']>;
-  name: Scalars['String'];
+  lastBackupState?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
 };
 
 export type HostConfigOperation = {
@@ -180,49 +201,51 @@ export type HostConfigOperation = {
  */
 export type HostConfiguration = {
   __typename?: 'HostConfiguration';
-  addresses?: Maybe<Array<Scalars['String']>>;
+  addresses?: Maybe<Array<Scalars['String']['output']>>;
   dhcp?: Maybe<Array<DhcpAddress>>;
-  isLocal?: Maybe<Scalars['Boolean']>;
+  isLocal?: Maybe<Scalars['Boolean']['output']>;
+  /** Max number of concurrent downloads for this host. By default, it's 1. */
+  maxConcurrentDownloads?: Maybe<Scalars['Float']['output']>;
   operations?: Maybe<HostConfigOperation>;
-  password: Scalars['String'];
+  password: Scalars['String']['output'];
   schedule?: Maybe<Schedule>;
 };
 
 export type HostStatistics = {
   __typename?: 'HostStatistics';
-  compressedSize?: Maybe<Scalars['BigInt']>;
-  compressedSizeLastMonth?: Maybe<Scalars['BigInt']>;
+  compressedSize?: Maybe<Scalars['BigInt']['output']>;
+  compressedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   compressedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  host?: Maybe<Scalars['String']>;
-  longestChain?: Maybe<Scalars['Int']>;
-  longestChainLastMonth?: Maybe<Scalars['Int']>;
+  host?: Maybe<Scalars['String']['output']>;
+  longestChain?: Maybe<Scalars['Int']['output']>;
+  longestChainLastMonth?: Maybe<Scalars['Int']['output']>;
   longestChainRange?: Maybe<Array<NumberTimeSerie>>;
-  nbChunk?: Maybe<Scalars['Int']>;
-  nbChunkLastMonth?: Maybe<Scalars['Int']>;
+  nbChunk?: Maybe<Scalars['Int']['output']>;
+  nbChunkLastMonth?: Maybe<Scalars['Int']['output']>;
   nbChunkRange?: Maybe<Array<NumberTimeSerie>>;
-  nbRef?: Maybe<Scalars['Int']>;
-  nbRefLastMonth?: Maybe<Scalars['Int']>;
+  nbRef?: Maybe<Scalars['Int']['output']>;
+  nbRefLastMonth?: Maybe<Scalars['Int']['output']>;
   nbRefRange?: Maybe<Array<NumberTimeSerie>>;
-  size?: Maybe<Scalars['BigInt']>;
-  sizeLastMonth?: Maybe<Scalars['BigInt']>;
+  size?: Maybe<Scalars['BigInt']['output']>;
+  sizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   sizeRange?: Maybe<Array<BigIntTimeSerie>>;
 };
 
 export type Job = {
   __typename?: 'Job';
-  attemptsMade: Scalars['Int'];
+  attemptsMade: Scalars['Int']['output'];
   data: BackupTask;
-  failedReason?: Maybe<Scalars['String']>;
-  id?: Maybe<Scalars['String']>;
-  name: Scalars['String'];
-  queueName: Scalars['String'];
-  state: Scalars['String'];
+  failedReason?: Maybe<Scalars['String']['output']>;
+  id?: Maybe<Scalars['String']['output']>;
+  name: Scalars['String']['output'];
+  queueName: Scalars['String']['output'];
+  state: Scalars['String']['output'];
 };
 
 export type JobGroupTasks = {
   __typename?: 'JobGroupTasks';
-  description?: Maybe<Scalars['String']>;
-  groupName?: Maybe<Scalars['String']>;
+  description?: Maybe<Scalars['String']['output']>;
+  groupName?: Maybe<Scalars['String']['output']>;
   progression?: Maybe<JobProgression>;
   state?: Maybe<QueueTaskState>;
   subtasks: Array<SubTaskOrGroupTasks>;
@@ -230,30 +253,30 @@ export type JobGroupTasks = {
 
 export type JobProgression = {
   __typename?: 'JobProgression';
-  compressedFileSize?: Maybe<Scalars['BigInt']>;
-  errorCount?: Maybe<Scalars['Int']>;
-  fileCount?: Maybe<Scalars['Int']>;
-  fileSize?: Maybe<Scalars['BigInt']>;
-  newCompressedFileSize?: Maybe<Scalars['BigInt']>;
-  newFileCount?: Maybe<Scalars['Int']>;
-  newFileSize?: Maybe<Scalars['BigInt']>;
-  percent?: Maybe<Scalars['Float']>;
-  progressCurrent?: Maybe<Scalars['BigInt']>;
-  progressMax?: Maybe<Scalars['BigInt']>;
-  speed?: Maybe<Scalars['Float']>;
+  compressedFileSize?: Maybe<Scalars['BigInt']['output']>;
+  errorCount?: Maybe<Scalars['Int']['output']>;
+  fileCount?: Maybe<Scalars['Int']['output']>;
+  fileSize?: Maybe<Scalars['BigInt']['output']>;
+  newCompressedFileSize?: Maybe<Scalars['BigInt']['output']>;
+  newFileCount?: Maybe<Scalars['Int']['output']>;
+  newFileSize?: Maybe<Scalars['BigInt']['output']>;
+  percent?: Maybe<Scalars['Float']['output']>;
+  progressCurrent?: Maybe<Scalars['BigInt']['output']>;
+  progressMax?: Maybe<Scalars['BigInt']['output']>;
+  speed?: Maybe<Scalars['Float']['output']>;
 };
 
 export type JobResponse = {
   __typename?: 'JobResponse';
-  id: Scalars['String'];
+  id: Scalars['String']['output'];
 };
 
 export type JobSubTask = {
   __typename?: 'JobSubTask';
-  description?: Maybe<Scalars['String']>;
+  description?: Maybe<Scalars['String']['output']>;
   progression?: Maybe<JobProgression>;
   state?: Maybe<QueueTaskState>;
-  taskName: Scalars['String'];
+  taskName: Scalars['String']['output'];
 };
 
 export type Mutation = {
@@ -267,45 +290,45 @@ export type Mutation = {
 
 
 export type MutationCheckAndFixPoolArgs = {
-  fix: Scalars['Boolean'];
+  fix: Scalars['Boolean']['input'];
 };
 
 
 export type MutationCreateBackupArgs = {
-  hostname: Scalars['String'];
+  hostname: Scalars['String']['input'];
 };
 
 
 export type MutationRemoveBackupArgs = {
-  hostname: Scalars['String'];
-  number: Scalars['Int'];
+  hostname: Scalars['String']['input'];
+  number: Scalars['Int']['input'];
 };
 
 export type NumberTimeSerie = {
   __typename?: 'NumberTimeSerie';
-  time: Scalars['Float'];
-  value: Scalars['Int'];
+  time: Scalars['Float']['output'];
+  value: Scalars['Int']['output'];
 };
 
 export type PoolUsage = {
   __typename?: 'PoolUsage';
-  compressedSize?: Maybe<Scalars['BigInt']>;
-  compressedSizeLastMonth?: Maybe<Scalars['BigInt']>;
+  compressedSize?: Maybe<Scalars['BigInt']['output']>;
+  compressedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   compressedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  longestChain?: Maybe<Scalars['Int']>;
-  longestChainLastMonth?: Maybe<Scalars['Int']>;
+  longestChain?: Maybe<Scalars['Int']['output']>;
+  longestChainLastMonth?: Maybe<Scalars['Int']['output']>;
   longestChainRange?: Maybe<Array<NumberTimeSerie>>;
-  nbChunk?: Maybe<Scalars['Int']>;
-  nbChunkLastMonth?: Maybe<Scalars['Int']>;
+  nbChunk?: Maybe<Scalars['Int']['output']>;
+  nbChunkLastMonth?: Maybe<Scalars['Int']['output']>;
   nbChunkRange?: Maybe<Array<NumberTimeSerie>>;
-  nbRef?: Maybe<Scalars['Int']>;
-  nbRefLastMonth?: Maybe<Scalars['Int']>;
+  nbRef?: Maybe<Scalars['Int']['output']>;
+  nbRefLastMonth?: Maybe<Scalars['Int']['output']>;
   nbRefRange?: Maybe<Array<NumberTimeSerie>>;
-  size?: Maybe<Scalars['BigInt']>;
-  sizeLastMonth?: Maybe<Scalars['BigInt']>;
+  size?: Maybe<Scalars['BigInt']['output']>;
+  sizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   sizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  unusedSize?: Maybe<Scalars['BigInt']>;
-  unusedSizeLastMonth?: Maybe<Scalars['BigInt']>;
+  unusedSize?: Maybe<Scalars['BigInt']['output']>;
+  unusedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
   unusedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
 };
 
@@ -322,18 +345,18 @@ export type Query = {
 
 
 export type QueryBackupArgs = {
-  hostname: Scalars['String'];
-  number: Scalars['Int'];
+  hostname: Scalars['String']['input'];
+  number: Scalars['Int']['input'];
 };
 
 
 export type QueryBackupsArgs = {
-  hostname: Scalars['String'];
+  hostname: Scalars['String']['input'];
 };
 
 
 export type QueryHostArgs = {
-  hostname: Scalars['String'];
+  hostname: Scalars['String']['input'];
 };
 
 
@@ -342,21 +365,21 @@ export type QueryQueueArgs = {
 };
 
 export type QueueListInput = {
-  operationName?: InputMaybe<Scalars['String']>;
-  queueName?: InputMaybe<Scalars['String']>;
-  states?: Array<Scalars['String']>;
+  operationName?: InputMaybe<Scalars['String']['input']>;
+  queueName?: InputMaybe<Scalars['String']['input']>;
+  states?: Array<Scalars['String']['input']>;
 };
 
 export type QueueStats = {
   __typename?: 'QueueStats';
-  active: Scalars['Int'];
-  completed: Scalars['Int'];
-  delayed: Scalars['Int'];
-  failed: Scalars['Int'];
-  lastExecution?: Maybe<Scalars['Float']>;
-  nextWakeup?: Maybe<Scalars['Float']>;
-  waiting: Scalars['Int'];
-  waitingChildren: Scalars['Int'];
+  active: Scalars['Int']['output'];
+  completed: Scalars['Int']['output'];
+  delayed: Scalars['Int']['output'];
+  failed: Scalars['Int']['output'];
+  lastExecution?: Maybe<Scalars['Float']['output']>;
+  nextWakeup?: Maybe<Scalars['Float']['output']>;
+  waiting: Scalars['Int']['output'];
+  waitingChildren: Scalars['Int']['output'];
 };
 
 export enum QueueTaskState {
@@ -369,18 +392,18 @@ export enum QueueTaskState {
 
 export type Schedule = {
   __typename?: 'Schedule';
-  activated?: Maybe<Scalars['Boolean']>;
-  backupPeriod?: Maybe<Scalars['Float']>;
+  activated?: Maybe<Scalars['Boolean']['output']>;
+  backupPeriod?: Maybe<Scalars['Float']['output']>;
   backupToKeep?: Maybe<ScheduledBackupToKeep>;
 };
 
 export type ScheduledBackupToKeep = {
   __typename?: 'ScheduledBackupToKeep';
-  daily?: Maybe<Scalars['Float']>;
-  hourly?: Maybe<Scalars['Float']>;
-  monthly?: Maybe<Scalars['Float']>;
-  weekly?: Maybe<Scalars['Float']>;
-  yearly?: Maybe<Scalars['Float']>;
+  daily?: Maybe<Scalars['Float']['output']>;
+  hourly?: Maybe<Scalars['Float']['output']>;
+  monthly?: Maybe<Scalars['Float']['output']>;
+  weekly?: Maybe<Scalars['Float']['output']>;
+  yearly?: Maybe<Scalars['Float']['output']>;
 };
 
 export type Statistics = {
@@ -397,26 +420,26 @@ export type Subscription = {
   jobFailed: Job;
   jobRemoved: Job;
   jobUpdated: Job;
-  jobWaiting: Scalars['Int'];
+  jobWaiting: Scalars['Int']['output'];
 };
 
 export type HostsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type HostsQuery = { __typename?: 'Query', hosts: Array<{ __typename?: 'Host', name: string, lastBackupState?: string | null, lastBackup?: { __typename?: 'Backup', number: number, startDate: number, fileSize: bigint, complete: boolean } | null, configuration: { __typename?: 'HostConfiguration', schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } }> };
+export type HostsQuery = { __typename?: 'Query', hosts: Array<{ __typename?: 'Host', name: string, lastBackupState?: string | null, lastBackup?: { __typename?: 'Backup', number: number, startDate: number, fileSize: bigint, completed: boolean } | null, configuration: { __typename?: 'HostConfiguration', schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } }> };
 
 export type BackupsQueryVariables = Exact<{
-  hostname: Scalars['String'];
+  hostname: Scalars['String']['input'];
 }>;
 
 
-export type BackupsQuery = { __typename?: 'Query', backups: Array<{ __typename?: 'Backup', number: number, complete: boolean, startDate: number, endDate?: number | null, fileCount: number, newFileCount: number, existingFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number }> };
+export type BackupsQuery = { __typename?: 'Query', backups: Array<{ __typename?: 'Backup', number: number, completed: boolean, startDate: number, endDate?: number | null, fileCount: number, newFileCount: number, existingFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number }> };
 
 export type BackupsBrowseQueryVariables = Exact<{
-  hostname: Scalars['String'];
-  number: Scalars['Int'];
-  sharePath: Scalars['String'];
-  path: Scalars['String'];
+  hostname: Scalars['String']['input'];
+  number: Scalars['Int']['input'];
+  sharePath: Scalars['String']['input'];
+  path: Scalars['String']['input'];
 }>;
 
 
@@ -426,25 +449,25 @@ export type BackupsBrowseQuery = { __typename?: 'Query', backup: { __typename?: 
     )> } };
 
 export type CreateBackupMutationVariables = Exact<{
-  hostname: Scalars['String'];
+  hostname: Scalars['String']['input'];
 }>;
 
 
 export type CreateBackupMutation = { __typename?: 'Mutation', createBackup: { __typename?: 'JobResponse', id: string } };
 
 export type RemoveBackupMutationVariables = Exact<{
-  hostname: Scalars['String'];
-  number: Scalars['Int'];
+  hostname: Scalars['String']['input'];
+  number: Scalars['Int']['input'];
 }>;
 
 
 export type RemoveBackupMutation = { __typename?: 'Mutation', removeBackup: { __typename?: 'JobResponse', id: string } };
 
-export type FragmentFileDescriptionFragment = { __typename?: 'FileDescription', path: string, type: EnumFileType, symlink?: string | null, stats?: { __typename?: 'FileStat', ownerId?: string | null, groupId?: string | null, mode?: string | null, size?: string | null, lastModified?: string | null } | null } & { ' $fragmentName'?: 'FragmentFileDescriptionFragment' };
+export type FragmentFileDescriptionFragment = { __typename?: 'FileDescription', path: string, type: EnumFileType, symlink: string, stats?: { __typename?: 'FileStat', ownerId: number, groupId: number, mode: number, size: string, lastModified: string } | null } & { ' $fragmentName'?: 'FragmentFileDescriptionFragment' };
 
 export type SharesBrowseQueryVariables = Exact<{
-  hostname: Scalars['String'];
-  number: Scalars['Int'];
+  hostname: Scalars['String']['input'];
+  number: Scalars['Int']['input'];
 }>;
 
 
@@ -459,7 +482,7 @@ export type CleanupPoolMutationVariables = Exact<{ [key: string]: never; }>;
 export type CleanupPoolMutation = { __typename?: 'Mutation', cleanupPool: { __typename?: 'JobResponse', id: string } };
 
 export type FsckPoolMutationVariables = Exact<{
-  fix: Scalars['Boolean'];
+  fix: Scalars['Boolean']['input'];
 }>;
 
 
@@ -485,7 +508,7 @@ export type QueueStatisticsQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type QueueStatisticsQuery = { __typename?: 'Query', queueStats: { __typename?: 'QueueStats', active: number, waiting: number, failed: number, delayed: number, completed: number } };
 
-export type ProgressTaskFragment = { __typename?: 'JobProgression', progressCurrent?: bigint | null, progressMax?: bigint | null, fileSize?: bigint | null, newFileSize?: bigint | null, compressedFileSize?: bigint | null, newCompressedFileSize?: bigint | null, fileCount?: number | null, newFileCount?: number | null, errorCount?: number | null } & { ' $fragmentName'?: 'ProgressTaskFragment' };
+export type ProgressTaskFragment = { __typename?: 'JobProgression', progressCurrent?: bigint | null, progressMax?: bigint | null, fileSize?: bigint | null, newFileSize?: bigint | null, compressedFileSize?: bigint | null, newCompressedFileSize?: bigint | null, fileCount?: number | null, newFileCount?: number | null, errorCount?: number | null, percent?: number | null } & { ' $fragmentName'?: 'ProgressTaskFragment' };
 
 type TaskDescription_JobGroupTasks_Fragment = { __typename: 'JobGroupTasks' } & { ' $fragmentName'?: 'TaskDescription_JobGroupTasks_Fragment' };
 
@@ -511,7 +534,7 @@ type BackupTask_JobSubTask_Fragment = { __typename: 'JobSubTask', taskName: stri
 
 export type BackupTaskFragment = BackupTask_JobGroupTasks_Fragment | BackupTask_JobSubTask_Fragment;
 
-export type JobProgressionFragment = { __typename?: 'JobProgression', newFileCount?: number | null, fileCount?: number | null, progressCurrent?: bigint | null, progressMax?: bigint | null, speed?: number | null } & { ' $fragmentName'?: 'JobProgressionFragment' };
+export type JobProgressionFragment = { __typename?: 'JobProgression', newFileCount?: number | null, fileCount?: number | null, progressCurrent?: bigint | null, progressMax?: bigint | null, percent?: number | null, speed?: number | null } & { ' $fragmentName'?: 'JobProgressionFragment' };
 
 export type JobFragment = { __typename?: 'Job', id?: string | null, queueName: string, name: string, failedReason?: string | null, state: string, data: { __typename?: 'BackupTask', host?: string | null, number?: number | null, startDate?: number | null, groupName?: string | null, description?: string | null, ip?: string | null, state?: QueueTaskState | null, progression?: (
       { __typename?: 'JobProgression' }
@@ -543,13 +566,13 @@ export type QueueTasksJobUpdatedSubscription = { __typename?: 'Subscription', jo
   ) };
 
 export const FragmentFileDescriptionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<FragmentFileDescriptionFragment, unknown>;
-export const JobProgressionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]} as unknown as DocumentNode<JobProgressionFragment, unknown>;
-export const ProgressTaskFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}}]}}]} as unknown as DocumentNode<ProgressTaskFragment, unknown>;
+export const JobProgressionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]} as unknown as DocumentNode<JobProgressionFragment, unknown>;
+export const ProgressTaskFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}}]}}]} as unknown as DocumentNode<ProgressTaskFragment, unknown>;
 export const TaskDescriptionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}}]} as unknown as DocumentNode<TaskDescriptionFragment, unknown>;
-export const BackupTaskFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}}]} as unknown as DocumentNode<BackupTaskFragment, unknown>;
-export const JobFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}}]} as unknown as DocumentNode<JobFragment, unknown>;
-export const HostsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"complete"}}]}},{"kind":"Field","name":{"kind":"Name","value":"lastBackupState"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}}]} as unknown as DocumentNode<HostsQuery, HostsQueryVariables>;
-export const BackupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backups"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backups"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"complete"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}}]} as unknown as DocumentNode<BackupsQuery, BackupsQueryVariables>;
+export const BackupTaskFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}}]} as unknown as DocumentNode<BackupTaskFragment, unknown>;
+export const JobFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}}]} as unknown as DocumentNode<JobFragment, unknown>;
+export const HostsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"completed"}}]}},{"kind":"Field","name":{"kind":"Name","value":"lastBackupState"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}}]} as unknown as DocumentNode<HostsQuery, HostsQueryVariables>;
+export const BackupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backups"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backups"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"completed"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}}]} as unknown as DocumentNode<BackupsQuery, BackupsQueryVariables>;
 export const BackupsBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"BackupsBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"files"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sharePath"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}}},{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<BackupsBrowseQuery, BackupsBrowseQueryVariables>;
 export const CreateBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"createBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<CreateBackupMutation, CreateBackupMutationVariables>;
 export const RemoveBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"removeBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<RemoveBackupMutation, RemoveBackupMutationVariables>;
@@ -560,8 +583,8 @@ export const VerifyChecksumDocument = {"kind":"Document","definitions":[{"kind":
 export const DiskUsageStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"DiskUsageStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSize"}}]}}]}}]}}]} as unknown as DocumentNode<DiskUsageStatisticsQuery, DiskUsageStatisticsQueryVariables>;
 export const PoolStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PoolStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"diskUsage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"used"}},{"kind":"Field","name":{"kind":"Name","value":"usedLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"free"}},{"kind":"Field","name":{"kind":"Name","value":"total"}}]}},{"kind":"Field","name":{"kind":"Name","value":"poolUsage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"nbChunk"}},{"kind":"Field","name":{"kind":"Name","value":"nbChunkLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"nbChunkRange"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"time"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"nbRef"}},{"kind":"Field","name":{"kind":"Name","value":"nbRefLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSizeLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSizeRange"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"time"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedSize"}}]}}]}}]}}]} as unknown as DocumentNode<PoolStatisticsQuery, PoolStatisticsQueryVariables>;
 export const QueueStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"QueueStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queueStats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"active"}},{"kind":"Field","name":{"kind":"Name","value":"waiting"}},{"kind":"Field","name":{"kind":"Name","value":"failed"}},{"kind":"Field","name":{"kind":"Name","value":"delayed"}},{"kind":"Field","name":{"kind":"Name","value":"completed"}}]}}]}}]} as unknown as DocumentNode<QueueStatisticsQuery, QueueStatisticsQueryVariables>;
-export const TasksDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Tasks"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"QueueListInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}}]} as unknown as DocumentNode<TasksQuery, TasksQueryVariables>;
-export const QueueTasksJobUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"QueueTasksJobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}}]} as unknown as DocumentNode<QueueTasksJobUpdatedSubscription, QueueTasksJobUpdatedSubscriptionVariables>;
+export const TasksDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Tasks"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"QueueListInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}}]} as unknown as DocumentNode<TasksQuery, TasksQueryVariables>;
+export const QueueTasksJobUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"QueueTasksJobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobProgression"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ProgressTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobProgression"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"TaskDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTask"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"SubTaskOrGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobGroupTasks"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}},{"kind":"Field","alias":{"kind":"Name","value":"taskDescription"},"name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"TaskDescription"}}]}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobSubTask"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"taskName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ProgressTask"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"groupName"}},{"kind":"Field","name":{"kind":"Name","value":"description"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobProgression"}}]}},{"kind":"Field","name":{"kind":"Name","value":"subtasks"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTask"}}]}}]}}]}}]} as unknown as DocumentNode<QueueTasksJobUpdatedSubscription, QueueTasksJobUpdatedSubscriptionVariables>;
 import { bigintTypePolicy } from '../utils/bigint.utils';
 
 export const scalarTypePolicies = {
@@ -571,6 +594,8 @@ export const scalarTypePolicies = {
       existingCompressedFileSize: bigintTypePolicy,
       existingFileSize: bigintTypePolicy,
       fileSize: bigintTypePolicy,
+      modifiedCompressedFileSize: bigintTypePolicy,
+      modifiedFileSize: bigintTypePolicy,
       newCompressedFileSize: bigintTypePolicy,
       newFileSize: bigintTypePolicy,
     },
@@ -585,6 +610,9 @@ export const scalarTypePolicies = {
       used: bigintTypePolicy,
       usedLastMonth: bigintTypePolicy,
     },
+  },
+  FileStat: {
+    fields: { dev: bigintTypePolicy, ino: bigintTypePolicy, nlink: bigintTypePolicy, rdev: bigintTypePolicy },
   },
   HostStatistics: {
     fields: {
