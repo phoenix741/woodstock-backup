@@ -1,0 +1,237 @@
+name: Release
+
+permissions:
+  pull-requests: write
+  contents: write
+
+on:
+  push:
+    branches:
+      - "master"
+      - "main"
+      - "alpha"
+      - "beta"
+
+jobs:
+  # Start by creating the release where all the file will be built
+  clientrs:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --features all
+            binary_name: binaries-linux-acl
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --no-default-features --features "client,pool,server"
+            binary_name: binaries-linux
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: --features all
+            binary_name: binaries-windows
+
+    steps:
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Cargo cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ./target
+          key: build-cargo-registry-${{ matrix.target }}
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build (release) - clientrs
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      - name: Upload artifacts (target/${{ matrix.target }}/release/{client,console})
+        uses: christopherhx/gitea-upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: |
+            target/${{ matrix.target }}/release/client
+            target/${{ matrix.target }}/release/client.exe
+            target/${{ matrix.target }}/release/console
+            target/${{ matrix.target }}/release/console.exe
+            target/${{ matrix.target }}/release/backuppc_importer
+            target/${{ matrix.target }}/release/backuppc_importer.exe
+
+  upload:
+    needs: [clientrs, backuppc]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+        run: npm audit signatures
+
+      - name: Download artifacts
+        uses: christopherhx/gitea-download-artifact@v4
+
+      - name: Display structure of downloaded files
+        run: |
+          mkdir bin
+          mv ./binaries-linux-acl/client ./bin/client
+          mv ./binaries-linux-acl/console ./bin/console
+          mv ./binaries-linux/client ./bin/client_lite
+          mv ./binaries-linux/console ./bin/console_lite
+          mv ./binaries-linux/backuppc_importer ./bin/backuppc_importer
+          mv ./binaries-windows/client.exe ./bin/client.exe
+          mv ./binaries-windows/console.exe ./bin/console.exe
+          mv ./binaries-windows/backuppc_importer.exe ./bin/backuppc_importer.exe
+          shasum --algorithm 256 --binary ./bin/backuppc_importer | tee ./bin/backuppc_importer-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/backuppc_importer.exe | tee ./bin/backuppc_importer.exe-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/client | tee ./bin/client-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/console | tee ./bin/console-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/client_lite | tee ./bin/client_lite-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/console_lite | tee ./bin/console_lite-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/client.exe | tee ./bin/client.exe-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/console.exe | tee ./bin/console.exe-SHA256SUM.txt
+
+      - name: Import GPG key
+        id: import-gpg
+        uses: https://github.com/crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          fingerprint: 0C69E9FC3A34B91A
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: GPG user IDs
+        run: |
+          echo "fingerprint: ${{ steps.import-gpg.outputs.fingerprint }}"
+          echo "keyid:       ${{ steps.import-gpg.outputs.keyid }}"
+          echo "name:        ${{ steps.import-gpg.outputs.name }}"
+          echo "email:       ${{ steps.import-gpg.outputs.email }}"
+
+      - name: Release
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITEA_URL: https://gogs.shadoware.org
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GIT_AUTHOR_NAME: ${{ steps.import-gpg.outputs.name }}
+          GIT_AUTHOR_EMAIL: ${{ steps.import-gpg.outputs.email }}
+          GIT_COMMITTER_NAME: ${{ steps.import-gpg.outputs.name }}
+          GIT_COMMITTER_EMAIL: ${{ steps.import-gpg.outputs.email }}
+        run: npx semantic-release
+
+  # docker:
+  #   needs: [upload]
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       include:
+  #         - rust_version: 1
+  #           node_version: 20-slim
+  #           features: --features all
+  #   container:
+  #     image: catthehacker/ubuntu:act-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         lfs: true
+
+  #     - name: Get latest tag from git
+  #       uses: https://github.com/actions-ecosystem/action-get-latest-tag@v1
+  #       id: latesttag
+  #       with:
+  #         semver_only: true
+
+  #     - name: Get metadata to tag container image
+  #       uses: https://github.com/docker/metadata-action@v4
+  #       id: meta
+  #       with:
+  #         context: git
+  #         # Liste des images Docker à utiliser comme base pour les tags
+  #         images: |
+  #           phoenix741/woodstock-backup
+  #         # Génère les tags Docker en fonction des événements/attributs suivants
+  #         tags: |
+  #           type=semver,pattern={{version}},value=${{ steps.latesttag.outputs.tag }}
+  #           type=semver,pattern={{major}}.{{minor}},value=${{ steps.latesttag.outputs.tag }}
+  #           type=semver,pattern={{major}},value=${{ steps.latesttag.outputs.tag }}
+
+  #     - name: Get metadata to tag container image
+  #       uses: https://github.com/docker/metadata-action@v4
+  #       id: meta-website
+  #       with:
+  #         context: git
+  #         # Liste des images Docker à utiliser comme base pour les tags
+  #         images: |
+  #           phoenix741/woodstock-backup-website
+  #         # Génère les tags Docker en fonction des événements/attributs suivants
+  #         tags: |
+  #           type=semver,pattern={{version}},value=${{ steps.latesttag.outputs.tag }}
+  #           type=semver,pattern={{major}}.{{minor}},value=${{ steps.latesttag.outputs.tag }}
+  #           type=semver,pattern={{major}},value=${{ steps.latesttag.outputs.tag }}
+
+  #     - name: Setup docker
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Login to registry
+  #       uses: docker/login-action@v2
+  #       with:
+  #         username: ${{ secrets.REGISTRY_USERNAME }}
+  #         password: ${{ secrets.REGISTRY_TOKEN }}
+
+  #     - name: Build Server Docker Image
+  #       uses: docker/build-push-action@v6
+  #       env:
+  #         ACTIONS_RUNTIME_TOKEN: ""
+  #       with:
+  #         file: Dockerfile
+  #         context: .
+  #         load: true
+  #         tags: ${{ steps.meta.outputs.tags }}
+  #         labels: ${{ steps.meta.outputs.labels }}
+  #         cache-from: type=gha
+  #         cache-to: type=gha
+  #         build-args: |
+  #           RUST_VERSION=${{matrix.rust_version}}
+  #           NODE_VERSION=${{matrix.node_version}}
+  #           FEATURES=${{matrix.features}}
+
+  #     - name: Build Website Docker Image
+  #       uses: docker/build-push-action@v6
+  #       env:
+  #         ACTIONS_RUNTIME_TOKEN: ""
+  #       with:
+  #         file: ./docs/website/Dockerfile
+  #         context: ./docs/website
+  #         load: true
+  #         tags: ${{ steps.meta-website.outputs.tags }}
+  #         labels: ${{ steps.meta-website.outputs.labels }}
+  #         cache-from: type=gha
+  #         cache-to: type=gha
