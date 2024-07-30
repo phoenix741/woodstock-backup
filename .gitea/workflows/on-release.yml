@@ -59,12 +59,18 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
+      - name: Install cargo deb
+        run: cargo install cargo-deb
+
       - name: Build (release) - clientrs
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
 
       - name: Generate debian package
         if: matrix.os == 'ubuntu-latest'
-        run: cargo deb -p woodstock_client-rs --target ${{ matrix.target }}
+        run: |
+          cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
+          cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
+          cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
 
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
@@ -110,20 +116,14 @@ jobs:
           mkdir bin
           mv ./binaries-linux-acl/ws_client ./bin/ws_client
           mv ./binaries-linux-acl/ws_console ./bin/ws_console
+          mv ./binaries-linux-acl/*.deb ./bin/
           mv ./binaries-linux/ws_client ./bin/ws_client_lite
           mv ./binaries-linux/ws_console ./bin/ws_console_lite
           mv ./binaries-linux/ws_backuppc_importer ./bin/ws_backuppc_importer
           mv ./binaries-windows/ws_client.exe ./bin/ws_client.exe
           mv ./binaries-windows/ws_console.exe ./bin/ws_console.exe
           mv ./binaries-windows/ws_backuppc_importer.exe ./bin/ws_backuppc_importer.exe
-          shasum --algorithm 256 --binary ./bin/ws_backuppc_importer | tee ./bin/ws_backuppc_importer-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_backuppc_importer.exe | tee ./bin/ws_backuppc_importer.exe-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_client | tee ./bin/ws_client-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_console | tee ./bin/ws_console-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_client_lite | tee ./bin/ws_client_lite-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_console_lite | tee ./bin/ws_console_lite-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_client.exe | tee ./bin/ws_client.exe-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/ws_console.exe | tee ./bin/ws_console.exe-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/* | tee ./bin/SHA256SUM.txt
 
       - name: Import GPG key
         id: import-gpg

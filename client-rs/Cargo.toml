@@ -1,0 +1,29 @@
+[package]
+name = "woodstock-client-rs"
+description = "Woodstock client daemon"
+version = "1.0.0"
+edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+
+[package.metadata.deb]
+maintainer-scripts = "debian/"
+systemd-units = { enable = true }
+
+[[bin]] # Bin to run the HelloWorld gRPC server
+name = "ws_client_daemon"
+path = "src/client_daemon.rs"
+
+[dependencies]
+async-stream = "0.2"
+clap = { version = "4.5.4", features = ["derive"] }
+color-eyre = "0.6.3"
+env_logger = "0.11.3"
+eyre = "0.6.12"
+log = { version = "0.4.21", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
+multi_log = "0.1.2"
+tokio = { version = "1.0", features = ["fs", "macros", "rt-multi-thread"] }
+tonic = { version = "0.11", features = ["tls", "gzip"] }
+woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
+  "client",
+] }

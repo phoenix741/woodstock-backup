@@ -1,5 +1,11 @@
 [workspace]
-members = ["backuppc_importer", "clientrs", "shared-rs"]
+members = [
+  "backuppc-importer-rs",
+  "cli-rs",
+  "client-rs",
+  "shared-rs",
+  "woodstock-rs",
+]
 resolver = "2"
 
 [profile.dev.package.flate2]
