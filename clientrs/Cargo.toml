@@ -1,7 +1,14 @@
 [package]
 name = "woodstock_client-rs"
+description = "Woodstock client daemon"
 version = "1.0.0"
 edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+
+[package.metadata.deb]
+maintainer-scripts = "debian/"
+systemd-units = { enable = true }
 
 [features]
 default = ["all"]
@@ -20,12 +27,12 @@ name = "woodstock"
 path = "src/lib.rs"
 
 [[bin]] # Bin to run the HelloWorld gRPC server
-name = "client"
+name = "ws_client_daemon"
 path = "src/client_daemon.rs"
 required-features = ["client"]
 
 [[bin]]
-name = "console"
+name = "ws_console"
 path = "src/console.rs"
 required-features = ["pool", "client"]
 

@@ -2,6 +2,8 @@
 edition = "2021"
 name = "woodstock_shared-rs"
 version = "0.0.0"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]

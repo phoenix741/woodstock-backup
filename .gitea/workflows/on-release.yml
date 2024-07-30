@@ -62,17 +62,22 @@ jobs:
       - name: Build (release) - clientrs
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
 
-      - name: Upload artifacts (target/${{ matrix.target }}/release/{client,console})
+      - name: Generate debian package
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo deb -p woodstock_client-rs --target ${{ matrix.target }}
+
+      - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
           name: ${{ matrix.binary_name }}
           path: |
-            target/${{ matrix.target }}/release/client
-            target/${{ matrix.target }}/release/client.exe
-            target/${{ matrix.target }}/release/console
-            target/${{ matrix.target }}/release/console.exe
-            target/${{ matrix.target }}/release/backuppc_importer
-            target/${{ matrix.target }}/release/backuppc_importer.exe
+            target/${{ matrix.target }}/release/ws_client
+            target/${{ matrix.target }}/release/ws_client.exe
+            target/${{ matrix.target }}/release/ws_console
+            target/${{ matrix.target }}/release/ws_console.exe
+            target/${{ matrix.target }}/release/ws_backuppc_importer
+            target/${{ matrix.target }}/release/ws_backuppc_importer.exe
+            target/debian/*.deb
 
   upload:
     needs: [clientrs, backuppc]
@@ -103,22 +108,22 @@ jobs:
       - name: Display structure of downloaded files
         run: |
           mkdir bin
-          mv ./binaries-linux-acl/client ./bin/client
-          mv ./binaries-linux-acl/console ./bin/console
-          mv ./binaries-linux/client ./bin/client_lite
-          mv ./binaries-linux/console ./bin/console_lite
-          mv ./binaries-linux/backuppc_importer ./bin/backuppc_importer
-          mv ./binaries-windows/client.exe ./bin/client.exe
-          mv ./binaries-windows/console.exe ./bin/console.exe
-          mv ./binaries-windows/backuppc_importer.exe ./bin/backuppc_importer.exe
-          shasum --algorithm 256 --binary ./bin/backuppc_importer | tee ./bin/backuppc_importer-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/backuppc_importer.exe | tee ./bin/backuppc_importer.exe-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/client | tee ./bin/client-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/console | tee ./bin/console-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/client_lite | tee ./bin/client_lite-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/console_lite | tee ./bin/console_lite-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/client.exe | tee ./bin/client.exe-SHA256SUM.txt
-          shasum --algorithm 256 --binary ./bin/console.exe | tee ./bin/console.exe-SHA256SUM.txt
+          mv ./binaries-linux-acl/ws_client ./bin/ws_client
+          mv ./binaries-linux-acl/ws_console ./bin/ws_console
+          mv ./binaries-linux/ws_client ./bin/ws_client_lite
+          mv ./binaries-linux/ws_console ./bin/ws_console_lite
+          mv ./binaries-linux/ws_backuppc_importer ./bin/ws_backuppc_importer
+          mv ./binaries-windows/ws_client.exe ./bin/ws_client.exe
+          mv ./binaries-windows/ws_console.exe ./bin/ws_console.exe
+          mv ./binaries-windows/ws_backuppc_importer.exe ./bin/ws_backuppc_importer.exe
+          shasum --algorithm 256 --binary ./bin/ws_backuppc_importer | tee ./bin/ws_backuppc_importer-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_backuppc_importer.exe | tee ./bin/ws_backuppc_importer.exe-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_client | tee ./bin/ws_client-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_console | tee ./bin/ws_console-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_client_lite | tee ./bin/ws_client_lite-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_console_lite | tee ./bin/ws_console_lite-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_client.exe | tee ./bin/ws_client.exe-SHA256SUM.txt
+          shasum --algorithm 256 --binary ./bin/ws_console.exe | tee ./bin/ws_console.exe-SHA256SUM.txt
 
       - name: Import GPG key
         id: import-gpg
