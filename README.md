@@ -1,6 +1,16 @@
 # Woodstock Backup
 
-[![Build Status](https://ci.shadoware.org/api/badges/ShadowareOrg/woodstock-backup/status.svg)](https://ci.shadoware.org/ShadowareOrg/woodstock-backup)
+##  Etat de l'application
+
+###  Master
+
+[![Master Release Status](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/actions/workflows/on-release.yml/badge.svg)](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup)
+
+### Alpha
+
+[![Alpha Release Status](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/actions/workflows/on-release.yml/badge.svg?branch=alpha)](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup)
+
+## Description
 
 _Woodstock backup_ is a backup software. The purpose is to backup software from a central point.
 
