@@ -323,6 +323,11 @@ async fn main() -> Result<()> {
             winserv::run()?;
         }
 
+        #[cfg(not(windows))]
+        Some(_) => {
+            println!("Subcommand not supported on this platform");
+        }
+
         None => {
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
