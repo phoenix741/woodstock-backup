@@ -5,6 +5,7 @@ permissions:
   contents: write
 
 on:
+  pull_request:
   push:
     branches:
       - "master"
@@ -25,14 +26,22 @@ jobs:
             target: x86_64-unknown-linux-gnu
             features: --features all
             binary_name: binaries-linux-acl
+            node-version: 20.x
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: --no-default-features --features "client,pool,server"
             binary_name: binaries-linux
+            node-version: 20.x
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             features: --features all
             binary_name: binaries-windows
+            node-version: 20.x
+        # Disabled musl target for (depending of libm, libc,...)
+        # - os: ubuntu-latest
+        #   target: x86_64-unknown-linux-musl
+        #   node-version: 20.x
+        # need dependencies: # musl-dev musl-tools
 
     steps:
       - name: Install dependencies
@@ -59,11 +68,48 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
+      - name: Install Node.JS
+        uses: actions/setup-node@v3
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Unit test (release)
+        run: cargo test --release --target ${{ matrix.target }} ${{ matrix.features }} -- --nocapture
+        env:
+          RUST_LOG: debug
+
+      - name: Build (release)
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+
       - name: Install cargo deb
+        if: matrix.os == 'ubuntu-latest'
         run: cargo install cargo-deb
 
-      - name: Build (release) - clientrs
-        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+      - name: Install Node.JS dependencies
+        run: |
+          npm ci
+
+      - name: Build shared (rust + nodejs)
+        run: |
+          cd shared-rs
+          npm run build
+          cd ..
+
+      - name: Build server
+        run: |
+          cd nestjs
+          npm run lint
+          npm run test
+          npm run buildall
+          cd ..
+
+      - name: Build front
+        run: |
+          cd front
+          npm run lint
+          npm run build
+          cd ..
 
       - name: Generate debian package
         if: matrix.os == 'ubuntu-latest'
@@ -77,13 +123,20 @@ jobs:
         with:
           name: ${{ matrix.binary_name }}
           path: |
-            target/${{ matrix.target }}/release/ws_client
-            target/${{ matrix.target }}/release/ws_client.exe
+            target/${{ matrix.target }}/release/ws_client_daemon
+            target/${{ matrix.target }}/release/ws_client_daemon.exe
             target/${{ matrix.target }}/release/ws_console
             target/${{ matrix.target }}/release/ws_console.exe
             target/${{ matrix.target }}/release/ws_backuppc_importer
             target/${{ matrix.target }}/release/ws_backuppc_importer.exe
-            target/debian/*.deb
+
+      - name: Upload artifacts (part2)
+        if: matrix.os == 'ubuntu-latest'
+        uses: christopherhx/gitea-upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}_deb
+          path: |
+            target/${{ matrix.target }}/debian/*.deb
 
   upload:
     needs: [clientrs, backuppc]
@@ -114,18 +167,20 @@ jobs:
       - name: Display structure of downloaded files
         run: |
           mkdir bin
-          mv ./binaries-linux-acl/ws_client ./bin/ws_client
+          mv ./binaries-linux-acl/ws_client_daemon ./bin/ws_client_daemon
           mv ./binaries-linux-acl/ws_console ./bin/ws_console
-          mv ./binaries-linux-acl/*.deb ./bin/
-          mv ./binaries-linux/ws_client ./bin/ws_client_lite
+          mv ./binaries-linux-acl_deb/*.deb ./bin/
+          mv ./binaries-linux/ws_client_daemon ./bin/ws_client_daemon_lite
           mv ./binaries-linux/ws_console ./bin/ws_console_lite
           mv ./binaries-linux/ws_backuppc_importer ./bin/ws_backuppc_importer
-          mv ./binaries-windows/ws_client.exe ./bin/ws_client.exe
+          mv ./binaries-windows/ws_client_daemon.exe ./bin/ws_client_daemon.exe
           mv ./binaries-windows/ws_console.exe ./bin/ws_console.exe
           mv ./binaries-windows/ws_backuppc_importer.exe ./bin/ws_backuppc_importer.exe
           shasum --algorithm 256 --binary ./bin/* | tee ./bin/SHA256SUM.txt
+          cat ./bin/SHA256SUM.txt
 
       - name: Import GPG key
+        when: github.event_name == 'push'
         id: import-gpg
         uses: https://github.com/crazy-max/ghaction-import-gpg@v4
         with:
@@ -135,6 +190,7 @@ jobs:
           git_commit_gpgsign: true
 
       - name: GPG user IDs
+        when: github.event_name == 'push'
         run: |
           echo "fingerprint: ${{ steps.import-gpg.outputs.fingerprint }}"
           echo "keyid:       ${{ steps.import-gpg.outputs.keyid }}"
@@ -142,6 +198,7 @@ jobs:
           echo "email:       ${{ steps.import-gpg.outputs.email }}"
 
       - name: Release
+        when: github.event_name == 'push'
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITEA_URL: https://gogs.shadoware.org
@@ -175,6 +232,7 @@ jobs:
         run: echo ::set-output name=version::$(node -p "require('./package.json').version")
 
       - name: Get metadata to tag container image
+        when: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta
         with:
@@ -188,6 +246,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
 
       - name: Get metadata to tag container image
+        when: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta-website
         with:
@@ -205,6 +264,7 @@ jobs:
 
       - name: Login to registry
         uses: docker/login-action@v2
+        when: github.event_name == 'push'
         with:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_TOKEN }}
@@ -217,7 +277,7 @@ jobs:
           file: Dockerfile
           context: .
           load: true
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -235,7 +295,7 @@ jobs:
           file: ./docs/website/Dockerfile
           context: ./docs/website
           load: true
-          push: true
+          push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta-website.outputs.tags }}
           labels: ${{ steps.meta-website.outputs.labels }}
           cache-from: type=gha
