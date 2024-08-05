@@ -84,7 +84,8 @@ jobs:
 
       - name: Install cargo deb
         if: matrix.os == 'ubuntu-latest'
-        run: cargo install cargo-deb
+        run: |
+          cargo install cargo-deb
 
       - name: Install Node.JS dependencies
         run: |
@@ -150,10 +151,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
 
+      - name: Cargo cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ./target
+          key: build-cargo-registry-${{ matrix.target }}
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+
       - name: Checkout project
         uses: actions/checkout@v3
         with:
           lfs: true
+
+      - name: Install cargo deb
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-workspaces
 
       - name: Install dependencies
         run: npm ci
