@@ -188,7 +188,6 @@ jobs:
           mkdir bin
           mv ./binaries-linux-acl/ws_client_daemon ./bin/ws_client_daemon
           mv ./binaries-linux-acl/ws_console ./bin/ws_console
-          mv ./binaries-linux-acl_deb/*.deb ./bin/
           mv ./binaries-linux/ws_client_daemon ./bin/ws_client_daemon_lite
           mv ./binaries-linux/ws_console ./bin/ws_console_lite
           mv ./binaries-linux/ws_backuppc_importer ./bin/ws_backuppc_importer
@@ -199,7 +198,7 @@ jobs:
           cat ./bin/SHA256SUM.txt
 
       - name: Import GPG key
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         id: import-gpg
         uses: https://github.com/crazy-max/ghaction-import-gpg@v4
         with:
@@ -209,7 +208,7 @@ jobs:
           git_commit_gpgsign: true
 
       - name: GPG user IDs
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         run: |
           echo "fingerprint: ${{ steps.import-gpg.outputs.fingerprint }}"
           echo "keyid:       ${{ steps.import-gpg.outputs.keyid }}"
@@ -217,7 +216,7 @@ jobs:
           echo "email:       ${{ steps.import-gpg.outputs.email }}"
 
       - name: Release
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         env:
           GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITEA_URL: https://gogs.shadoware.org
@@ -227,6 +226,15 @@ jobs:
           GIT_COMMITTER_NAME: ${{ steps.import-gpg.outputs.name }}
           GIT_COMMITTER_EMAIL: ${{ steps.import-gpg.outputs.email }}
         run: npx semantic-release
+
+      - name: Publish package to debian gitea repository
+        if: github.event_name == 'push'
+        run: |
+          for file in ./binaries-linux-acl_deb/*.deb; do
+            curl --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
+              --upload-file $file \
+              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
+          done
 
   docker:
     needs: [upload]
@@ -251,7 +259,7 @@ jobs:
         run: echo ::set-output name=version::$(node -p "require('./package.json').version")
 
       - name: Get metadata to tag container image
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta
         with:
@@ -265,7 +273,7 @@ jobs:
             type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
 
       - name: Get metadata to tag container image
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta-website
         with:
@@ -283,7 +291,7 @@ jobs:
 
       - name: Login to registry
         uses: docker/login-action@v2
-        when: github.event_name == 'push'
+        if: github.event_name == 'push'
         with:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_TOKEN }}
