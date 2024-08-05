@@ -1,10 +1,16 @@
 {
 	"folders": [
 		{
-			"path": "clientrs"
+			"path": "woodstock-rs"
 		},
 		{
-			"path": "backuppc_importer"
+			"path": "client-rs"
+		},
+		{
+			"path": "cli-rs"
+		},
+		{
+			"path": "backuppc-importer-rs"
 		},
 		{
 			"path": "shared-rs"

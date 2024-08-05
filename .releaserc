@@ -5,6 +5,12 @@
     "@semantic-release/changelog",
     "@semantic-release/npm",
     [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "./scripts/prepare-release.sh"
+      }
+    ],
+    [
       "@saithodev/semantic-release-gitea",
       {
         "assets": [
@@ -21,8 +27,20 @@
           "CHANGELOG.md",
           "package.json",
           "package-lock.json",
+          "nestjs/package.json",
+          "front/package.json",
+          "website/package.json",
+          "shared-rs/package.json",
+          "shared-rs/npm/linux-x64-gnu/package.json",
+          "shared-rs/npm/linux-x64-musl/package.json",
+          "shared-rs/npm/win32-x64-msvc/package.json",
           "Cargo.toml",
-          "Cargo.lock"
+          "Cargo.lock",
+          "backuppc-importer-rs/Cargo.toml",
+          "cli-rs/Cargo.toml",
+          "client-rs/Cargo.toml",
+          "shared-rs/Cargo.toml",
+          "woodstock-rs/Cargo.toml"
         ]
       }
     ]

@@ -1,0 +1,8 @@
+[Unit]
+Description=Woodstock Client Daemon
+
+[Service]
+ExecStart=/usr/bin/ws_client_daemon
+
+[Install]
+WantedBy=network.target

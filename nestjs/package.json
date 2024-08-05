@@ -56,7 +56,7 @@
     "@nestjs/platform-express": "^10.3.10",
     "@nestjs/serve-static": "^4.0.2",
     "@nestjs/swagger": "^7.4.0",
-    "@woodstock/shared-rs": "^1.0.0",
+    "@woodstock/shared-rs": "*",
     "apollo-server-core": "~3.13.0",
     "archiver": "^7.0.1",
     "bullmq": "^5.8.3",

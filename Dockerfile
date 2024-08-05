@@ -93,9 +93,9 @@ RUN npm install pm2 -g
 
 WORKDIR /app/nestjs
 
-COPY --from=build-sharedrs /src/target/release/backuppc_importer /app/cli/
-COPY --from=build-sharedrs /src/target/release/client /app/cli/
-COPY --from=build-sharedrs /src/target/release/console /app/cli/
+COPY --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/cli/
+COPY --from=build-sharedrs /src/target/release/ws_client /app/cli/
+COPY --from=build-sharedrs /src/target/release/ws_console /app/cli/
 COPY --from=build-sharedrs /src/target/release/ws_sync /app/cli/
 
 COPY --from=build-sharedrs /src/shared-rs/index.* /app/shared-rs/

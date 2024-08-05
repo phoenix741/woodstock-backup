@@ -1,0 +1,35 @@
+[package]
+name = "woodstock-cli-rs"
+description = "Woodstock Tools"
+version = "1.0.0"
+edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+
+[[bin]]
+name = "ws_console"
+path = "src/console.rs"
+
+[[bin]] # Bin to run the HelloWorld gRPC server
+name = "ws_sync"
+path = "src/wssync.rs"
+
+[dependencies]
+async-stream = "0.2"
+clap = { version = "4.5.4", features = ["derive"] }
+color-eyre = "0.6.3"
+console = "0.15.8"
+env_logger = "0.11.3"
+eyre = "0.6.12"
+flate2 = { version = "1.0.28" }
+futures = "0.3.30"
+hex = { version = "0.4.3", features = ["serde"] }
+indicatif = "0.17.8"
+log = { version = "0.4.21", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
+multi_log = "0.1.2"
+tokio = { version = "1.0", features = ["fs", "macros", "rt-multi-thread"] }
+tonic = { version = "0.11", features = ["tls", "gzip"] }
+woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
+  "pool", "server", "client"
+] }
+

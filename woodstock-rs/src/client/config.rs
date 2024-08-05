@@ -101,6 +101,11 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig> {
         path.as_ref().display()
     );
 
+    // If the file does not exist, return the default configuration
+    if !path.as_ref().exists() {
+        return Ok(ClientConfig::default());
+    }
+
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
