@@ -1,3 +1,17 @@
+# [2.0.0-alpha.2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.1...v2.0.0-alpha.2) (2024-08-06)
+
+
+### Bug Fixes
+
+* **shared:** :green_heart: fix versionning of package.json and cargo.toml ([bb5f8d8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/bb5f8d8bef3827d54703f62999479084a881f665))
+
+
+### Features
+
+* ✨ add a debian package and a systemd unit ([8c6f4ca](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8c6f4ca082cfb4894b87ecf0a87840c4ab3c439a))
+* ✨ add windows service ([a360f8a](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/a360f8a05f69f5ea3f73acd5a96e0969c14bb5e6))
+* **shared:** :sparkles: in the export of the client, we add the executable from gitea ([e74d87c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e74d87cee2e4afdab954768e1e0b9c1a35db278a))
+
 # [2.0.0-alpha.1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v1.0.2...v2.0.0-alpha.1) (2024-07-29)
 
 
