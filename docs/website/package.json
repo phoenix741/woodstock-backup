@@ -1,6 +1,7 @@
 {
   "name": "website",
   "version": "1.0.2",
+  "private": true,
   "description": "Woodstock backup documentation",
   "scripts": {
     "dev": "vuepress dev",

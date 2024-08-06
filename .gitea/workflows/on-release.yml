@@ -55,24 +55,17 @@ jobs:
         with:
           lfs: true
 
-      - name: Cargo cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ./target
-          key: build-cargo-registry-${{ matrix.target }}
-
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target }}
+          cache: true
 
       - name: Install Node.JS
-        uses: actions/setup-node@v3
-        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
       - name: Unit test (release)
         run: cargo test --release --target ${{ matrix.target }} ${{ matrix.features }} -- --nocapture
@@ -81,11 +74,6 @@ jobs:
 
       - name: Build (release)
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
-
-      - name: Install cargo deb
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo install cargo-deb
 
       - name: Install Node.JS dependencies
         run: |
@@ -112,13 +100,6 @@ jobs:
           npm run build
           cd ..
 
-      - name: Generate debian package
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
-          cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
-          cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
-
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
@@ -131,48 +112,35 @@ jobs:
             target/${{ matrix.target }}/release/ws_backuppc_importer
             target/${{ matrix.target }}/release/ws_backuppc_importer.exe
 
-      - name: Upload artifacts (part2)
-        if: matrix.os == 'ubuntu-latest'
-        uses: christopherhx/gitea-upload-artifact@v4
-        with:
-          name: ${{ matrix.binary_name }}_deb
-          path: |
-            target/${{ matrix.target }}/debian/*.deb
-
   upload:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     needs: [clientrs, backuppc]
     runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y git-lfs
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-
-      - name: Cargo cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ./target
-          key: build-cargo-registry-${{ matrix.target }}
-
-      - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target }}
+          apt-get install -y git-lfs jq
 
       - name: Checkout project
         uses: actions/checkout@v3
         with:
           lfs: true
 
-      - name: Install cargo deb
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cargo install cargo-workspaces
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          cache: "npm"
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: true
+
+      - name: Installation de cargo-workspaces
+        run: cargo install cargo-workspaces
 
       - name: Install dependencies
         run: npm ci
@@ -227,16 +195,54 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ steps.import-gpg.outputs.email }}
         run: npx semantic-release
 
+  debian_rs:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: true
+
+      - name: Installation de cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Generate debian package
+        run: |
+          cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
+          cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
+          cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
+
       - name: Publish package to debian gitea repository
         if: github.event_name == 'push'
         run: |
-          for file in ./binaries-linux-acl_deb/*.deb; do
+          for file in target/${{ matrix.target }}/debian/*.deb; do
             curl --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
               --upload-file $file \
               https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
           done
 
   docker:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     needs: [upload]
     runs-on: ubuntu-latest
     strategy:
@@ -248,6 +254,11 @@ jobs:
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
+
       - name: Checkout project
         uses: actions/checkout@v3
         with:

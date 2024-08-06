@@ -31,8 +31,10 @@ COPY --from=planner /src/recipe.json /src/recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY Cargo.* /src/
-COPY ./clientrs /src/clientrs/
-COPY ./backuppc_importer /src/backuppc_importer/
+COPY ./woodstock-rs /src/woodstock-rs/
+COPY ./client-rs /src/client-rs/
+COPY ./cli-rs /src/cli-rs/
+COPY ./backuppc-importer-rs /src/backuppc-importer-rs/
 COPY ./shared-rs /src/shared-rs/
 
 RUN cargo build --release $FEATURES
@@ -94,7 +96,7 @@ RUN npm install pm2 -g
 WORKDIR /app/nestjs
 
 COPY --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/cli/
-COPY --from=build-sharedrs /src/target/release/ws_client /app/cli/
+COPY --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
 COPY --from=build-sharedrs /src/target/release/ws_console /app/cli/
 COPY --from=build-sharedrs /src/target/release/ws_sync /app/cli/
 
