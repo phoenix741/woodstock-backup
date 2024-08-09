@@ -20,21 +20,20 @@ import { Response } from 'express';
 import { join } from 'path';
 import { ClientType, HostInformation } from './hosts.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
-import { Readable } from 'stream';
 import { readFile } from 'fs/promises';
 
 const CLIENT_URL_MAPPING: Record<ClientType, string> = {
-  [ClientType.Windows]: 'client.exe',
-  [ClientType.Linux]: 'client',
-  [ClientType.LinuxLite]: 'client_lite',
-  [ClientType.None]: 'client',
+  [ClientType.Windows]: 'ws_client_daemon.exe',
+  [ClientType.Linux]: 'ws_client_daemon',
+  [ClientType.LinuxLite]: 'ws_client_daemon_lite',
+  [ClientType.None]: 'ws_client_daemon',
 };
 
 const CLIENT_ZIP_URL_MAPPING: Record<ClientType, string> = {
-  [ClientType.Windows]: 'woodstock_client.exe',
-  [ClientType.Linux]: 'woodstock_client',
-  [ClientType.LinuxLite]: 'woodstock_client',
-  [ClientType.None]: 'woodstock_client',
+  [ClientType.Windows]: 'ws_client_daemon.exe',
+  [ClientType.Linux]: 'ws_client_daemon',
+  [ClientType.LinuxLite]: 'ws_client_daemon',
+  [ClientType.None]: 'ws_client_daemon',
 };
 
 @UseInterceptors(ClassSerializerInterceptor)

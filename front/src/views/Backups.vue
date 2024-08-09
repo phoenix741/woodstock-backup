@@ -40,9 +40,14 @@
               <v-checkbox readonly v-model="item.completed" disabled></v-checkbox>
             </template>
             <template v-slot:bottom>
-              <div class="text-right pa-2">
-                <BackupDelete :device-id="deviceId" :backup-numbers="selection ?? []"></BackupDelete>
-                <BackupCreate :device-id="deviceId"></BackupCreate>
+              <div class="d-flex">
+                <div class="flex-1-0 text-left">
+                  <BackupDownload :device-id="deviceId"></BackupDownload>
+                </div>
+                <div class="text-right pa-2">
+                  <BackupDelete :device-id="deviceId" :backup-numbers="selection ?? []"></BackupDelete>
+                  <BackupCreate :device-id="deviceId"></BackupCreate>
+                </div>
               </div>
             </template>
           </v-data-table>
@@ -62,6 +67,7 @@ import { VDataTable } from 'vuetify/components';
 
 import { useBackups } from '../utils/backups';
 import BackupCreate from './dialogs/BackupCreate.vue';
+import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
 import BackupView from './dialogs/BackupView.vue';
 
