@@ -1,5 +1,5 @@
 import { Query, Resolver } from '@nestjs/graphql';
-import { CommandCheck, CommandCheckFn, ServerChecks, ServerInformations } from './server.dto';
+import { CommandCheck, ServerInformations } from './server.dto';
 import { ServerService } from './server.service';
 
 @Resolver()
