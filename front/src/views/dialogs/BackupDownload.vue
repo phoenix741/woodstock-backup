@@ -71,7 +71,7 @@
 
           <v-list-item min-height="24">
             <template v-slot:subtitle>
-              <div class="text-caption">Download agent version {{ agentVersion }}</div>
+              <div class="text-caption">Download agent version {{ informations?.woodstockVersion }}</div>
             </template>
           </v-list-item>
         </v-list>
@@ -83,6 +83,7 @@
 <script lang="ts" setup>
 import { ClientType } from '@/utils/client';
 import { ref } from 'vue';
+import { useServerInformation } from '@/utils/server';
 
 import AgentLinuxMD from './AgentLinux.md';
 import AgentWindowsMD from './AgentWindows.md';
@@ -91,7 +92,7 @@ import AgentWindowsMD from './AgentWindows.md';
 const props = defineProps<{ deviceId: string }>();
 
 // Get the version of the agent to download
-const agentVersion = ref('2.0.0-alpha2');
+const { informations } = useServerInformation();
 
 // Get the current operating system from window.navigator
 const client = ref(getDefaultClient());

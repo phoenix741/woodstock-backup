@@ -31,6 +31,7 @@ import { PrometheusService } from './stats/prometheus.service.js';
 import { StatsResolver } from './stats/stats.resolver.js';
 import { BigIntScalar } from './utils/bigint.scalar.js';
 import { generateRsaKey } from '@woodstock/shared-rs';
+import { ServerResolver } from './server/server.resolver.js';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { generateRsaKey } from '@woodstock/shared-rs';
     ServerController,
     ServerService,
     ServeStaticService,
+    ServerResolver,
     StatsResolver,
     PrometheusService,
     PoolResolver,
