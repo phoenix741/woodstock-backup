@@ -6,6 +6,9 @@ edition = "2021"
 authors = ["Ulrich Vandenhekke"]
 license = "MIT"
 
+[package.metadata.deb]
+license-file = ["../LICENSE", "0"]
+
 [[bin]]
 name = "ws_console"
 path = "src/console.rs"

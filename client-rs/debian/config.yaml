@@ -1,0 +1,14 @@
+# Hostname used to check the certificate
+hostname: pc-ulrich.eden.lan
+
+# Password used by the server to make the authentification
+# password: <mypassword>
+
+# Maximum number of time the backup can be run
+backup_timeout: 300
+
+# Enable or disable extended attributes on linux
+xattr: True
+
+# Enable or disable acl on linux
+acl: True

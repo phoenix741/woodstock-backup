@@ -7,8 +7,25 @@ authors = ["Ulrich Vandenhekke"]
 license = "MIT"
 
 [package.metadata.deb]
+license-file = ["../LICENSE", "0"]
 maintainer-scripts = "debian/"
 systemd-units = { enable = true }
+conf-files = ["/etc/woodstock/config.yml"]
+assets = [
+    # binary
+    ["target/release/ws_client_daemon", "usr/bin/", "755"],
+    # assets
+    ["debian/config.yaml", "/etc/woodstock/config.yaml", "0600"],
+]
+
+[package.metadata.deb.variants.debug]
+assets =  [
+    # binary
+    ["target/debug/ws_client_daemon", "usr/bin/", "755"],
+    # assets
+    ["debian/config.yaml", "/etc/woodstock/config.yaml", "0600"],
+]
+
 
 [[bin]] # Bin to run the HelloWorld gRPC server
 name = "ws_client_daemon"

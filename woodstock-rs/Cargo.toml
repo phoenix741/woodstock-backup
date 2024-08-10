@@ -7,6 +7,7 @@ authors = ["Ulrich Vandenhekke"]
 license = "MIT"
 
 [package.metadata.deb]
+license-file = ["../LICENSE", "0"]
 maintainer-scripts = "debian/"
 systemd-units = { enable = true }
 

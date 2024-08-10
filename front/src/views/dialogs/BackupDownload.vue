@@ -23,6 +23,12 @@
           ></v-alert>
           <AgentLinuxMD></AgentLinuxMD>
         </v-card-text>
+        <v-card-text v-else-if="client == ClientType.LinuxDeb">
+          <AgentLinuxDebianMD></AgentLinuxDebianMD>
+        </v-card-text>
+        <v-card-text v-else-if="client == ClientType.None">
+          <AgentNone></AgentNone>
+        </v-card-text>
 
         <v-divider class="mt-2"></v-divider>
 
@@ -61,10 +67,22 @@
             @click="openDialog(ClientType.Linux)"
           ></v-list-item>
           <v-list-item
+            prepend-icon="mdi-debian"
+            title="Download Linux agent (DEB)"
+            link
+            @click="openDialog(ClientType.LinuxDeb)"
+          ></v-list-item>
+          <v-list-item
             prepend-icon="mdi-penguin"
             title="Download lite Linux agent"
             link
             @click="openDialog(ClientType.LinuxLite)"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-cog-outline"
+            title="Download configuration only"
+            link
+            @click="openDialog(ClientType.None)"
           ></v-list-item>
 
           <v-divider class="my-2"></v-divider>
@@ -86,7 +104,9 @@ import { ref } from 'vue';
 import { useServerInformation } from '@/utils/server';
 
 import AgentLinuxMD from './AgentLinux.md';
+import AgentLinuxDebianMD from './AgentLinuxDeb.md';
 import AgentWindowsMD from './AgentWindows.md';
+import AgentNone from './AgentNone.md';
 
 // Get the prop deviceId from the parent component
 const props = defineProps<{ deviceId: string }>();
@@ -118,6 +138,11 @@ function downloadClientAgent() {
 
   // Download client at /api/hosts/{name}/client
   const deviceId = props.deviceId;
+
+  let clientType = client.value;
+  if (clientType === ClientType.LinuxDeb) {
+    clientType = ClientType.None;
+  }
 
   // Fetch the agent
   fetch(`/api/hosts/${deviceId}/client?client=${client.value}`)

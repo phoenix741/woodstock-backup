@@ -2,7 +2,7 @@
 Description=Woodstock Client Daemon
 
 [Service]
-ExecStart=/usr/bin/ws_client_daemon
+ExecStart=/usr/bin/ws_client_daemon --config-dir /etc/woodstock/
 
 [Install]
 WantedBy=network.target
