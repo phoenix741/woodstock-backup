@@ -11,7 +11,7 @@ export async function isExists(path: string) {
 export async function findNearestPackageJson(): Promise<string | undefined> {
   let currentPath = process.cwd();
   while (currentPath !== '/') {
-    let packageJson = resolve(currentPath, 'package.json');
+    const packageJson = resolve(currentPath, 'package.json');
 
     if (await isExists(packageJson)) {
       return packageJson;

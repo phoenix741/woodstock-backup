@@ -43,9 +43,7 @@ const emptyChunk = computed(() => {
 
 const nbChunkRange = computed(() => {
   // Filter chunk that are before firstDate
-  const nbChunkRange = props.nbChunkRange
-    .map(({ time, ...rest }) => ({ time: time * 1000, ...rest }))
-    .filter(({ time }) => time >= firstDate && time <= lastDate);
+  const nbChunkRange = props.nbChunkRange.map(({ time, ...rest }) => ({ time: time * 1000, ...rest }));
 
   const array = [...emptyChunk.value, ...nbChunkRange]
     .sort((a, b) => a.time - b.time)

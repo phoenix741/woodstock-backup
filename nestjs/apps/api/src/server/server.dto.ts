@@ -1,3 +1,6 @@
+import { Field, ObjectType } from '@nestjs/graphql';
+
+@ObjectType()
 export class CommandCheck {
   command!: string;
   isValid!: boolean;
@@ -11,4 +14,13 @@ export class ServerChecks {
   push(...cmd: CommandCheckFn[]): void {
     this.commands.push(...cmd);
   }
+}
+
+@ObjectType()
+export class ServerInformations {
+  hostname!: string;
+  @Field(() => String)
+  platform!: NodeJS.Platform;
+  uptime!: number;
+  woodstockVersion?: string;
 }

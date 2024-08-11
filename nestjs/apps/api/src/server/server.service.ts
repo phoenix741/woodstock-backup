@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExecuteCommandService, ToolsService } from '@woodstock/shared';
-import { mkdir } from 'fs/promises';
-import { CommandCheck, ServerChecks } from './server.dto.js';
+import { ExecuteCommandService, findNearestPackageJson, ToolsService } from '@woodstock/shared';
+import { mkdir, readFile } from 'node:fs/promises';
+import { hostname, platform, uptime } from 'node:os';
+import { CommandCheck, ServerChecks, ServerInformations } from './server.dto.js';
 import { ApplicationConfigService } from '@woodstock/shared';
 
 @Injectable()
@@ -13,6 +14,19 @@ export class ServerService {
     private toolsService: ToolsService,
     private executeCommandService: ExecuteCommandService,
   ) {}
+
+  async getInformations(): Promise<ServerInformations> {
+    // Get the woodstock version from package.json
+    const packageJsonPath = await findNearestPackageJson();
+    const packageJson = packageJsonPath ? JSON.parse(await readFile(packageJsonPath, 'utf-8')) : undefined;
+
+    return {
+      hostname: hostname(),
+      platform: platform(),
+      uptime: uptime(),
+      woodstockVersion: packageJson?.version,
+    };
+  }
 
   async check(): Promise<ServerChecks> {
     await mkdir(this.applicationConfig.poolPath, { recursive: true });
@@ -28,7 +42,6 @@ export class ServerService {
     checks.push(() => this.checkResolveNetbiosFromHostname());
     checks.push(() => this.checkResolveNetbiosFromIP());
     checks.push(() => this.checkStatsSpaceUsage());
-    checks.push(() => this.checkStatsDiskUsage());
     return checks;
   }
 
@@ -90,14 +103,6 @@ export class ServerService {
 
   async checkStatsSpaceUsage(): Promise<CommandCheck> {
     const command = await this.toolsService.getCommand('statsSpaceUsage', {});
-    const { code, stderr } = await this.executeCommandService.executeCommand(command, {
-      returnCode: true,
-    });
-    return { command, isValid: !code, error: stderr };
-  }
-
-  async checkStatsDiskUsage(): Promise<CommandCheck> {
-    const command = await this.toolsService.getCommand('statsDiskUsage', {});
     const { code, stderr } = await this.executeCommandService.executeCommand(command, {
       returnCode: true,
     });

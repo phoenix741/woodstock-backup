@@ -23,6 +23,7 @@ const documents = {
     "mutation cleanupPool {\n  cleanupPool {\n    id\n  }\n}": types.CleanupPoolDocument,
     "mutation fsckPool($fix: Boolean!) {\n  checkAndFixPool(fix: $fix) {\n    id\n  }\n}": types.FsckPoolDocument,
     "mutation verifyChecksum {\n  verifyChecksum {\n    id\n  }\n}": types.VerifyChecksumDocument,
+    "query ServerInformations {\n  informations {\n    platform\n    uptime\n    hostname\n    woodstockVersion\n  }\n}": types.ServerInformationsDocument,
     "query DiskUsageStatistics {\n  statistics {\n    hosts {\n      host\n      size\n      compressedSize\n    }\n  }\n}": types.DiskUsageStatisticsDocument,
     "query PoolStatistics {\n  statistics {\n    diskUsage {\n      used\n      usedLastMonth\n      free\n      total\n    }\n    poolUsage {\n      nbChunk\n      nbChunkLastMonth\n      nbChunkRange {\n        time\n        value\n      }\n      nbRef\n      nbRefLastMonth\n      size\n      compressedSize\n      compressedSizeLastMonth\n      compressedSizeRange {\n        time\n        value\n      }\n      unusedSize\n    }\n  }\n}": types.PoolStatisticsDocument,
     "query QueueStatistics {\n  queueStats {\n    active\n    waiting\n    failed\n    delayed\n    completed\n  }\n}": types.QueueStatisticsDocument,
@@ -83,6 +84,10 @@ export function graphql(source: "mutation fsckPool($fix: Boolean!) {\n  checkAnd
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "mutation verifyChecksum {\n  verifyChecksum {\n    id\n  }\n}"): (typeof documents)["mutation verifyChecksum {\n  verifyChecksum {\n    id\n  }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "query ServerInformations {\n  informations {\n    platform\n    uptime\n    hostname\n    woodstockVersion\n  }\n}"): (typeof documents)["query ServerInformations {\n  informations {\n    platform\n    uptime\n    hostname\n    woodstockVersion\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
