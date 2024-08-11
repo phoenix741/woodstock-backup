@@ -1,3 +1,18 @@
+# [2.0.0-alpha.3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.2...v2.0.0-alpha.3) (2024-08-11)
+
+
+### Bug Fixes
+
+* ✅ fix [#63](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/63): lock file sometimes dropped ([540fde4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/540fde4e6d3f4912abead1b0d1fe43af2fa485b5))
+* **front:** :adhesive_bandage: fix pool usage nb chunk that is not representative ([6cc7d4e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/6cc7d4e21aee1d91eaf24da5622b5a5bdf0785d8))
+
+
+### Features
+
+* :sparkles: add a button to download agent from the gitea with config ([cae4877](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/cae4877cef3d71deafbf5879818131fdb5873146))
+* :sparkles: get the server version from server ([ca81253](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ca812537ce3f7868688494ba16e6b14a5b23f1bc))
+* :zap: create ui to debian agent and config ([ebf780c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ebf780c0ebd126916ed82e45fb7a9b7a7dab96d7))
+
 # [2.0.0-alpha.2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.1...v2.0.0-alpha.2) (2024-08-06)
 
 
