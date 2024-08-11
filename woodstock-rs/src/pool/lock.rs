@@ -152,6 +152,9 @@ async fn create_lock_file(lock_file: &Path, name: &str) -> Result<bool> {
 
 async fn read_file_lock(lock_file: &Path) -> Result<LockFileData> {
     let buf = tokio::fs::read(&lock_file).await?;
+    if buf.is_empty() {
+        return Err(eyre::eyre!("Empty lock file"));
+    }
     let lock_file_data = LockFileData::decode(&buf[..])?;
     Ok(lock_file_data)
 }
@@ -213,8 +216,8 @@ async fn wait_for_lock(
 
         if let Ok(lock_file_data) = lock_file_data {
             debug!(
-                "Lock file is owned by pid: {} at {} by {name}",
-                lock_file_data.pid, lock_file_data.timestamp
+                "Lock file is owned by pid: {} at {} by {}, {name} waiting",
+                lock_file_data.pid, lock_file_data.timestamp, lock_file_data.lock_name,
             );
 
             // If the timestamp is too old (not refreshed in the last 3 * update_interval), we can remove the lock
