@@ -105,6 +105,7 @@ COPY --from=build-sharedrs /src/shared-rs/shared-rs.* /app/shared-rs/
 
 COPY --from=prod-dependencies /src/nestjs/node_modules /app/nestjs/node_modules
 COPY --from=prod-dependencies /src/node_modules /app/node_modules
+COPY --from=build-back /src/nestjs/package*.json /app/nestjs/
 COPY --from=build-back /src/nestjs/config/ /app/nestjs/config/
 COPY --from=build-back /src/nestjs/dist/ /app/nestjs/
 COPY --from=build-back /src/nestjs/ecosystem.config.js /app/nestjs/
