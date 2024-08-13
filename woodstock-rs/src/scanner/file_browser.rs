@@ -146,8 +146,7 @@ pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
 
         let acls: Result<PosixACL, posix_acl::ACLError> = PosixACL::read_acl(file);
 
-        acls.map(|acls| acls.entries())
-            .unwrap_or_else(|_| Vec::new())
+        acls.map_or_else(|_| Vec::new(), |acls| acls.entries())
             .iter()
             .map(|entry| {
                 let mut id = 0;

@@ -7,6 +7,7 @@ pub struct AbortHandle {
 
 #[napi]
 impl AbortHandle {
+  #[must_use]
   pub fn new(handle: JoinHandle<()>) -> Self {
     Self { handle }
   }

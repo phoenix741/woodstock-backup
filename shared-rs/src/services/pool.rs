@@ -26,7 +26,7 @@ pub struct JsPoolUnused {
 impl From<PoolUnused> for JsPoolUnused {
   fn from(unused: PoolUnused) -> Self {
     Self {
-      sha256: unused.sha256.to_vec(),
+      sha256: unused.sha256.clone(),
       size: unused.size.into(),
       compressed_size: unused.compressed_size.into(),
     }
@@ -164,7 +164,7 @@ impl JsPoolService {
       callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
     let pool_path = self.context.config.path.pool_path.clone();
-    let target = target.map(|target| target.into());
+    let target = target.map(std::convert::Into::into);
 
     let handle = tokio::spawn(async move {
       let mut refcnt = Refcnt::new(&pool_path);
@@ -174,7 +174,7 @@ impl JsPoolService {
         .remove_unused_files(&pool_path, target, &|unused| {
           tsfn.call(
             PoolUnusedMessage {
-              progress: unused.clone().map(|unused| unused.into()),
+              progress: unused.clone().map(std::convert::Into::into),
               error: None,
               complete: false,
             },
@@ -185,7 +185,7 @@ impl JsPoolService {
         .map_err(|_| Error::from_reason("Failed to remove unused files".to_string()));
 
       match result {
-        Ok(_) => {
+        Ok(()) => {
           tsfn.call(
             PoolUnusedMessage {
               progress: None,

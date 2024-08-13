@@ -204,7 +204,7 @@ async fn launch_backup(
         .map(|s| vec_to_osstr(s))
         .filter_map(|s| s.into_string().ok())
         .collect();
-    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(|s| s.as_str()).collect();
+    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(std::string::String::as_str).collect();
     client.init_backup_directory(&backuppc_shares_str).await?;
 
     backup_bar.set_message("Upload last file list");
@@ -316,7 +316,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "Woodstock backup {}/{}: {}",
             woodstock.hostname, woodstock.backup_number, woodstock.size
-        )
+        );
     }
 
     let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool);
@@ -326,7 +326,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "BackupPC backup {}/{}: {}",
             backuppc.hostname, backuppc.backup_number, backuppc.size
-        )
+        );
     }
 
     // Remove from backuppc_backups the backups that are already in woodstock_backups
@@ -364,7 +364,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!(
             "BackupPC backup {}/{}: {}",
             backuppc.hostname, backuppc.backup_number, backuppc.size
-        )
+        );
     }
 
     let multi = MultiProgress::new();
@@ -430,7 +430,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!(
                 "Backup to remove {}/{}: {}",
                 woodstock.hostname, woodstock.backup_number, woodstock.size
-            )
+            );
         }
 
         let total_bar = ProgressBar::new(size);

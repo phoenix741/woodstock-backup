@@ -208,7 +208,7 @@ impl WoodstockBackupClient {
     let client = self.client.lock().await;
     let shares = shares
       .iter()
-      .map(|share| share.as_str())
+      .map(std::string::String::as_str)
       .collect::<Vec<_>>();
 
     client
@@ -223,7 +223,7 @@ impl WoodstockBackupClient {
     client
       .execute_command(&command)
       .await
-      .map(|reply| reply.into())
+      .map(std::convert::Into::into)
       .map_err(|_| Error::from_reason("Can't execute command".to_string()))
   }
 
@@ -265,7 +265,7 @@ impl WoodstockBackupClient {
         .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
 
       match result {
-        Ok(_) => {
+        Ok(()) => {
           tsfn.call(
             JsBackupProgressionMessage {
               progress: None,
@@ -320,7 +320,7 @@ impl WoodstockBackupClient {
         .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
 
       match result {
-        Ok(_) => {
+        Ok(()) => {
           tsfn.call(
             JsBackupProgressionMessage {
               progress: None,

@@ -105,7 +105,7 @@ enum Commands {
 
     /// List directory like the client will do on the share directory
     /// The scan is made on the computer where the command is run but the config
-    /// will be take in the CONFIG_DIRECTORY (like on server)
+    /// will be take in the `CONFIG_DIRECTORY` (like on server)
     ///
     /// This command can be used for debugging purpose
     ListDirectory {

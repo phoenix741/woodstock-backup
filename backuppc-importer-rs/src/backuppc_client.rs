@@ -104,7 +104,7 @@ impl BackupPCClient {
         let path_join = vec_to_path(&path.join(&b'/'));
         debug!("Visit {:?}", path_join.display());
 
-        let ref_path = &path.iter().map(|s| s.as_slice()).collect::<Vec<&[u8]>>();
+        let ref_path = &path.iter().map(std::vec::Vec::as_slice).collect::<Vec<&[u8]>>();
 
         let mut view = self.view.lock().await;
         let dir = view.list(ref_path)?;
@@ -113,7 +113,7 @@ impl BackupPCClient {
         let mut files = Vec::new();
         for entry in dir {
             if entry.type_ == FileType::Dir {
-                let path = path.iter().map(|s| s.to_vec()).collect();
+                let path = path.iter().map(std::clone::Clone::clone).collect();
                 let entry_name = vec![entry.name.clone()];
                 let v = [path, entry_name].concat();
                 to_visit.push(v);

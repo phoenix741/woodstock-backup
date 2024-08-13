@@ -194,7 +194,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
-        let context = self.context.to_owned().clone();
+        let context = self.context.clone().clone();
 
         let refresh_cache_stream = stream!({
             let backups = Backups::new(&context);
@@ -579,7 +579,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let progress_max = self
             .progress_max
             .get(share_path)
-            .cloned()
+            .copied()
             .unwrap_or_default();
         let progression = Arc::new(Mutex::new(BackupProgression {
             progress_max,
