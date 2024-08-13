@@ -314,9 +314,9 @@ dependencies = [
 
 [[package]]
 name = "backuppc_pool_reader"
-version = "1.2.2"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdb454e5c650b2b39fd4737b3056850ba488382b047abdc5e731b8322f4b5e6e"
+checksum = "7ae1bc8bb2c4e653ec7e239911c8fe5bd7d502e901c782402a564bd2f4232242"
 dependencies = [
  "byteorder",
  "flate2",
