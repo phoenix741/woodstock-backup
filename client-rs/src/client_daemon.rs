@@ -299,9 +299,7 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
     let config_dir = args.config_dir;
     let log_path = config_dir
-        .clone()
-        .map(PathBuf::from)
-        .unwrap_or_else(get_config_path)
+        .clone().map_or_else(get_config_path, PathBuf::from)
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");

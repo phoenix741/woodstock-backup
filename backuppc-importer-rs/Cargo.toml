@@ -10,7 +10,7 @@ license = "MIT"
 [dependencies]
 async-stream = "0.3.5"
 async-trait = "0.1.80"
-backuppc_pool_reader = "^1.0.0"
+backuppc_pool_reader = "^2.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
 color-eyre = "0.6.3"
 console = "0.15.8"

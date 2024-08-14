@@ -17,12 +17,16 @@ fn main() -> Result<()> {
             "#[serde_as(as = \"serde_with::hex::Hex\")]",
         )
         .field_attribute(
+            "FileManifest.metadata",
+            "#[serde_as(as = \"Vec<(_, serde_with::hex::Hex)>\")]",
+        )
+        .field_attribute(
             "FileManifest.chunks",
             "#[serde_as(as = \"Vec<serde_with::hex::Hex>\")]",
         )
         .field_attribute(
             "FileManifest.path",
-            "#[serde_as(as = \"serde_with::base64::Base64\")]",
+            "#[serde(serialize_with = \"serde_path_serializer::serialize_path\")]",
         )
         .field_attribute(
             "FileManifest.symlink",

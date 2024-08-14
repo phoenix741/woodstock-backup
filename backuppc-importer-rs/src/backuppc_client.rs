@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Error, path::PathBuf, sync::Arc, u64::MAX};
+use std::{collections::HashMap, ffi::OsString, io::Error, sync::Arc};
 
 use async_stream::{stream, try_stream};
 use async_trait::async_trait;
@@ -17,7 +17,7 @@ use woodstock::{
     manifest::IndexManifest,
     refresh_cache_request,
     server::client::Client,
-    utils::path::{path_to_vec, vec_to_path},
+    utils::path::{osstr_to_vec, path_to_vec, vec_to_path},
     AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, Empty as ProtoEmpty,
     EntryType, ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
     FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
@@ -33,21 +33,19 @@ pub struct BackupPCClient {
     view: Arc<Mutex<BackupPC>>,
 }
 
-fn file_attribute_to_manifest(path: &[&str], file: FileAttributes) -> FileManifest {
+fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManifest {
     // Filename is path + filename
-    let mut path = path
-        .iter()
-        .map(std::string::ToString::to_string)
-        .collect::<Vec<String>>();
+    let mut path = path.iter().map(|s| s.to_vec()).collect::<Vec<Vec<u8>>>();
     path.push(file.name.clone());
-    let path = path.join("/");
+
+    let path = path.join(&b'/');
 
     let bpc_digest = BPC_DIGEST.to_string();
     let mut metadata = HashMap::new();
     metadata.insert(bpc_digest, file.bpc_digest.digest);
 
     FileManifest {
-        path: path_to_vec(&PathBuf::from(path)),
+        path,
         hash: vec![],
         chunks: vec![],
         acl: vec![],
@@ -100,14 +98,14 @@ impl BackupPCClient {
 
     async fn one_level(
         &self,
-        path: Vec<String>,
-        to_visit: &mut Vec<Vec<String>>,
+        path: Vec<Vec<u8>>,
+        to_visit: &mut Vec<Vec<Vec<u8>>>,
     ) -> Result<Vec<FileManifest>, Box<dyn std::error::Error>> {
-        debug!("Visit {:?}", path.join("/"));
-        let ref_path = &path
-            .iter()
-            .map(std::string::String::as_str)
-            .collect::<Vec<&str>>();
+        let path_join = vec_to_path(&path.join(&b'/'));
+        debug!("Visit {:?}", path_join.display());
+
+        let ref_path = &path.iter().map(std::vec::Vec::as_slice).collect::<Vec<&[u8]>>();
+
         let mut view = self.view.lock().await;
         let dir = view.list(ref_path)?;
         debug!("Found {} files", dir.len());
@@ -115,7 +113,10 @@ impl BackupPCClient {
         let mut files = Vec::new();
         for entry in dir {
             if entry.type_ == FileType::Dir {
-                to_visit.push([path.clone(), vec![entry.name.clone()]].concat());
+                let path = path.iter().map(std::clone::Clone::clone).collect();
+                let entry_name = vec![entry.name.clone()];
+                let v = [path, entry_name].concat();
+                to_visit.push(v);
             }
 
             files.push(file_attribute_to_manifest(ref_path, entry));
@@ -124,22 +125,21 @@ impl BackupPCClient {
         Ok(files)
     }
 
-    fn get_files(&self, share: &str) -> impl Stream<Item = FileManifest> + '_ {
+    fn get_files(&self, share: &[u8]) -> impl Stream<Item = FileManifest> + '_ {
         let share = share
-            .split('/')
-            .filter_map(|s| {
-                if s.is_empty() {
-                    None
-                } else {
-                    Some(s.to_string())
-                }
-            })
-            .collect::<Vec<String>>();
-        let backup_number = self.number.to_string();
-        let mut path = vec![self.hostname.clone(), backup_number];
+            .split(|s| s == &b'/')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&[u8]>>();
+
+        let number = self.number.to_string();
+        let number = number.as_bytes().to_vec();
+        let hostname = self.hostname.as_bytes().to_vec();
+        let share = share.iter().map(|s| s.to_vec()).collect::<Vec<Vec<u8>>>();
+
+        let mut path = vec![hostname, number];
         path.extend(share);
 
-        let original_path = PathBuf::from(path.clone().join("/"));
+        let original_path = vec_to_path(&path.clone().join(&b'/'));
 
         futures::stream::unfold(vec![path], |mut to_visit| async {
             let path = to_visit.pop()?;
@@ -234,7 +234,9 @@ impl Client for BackupPCClient {
         let share = request.share.unwrap();
         let remove_share = share.share_path.clone();
 
-        let stream = self.get_files(share.share_path.clone().as_str());
+        let share_path = osstr_to_vec(&OsString::from(&share.share_path));
+
+        let stream = self.get_files(&share_path);
 
         let index = self.index.clone();
         let remove_index = self.index.clone();
@@ -307,17 +309,17 @@ impl Client for BackupPCClient {
     async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
         let number = self.number;
         let number = number.to_string();
-        let hostname = self.hostname.clone();
+        let number = number.as_bytes();
+        let hostname = self.hostname.as_bytes();
         let view = self.view.clone();
 
-        let filename = vec_to_path(&request.filename);
-        let filename = filename.to_str().unwrap_or_default();
-        let filename = filename
-            .split('/')
+        let filename = request
+            .filename
+            .split(|&c| c == b'/')
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
 
-        let mut path = vec![hostname.as_str(), number.as_str()];
+        let mut path = vec![hostname, number];
         path.extend(filename);
         debug!("Calculate chunk for file {:?}", &path);
 
@@ -353,20 +355,19 @@ impl Client for BackupPCClient {
 
     fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
         let number = self.number;
-        let hostname = self.hostname.clone();
+        let hostname = self.hostname.as_bytes();
         let view = self.view.clone();
         let chunks = request.chunks_id.clone();
 
         try_stream!({
-            let backup_number = number.to_string();
+            let backup_number = &number.to_string().into_bytes();
 
-            let filename = vec_to_path(&request.filename);
-            let filename = filename.to_str().unwrap_or_default();
-            let filename = filename
-                .split('/')
+            let filename = request
+                .filename
+                .split(|&c| c == b'/')
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>();
-            let mut path = vec![hostname.as_str(), backup_number.as_str()];
+            let mut path = vec![hostname, backup_number];
             path.extend(filename);
 
             let mut view = view.lock().await;
@@ -375,7 +376,7 @@ impl Client for BackupPCClient {
                 .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
 
             let mut buf = vec![0; BUFFER_SIZE];
-            let mut chunk_id = MAX;
+            let mut chunk_id = u64::MAX;
             let mut position: u64 = 0;
             let mut send_chunk = false;
 
@@ -429,7 +430,7 @@ impl Client for BackupPCClient {
                 }
             }
 
-            if (chunks.is_empty() || chunks.contains(&chunk_id)) && chunk_id != MAX {
+            if (chunks.is_empty() || chunks.contains(&chunk_id)) && chunk_id != u64::MAX {
                 debug!("Send footer for chunk {path:?}:{chunk_id} last");
                 let chunk_hash = chunk_hasher.finalize().to_vec();
                 yield FileChunk {

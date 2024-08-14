@@ -1,6 +1,7 @@
 mod backuppc_client;
 mod backuppc_manifest;
 
+use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -10,6 +11,8 @@ use std::time::UNIX_EPOCH;
 use backuppc_client::BackupPCClient;
 use backuppc_pool_reader::attribute_file::Search;
 use backuppc_pool_reader::hosts::{Hosts as BackupPCHosts, HostsTrait};
+use backuppc_pool_reader::util::osstr_to_vec;
+use backuppc_pool_reader::util::vec_to_osstr;
 use backuppc_pool_reader::view::BackupPC;
 use clap::{command, Parser};
 use console::Emoji;
@@ -69,8 +72,9 @@ fn list_backuppc_backups(pool_path: &str) -> Vec<BackupDefinition> {
     for host in hosts {
         let backups = hosts_config.list_backups(&host).unwrap_or_default();
         for backup in backups {
+            let host = vec_to_osstr(&host);
             result.push(BackupDefinition {
-                hostname: host.clone(),
+                hostname: host.to_string_lossy().to_string(),
                 backup_number: backup.num as usize,
                 start_time: backup.start_time,
                 size: backup.size,
@@ -166,8 +170,9 @@ async fn launch_backup(
         Box::new(backuppc_configuration),
         Box::new(search),
     );
-    let backuppc_shares =
-        view.list_shares(&backup.hostname, u32::try_from(backup.backup_number)?)?;
+
+    let hostname = osstr_to_vec(&OsString::from(&backup.hostname));
+    let backuppc_shares = view.list_shares(&hostname, u32::try_from(backup.backup_number)?)?;
 
     let backuppc_client = BackupPCClient::new(view, &backup.hostname, backup.backup_number);
 
@@ -194,7 +199,12 @@ async fn launch_backup(
     backup_bar.set_message("Create backup directory");
     backup_bar.tick();
 
-    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(|s| s.as_str()).collect();
+    let backuppc_shares: Vec<String> = backuppc_shares
+        .iter()
+        .map(|s| vec_to_osstr(s))
+        .filter_map(|s| s.into_string().ok())
+        .collect();
+    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(std::string::String::as_str).collect();
     client.init_backup_directory(&backuppc_shares_str).await?;
 
     backup_bar.set_message("Upload last file list");
@@ -306,7 +316,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "Woodstock backup {}/{}: {}",
             woodstock.hostname, woodstock.backup_number, woodstock.size
-        )
+        );
     }
 
     let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool);
@@ -316,7 +326,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "BackupPC backup {}/{}: {}",
             backuppc.hostname, backuppc.backup_number, backuppc.size
-        )
+        );
     }
 
     // Remove from backuppc_backups the backups that are already in woodstock_backups
@@ -354,7 +364,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!(
             "BackupPC backup {}/{}: {}",
             backuppc.hostname, backuppc.backup_number, backuppc.size
-        )
+        );
     }
 
     let multi = MultiProgress::new();
@@ -420,7 +430,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!(
                 "Backup to remove {}/{}: {}",
                 woodstock.hostname, woodstock.backup_number, woodstock.size
-            )
+            );
         }
 
         let total_bar = ProgressBar::new(size);

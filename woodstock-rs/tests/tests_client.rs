@@ -198,10 +198,10 @@ async fn test_client_execute_command() {
         let stdout = result.get_ref().stdout.clone();
         let mut stdout = stdout
             .split(sep)
-            .map(|s| s.trim())
+            .map(str::trim)
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
-        stdout.sort();
+        stdout.sort_unstable();
         let stdout = stdout.join("\n");
 
         // Assert result is error

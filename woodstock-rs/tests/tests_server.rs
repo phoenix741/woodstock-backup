@@ -161,7 +161,7 @@ async fn test_server_backup() {
         client.authenticate("password").await.unwrap();
 
         client
-            .init_backup_directory(&[&share_path.as_str()])
+            .init_backup_directory(&[(share_path.as_str())])
             .await
             .unwrap();
 

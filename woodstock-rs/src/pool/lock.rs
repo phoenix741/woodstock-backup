@@ -40,6 +40,7 @@ pub struct PoolLock {
 }
 
 impl PoolLock {
+    #[must_use] 
     pub fn new_with_name(path: &Path, name: &str) -> Self {
         PoolLock {
             name: name.to_string(),
@@ -49,9 +50,10 @@ impl PoolLock {
         }
     }
 
+    #[must_use] 
     pub fn new(path: &Path) -> Self {
         PoolLock {
-            name: path.to_str().map(|s| s.to_string()).unwrap_or_default(),
+            name: path.to_str().map(std::string::ToString::to_string).unwrap_or_default(),
             lock_file: path.join("lock"),
             locked: false,
             abort_handle: None,
@@ -120,7 +122,7 @@ async fn create_lock_file(lock_file: &Path, name: &str) -> Result<bool> {
     debug!("Try to create lock file {} for {name}", lock_file.display());
 
     let lock_file_data = LockFileData {
-        pid: std::process::id() as u64,
+        pid: u64::from(std::process::id()),
         timestamp: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs(),
