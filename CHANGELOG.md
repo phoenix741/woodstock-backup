@@ -1,3 +1,16 @@
+# [2.0.0-alpha.4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.3...v2.0.0-alpha.4) (2024-08-14)
+
+
+### Bug Fixes
+
+* :bug: fix missing package.json (missing version information on agent) ([2c44372](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/2c4437229e5ba545fc43847ed71b7c9b0e0bc917))
+* 🐛 fix [#62](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/62) some files are not imported ([e3f804e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e3f804ef545ab6de734d2d8e9e52fdc2f1743c7e))
+
+
+### Features
+
+* ✨ manifest.path sould be serialized to text and not to base64 ([8e60589](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8e60589275f2310fc4c45351d14165d341f0d6e7))
+
 # [2.0.0-alpha.3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.2...v2.0.0-alpha.3) (2024-08-11)
 
 
