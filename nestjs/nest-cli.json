@@ -48,15 +48,6 @@
         "tsConfigPath": "apps/scheduleWorker/tsconfig.app.json"
       }
     },
-    "statsWorker": {
-      "type": "application",
-      "root": "apps/statsWorker",
-      "entryFile": "main",
-      "sourceRoot": "apps/statsWorker/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/statsWorker/tsconfig.app.json"
-      }
-    },
     "refcntWorker": {
       "type": "application",
       "root": "apps/refcntWorker",
@@ -64,15 +55,6 @@
       "sourceRoot": "apps/refcntWorker/src",
       "compilerOptions": {
         "tsConfigPath": "apps/refcntWorker/tsconfig.app.json"
-      }
-    },
-    "client": {
-      "type": "application",
-      "root": "apps/client",
-      "entryFile": "main",
-      "sourceRoot": "apps/client/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/client/tsconfig.app.json"
       }
     },
     "shared": {

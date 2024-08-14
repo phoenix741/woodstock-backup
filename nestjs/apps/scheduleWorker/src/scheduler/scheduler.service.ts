@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { SchedulerConfigService } from '@woodstock/shared';
+import { DEFAULT_SCHEDULER, SchedulerConfigService } from '@woodstock/shared';
 import { QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 
@@ -11,41 +11,44 @@ export class SchedulerService implements OnModuleInit {
     private schedulerConfigService: SchedulerConfigService,
   ) {}
 
-  async startScheduler(): Promise<void> {
-    const wakeupSchedule = (await this.schedulerConfigService.getScheduler()).wakeupSchedule;
-    const nightlySchedule = (await this.schedulerConfigService.getScheduler()).nightlySchedule;
+  async #addRepeatableJob(name: string, pattern: string) {
+    const repeatableJobs = await this.scheduleQueue.getRepeatableJobs();
+    const job = repeatableJobs.find((job) => job.name === name);
 
-    await this.removeAll();
+    // If same pattern, do nothing
+    if (job && job.pattern === pattern) {
+      return;
+    }
+
+    // If different pattern, remove and add
+    if (job) {
+      await this.scheduleQueue.removeRepeatableByKey(job.key);
+    }
+
+    // Else
+    await this.scheduleQueue.add(
+      name,
+      {},
+      {
+        repeat: {
+          pattern,
+        },
+      },
+    );
+  }
+
+  async startScheduler(): Promise<void> {
+    const wakeupSchedule =
+      (await this.schedulerConfigService.getScheduler()).wakeupSchedule ?? DEFAULT_SCHEDULER.wakeupSchedule;
+    const nightlySchedule =
+      (await this.schedulerConfigService.getScheduler()).nightlySchedule ?? DEFAULT_SCHEDULER.nightlySchedule;
 
     if (wakeupSchedule) {
-      await this.scheduleQueue.add(
-        'wakeup',
-        {},
-        {
-          repeat: {
-            pattern: wakeupSchedule,
-          },
-        },
-      );
+      await this.#addRepeatableJob('wakeup', wakeupSchedule);
     }
 
     if (nightlySchedule) {
-      await this.scheduleQueue.add(
-        'nightly',
-        {},
-        {
-          repeat: {
-            pattern: nightlySchedule,
-          },
-        },
-      );
-    }
-  }
-
-  async removeAll(): Promise<void> {
-    const jobs = await this.scheduleQueue.getRepeatableJobs();
-    for (const job of jobs) {
-      await this.scheduleQueue.removeRepeatableByKey(job.key);
+      await this.#addRepeatableJob('nightly', nightlySchedule);
     }
   }
 

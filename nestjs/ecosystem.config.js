@@ -27,10 +27,4 @@ module.exports = [
     cwd: '/app/nestjs',
     instances: process.env.DISABLE_SCHEDULER === 'true' ? 0 : 1,
   },
-  {
-    script: 'apps/statsWorker/main.js',
-    name: 'statsWorker',
-    cwd: '/app/nestjs',
-    instances: process.env.DISABLE_STATS === 'true' ? 0 : 1,
-  },
 ];
