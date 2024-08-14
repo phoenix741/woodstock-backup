@@ -1,16 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { ApplicationConfigService } from '@woodstock/shared';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
+import { ApplicationConfigService, BackupsService } from '@woodstock/shared';
 import {
   JsBackupProgression,
   WoodstockBackupClient,
   WoodstockBackupCommandReply,
   WoodstockBackupShare,
 } from '@woodstock/shared-rs';
+import { Cache } from 'cache-manager';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class BackupsClientService {
-  constructor(private applicationConfig: ApplicationConfigService) {}
+  constructor(
+    private backupsService: BackupsService,
+    private applicationConfig: ApplicationConfigService,
+  ) {}
 
   createClient(hostname: string, ip: string, backupNumber: number): Promise<WoodstockBackupClient> {
     const context = this.applicationConfig.context;
@@ -21,16 +26,20 @@ export class BackupsClientService {
     return context.authenticate(password);
   }
 
-  createBackupDirectory(context: WoodstockBackupClient, shares: Array<string>): Promise<void> {
-    return context.createBackupDirectory(shares);
+  async createBackupDirectory(context: WoodstockBackupClient, shares: Array<string>): Promise<void> {
+    await context.createBackupDirectory(shares);
+
+    await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }
 
   executeCommand(context: WoodstockBackupClient, command: string): Promise<WoodstockBackupCommandReply> {
     return context.executeCommand(command);
   }
 
-  uploadFileList(context: WoodstockBackupClient, shares: Array<string>): Promise<void> {
-    return context.uploadFileList(shares);
+  async uploadFileList(context: WoodstockBackupClient, shares: Array<string>): Promise<void> {
+    await context.uploadFileList(shares);
+
+    await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }
 
   downloadFileList(
@@ -93,16 +102,20 @@ export class BackupsClientService {
     });
   }
 
-  compact(context: WoodstockBackupClient, sharePath: string): Promise<void> {
-    return context.compact(sharePath);
+  async compact(context: WoodstockBackupClient, sharePath: string): Promise<void> {
+    await context.compact(sharePath);
+
+    await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }
 
   countReferences(context: WoodstockBackupClient): Promise<void> {
     return context.countReferences();
   }
 
-  saveBackup(context: WoodstockBackupClient, completed: boolean): Promise<void> {
-    return context.saveBackup(completed);
+  async saveBackup(context: WoodstockBackupClient, completed: boolean): Promise<void> {
+    await context.saveBackup(completed);
+
+    await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }
 
   close(context: WoodstockBackupClient): Promise<void> {

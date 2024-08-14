@@ -94,6 +94,10 @@ export class ApplicationConfigService {
     };
   }
 
+  get cacheTtl(): number {
+    return this.configService.get<number>('CACHE_TTL', 24 * 3600) * 1000;
+  }
+
   get logLevel(): string {
     return this.configService.get<string>('LOG_LEVEL', 'info');
   }

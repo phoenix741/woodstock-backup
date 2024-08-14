@@ -83,7 +83,7 @@ export class JobService extends QueueEventsHost {
       return false;
     }
 
-    // Time since last backup : If backup is activated, and the last backup is old, we create a new backup
+    // Time since last backup : If backup is activated, and the last backup is old, we crete a new backup
     const config = await this.hostsService.getHost(host);
     const schedulerConfig = await this.schedulerConfigService.getScheduler();
     const schedule = Object.assign({}, schedulerConfig.defaultSchedule, config.schedule);

@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
 import { CoreBackupsService, JsBackup } from '@woodstock/shared-rs';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class BackupsService {
-  constructor(private backupsService: CoreBackupsService) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private backupsService: CoreBackupsService,
+  ) {}
 
   getBackupDestinationDirectory(hostname: string, backupNumber: number): string {
     return this.backupsService.getBackupDestinationDirectory(hostname, backupNumber);
@@ -18,11 +23,13 @@ export class BackupsService {
   }
 
   getBackup(hostname: string, backupNumber: number): Promise<JsBackup | null> {
-    return this.backupsService.getBackup(hostname, backupNumber);
+    return this.cacheManager.wrap(`backup-${hostname}-${backupNumber}`, () =>
+      this.backupsService.getBackup(hostname, backupNumber),
+    );
   }
 
   getBackups(hostname: string): Promise<Array<JsBackup>> {
-    return this.backupsService.getBackups(hostname);
+    return this.cacheManager.wrap(`backups-${hostname}`, () => this.backupsService.getBackups(hostname));
   }
 
   getLastBackup(hostname: string): Promise<JsBackup | null> {
@@ -37,11 +44,20 @@ export class BackupsService {
     return this.backupsService.getBackupSharePaths(hostname, backupNumber);
   }
 
-  removeBackup(hostname: string, backupNumber: number): Promise<JsBackup> {
-    return this.backupsService.removeBackup(hostname, backupNumber);
+  async removeBackup(hostname: string, backupNumber: number): Promise<JsBackup> {
+    const backup = this.backupsService.removeBackup(hostname, backupNumber);
+    await this.invalidateBackup(hostname, backupNumber);
+    return backup;
   }
 
   removeRefcntOfHost(hostname: string, backupNumber: number): Promise<void> {
     return this.backupsService.removeRefcntOfHost(hostname, backupNumber);
+  }
+
+  async invalidateBackup(hostname: string, backupNumber?: number): Promise<void> {
+    if (backupNumber) {
+      await this.cacheManager.del(`backup-${hostname}-${backupNumber}`);
+    }
+    await this.cacheManager.del(`backups-${hostname}`);
   }
 }
