@@ -1,3 +1,12 @@
+# [2.0.0-alpha.5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.4...v2.0.0-alpha.5) (2024-08-15)
+
+
+### Features
+
+* :sparkles: date to next backup is calculated for each host to put in screen information ([02a3b1c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/02a3b1c68bb742675fc41d7ddaa6ba06a0001971))
+* :sparkles: fix [#55](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/55), save the backup regulary ([595d342](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/595d342802bd8beeefda035a5348dee64112c5ba))
+* :sparkles: fix [#60](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/60), cache host and backups to ensure few wakup of drive ([e1ac862](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e1ac8626984882590747af00b26a3690a77e2d3a))
+
 # [2.0.0-alpha.4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.3...v2.0.0-alpha.4) (2024-08-14)
 
 
