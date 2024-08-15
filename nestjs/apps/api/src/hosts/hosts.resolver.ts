@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { NotFoundException } from '@nestjs/common';
-import { Args, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, HostConfiguration, JobBackupData, QueueName } from '@woodstock/shared';
+import { NotFoundException, Res } from '@nestjs/common';
+import { Args, Float, Int, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import { Backup, HostConfiguration, JobBackupData, JobService, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Host } from './hosts.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
@@ -12,6 +12,7 @@ export class HostsResolver {
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
     private hostsService: HostsService,
     private backupsService: BackupsService,
+    private jobService: JobService,
   ) {}
 
   @Query(() => [Host])
@@ -43,6 +44,21 @@ export class HostsResolver {
   @ResolveField(() => Backup, { nullable: true })
   async lastBackup(@Parent() host: Host): Promise<Backup | undefined> {
     return (await this.backupsService.getLastBackup(host.name)) ?? undefined;
+  }
+
+  @ResolveField(() => Float, { nullable: true })
+  async timeSinceLastBackup(@Parent() host: Host): Promise<number | undefined> {
+    return await this.backupsService.getTimeSinceLastBackup(host.name);
+  }
+
+  @ResolveField(() => Float, { nullable: true })
+  async timeToNextBackup(@Parent() host: Host): Promise<number | undefined> {
+    return await this.jobService.getTimeToNextBackup(host.name);
+  }
+
+  @ResolveField(() => Date, { nullable: true })
+  async dateToNextBackup(@Parent() host: Host): Promise<Date | undefined> {
+    return await this.jobService.getDateToNextBackup(host.name);
   }
 
   @ResolveField(() => String, { nullable: true })

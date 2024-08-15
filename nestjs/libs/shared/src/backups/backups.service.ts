@@ -44,6 +44,15 @@ export class BackupsService {
     return this.backupsService.getBackupSharePaths(hostname, backupNumber);
   }
 
+  async getTimeSinceLastBackup(hostname: string): Promise<number | undefined> {
+    const lastBackup = await this.backupsService.getLastBackup(hostname);
+    if (!lastBackup) {
+      return undefined;
+    }
+
+    return new Date().getTime() / 1000 - (lastBackup?.startDate ?? 0);
+  }
+
   async removeBackup(hostname: string, backupNumber: number): Promise<JsBackup> {
     const backup = this.backupsService.removeBackup(hostname, backupNumber);
     await this.invalidateBackup(hostname, backupNumber);

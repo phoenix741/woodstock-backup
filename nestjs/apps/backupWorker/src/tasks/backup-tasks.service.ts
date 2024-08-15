@@ -7,6 +7,7 @@ import {
   ExecuteCommandOperation,
   JobBackupData,
   JobService,
+  QUEUE_TASK_FAILED_STATE,
   QueueGroupTasks,
   QueueSubTask,
   QueueTaskContext,
@@ -161,8 +162,8 @@ export class BackupTasksService {
         'add_backup',
       );
     });
-    globalContext.commands.set(BackupNameTask.SAVE_BACKUP_TASK, (gc) => {
-      return this.backupsClient.saveBackup(gc.globalContext.connection, true);
+    globalContext.commands.set(BackupNameTask.SAVE_BACKUP_TASK, (gc, _, isFailing) => {
+      return this.backupsClient.saveBackup(gc.globalContext.connection, !isFailing);
     });
 
     return globalContext;

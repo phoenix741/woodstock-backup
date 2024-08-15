@@ -13,7 +13,7 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  * Therefore it is highly recommended to use the babel or swc plugin for production.
  */
 const documents = {
-    "query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}": types.HostsDocument,
+    "query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    timeSinceLastBackup\n    dateToNextBackup\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}": types.HostsDocument,
     "query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    number\n    completed\n    startDate\n    endDate\n    fileCount\n    newFileCount\n    existingFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}": types.BackupsDocument,
     "query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}": types.BackupsBrowseDocument,
     "mutation createBackup($hostname: String!) {\n  createBackup(hostname: $hostname) {\n    id\n  }\n}": types.CreateBackupDocument,
@@ -47,7 +47,7 @@ export function graphql(source: string): unknown;
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}"): (typeof documents)["query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}"];
+export function graphql(source: "query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    timeSinceLastBackup\n    dateToNextBackup\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}"): (typeof documents)["query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n    }\n    timeSinceLastBackup\n    dateToNextBackup\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

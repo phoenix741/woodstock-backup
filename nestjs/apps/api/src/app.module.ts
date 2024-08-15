@@ -52,7 +52,7 @@ import { CacheConfigService } from '@woodstock/shared';
       installSubscriptionHandlers: true,
       autoSchemaFile: true,
       buildSchemaOptions: {
-        dateScalarMode: 'timestamp',
+        dateScalarMode: 'isoDate',
       },
     }),
     ServeStaticModule.forRootAsync({

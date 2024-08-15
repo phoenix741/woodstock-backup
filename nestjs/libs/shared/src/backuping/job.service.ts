@@ -1,6 +1,7 @@
 import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, JobState, Queue } from 'bullmq';
+import * as cronParser from 'cron-parser';
 
 import { BackupsService, HostsService, LockService } from '../backups';
 import { QueueName } from '../queue';
@@ -28,6 +29,53 @@ export class JobService extends QueueEventsHost {
     private pingService: PingService,
   ) {
     super();
+  }
+
+  async getTimeToNextBackup(hostname: string): Promise<number | undefined> {
+    const schedule = await this.hostsService.getSchedule(hostname);
+    if (!schedule.activated) {
+      this.logger.debug(`Backup is not activated for the host ${hostname}`);
+      return undefined;
+    }
+
+    // Time since last backup : If backup is activated, and the last backup is old, we crete a new backup
+    const timeSinceLastBackup = await this.backupsService.getTimeSinceLastBackup(hostname);
+    if (timeSinceLastBackup === undefined) {
+      this.logger.debug(`No backup for the host ${hostname}`);
+      return 0;
+    }
+    const lastBackup = await this.backupsService.getLastBackup(hostname);
+    if (!lastBackup || !lastBackup.completed) {
+      this.logger.debug(`Last backup for the host ${hostname} is not completed`);
+      return 0;
+    }
+
+    const backupPeriod = schedule.backupPeriod ?? 0;
+
+    this.logger.debug(
+      `Last backup for the host ${hostname} have been made at ${
+        timeSinceLastBackup / 3600
+      } hours past (should be made after ${backupPeriod / 3600} hour)`,
+    );
+
+    return Math.max(0, backupPeriod - timeSinceLastBackup);
+  }
+
+  async getDateToNextBackup(hostname: string): Promise<Date | undefined> {
+    const timeToNextBackupSecs = await this.getTimeToNextBackup(hostname);
+    if (timeToNextBackupSecs === undefined) {
+      return undefined;
+    }
+
+    const timeToNextBackup = timeToNextBackupSecs * 1000;
+    const date = new Date(Date.now() + timeToNextBackup);
+
+    let schedulerConfig = await this.schedulerConfigService.getScheduler();
+    const interval = cronParser.parseExpression(schedulerConfig.wakeupSchedule!, {
+      currentDate: date,
+    });
+
+    return interval.next().toDate();
   }
 
   /**
@@ -84,22 +132,12 @@ export class JobService extends QueueEventsHost {
     }
 
     // Time since last backup : If backup is activated, and the last backup is old, we crete a new backup
-    const config = await this.hostsService.getHost(host);
-    const schedulerConfig = await this.schedulerConfigService.getScheduler();
-    const schedule = Object.assign({}, schedulerConfig.defaultSchedule, config.schedule);
-
-    const lastBackup = await this.backupsService.getLastBackup(host);
-    const timeSinceLastBackup = (new Date().getTime() - (lastBackup?.startDate || 0)) / 1000;
-    const backupPeriod = schedule.backupPeriod || 0;
-    this.logger.debug(
-      `Last backup for the host ${host} have been made at ${
-        timeSinceLastBackup / 3600
-      } hours past (should be made after ${backupPeriod / 3600} hour)`,
-    );
+    const timeToNextBackup = await this.getTimeToNextBackup(host);
+    this.logger.debug(`Time to next backup for ${host}: ${timeToNextBackup}`);
 
     if (!force) {
       // TODO: Check period of inactivity vs period of activity
-      if (!(schedule.activated && (!lastBackup?.completed || timeSinceLastBackup > backupPeriod))) {
+      if (timeToNextBackup === undefined || timeToNextBackup > 0) {
         return false;
       }
     }

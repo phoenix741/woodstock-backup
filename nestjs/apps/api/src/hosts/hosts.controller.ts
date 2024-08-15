@@ -132,6 +132,7 @@ export class HostController {
     const host = await this.hostsService.getHost(name);
 
     archive.file(join(this.config.certificatePath, 'rootCA.pem'), { name: 'rootCA.pem' });
+    archive.file(join(this.config.certificatePath, `public_key.pem`), { name: `public_key.pem` });
     archive.file(join(this.config.certificatePath, `${name}_server.pem`), { name: `${name}_server.pem` });
     archive.file(join(this.config.certificatePath, `${name}_server.key`), { name: `${name}_server.key` });
     archive.append(await this.yamlService.writeBuffer({ hostname: name, password: host.password }), {

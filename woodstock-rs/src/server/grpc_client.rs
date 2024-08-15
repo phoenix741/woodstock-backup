@@ -55,7 +55,7 @@ impl BackupGrpcClient {
 
             Ok(request)
         } else {
-            error!("No session id available to stream logs");
+            error!("No session id available to create request");
             Err(tonic::Status::failed_precondition(
                 "No session id available",
             ))

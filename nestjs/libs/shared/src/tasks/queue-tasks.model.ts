@@ -50,6 +50,7 @@ export const QUEUE_TASK_SUCCESS_STATE = [QueueTaskState.SUCCESS];
 export type QueueSubTaskCommand<GlobalContext, LocalContext> = (
   context: QueueTaskContext<GlobalContext>,
   localContext: LocalContext,
+  isFailing: boolean,
 ) => Observable<QueueTaskProgression> | Promise<QueueTaskProgression | void>;
 
 /**

@@ -34,8 +34,8 @@ export class SchedulerConsumer extends WorkerHost {
   async wakeupJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Wakeup scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
-      const hasBackup = await this.jobService.shouldBackupHost(host);
-      if (!hasBackup) {
+      const shouldBackup = await this.jobService.shouldBackupHost(host);
+      if (shouldBackup) {
         await this.hostsQueue.add('backup', { host });
       }
     }
