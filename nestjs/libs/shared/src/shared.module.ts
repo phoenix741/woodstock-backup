@@ -1,20 +1,20 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { CertificateService } from './authentification';
 import { CoreBackupsService, CoreFilesService, CoreHostsService, CorePoolService } from '@woodstock/shared-rs';
-import { ApplicationConfigService, SchedulerConfigService } from './config';
+import { CertificateService } from './authentification';
 import { JobService } from './backuping';
 import { BackupsService, HostsService, LockService } from './backups';
-import { FilesService } from './files';
-import { BullConfigService, RegisteredQueue } from './queue';
-import { DiskStatisticsService, PoolStatisticsService, StatsInstantService } from './statistics';
-import { QueueTasksService } from './tasks';
-import { BullModule } from '@nestjs/bullmq';
+import { PoolService } from './backups/pool.service';
 import { ExecuteCommandService } from './commands/execute-command.service';
 import { PingService } from './commands/ping.service';
 import { ResolveService } from './commands/resolve.service';
 import { ToolsService } from './commands/tools.service';
+import { ApplicationConfigService, SchedulerConfigService } from './config';
+import { FilesService } from './files';
+import { BullConfigService, RegisteredQueue } from './queue';
 import { YamlService } from './services';
-import { PoolService } from './backups/pool.service';
+import { DiskStatisticsService, PoolStatisticsService, StatsInstantService } from './statistics';
+import { QueueTasksService } from './tasks';
 
 @Module({
   providers: [ApplicationConfigService],

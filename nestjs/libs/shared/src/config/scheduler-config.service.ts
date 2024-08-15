@@ -3,8 +3,8 @@ import { YamlService } from '../services/yaml.service';
 import { ApplicationConfigService } from './application-config.service';
 import { ApplicationScheduler, Schedule } from './scheduler.dto';
 
-const DEFAULT_SCHEDULER = new ApplicationScheduler({
-  wakeupSchedule: '0 0 * * *',
+export const DEFAULT_SCHEDULER = new ApplicationScheduler({
+  wakeupSchedule: '*/15 * * * *',
   nightlySchedule: '0 0 * * *',
   defaultSchedule: new Schedule({
     activated: true,

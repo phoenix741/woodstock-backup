@@ -97,7 +97,12 @@ export class QueueTasksService {
             subtask.state = QueueTaskState.ABORTED;
             return of(primaryTask);
           }
-          return this.#executeSubtask(primaryTask, subtask, context);
+          return this.#executeSubtask(
+            primaryTask,
+            subtask,
+            context,
+            QUEUE_TASK_FAILED_STATE.includes(primaryTask.state),
+          );
         }
 
         return of(primaryTask);
@@ -109,6 +114,7 @@ export class QueueTasksService {
     primaryTask: QueueTasks,
     subtask: QueueSubTask,
     context: QueueTaskContext<Context>,
+    isFailing: boolean,
   ): Observable<QueueTasks> {
     if (subtask.state !== QueueTaskState.WAITING) {
       if (subtask.state === QueueTaskState.RUNNING) {
@@ -123,7 +129,7 @@ export class QueueTasksService {
     if (!command) {
       throw new Error(`No command found for task ${subtask.taskName}`);
     }
-    const launchCommand = defer(() => command(context, subtask.localContext));
+    const launchCommand = defer(() => command(context, subtask.localContext, isFailing));
 
     subtask.progression = new QueueTaskProgression();
     subtask.state = QueueTaskState.RUNNING;

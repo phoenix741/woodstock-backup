@@ -42,7 +42,7 @@
 import HostRepartitionChartsComponent from '@/components/hosts/cards/HostRepartitionChartsComponent.vue';
 import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSuccessFailureChartsComponent.vue';
 
-import { getColor, getState, toDay } from '@/components/hosts/hosts.utils';
+import { getColor, getState, toDateTime, toDay } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
@@ -72,6 +72,7 @@ const headers: ReadonlyHeaders = [
   },
   { title: 'Last backup number', align: 'end', key: 'lastBackupNumber' },
   { title: 'Last backup age', align: 'end', key: 'lastBackupAge' },
+  { title: 'Next Backup', align: 'end', key: 'nextBackup' },
   { title: 'Last backup size', align: 'end', key: 'lastBackupSize' },
   { title: 'State', align: 'end', key: 'state' },
 ];
@@ -80,8 +81,8 @@ const devicesDataTable = computed(() => {
   return devices.value?.hosts.map((device) => ({
     name: device.name,
     lastBackupNumber: device.lastBackup?.number,
-    lastBackupAge:
-      device.lastBackup && toDay(new Date().getTime() - new Date(device.lastBackup?.startDate * 1000).getTime()),
+    lastBackupAge: device.timeSinceLastBackup && toDay(device.timeSinceLastBackup * 1000),
+    nextBackup: device.dateToNextBackup && toDateTime(device.dateToNextBackup),
     lastBackupSize: device.lastBackup?.fileSize,
     state: getState(device),
     configuration: device.configuration,

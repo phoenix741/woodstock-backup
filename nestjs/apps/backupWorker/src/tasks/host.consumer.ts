@@ -119,9 +119,14 @@ export class HostConsumer extends WorkerHost {
         this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
         throw err;
       } finally {
+        const lastBackup = await this.backupsService.getLastBackup(job.data.host);
         // Check if the previous backup is incomplete, we can remove it
         const mayBeIncompleteBackup = await this.backupsService.getPreviousBackup(job.data.host, job.data.number || -1);
-        if (mayBeIncompleteBackup && !mayBeIncompleteBackup.completed) {
+        if (
+          mayBeIncompleteBackup &&
+          !mayBeIncompleteBackup.completed &&
+          lastBackup?.number !== mayBeIncompleteBackup.number
+        ) {
           await this.hostsQueue.add('remove_backup', { host: job.data.host, number: mayBeIncompleteBackup.number });
         }
       }

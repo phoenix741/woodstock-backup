@@ -32,10 +32,18 @@ import { StatsResolver } from './stats/stats.resolver.js';
 import { BigIntScalar } from './utils/bigint.scalar.js';
 import { generateRsaKey } from '@woodstock/shared-rs';
 import { ServerResolver } from './server/server.resolver.js';
+import { CacheModule } from '@nestjs/cache-manager';
+import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
+import { CacheConfigService } from '@woodstock/shared';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule.registerAsync<IORedisOptions>({
+      isGlobal: true,
+      useClass: CacheConfigService,
+      imports: [ConfigProviderModule],
+    }),
     ConfigProviderModule,
     SharedModule,
     GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -44,7 +52,7 @@ import { ServerResolver } from './server/server.resolver.js';
       installSubscriptionHandlers: true,
       autoSchemaFile: true,
       buildSchemaOptions: {
-        dateScalarMode: 'timestamp',
+        dateScalarMode: 'isoDate',
       },
     }),
     ServeStaticModule.forRootAsync({
@@ -61,6 +69,7 @@ import { ServerResolver } from './server/server.resolver.js';
     PrometheusController,
   ],
   providers: [
+    CacheConfigService,
     BackupController,
     BackupsFilesController,
     BackupsFilesService,

@@ -2,6 +2,7 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, NotFoundException } from '@nestjs/common';
 import { HostsService, JobBackupData, JobService, QueueName, RefcntJobData } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
+import { StatsService } from './stats.service';
 
 @Processor('schedule')
 export class SchedulerConsumer extends WorkerHost {
@@ -10,9 +11,9 @@ export class SchedulerConsumer extends WorkerHost {
   constructor(
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
     @InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>,
-    @InjectQueue(QueueName.STATS_QUEUE) private statsQueue: Queue<void>,
     private hostsService: HostsService,
     private jobService: JobService,
+    private statsService: StatsService,
   ) {
     super();
   }
@@ -33,8 +34,8 @@ export class SchedulerConsumer extends WorkerHost {
   async wakeupJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Wakeup scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
     for (const host of await this.hostsService.getHosts()) {
-      const hasBackup = await this.jobService.shouldBackupHost(host);
-      if (!hasBackup) {
+      const shouldBackup = await this.jobService.shouldBackupHost(host);
+      if (shouldBackup) {
         await this.hostsQueue.add('backup', { host });
       }
     }
@@ -42,7 +43,9 @@ export class SchedulerConsumer extends WorkerHost {
 
   async nightlyJob(job: Job<unknown>): Promise<void> {
     this.logger.log(`Nightly scheduler wakeup at ${new Date().toISOString()} - JOB ID = ${job.id}`);
-    this.statsQueue.add('stats');
+
+    await this.statsService.calculateSpaceStats();
+
     this.refcntQueue.add('unused', {});
   }
 }

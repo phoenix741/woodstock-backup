@@ -155,6 +155,10 @@ impl From<&BackupProgression> for JsBackupProgression {
 pub struct WoodstockBackupClient {
   client: Arc<Mutex<BackupClient<BackupGrpcClient>>>,
   log_client: Arc<Mutex<BackupGrpcClient>>,
+
+  ip: String,
+  hostname: String,
+  backup_number: usize,
 }
 
 #[napi]
@@ -183,7 +187,26 @@ impl WoodstockBackupClient {
     Ok(Self {
       client: Arc::new(Mutex::new(client)),
       log_client: Arc::new(Mutex::new(log_client)),
+
+      ip,
+      hostname,
+      backup_number,
     })
+  }
+
+  #[napi(getter)]
+  pub fn hostname(&self) -> String {
+    self.hostname.clone()
+  }
+
+  #[napi(getter)]
+  pub fn ip(&self) -> String {
+    self.ip.clone()
+  }
+
+  #[napi(getter)]
+  pub fn backup_number(&self) -> u32 {
+    u32::try_from(self.backup_number).unwrap()
   }
 
   #[napi]
