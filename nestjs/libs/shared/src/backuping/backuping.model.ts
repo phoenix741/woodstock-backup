@@ -48,7 +48,6 @@ export class BackupContext {
 
   connection: WoodstockBackupClient;
   clientLogger: BackupLogger;
-  logSubscriber?: Subscription;
 
   constructor(jobData: JobBackupData, clientLogger: BackupLogger, connection: WoodstockBackupClient) {
     if (!jobData.config || jobData.number === undefined || (!jobData.ip && !jobData.config.isLocal)) {

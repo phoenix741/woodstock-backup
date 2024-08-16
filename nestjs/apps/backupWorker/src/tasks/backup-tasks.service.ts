@@ -136,7 +136,6 @@ export class BackupTasksService {
       return this.backupsClient.compact(gc.globalContext.connection, lc.sharePath);
     });
     globalContext.commands.set(BackupNameTask.CLOSE_CONNECTION_TASK, async (gc) => {
-      gc.globalContext.logSubscriber?.unsubscribe();
       return this.backupsClient.close(gc.globalContext.connection);
     });
     globalContext.commands.set(BackupNameTask.REFCNT_HOST_TASK, (gc) => {

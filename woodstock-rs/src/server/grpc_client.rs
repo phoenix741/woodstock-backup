@@ -292,9 +292,12 @@ impl Client for BackupGrpcClient {
 
         let request = self.create_request(woodstock::Empty {})?;
 
-        client.close_backup(request).await?;
-
-        info!("Connection to {} closed", self.hostname);
+        let result = client.close_backup(request).await;
+        if let Err(result) = result {
+            error!("Error closing connection to {}: {}", self.hostname, result);
+        } else {
+            info!("Connection to {} closed", self.hostname);
+        }
 
         Ok(())
     }
