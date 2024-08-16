@@ -134,6 +134,29 @@ impl BackupGrpcClient {
 
 #[tonic::async_trait]
 impl Client for BackupGrpcClient {
+    async fn ping(&self) -> Result<bool> {
+        info!("Pinging {}", self.hostname);
+        let mut client = self.client.clone();
+
+        let request = Request::new(woodstock::PingRequest {
+            hostname: self.hostname.clone(),
+        });
+
+        let response = client.ping(request).await;
+
+        info!("Pong received from {}", self.hostname);
+        match response {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                if e.code() == tonic::Code::NotFound {
+                    Ok(false)
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
     async fn authenticate(&mut self, password: &str) -> Result<AuthenticateReply> {
         info!("Authenticating to {}", self.hostname);
         let mut client = self.client.clone();

@@ -1,4 +1,5 @@
 mod abort_handle;
+pub mod tools;
 
 pub use abort_handle::AbortHandle;
 
@@ -13,8 +14,7 @@ use tokio::sync::Mutex;
 use woodstock::{
   config::Context,
   server::{
-    backup_client::BackupClient, client::Client, grpc_client::BackupGrpcClient,
-    progression::BackupProgression,
+    backup_client::BackupClient, grpc_client::BackupGrpcClient, progression::BackupProgression,
   },
 };
 
@@ -154,7 +154,6 @@ impl From<&BackupProgression> for JsBackupProgression {
 #[napi(js_name = "WoodstockBackupClient")]
 pub struct WoodstockBackupClient {
   client: Arc<Mutex<BackupClient<BackupGrpcClient>>>,
-  log_client: Arc<Mutex<BackupGrpcClient>>,
 
   ip: String,
   hostname: String,
@@ -181,12 +180,10 @@ impl WoodstockBackupClient {
         Error::from_reason(format!("Can't create connection to {hostname} ({ip})").to_string())
       })?;
 
-    let log_client = grpc_client.clone();
     let client = BackupClient::new(grpc_client, &hostname, backup_number, &context);
 
     Ok(Self {
       client: Arc::new(Mutex::new(client)),
-      log_client: Arc::new(Mutex::new(log_client)),
 
       ip,
       hostname,
@@ -216,12 +213,6 @@ impl WoodstockBackupClient {
       .authenticate(&password)
       .await
       .map_err(|_| Error::from_reason("Can't authenticate with the given password".to_string()))?;
-
-    let mut client = self.log_client.lock().await;
-    client
-      .authenticate(&password)
-      .await
-      .map_err(|_| Error::from_reason("Can't authenticate the log stream".to_string()))?;
 
     Ok(())
   }

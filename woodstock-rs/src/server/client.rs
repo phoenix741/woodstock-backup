@@ -13,6 +13,8 @@ use eyre::Result;
 
 #[tonic::async_trait]
 pub trait Client {
+    async fn ping(&self) -> Result<bool>;
+
     async fn authenticate(&mut self, password: &str) -> Result<AuthenticateReply>;
 
     async fn execute_command(&mut self, command: &str) -> Result<ExecuteCommandReply>;

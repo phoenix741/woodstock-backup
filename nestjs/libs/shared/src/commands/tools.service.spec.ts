@@ -57,9 +57,6 @@ describe('Tools Service', () => {
 
   it(`should get all path`, async () => {
     expect(await service.getPaths({ hostname: 'pc-test', srcBackupNumber: 14, destBackupNumber: 33 })).toEqual({
-      destBackupPath: 'hostPath/pc-test/33',
-      hostnamePath: 'hostPath/pc-test',
-      srcBackupPath: 'hostPath/pc-test/14',
       backupPath: 'backupPath',
       configPath: 'configPath',
       configPathOfHosts: 'configPathOfHosts',
@@ -78,8 +75,6 @@ describe('Tools Service', () => {
   });
 
   it(`should one path`, async () => {
-    expect(await service.getPath('srcBackupPath', { hostname: 'pc-test', srcBackupNumber: 14 })).toBe(
-      'hostPath/pc-test/14',
-    );
+    expect(await service.getPath('backupPath', { hostname: 'pc-test', srcBackupNumber: 14 })).toBe('backupPath');
   });
 });

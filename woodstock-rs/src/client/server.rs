@@ -11,7 +11,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
 
-use crate::manifest::FileManifestLight;
 use crate::scanner::{calculate_chunk_hash_future, read_chunk};
 use crate::utils::path::{list_to_globset, vec_to_str};
 use crate::woodstock::{
@@ -23,6 +22,7 @@ use crate::FileManifest;
 use crate::{client::authentification::Service as AuthService, ChunkInformation};
 use crate::{client::config::ClientConfig, FileChunk};
 use crate::{client::exexcute_command::execute_command, scanner::CreateManifestOptions};
+use crate::{manifest::FileManifestLight, PingRequest};
 use crate::{manifest::IndexManifest, ChunkHashRequest};
 use crate::{scanner::get_files_with_hash, ChunkHashReply};
 
@@ -34,6 +34,7 @@ struct WoodstockContext {
 /// The main context struct for the Woodstock Backup client.
 /// It holds the authentication service and the client's context.
 pub struct WoodstockClient {
+    hostname: String,
     authentification_service: Arc<RwLock<AuthService>>,
     context: Arc<Mutex<HashMap<String, WoodstockContext>>>,
     create_manifest_options: CreateManifestOptions,
@@ -55,6 +56,7 @@ impl WoodstockClient {
         let authentification_service = AuthService::new(certificate_path, config);
 
         Self {
+            hostname: config.hostname.clone(),
             authentification_service: Arc::new(RwLock::new(authentification_service)),
             context: Arc::new(Mutex::new(HashMap::new())),
             create_manifest_options: CreateManifestOptions {
@@ -165,6 +167,29 @@ impl WoodstockClient {
 
 #[tonic::async_trait]
 impl WoodstockClientService for WoodstockClient {
+    /// Used by the server to check if the client is up and find the ip of the client.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The request (with the hostname).
+    ///
+    /// # Returns
+    ///
+    /// The reply that tell nothing if it's the right hostname, and 404 else
+    async fn ping(
+        &self,
+        request: tonic::Request<PingRequest>,
+    ) -> std::result::Result<tonic::Response<EmptyProto>, tonic::Status> {
+        let hostname = request.get_ref().hostname.clone();
+        debug!("Ping for {}, current hostname {}", hostname, self.hostname);
+
+        if hostname != self.hostname {
+            return Err(tonic::Status::not_found("Wrong hostname"));
+        }
+
+        Ok(tonic::Response::new(EmptyProto {}))
+    }
+
     /// Authenticates the client with the provided token.
     ///
     /// # Arguments

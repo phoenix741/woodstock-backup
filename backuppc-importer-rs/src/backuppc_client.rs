@@ -104,7 +104,10 @@ impl BackupPCClient {
         let path_join = vec_to_path(&path.join(&b'/'));
         debug!("Visit {:?}", path_join.display());
 
-        let ref_path = &path.iter().map(std::vec::Vec::as_slice).collect::<Vec<&[u8]>>();
+        let ref_path = &path
+            .iter()
+            .map(std::vec::Vec::as_slice)
+            .collect::<Vec<&[u8]>>();
 
         let mut view = self.view.lock().await;
         let dir = view.list(ref_path)?;
@@ -170,6 +173,10 @@ impl BackupPCClient {
 
 #[async_trait]
 impl Client for BackupPCClient {
+    async fn ping(&self) -> Result<bool> {
+        Ok(true)
+    }
+
     async fn authenticate(&mut self, _password: &str) -> Result<AuthenticateReply> {
         unimplemented!("No authentication required for BackupPCClient");
     }

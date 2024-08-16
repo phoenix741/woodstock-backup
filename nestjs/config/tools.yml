@@ -1,19 +1,10 @@
 ---
 tools:
   df: /bin/df
-  ping: /bin/ping
   nmblookup: /usr/bin/nmblookup
-  ssh: /usr/bin/ssh
   stat: /usr/bin/stat
 
 command:
-  ping: "${ping} -c 1 ${ip}"
   resolveNetbiosFromHostname: "${nmblookup} ${hostname}"
   resolveNetbiosFromIP: "${nmblookup} -A ${ip}"
-  getFilesystem: "${stat} -f --format=%T ${hostPath}"
   statsSpaceUsage: "${df} -k --print-type ${hostPath}"
-
-paths:
-  hostnamePath: "${hostPath}/${hostname}"
-  srcBackupPath: "${hostPath}/${hostname}/${srcBackupNumber}"
-  destBackupPath: "${hostPath}/${hostname}/${destBackupNumber}"

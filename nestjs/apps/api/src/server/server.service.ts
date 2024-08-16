@@ -37,8 +37,6 @@ export class ServerService {
 
     const checks = new ServerChecks();
 
-    checks.push(() => this.checkGetFilesystem());
-    checks.push(() => this.checkPing());
     checks.push(() => this.checkResolveNetbiosFromHostname());
     checks.push(() => this.checkResolveNetbiosFromIP());
     checks.push(() => this.checkStatsSpaceUsage());
@@ -59,28 +57,6 @@ export class ServerService {
     }
 
     return checksCmd;
-  }
-
-  async checkGetFilesystem(): Promise<CommandCheck> {
-    const command = await this.toolsService.getCommand('getFilesystem', {});
-    const { stdout, stderr } = await this.executeCommandService.executeCommand(command, {
-      returnCode: true,
-    });
-    return {
-      command,
-      isValid: `${stdout}`.trim() === 'btrfs',
-      error: stderr,
-    };
-  }
-
-  async checkPing(): Promise<CommandCheck> {
-    const command = await this.toolsService.getCommand('ping', {
-      ip: '127.0.0.1',
-    });
-    const { code, stderr } = await this.executeCommandService.executeCommand(command, {
-      returnCode: true,
-    });
-    return { command, isValid: !code, error: stderr };
   }
 
   async checkResolveNetbiosFromHostname(): Promise<CommandCheck> {

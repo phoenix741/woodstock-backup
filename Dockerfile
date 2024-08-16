@@ -88,7 +88,7 @@ FROM node:$NODE_VERSION AS dist
 RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
   apk add --no-cache acl; \
   else \
-  apt-get update && apt-get install -y libacl1 && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+  apt-get update && apt-get install -y libacl1 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
   fi
 
 RUN npm install pm2 -g

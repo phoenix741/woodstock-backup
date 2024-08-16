@@ -180,7 +180,14 @@ message AuthenticateReply {
   string sessionId = 3;
 }
 
+message PingRequest {
+  string hostname = 1;
+}
+
 service WoodstockClientService {
+  // Tools
+  rpc Ping(PingRequest) returns (Empty) {}
+
   // 0. Authenticate
   rpc Authenticate(AuthenticateRequest) returns (AuthenticateReply);
 
