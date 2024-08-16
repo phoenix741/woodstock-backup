@@ -1,3 +1,11 @@
+# [2.0.0-alpha.7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.6...v2.0.0-alpha.7) (2024-08-16)
+
+
+### Features
+
+* ✨ replace ping using ping tools by a ping using the client directly ([b995a69](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b995a6965073e9c131d0137ecc2db6d4ff9af223))
+* ✨ replace ping using ping tools by a ping using the client directly ([3c59ed9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/3c59ed9ff9a1a7db0c2c2030a935ec9d6b6499b4))
+
 # [2.0.0-alpha.6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.5...v2.0.0-alpha.6) (2024-08-16)
 
 

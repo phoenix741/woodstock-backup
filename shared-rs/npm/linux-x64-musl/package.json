@@ -1,6 +1,6 @@
 {
   "name": "@napi-cross-build/01-pure-rust-linux-x64-musl",
-  "version": "2.0.0-alpha.6",
+  "version": "2.0.0-alpha.7",
   "os": [
     "linux"
   ],
