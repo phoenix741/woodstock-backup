@@ -2,9 +2,10 @@ use async_stream::try_stream;
 use eyre::eyre;
 use futures::pin_mut;
 use futures::Stream;
-use log::{error, info};
+use log::{debug, error, info};
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::Duration;
 use tokio::fs::read_to_string;
 use tonic::{
     transport::{Certificate, Channel, ClientTlsConfig, Identity},
@@ -13,6 +14,7 @@ use tonic::{
 
 use super::client::Client;
 use crate::config::Context;
+use crate::utils::path::vec_to_path;
 use crate::woodstock;
 use crate::ChunkHashReply;
 use crate::ChunkHashRequest;
@@ -46,6 +48,7 @@ impl BackupGrpcClient {
 
         if let Some(session_id) = session_id {
             let mut request = Request::new(request);
+            request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
             request.metadata_mut().insert(
                 "x-session-id",
                 session_id
@@ -90,6 +93,7 @@ impl BackupGrpcClient {
 
         let connection_string = format!("https://{ip}:3657");
         let channel = Channel::from_shared(connection_string)?
+            .connect_timeout(Duration::from_secs(60)) // TODO: Configurable
             .tls_config(tls)?
             .connect()
             .await?;
@@ -131,6 +135,7 @@ impl BackupGrpcClient {
 #[tonic::async_trait]
 impl Client for BackupGrpcClient {
     async fn authenticate(&mut self, password: &str) -> Result<AuthenticateReply> {
+        info!("Authenticating to {}", self.hostname);
         let mut client = self.client.clone();
 
         let token =
@@ -143,10 +148,17 @@ impl Client for BackupGrpcClient {
         let session_id = &response.get_ref().session_id;
         self.session_id = Some(session_id.clone());
 
+        info!(
+            "Authenticated to {} with session id {session_id}",
+            self.hostname
+        );
+
         Ok(response.into_inner())
     }
 
     async fn execute_command(&mut self, command: &str) -> Result<ExecuteCommandReply> {
+        info!("Executing command {command}");
+
         let mut client = self.client.clone();
 
         let request = self.create_request(ExecuteCommandRequest {
@@ -155,6 +167,7 @@ impl Client for BackupGrpcClient {
 
         let response = client.execute_command(request).await?;
 
+        info!("Command {command} executed");
         Ok(response.into_inner())
     }
 
@@ -162,9 +175,13 @@ impl Client for BackupGrpcClient {
         &mut self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
     ) -> Result<ProtoEmpty> {
+        info!("Send cache refresh to {}", self.hostname);
+
         let mut client = self.client.clone();
         let request = self.create_request(cache)?;
         let reply = client.refresh_cache(request).await?;
+
+        info!("Cache refreshed");
 
         Ok(reply.into_inner())
     }
@@ -176,6 +193,8 @@ impl Client for BackupGrpcClient {
         let client = self.client.clone();
 
         try_stream!({
+            info!("Downloading file list from {}", self.hostname);
+
             let mut client = client;
 
             let request = self.create_request(request)?;
@@ -184,12 +203,24 @@ impl Client for BackupGrpcClient {
             let mut messages = messages.into_inner();
 
             while let Some(message) = messages.message().await? {
+                debug!("Received file list entry from server");
                 yield message;
             }
+
+            info!(
+                "Completed receving file list downloaded from {}",
+                self.hostname
+            );
         })
     }
 
     async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
+        info!(
+            "Getting chunk hash from {} for {}",
+            self.hostname,
+            vec_to_path(&request.filename).display()
+        );
+
         let client = self.client.clone();
         let mut client = client;
 
@@ -197,10 +228,22 @@ impl Client for BackupGrpcClient {
 
         let result = client.get_chunk_hash(request).await?;
 
+        info!(
+            "Received chunk {} hash from {}",
+            result.get_ref().chunks.len(),
+            self.hostname,
+        );
+
         Ok(result.into_inner())
     }
 
     fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
+        info!(
+            "Getting chunk from {} for {}",
+            self.hostname,
+            vec_to_path(&request.filename).display()
+        );
+
         try_stream!({
             let client = self.client.clone();
             pin_mut!(client);
@@ -210,18 +253,25 @@ impl Client for BackupGrpcClient {
             pin_mut!(chunks);
 
             while let Some(chunks) = chunks.message().await? {
+                debug!("Received chunk from server");
                 yield chunks;
             }
+
+            info!("Completed receiving chunk from {}", self.hostname);
         })
     }
 
     async fn close(&self) -> Result<()> {
+        info!("Closing connection to {}", self.hostname);
+
         let client = self.client.clone();
         let mut client = client;
 
         let request = self.create_request(woodstock::Empty {})?;
 
         client.close_backup(request).await?;
+
+        info!("Connection to {} closed", self.hostname);
 
         Ok(())
     }

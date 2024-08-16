@@ -1,13 +1,13 @@
+use async_compression::tokio::write::ZlibEncoder;
+use futures::StreamExt;
+use futures::{pin_mut, Stream};
+use log::{info, warn};
+use prost::Message;
 use std::{
     io,
     path::{Path, PathBuf},
     pin::Pin,
 };
-
-use async_compression::tokio::write::ZlibEncoder;
-use futures::StreamExt;
-use futures::{pin_mut, Stream};
-use prost::Message;
 use tokio::{
     fs::{create_dir_all, remove_file, rename, File},
     io::{AsyncWrite, AsyncWriteExt, BufWriter},
@@ -125,18 +125,26 @@ pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
     compress: bool,
     is_atomic: bool,
 ) -> io::Result<()> {
-    let mut writer = ProtobufWriter::<T>::new(path, compress, is_atomic).await?;
+    info!(
+        "Saving file to {:?} (compress = {compress}, is_atomic = {is_atomic})",
+        path.as_ref()
+    );
+
+    let mut writer = ProtobufWriter::<T>::new(&path, compress, is_atomic).await?;
     pin_mut!(source);
 
     while let Some(message) = source.next().await {
         let result = writer.write(&message).await;
         if let Err(e) = result {
+            warn!("Cancel saving file {:?}", path.as_ref());
             writer.cancel().await?;
             return Err(e);
         }
     }
 
     writer.flush().await?;
+
+    info!("Saved file to {:?}", path.as_ref());
     Ok(())
 }
 

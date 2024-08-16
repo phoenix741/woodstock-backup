@@ -55,17 +55,18 @@ export class BackupsClientService {
         }
 
         if (result.error) {
-          abort?.removeEventListener('abort', abortMethod);
           observer.error(result.error);
+          abort?.removeEventListener('abort', abortMethod);
         }
 
         if (result.complete) {
-          abort?.removeEventListener('abort', abortMethod);
           observer.complete();
+          abort?.removeEventListener('abort', abortMethod);
         }
       });
       abortMethod = () => {
         abortHandle.abort();
+        observer.error(new Error('Download aborted'));
       };
 
       abort?.addEventListener('abort', abortMethod);
@@ -85,17 +86,18 @@ export class BackupsClientService {
         }
 
         if (result.error) {
-          abort?.removeEventListener('abort', abortMethod);
           observer.error(result.error);
+          abort?.removeEventListener('abort', abortMethod);
         }
 
         if (result.complete) {
-          abort?.removeEventListener('abort', abortMethod);
           observer.complete();
+          abort?.removeEventListener('abort', abortMethod);
         }
       });
       abortMethod = () => {
         abortHandle.abort();
+        observer.error(new Error('Backup aborted'));
       };
 
       abort?.addEventListener('abort', abortMethod);

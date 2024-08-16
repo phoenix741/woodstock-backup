@@ -178,7 +178,7 @@ impl WoodstockBackupClient {
     let grpc_client = BackupGrpcClient::new(&hostname, &ip, &context)
       .await
       .map_err(|_| {
-        Error::from_reason(format!("Can't create connection to {hostname} ({ip}").to_string())
+        Error::from_reason(format!("Can't create connection to {hostname} ({ip})").to_string())
       })?;
 
     let log_client = grpc_client.clone();

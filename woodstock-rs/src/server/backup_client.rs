@@ -285,6 +285,12 @@ impl<Clt: Client> BackupClient<Clt> {
 
         let result = manifest.save_filelist_entries(response).await;
 
+        info!(
+            "Download file list for {:?} completed (result = {})",
+            share,
+            result.as_ref().is_ok()
+        );
+
         {
             let progression = progression.lock().await;
 

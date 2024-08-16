@@ -59,8 +59,11 @@ export class HostConsumer extends WorkerHost {
   async launchBackup(job: Job<JobBackupData>): Promise<void> {
     this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
     const shouldBackupHost = await this.jobService.shouldBackupHost(job.data.host, job.id, job.data.force);
-    if (!shouldBackupHost) {
-      this.logger.log(`STOP: The backup should not be made ${job.data.host} - JOB ID = ${job.id}`);
+    const hostAvailable = await this.jobService.hostAvailable(job.data.host);
+    if (!shouldBackupHost || !hostAvailable) {
+      this.logger.log(
+        `STOP: The backup should not be made ${job.data.host} (host available = ${hostAvailable}) - JOB ID = ${job.id}`,
+      );
       await job.remove();
       return;
     }
@@ -119,6 +122,8 @@ export class HostConsumer extends WorkerHost {
         this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
         throw err;
       } finally {
+        await this.backupsService.invalidateBackup(job.data.host);
+
         const lastBackup = await this.backupsService.getLastBackup(job.data.host);
         // Check if the previous backup is incomplete, we can remove it
         const mayBeIncompleteBackup = await this.backupsService.getPreviousBackup(job.data.host, job.data.number || -1);
