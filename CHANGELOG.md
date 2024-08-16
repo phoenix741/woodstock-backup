@@ -1,3 +1,10 @@
+# [2.0.0-alpha.6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.5...v2.0.0-alpha.6) (2024-08-16)
+
+
+### Bug Fixes
+
+* 🔊 add log information to search bug when computer go to sleep ([317ead9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/317ead9c6b19505da89d61dcc063694dd8af76fe))
+
 # [2.0.0-alpha.5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.4...v2.0.0-alpha.5) (2024-08-15)
 
 
