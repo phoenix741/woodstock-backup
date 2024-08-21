@@ -94,7 +94,11 @@ impl BackupGrpcClient {
         let connection_string = format!("https://{ip}:3657");
         let channel = Channel::from_shared(connection_string)?
             .connect_timeout(Duration::from_secs(60)) // TODO: Configurable
+            .keep_alive_timeout(Duration::from_secs(60))
+            .keep_alive_while_idle(true)
             .tls_config(tls)?
+            .tcp_keepalive(Some(Duration::from_secs(30)))
+            .timeout(Duration::from_secs(120))
             .connect()
             .await?;
 
