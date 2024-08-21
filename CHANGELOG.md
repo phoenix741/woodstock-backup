@@ -1,3 +1,10 @@
+# [2.0.0-alpha.8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.7...v2.0.0-alpha.8) (2024-08-21)
+
+
+### Bug Fixes
+
+* 🐛 try to fix connection timeout when server going to bed ([ac4a163](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ac4a16309109f9e874fa7c284e48311f0112201e))
+
 # [2.0.0-alpha.7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.6...v2.0.0-alpha.7) (2024-08-16)
 
 
