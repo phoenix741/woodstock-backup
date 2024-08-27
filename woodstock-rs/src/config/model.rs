@@ -78,6 +78,9 @@ pub struct Backup {
     pub start_date: u64,
     pub end_date: Option<u64>,
 
+    #[serde(default)]
+    pub error_count: usize,
+
     pub file_count: usize,
     pub new_file_count: usize,
     pub removed_file_count: usize,

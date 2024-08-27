@@ -184,7 +184,7 @@ async fn test_server_backup() {
 
         client.count_references().await.unwrap();
 
-        client.save_backup(true).await.unwrap();
+        client.save_backup(true, true).await.unwrap();
     };
 
     // Wait for completion, when the client request future completes

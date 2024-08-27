@@ -162,7 +162,7 @@ export class BackupTasksService {
       );
     });
     globalContext.commands.set(BackupNameTask.SAVE_BACKUP_TASK, (gc, _, isFailing) => {
-      return this.backupsClient.saveBackup(gc.globalContext.connection, !isFailing);
+      return this.backupsClient.saveBackup(gc.globalContext.connection, true, !isFailing);
     });
 
     return globalContext;

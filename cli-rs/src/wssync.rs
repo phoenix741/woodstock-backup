@@ -223,7 +223,7 @@ async fn main() -> Result<()> {
 
     client.count_references().await?;
 
-    client.save_backup(!abort).await?;
+    client.save_backup(true, !abort).await?;
 
     term.write_line("[10/10] Fin")?;
 

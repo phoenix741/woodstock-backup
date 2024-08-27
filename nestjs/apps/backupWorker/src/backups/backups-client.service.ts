@@ -114,8 +114,8 @@ export class BackupsClientService {
     return context.countReferences();
   }
 
-  async saveBackup(context: WoodstockBackupClient, completed: boolean): Promise<void> {
-    await context.saveBackup(completed);
+  async saveBackup(context: WoodstockBackupClient, finished: boolean, completed: boolean): Promise<void> {
+    await context.saveBackup(finished, completed);
 
     await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }

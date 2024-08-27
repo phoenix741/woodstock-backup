@@ -379,10 +379,10 @@ impl WoodstockBackupClient {
   }
 
   #[napi]
-  pub async fn save_backup(&self, completed: bool) -> Result<()> {
+  pub async fn save_backup(&self, finished: bool, completed: bool) -> Result<()> {
     let client = self.client.lock().await;
     client
-      .save_backup(completed)
+      .save_backup(finished, completed)
       .await
       .map_err(|_| Error::from_reason("Can't save backup".to_string()))
   }

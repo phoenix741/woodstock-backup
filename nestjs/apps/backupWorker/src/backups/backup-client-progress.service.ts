@@ -128,8 +128,8 @@ export class BackupClientProgress {
     );
   }
 
-  saveBackup(context: WoodstockBackupClient, completed: boolean): Observable<QueueTaskProgression> {
-    const saveBackup$ = defer(() => this.backupClient.saveBackup(context, completed));
+  saveBackup(context: WoodstockBackupClient, finished: boolean, completed: boolean): Observable<QueueTaskProgression> {
+    const saveBackup$ = defer(() => this.backupClient.saveBackup(context, finished, completed));
 
     return saveBackup$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),

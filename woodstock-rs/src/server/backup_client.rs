@@ -74,7 +74,7 @@ impl<Clt: Client> BackupClient<Clt> {
         self.progression.lock().await.clone()
     }
 
-    async fn to_backup(&self, is_complete: bool) -> Backup {
+    async fn to_backup(&self, is_finish: bool, is_complete: bool) -> Backup {
         let now = SystemTime::now();
         let progression = self.progression.lock().await.clone();
 
@@ -93,7 +93,7 @@ impl<Clt: Client> BackupClient<Clt> {
                     .unwrap_or_default()
                     .as_secs(),
             },
-            end_date: if is_complete {
+            end_date: if is_finish {
                 match self.fake_date {
                     Some(fake_date) => {
                         let duration = if let Some(start_date) = progression.start_transfer_date {
@@ -114,6 +114,8 @@ impl<Clt: Client> BackupClient<Clt> {
             } else {
                 None
             },
+
+            error_count: progression.error_count,
 
             file_count: progression.file_count,
             new_file_count: progression.new_file_count,
@@ -174,7 +176,7 @@ impl<Clt: Client> BackupClient<Clt> {
         // Load Reference count
         self.refcnt.lock().await.load_refcnt(true).await;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -184,7 +186,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         let result = self.client.execute_command(command).await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(result)
     }
@@ -223,7 +225,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         self.client.refresh_cache(refresh_cache_stream).await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -302,7 +304,7 @@ impl<Clt: Client> BackupClient<Clt> {
                 .insert(share.share_path.clone(), progression.progress_max);
         }
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(result?)
     }
@@ -719,7 +721,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         self.client.close().await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -758,7 +760,7 @@ impl<Clt: Client> BackupClient<Clt> {
             .add_backup_share_path(&self.hostname, self.current_backup_id, share_path)
             .await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -782,16 +784,16 @@ impl<Clt: Client> BackupClient<Clt> {
         )
         .await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
 
-    pub async fn save_backup(&self, is_complete: bool) -> Result<()> {
+    pub async fn save_backup(&self, is_finish: bool, is_complete: bool) -> Result<()> {
         info!("Save backup (complete = {is_complete})");
 
         let backups = Backups::new(&self.context);
-        let backup = self.to_backup(is_complete).await;
+        let backup = self.to_backup(is_finish, is_complete).await;
 
         backups
             .add_or_replace_backup(&self.hostname, &backup)

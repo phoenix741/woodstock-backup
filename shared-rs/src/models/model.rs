@@ -127,7 +127,9 @@ impl From<woodstock::config::HostConfigOperation> for JsHostConfigOperation {
       pre_commands: host_config_operation
         .pre_commands
         .map(|c| c.into_iter().map(std::convert::Into::into).collect()),
-      operation: host_config_operation.operation.map(std::convert::Into::into),
+      operation: host_config_operation
+        .operation
+        .map(std::convert::Into::into),
       post_commands: host_config_operation
         .post_commands
         .map(|c| c.into_iter().map(std::convert::Into::into).collect()),
@@ -170,6 +172,8 @@ pub struct JsBackup {
   pub start_date: i64,
   pub end_date: Option<i64>,
 
+  pub error_count: u32,
+
   pub file_count: u32,
   pub new_file_count: u32,
   pub removed_file_count: u32,
@@ -199,6 +203,8 @@ impl From<woodstock::config::Backup> for JsBackup {
       end_date: backup
         .end_date
         .map(|d| i64::try_from(d).unwrap_or_default()),
+
+      error_count: u32::try_from(backup.error_count).unwrap(),
 
       file_count: u32::try_from(backup.file_count).unwrap(),
       new_file_count: u32::try_from(backup.new_file_count).unwrap(),
@@ -360,9 +366,21 @@ impl From<woodstock::FileManifest> for JsFileManifest {
       path: file_manifest.path.into(),
       stats: file_manifest.stats.map(std::convert::Into::into),
       symlink: file_manifest.symlink.into(),
-      xattr: file_manifest.xattr.into_iter().map(std::convert::Into::into).collect(),
-      acl: file_manifest.acl.into_iter().map(std::convert::Into::into).collect(),
-      chunks: file_manifest.chunks.into_iter().map(std::convert::Into::into).collect(),
+      xattr: file_manifest
+        .xattr
+        .into_iter()
+        .map(std::convert::Into::into)
+        .collect(),
+      acl: file_manifest
+        .acl
+        .into_iter()
+        .map(std::convert::Into::into)
+        .collect(),
+      chunks: file_manifest
+        .chunks
+        .into_iter()
+        .map(std::convert::Into::into)
+        .collect(),
       hash: file_manifest.hash.into(),
       metadata: file_manifest
         .metadata
@@ -401,7 +419,9 @@ impl From<woodstock::FileManifestJournalEntry> for JsFileManifestJournalEntry {
   fn from(file_manifest_journal_entry: woodstock::FileManifestJournalEntry) -> Self {
     Self {
       r#type: file_manifest_journal_entry.r#type().into(),
-      manifest: file_manifest_journal_entry.manifest.map(std::convert::Into::into),
+      manifest: file_manifest_journal_entry
+        .manifest
+        .map(std::convert::Into::into),
     }
   }
 }

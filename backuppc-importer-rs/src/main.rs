@@ -204,7 +204,10 @@ async fn launch_backup(
         .map(|s| vec_to_osstr(s))
         .filter_map(|s| s.into_string().ok())
         .collect();
-    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(std::string::String::as_str).collect();
+    let backuppc_shares_str: Vec<&str> = backuppc_shares
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     client.init_backup_directory(&backuppc_shares_str).await?;
 
     backup_bar.set_message("Upload last file list");
@@ -270,7 +273,7 @@ async fn launch_backup(
 
     client.count_references().await?;
 
-    client.save_backup(!abort).await?;
+    client.save_backup(true, !abort).await?;
 
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();

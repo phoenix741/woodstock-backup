@@ -61,8 +61,9 @@ impl ClientConfig {
     }
 
     /// Returns the default backup timeout in seconds.
+    /// Defaults to 12 hours.
     fn default_backup_timeout() -> u64 {
-        3600
+        12 * 3600
     }
 }
 

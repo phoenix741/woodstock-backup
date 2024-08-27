@@ -6,6 +6,8 @@ export class Backup {
   number!: number;
   completed!: boolean;
 
+  errorCount!: number;
+
   startDate!: number;
   endDate?: number;
 
