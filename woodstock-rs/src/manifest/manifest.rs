@@ -17,6 +17,7 @@ pub struct ManifestChunk {
     pub sha256: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct Manifest {
     pub manifest_name: String,
     pub manifest_path: PathBuf,

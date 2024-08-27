@@ -108,18 +108,12 @@ export class BackupTasksService {
 
       return this.backupsClient.executeCommand(gc.globalContext.connection, lc.command);
     });
-    globalContext.commands.set(BackupNameTask.REFRESH_CACHE_TASK, (gc, lc) => {
-      if (!lc.shares) {
-        throw new InternalServerErrorException('No shares provided');
-      }
-      return this.backupsClient.uploadFileList(gc.globalContext.connection, lc.shares);
-    });
     globalContext.commands.set(BackupNameTask.FILELIST_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
         throw new InternalServerErrorException('No includes, excludes or sharePath provided');
       }
 
-      return this.backupsClient.downloadFileList(gc.globalContext.connection, { includes, excludes, sharePath });
+      return this.backupsClient.synchronizeFileList(gc.globalContext.connection, { includes, excludes, sharePath });
     });
     globalContext.commands.set(BackupNameTask.CHUNKS_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
@@ -184,13 +178,6 @@ export class BackupTasksService {
               BackupNameTask.INIT_DIRECTORY_TASK,
               { shares: config?.operations?.operation?.shares.map((share) => share.name) || [] },
               QueueTaskPriority.INITIALISATION,
-            ),
-          )
-          .add(
-            new QueueSubTask(
-              BackupNameTask.REFRESH_CACHE_TASK,
-              { shares: config?.operations?.operation?.shares.map((share) => share.name) || [] },
-              QueueTaskPriority.PRE_PROCESSING,
             ),
           ),
       )

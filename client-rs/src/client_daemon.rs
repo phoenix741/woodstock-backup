@@ -19,7 +19,7 @@ use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use woodstock::client::config::{get_config_path, read_config};
 use woodstock::client::server::WoodstockClient;
-use woodstock::config::{CHUNK_SIZE, CHUNK_SIZE_U64};
+use woodstock::config::CHUNK_SIZE;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
 #[derive(Parser)]

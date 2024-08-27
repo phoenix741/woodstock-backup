@@ -99,19 +99,17 @@ message FileManifestJournalEntry {
   FileManifest manifest = 2;
 }
 
-message RefreshCacheHeader {
+message Share {
   string sharePath = 1;
+  repeated string includes = 2;
+  repeated string excludes = 3;
 }
 
 message RefreshCacheRequest {
   oneof field {
-    RefreshCacheHeader header = 1;
+    Share header = 1;
     FileManifest fileManifest = 2;
   }
-}
-
-message LaunchBackupRequest {
-  Share share = 1;
 }
 
 message ChunkHashRequest {
@@ -165,12 +163,6 @@ message ExecuteCommandReply {
   string stderr = 3;
 }
 
-message Share {
-  string sharePath = 1;
-  repeated string includes = 2;
-  repeated string excludes = 3;
-}
-
 message AuthenticateRequest {
   uint32 version = 1;
   string token = 2;
@@ -194,12 +186,8 @@ service WoodstockClientService {
   // 1. Execute a command directly on the client
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
 
-  // 2. The server send the last cache version to the client
-  rpc RefreshCache(stream RefreshCacheRequest) returns (Empty) {}
-
-  // 3. The server launch the backup with a new number. The client will browse the client computer
-  //    and will send all new file to the server
-  rpc LaunchBackup(LaunchBackupRequest) returns (stream FileManifestJournalEntry) {}
+  // 2. Synchronize the file list for a share between the client and the server (can be made in parrallel for multiple shares)
+  rpc SynchronizeFileList(stream RefreshCacheRequest) returns (stream FileManifestJournalEntry) {}
 
   // 3. Ask for hash of the file before asking only modified hash of the file
   rpc GetChunkHash(ChunkHashRequest) returns (ChunkHashReply) {}

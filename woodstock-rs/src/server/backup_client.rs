@@ -20,8 +20,7 @@ use crate::{
     refresh_cache_request,
     utils::path::path_to_vec,
     ChunkHashRequest, ChunkInformation, EntryType, ExecuteCommandReply, FileManifest,
-    FileManifestJournalEntry, LaunchBackupRequest, PoolRefCount, RefreshCacheHeader,
-    RefreshCacheRequest, Share,
+    FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest, Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
@@ -191,46 +190,7 @@ impl<Clt: Client> BackupClient<Clt> {
         Ok(result)
     }
 
-    pub async fn upload_file_list(&mut self, shares: Vec<String>) -> Result<()> {
-        info!("Upload file list for {:?}", shares);
-
-        let hostname = self.hostname.clone();
-        let current_backup_id = self.current_backup_id;
-        let context = self.context.clone().clone();
-
-        let refresh_cache_stream = stream!({
-            let backups = Backups::new(&context);
-            for share in shares {
-                let manifest = backups.get_manifest(&hostname, current_backup_id, &share);
-                let header = RefreshCacheRequest {
-                    field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                        share_path: share,
-                    })),
-                };
-
-                yield header;
-
-                let entries = manifest.read_manifest_entries();
-                pin_mut!(entries);
-
-                while let Some(entry) = entries.next().await {
-                    let request = RefreshCacheRequest {
-                        field: Some(refresh_cache_request::Field::FileManifest(entry)),
-                    };
-
-                    yield request;
-                }
-            }
-        });
-
-        self.client.refresh_cache(refresh_cache_stream).await?;
-
-        self.save_backup(false, false).await?;
-
-        Ok(())
-    }
-
-    pub async fn download_file_list(
+    pub async fn synchronize_file_list(
         &mut self,
         share: &Share,
         callback: &impl Fn(&BackupProgression),
@@ -243,9 +203,31 @@ impl<Clt: Client> BackupClient<Clt> {
         let backups = Backups::new(&self.context);
         let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
 
-        let response = self.client.download_file_list(LaunchBackupRequest {
-            share: Some(share.clone()),
+        let share_refresh_stream = share.clone();
+        let manifest_refresh_stream = manifest.clone();
+
+        let refresh_cache_stream = stream!({
+            let header = RefreshCacheRequest {
+                field: Some(refresh_cache_request::Field::Header(
+                    share_refresh_stream.clone(),
+                )),
+            };
+
+            yield header;
+
+            let entries = manifest_refresh_stream.read_manifest_entries();
+            pin_mut!(entries);
+
+            while let Some(entry) = entries.next().await {
+                let request = RefreshCacheRequest {
+                    field: Some(refresh_cache_request::Field::FileManifest(entry)),
+                };
+
+                yield request;
+            }
         });
+
+        let response = self.client.synchronize_file_list(refresh_cache_stream);
 
         let progression = Arc::new(Mutex::new(BackupProgression::default()));
 

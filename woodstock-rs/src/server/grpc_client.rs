@@ -23,12 +23,11 @@ use crate::ExecuteCommandReply;
 use crate::ExecuteCommandRequest;
 use crate::FileChunk;
 use crate::FileManifestJournalEntry;
-use crate::LaunchBackupRequest;
 use crate::RefreshCacheRequest;
 use crate::{
     utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient, AuthenticateReply,
-    AuthenticateRequest, Empty as ProtoEmpty,
+    AuthenticateRequest,
 };
 use eyre::Result;
 
@@ -198,25 +197,12 @@ impl Client for BackupGrpcClient {
         Ok(response.into_inner())
     }
 
-    async fn refresh_cache(
+    fn synchronize_file_list(
         &mut self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
-    ) -> Result<ProtoEmpty> {
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         info!("Send cache refresh to {}", self.hostname);
 
-        let mut client = self.client.clone();
-        let request = self.create_request(cache)?;
-        let reply = client.refresh_cache(request).await?;
-
-        info!("Cache refreshed");
-
-        Ok(reply.into_inner())
-    }
-
-    fn download_file_list(
-        &mut self,
-        request: LaunchBackupRequest,
-    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         let client = self.client.clone();
 
         try_stream!({
@@ -224,9 +210,9 @@ impl Client for BackupGrpcClient {
 
             let mut client = client;
 
-            let request = self.create_request(request)?;
+            let request = self.create_request(cache)?;
 
-            let messages = client.launch_backup(request).await?;
+            let messages = client.synchronize_file_list(request).await?;
             let mut messages = messages.into_inner();
 
             while let Some(message) = messages.message().await? {

@@ -242,16 +242,7 @@ impl WoodstockBackupClient {
   }
 
   #[napi]
-  pub async fn upload_file_list(&self, shares: Vec<String>) -> Result<()> {
-    let mut client = self.client.lock().await;
-    client
-      .upload_file_list(shares)
-      .await
-      .map_err(|_| Error::from_reason("Can't upload file list".to_string()))
-  }
-
-  #[napi]
-  pub fn download_file_list(
+  pub fn synchronize_file_list(
     &self,
     share: WoodstockBackupShare,
     #[napi(ts_arg_type = "(result: JsBackupProgressionMessage) => void")] callback: JsFunction,
@@ -265,7 +256,7 @@ impl WoodstockBackupClient {
     let handle = tokio::spawn(async move {
       let mut client = client.lock().await;
       let result = client
-        .download_file_list(&share.into(), &|progression| {
+        .synchronize_file_list(&share.into(), &|progression| {
           tsfn.call(
             JsBackupProgressionMessage {
               progress: Some(progression.into()),

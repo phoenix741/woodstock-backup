@@ -165,16 +165,13 @@ async fn test_server_backup() {
             .await
             .unwrap();
 
-        let shares = vec![share_path.clone()];
-        client.upload_file_list(shares).await.unwrap();
-
         let share = Share {
             includes: vec![],
             excludes: vec![],
             share_path: share_path.clone(),
         };
 
-        client.download_file_list(&share, &|_| {}).await.unwrap();
+        client.synchronize_file_list(&share, &|_| {}).await.unwrap();
 
         client.create_backup(&share_path, &|_| {}).await.unwrap();
 

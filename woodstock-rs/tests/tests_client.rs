@@ -14,7 +14,7 @@ use woodstock::{
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
     AuthenticateRequest, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
-    LaunchBackupRequest, RefreshCacheHeader, RefreshCacheRequest, Share,
+    RefreshCacheRequest, Share,
 };
 
 #[cfg(unix)]
@@ -222,19 +222,29 @@ async fn test_client_execute_command() {
 }
 
 #[tokio::test]
-async fn test_client_refresh_cache() {
+async fn test_client_download_file_list() {
     let current_path = std::env::current_dir().unwrap();
     let config_path = std::path::Path::new("./data");
+
     let (serve_future, mut client) = server_and_client_stub().await;
 
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
 
+        let share = Share {
+            share_path: current_path.to_str().unwrap().to_string(),
+            includes: Vec::new(),
+            excludes: vec![
+                "**/test-compact.*".to_string(),
+                "data/server".to_string(),
+                "**/home.filelist.test".to_string(),
+                "data/big_data".to_string(),
+            ],
+        };
+
         let refresh_cache = tokio_stream::iter(vec![
             RefreshCacheRequest {
-                field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                    share_path: current_path.to_str().unwrap().to_string(),
-                })),
+                field: Some(refresh_cache_request::Field::Header(share.clone())),
             },
             RefreshCacheRequest {
                 field: Some(refresh_cache_request::Field::FileManifest(FileManifest {
@@ -252,49 +262,7 @@ async fn test_client_refresh_cache() {
 
         let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
 
-        client.refresh_cache(refresh_cache).await.unwrap();
-    };
-
-    // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
-}
-
-#[tokio::test]
-async fn test_client_download_file_list() {
-    let current_path = std::env::current_dir().unwrap();
-    let config_path = std::path::Path::new("./data");
-
-    let (serve_future, mut client) = server_and_client_stub().await;
-
-    let request_future = async {
-        let session_id = get_session_id(config_path, &mut client).await.unwrap();
-
-        let download_file_list = LaunchBackupRequest {
-            share: Some(Share {
-                share_path: current_path.to_str().unwrap().to_string(),
-                includes: Vec::new(),
-                excludes: Vec::new(),
-            }),
-        };
-
-        let refresh_cache = tokio_stream::iter(vec![RefreshCacheRequest {
-            field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                share_path: current_path.to_str().unwrap().to_string(),
-            })),
-        }]);
-
-        let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
-
-        client.refresh_cache(refresh_cache).await.unwrap();
-
-        let download_file_list = create_request(&session_id, download_file_list)
-            .await
-            .unwrap();
-
-        let mut stream = client.launch_backup(download_file_list).await.unwrap();
+        let mut stream = client.synchronize_file_list(refresh_cache).await.unwrap();
         let result = stream.get_mut();
 
         let result = result.collect::<Result<Vec<_>, _>>().await.unwrap();
@@ -319,34 +287,24 @@ async fn test_client_get_chunk_hash() {
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
 
+        let share = Share {
+            share_path: current_path.to_str().unwrap().to_string(),
+            includes: Vec::new(),
+            excludes: vec![
+                "**/test-compact.*".to_string(),
+                "data/server".to_string(),
+                "**/home.filelist.test".to_string(),
+                "data/big_data".to_string(),
+            ],
+        };
+
         let refresh_cache = tokio_stream::iter(vec![RefreshCacheRequest {
-            field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                share_path: current_path.to_str().unwrap().to_string(),
-            })),
+            field: Some(refresh_cache_request::Field::Header(share.clone())),
         }]);
 
         let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
 
-        client.refresh_cache(refresh_cache).await.unwrap();
-
-        let download_file_list = LaunchBackupRequest {
-            share: Some(Share {
-                share_path: current_path.to_str().unwrap().to_string(),
-                includes: Vec::new(),
-                excludes: vec![
-                    "**/test-compact.*".to_string(),
-                    "data/server".to_string(),
-                    "**/home.filelist.test".to_string(),
-                    "data/big_data".to_string(),
-                ],
-            }),
-        };
-
-        let download_file_list = create_request(&session_id, download_file_list)
-            .await
-            .unwrap();
-
-        let mut stream = client.launch_backup(download_file_list).await.unwrap();
+        let mut stream = client.synchronize_file_list(refresh_cache).await.unwrap();
         let result = stream.get_mut();
 
         let result = result.collect::<Result<Vec<_>, _>>().await.unwrap();
@@ -392,34 +350,25 @@ async fn test_client_get_chunk() {
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
 
+        let share = Share {
+            share_path: current_path.to_str().unwrap().to_string(),
+            includes: Vec::new(),
+            excludes: vec![
+                "**/test-compact.*".to_string(),
+                "data/server".to_string(),
+                "**/home.filelist.test".to_string(),
+                "data/big_data".to_string(),
+            ],
+        };
+
         let refresh_cache = tokio_stream::iter(vec![RefreshCacheRequest {
-            field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                share_path: current_path.to_str().unwrap().to_string(),
-            })),
+            field: Some(refresh_cache_request::Field::Header(share.clone())),
         }]);
 
         let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
 
-        client.refresh_cache(refresh_cache).await.unwrap();
+        let mut stream = client.synchronize_file_list(refresh_cache).await.unwrap();
 
-        let download_file_list = LaunchBackupRequest {
-            share: Some(Share {
-                share_path: current_path.to_str().unwrap().to_string(),
-                includes: Vec::new(),
-                excludes: vec![
-                    "**/test-compact.*".to_string(),
-                    "data/server".to_string(),
-                    "**/home.filelist.test".to_string(),
-                    "data/big_data".to_string(),
-                ],
-            }),
-        };
-
-        let download_file_list = create_request(&session_id, download_file_list)
-            .await
-            .unwrap();
-
-        let mut stream = client.launch_backup(download_file_list).await.unwrap();
         let result = stream.get_mut();
 
         let result = result.collect::<Result<Vec<_>, _>>().await.unwrap();

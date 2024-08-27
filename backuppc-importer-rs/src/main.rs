@@ -210,15 +210,7 @@ async fn launch_backup(
         .collect();
     client.init_backup_directory(&backuppc_shares_str).await?;
 
-    backup_bar.set_message("Upload last file list");
-    backup_bar.tick();
-
-    if let Err(err) = client.upload_file_list(backuppc_shares.clone()).await {
-        error!("Error uploading file list: {}", err);
-        abort = true;
-    }
-
-    backup_bar.set_message("Download file list");
+    backup_bar.set_message("Synchronize file list");
     backup_bar.tick();
 
     for share in &backuppc_shares {
@@ -229,8 +221,8 @@ async fn launch_backup(
         };
 
         if !abort {
-            if let Err(err) = client.download_file_list(&share, &|_| {}).await {
-                error!("Error downloading file list: {}", err);
+            if let Err(err) = client.synchronize_file_list(&share, &|_| {}).await {
+                error!("Error synchronize file list: {}", err);
                 abort = true;
             }
         }

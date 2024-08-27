@@ -8,7 +8,6 @@ export enum BackupNameTask {
   GROUP_INIT_TASK = 'init',
   INIT_DIRECTORY_TASK = 'init-directory',
   CONNECTION_TASK = 'connection',
-  REFRESH_CACHE_TASK = 'refreshcache',
   BACKUP_TASK = 'backup',
   PRE_COMMAND_TASK = 'pre-command',
   POST_COMMAND_TASK = 'post-command',
