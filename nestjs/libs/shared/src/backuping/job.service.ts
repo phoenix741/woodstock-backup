@@ -100,6 +100,21 @@ export class JobService extends QueueEventsHost {
     return await this.lockService.isLocked([job.data.host]);
   }
 
+  async isBackupRunning(host: string, jobId?: string): Promise<boolean> {
+    const runningJob = await this.hostsQueue.getJobs(RUN_JOB_STATE);
+    const runningJobForHost = runningJob.find((b) => b.data.host === host && b.id !== jobId);
+    if (runningJobForHost) {
+      this.logger.debug(
+        `A job is already running for ${host}: ${runningJobForHost.id}/${
+          runningJobForHost.name
+        }/${await runningJobForHost.getState()}`,
+      );
+      return true;
+    }
+
+    return false;
+  }
+
   /**
    * This service is used to check if a backup should be launch.
    * A backup should be launch if:
@@ -113,14 +128,7 @@ export class JobService extends QueueEventsHost {
    */
   async shouldBackupHost(host: string, jobId?: string, force = false): Promise<boolean> {
     // Have already backup
-    const runningJob = await this.hostsQueue.getJobs(RUN_JOB_STATE);
-    const runningJobForHost = runningJob.find((b) => b.data.host === host && b.id !== jobId);
-    if (runningJobForHost) {
-      this.logger.debug(
-        `A job is already running for ${host}: ${runningJobForHost.id}/${
-          runningJobForHost.name
-        }/${await runningJobForHost.getState()}`,
-      );
+    if (await this.isBackupRunning(host, jobId)) {
       return false;
     }
 

@@ -23,8 +23,8 @@ export class RemoveService {
     private jobService: JobService,
   ) {}
 
-  #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number, logger: LoggerService) {
-    const globalContext = new QueueTaskContext({}, logger);
+  #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number) {
+    const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_POOL_TASK, async () => {
       await this.jobService.launchRefcntJob(
@@ -45,7 +45,7 @@ export class RemoveService {
     return globalContext;
   }
 
-  prepareRemoveTask(job: Job<JobBackupData>, logger: LoggerService) {
+  prepareRemoveTask(job: Job<JobBackupData>) {
     const { host, number } = job.data;
     if (!host || number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);
@@ -56,7 +56,7 @@ export class RemoveService {
       .add(new QueueSubTask(RemoveTaskName.REMOVE_REFCNT_POOL_TASK))
       .add(new QueueSubTask(RemoveTaskName.REMOVE_BACKUP_TASK));
 
-    return new QueueTasksInformations(task, this.#createGlobalContext(job, host, number, logger));
+    return new QueueTasksInformations(task, this.#createGlobalContext(job, host, number));
   }
 
   launchRemoveTask(job: Job<JobBackupData>, informations: QueueTasksInformations<unknown>, signal: AbortSignal) {

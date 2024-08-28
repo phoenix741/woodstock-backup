@@ -1,13 +1,11 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import {
   BackupContext,
-  BackupLogger,
   BackupNameTask,
   BackupOperation,
   ExecuteCommandOperation,
   JobBackupData,
   JobService,
-  QUEUE_TASK_FAILED_STATE,
   QueueGroupTasks,
   QueueSubTask,
   QueueTaskContext,
@@ -82,13 +80,13 @@ export class BackupTasksService {
     return backupGroup;
   }
 
-  async #createGlobalContext(job: Job<JobBackupData>, clientLogger: BackupLogger, logger: BackupLogger) {
+  async #createGlobalContext(job: Job<JobBackupData>) {
     if (job.data.ip === undefined) {
       throw new InternalServerErrorException('No IP provided');
     }
 
     const connection = await this.backupsClient.createClient(job.data.host, job.data.ip, job.data.number ?? 0);
-    const globalContext = new QueueTaskContext(new BackupContext(job.data, clientLogger, connection), logger);
+    const globalContext = new QueueTaskContext(new BackupContext(job.data, connection));
 
     globalContext.commands.set(BackupNameTask.CONNECTION_TASK, async (gc) => {
       if (!gc.globalContext.config?.password) {
@@ -162,11 +160,7 @@ export class BackupTasksService {
     return globalContext;
   }
 
-  async prepareBackupTask(
-    job: Job<JobBackupData>,
-    clientLogger: BackupLogger,
-    logger: BackupLogger,
-  ): Promise<QueueTasksInformations<BackupContext>> {
+  async prepareBackupTask(job: Job<JobBackupData>): Promise<QueueTasksInformations<BackupContext>> {
     const config = job.data.config;
 
     const task = new QueueTasks('GLOBAL')
@@ -192,7 +186,7 @@ export class BackupTasksService {
           .add(new QueueSubTask(BackupNameTask.SAVE_BACKUP_TASK, {}, QueueTaskPriority.FINALISATION)),
       );
 
-    return new QueueTasksInformations(task, await this.#createGlobalContext(job, clientLogger, logger));
+    return new QueueTasksInformations(task, await this.#createGlobalContext(job));
   }
 
   launchBackupTask(job: Job<JobBackupData>, informations: QueueTasksInformations<BackupContext>, signal: AbortSignal) {

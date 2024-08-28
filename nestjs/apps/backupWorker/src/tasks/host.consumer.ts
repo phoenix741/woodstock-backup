@@ -1,14 +1,7 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
-import { ResolveService } from '@woodstock/shared';
-import {
-  BackupLogger,
-  BackupsService,
-  JobBackupData,
-  JobService,
-  QueueName,
-  QUEUE_TASK_FAILED_STATE,
-} from '@woodstock/shared';
+import { ApplicationLogger, ResolveService } from '@woodstock/shared';
+import { BackupsService, JobBackupData, JobService, QueueName, QUEUE_TASK_FAILED_STATE } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { inspect } from 'util';
 import { LaunchBackupError } from '../backups/backup.error.js';
@@ -33,6 +26,7 @@ export class HostConsumer extends WorkerHost {
 
   constructor(
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
+    private applicationLogger: ApplicationLogger,
     private hostConsumerUtilService: HostConsumerUtilService,
     private resolveService: ResolveService,
     private backupsService: BackupsService,
@@ -74,55 +68,57 @@ export class HostConsumer extends WorkerHost {
 
       try {
         const backupTask = job.data;
+        await this.backupsService.invalidateBackup(backupTask.host);
+
         this.logger.debug(`Get the next backup number - JOB ID = ${job.id}`);
         if (backupTask.number === undefined) {
           Object.assign(backupTask, await this.jobService.getNextBackup(backupTask.host));
           job.updateData(backupTask);
         }
 
-        this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
-        if (!backupTask.ip && !backupTask.config?.isLocal) {
-          backupTask.ip = await this.resolveService.resolveFromConfig(backupTask.host, config);
-          if (!backupTask.ip) {
-            throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
+        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, async () => {
+          this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
+          if (!backupTask.ip && !backupTask.config?.isLocal) {
+            backupTask.ip = await this.resolveService.resolveFromConfig(backupTask.host, config);
+            if (!backupTask.ip) {
+              throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
+            }
+            job.updateData(backupTask);
           }
-          job.updateData(backupTask);
-        }
 
-        this.logger.debug(`Define the start date - JOB ID = ${job.id}`);
-        if (!backupTask.startDate) {
-          backupTask.startDate = Date.now();
-          job.updateData(backupTask);
-        }
+          this.logger.debug(`Define the start date - JOB ID = ${job.id}`);
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
 
-        // Set the logger
-        const backupLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number);
-        const clientLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number, true);
+          this.logger.debug(`Prepare the backup job - JOB ID = ${job.id}`);
+          const informations = await this.backupTasksService.prepareBackupTask(job);
 
-        this.logger.debug(`Prepare the backup job - JOB ID = ${job.id}`);
-        const informations = await this.backupTasksService.prepareBackupTask(job, clientLogger, backupLogger);
+          this.logger.debug(`Launch the backup job - JOB ID = ${job.id}`);
+          await this.backupTasksService.launchBackupTask(job, informations, signal);
 
-        this.logger.debug(`Launch the backup job - JOB ID = ${job.id}`);
-        await this.backupTasksService.launchBackupTask(job, informations, signal);
+          this.logger.verbose(
+            `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
+              informations.tasks.progression,
+            )} because of ${inspect(this.backupTasksService.serializeBackupTask(informations.tasks), {
+              showHidden: false,
+              depth: null,
+              colors: true,
+            })}  - JOB ID = ${job.id}`,
+          );
 
-        this.logger.verbose(
-          `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
-            informations.tasks.progression,
-          )} because of ${inspect(this.backupTasksService.serializeBackupTask(informations.tasks), {
-            showHidden: false,
-            depth: null,
-            colors: true,
-          })}  - JOB ID = ${job.id}`,
-        );
-
-        if (QUEUE_TASK_FAILED_STATE.includes(informations.tasks.state)) {
-          throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${informations.tasks.state}`);
-        }
+          if (QUEUE_TASK_FAILED_STATE.includes(informations.tasks.state)) {
+            throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${informations.tasks.state}`);
+          }
+        });
       } catch (err) {
         this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
         throw err;
       } finally {
         await this.backupsService.invalidateBackup(job.data.host);
+
+        this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1);
 
         const lastBackup = await this.backupsService.getLastBackup(job.data.host);
         // Check if the previous backup is incomplete, we can remove it
@@ -142,17 +138,18 @@ export class HostConsumer extends WorkerHost {
   async remove(job: Job<JobBackupData>): Promise<void> {
     this.logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number} - JOB ID = ${job.id}`);
     await this.jobService.using(job, async (signal) => {
-      const removeLogger = new BackupLogger(this.backupsService, job.data.host, job.data.number);
       try {
         const backupTask = job.data;
 
-        if (!backupTask.startDate) {
-          backupTask.startDate = Date.now();
-          job.updateData(backupTask);
-        }
+        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, async () => {
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
 
-        const informations = this.removeService.prepareRemoveTask(job, removeLogger);
-        await this.removeService.launchRemoveTask(job, informations, signal);
+          const informations = this.removeService.prepareRemoveTask(job);
+          await this.removeService.launchRemoveTask(job, informations, signal);
+        });
       } catch (err) {
         this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
         throw err;

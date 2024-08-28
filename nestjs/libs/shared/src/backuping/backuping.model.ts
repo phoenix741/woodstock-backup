@@ -1,8 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { HostConfiguration } from '../models';
-import { BackupLogger } from './backup.logger';
 import { WoodstockBackupClient } from '@woodstock/shared-rs';
-import { Subscription } from 'rxjs';
 
 export enum BackupNameTask {
   GROUP_INIT_TASK = 'init',
@@ -46,9 +44,8 @@ export class BackupContext {
   startDate: number = new Date().getTime();
 
   connection: WoodstockBackupClient;
-  clientLogger: BackupLogger;
 
-  constructor(jobData: JobBackupData, clientLogger: BackupLogger, connection: WoodstockBackupClient) {
+  constructor(jobData: JobBackupData, connection: WoodstockBackupClient) {
     if (!jobData.config || jobData.number === undefined || (!jobData.ip && !jobData.config.isLocal)) {
       throw new BadRequestException(`Initialisation of backup failed.`);
     }
@@ -60,7 +57,6 @@ export class BackupContext {
     this.ip = jobData.ip;
     this.startDate = jobData.startDate ?? this.startDate;
 
-    this.clientLogger = clientLogger;
     this.connection = connection;
   }
 }

@@ -106,7 +106,7 @@ describe('QueueTasksService', () => {
       // GIVEN
       const processedTaskOrder: string[] = [];
 
-      const context = new QueueTaskContext({}, fakeLogger());
+      const context = new QueueTaskContext({});
       for (const command of allCommands) {
         context.commands.set(command, async () => {
           processedTaskOrder.push(command);
@@ -125,7 +125,7 @@ describe('QueueTasksService', () => {
       // GIVEN
       const processedTaskOrder: string[] = [];
 
-      const context = new QueueTaskContext({}, fakeLogger());
+      const context = new QueueTaskContext({});
       for (const command of allCommands) {
         context.commands.set(command, async (_gc, lc: LocalContext) => {
           processedTaskOrder.push(command);
@@ -147,7 +147,7 @@ describe('QueueTasksService', () => {
       // GIVEN
       const processedTaskOrder: string[] = [];
 
-      const context = new QueueTaskContext({}, fakeLogger());
+      const context = new QueueTaskContext({});
       for (const command of allCommands) {
         context.commands.set(command, async (_gc, lc: LocalContext) => {
           processedTaskOrder.push(command);
@@ -169,7 +169,7 @@ describe('QueueTasksService', () => {
       // GIVEN
       const processedTaskOrder: string[] = [];
 
-      const context = new QueueTaskContext({}, fakeLogger());
+      const context = new QueueTaskContext({});
       for (const command of allCommands) {
         context.commands.set(command, async (_gc, lc: LocalContext) => {
           processedTaskOrder.push(command);

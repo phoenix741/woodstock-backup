@@ -5,6 +5,8 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import {
   ApplicationConfigService,
+  ApplicationLogger,
+  BackupsService,
   CertificateService,
   ConfigProviderModule,
   SharedModule,
@@ -92,6 +94,11 @@ import { CacheConfigService } from '@woodstock/shared';
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),
+    },
+    {
+      provide: ApplicationLogger,
+      useFactory: (backupsService) => new ApplicationLogger('main', backupsService),
+      inject: [BackupsService],
     },
   ],
 })

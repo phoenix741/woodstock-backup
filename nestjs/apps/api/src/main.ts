@@ -1,14 +1,18 @@
 import 'source-map-support/register';
+
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ApplicationLogger } from '@woodstock/shared';
+
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    logger: new ApplicationLogger('main'),
+    bufferLogs: true,
   });
+  app.useLogger(app.get(ApplicationLogger));
+  app.flushLogs();
 
   app.setGlobalPrefix('/api', { exclude: [{ path: 'metrics', method: RequestMethod.GET }] });
   app.useGlobalPipes(

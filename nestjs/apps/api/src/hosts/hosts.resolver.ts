@@ -53,7 +53,7 @@ export class HostsResolver {
 
   @ResolveField(() => Float, { nullable: true })
   async timeToNextBackup(@Parent() host: Host): Promise<number | undefined> {
-    if (await this.jobService.shouldBackupHost(host.name)) {
+    if (!(await this.jobService.isBackupRunning(host.name))) {
       return await this.jobService.getTimeToNextBackup(host.name);
     }
     return undefined;
@@ -61,7 +61,7 @@ export class HostsResolver {
 
   @ResolveField(() => Date, { nullable: true })
   async dateToNextBackup(@Parent() host: Host): Promise<Date | undefined> {
-    if (await this.jobService.shouldBackupHost(host.name)) {
+    if (!(await this.jobService.isBackupRunning(host.name))) {
       return await this.jobService.getDateToNextBackup(host.name);
     }
     return undefined;
