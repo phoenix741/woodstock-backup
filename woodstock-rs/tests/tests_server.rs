@@ -58,6 +58,7 @@ async fn server_and_client_stub(
         acl: false,
         xattr: false,
         backup_timeout: 1000,
+        max_backup_seconds: 1000,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);

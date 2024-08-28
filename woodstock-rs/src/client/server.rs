@@ -84,6 +84,7 @@ impl WoodstockClient {
         let service = self.authentification_service.read().await;
         let session_id = service
             .check_context(session_id)
+            .await
             .map_err(|err| tonic::Status::permission_denied(err.to_string()))?;
 
         Ok(session_id)
