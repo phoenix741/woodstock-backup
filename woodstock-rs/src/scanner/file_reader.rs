@@ -22,8 +22,8 @@ use crate::utils::path::vec_to_path;
 use crate::woodstock::ChunkInformation;
 use crate::woodstock::FileChunk;
 use crate::woodstock::{
-    file_chunk, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter, FileChunkHeader,
-    FileManifest, FileManifestJournalEntry,
+    file_chunk, EntryState, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
+    FileChunkHeader, FileManifest, FileManifestJournalEntry,
 };
 use crate::ChunkHashReply;
 use crate::ChunkHashRequest;
@@ -71,6 +71,9 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
             yield FileManifestJournalEntry {
                 r#type: EntryType::Add as i32,
                 manifest: Some(manifest),
+
+                state: EntryState::Todo as i32,
+                state_message: None,
             };
         }
     })

@@ -8,8 +8,8 @@ use tonic::{metadata::MetadataMap, Response};
 
 use crate::woodstock::{
     refresh_cache_request, woodstock_client_service_server::WoodstockClientService,
-    AuthenticateReply, AuthenticateRequest, Empty as EmptyProto, EntryType, ExecuteCommandReply,
-    ExecuteCommandRequest, FileManifestJournalEntry,
+    AuthenticateReply, AuthenticateRequest, Empty as EmptyProto, EntryState, EntryType,
+    ExecuteCommandReply, ExecuteCommandRequest, FileManifestJournalEntry,
 };
 use crate::FileManifest;
 use crate::{client::authentification::Service as AuthService, ChunkInformation};
@@ -242,6 +242,9 @@ impl WoodstockClientService for WoodstockClient {
                     index.apply(FileManifestJournalEntry {
                         r#type: EntryType::Add as i32,
                         manifest: Some(manifest),
+
+                        state: EntryState::Todo as i32,
+                        state_message: None,
                     });
                 }
                 None => {
@@ -304,6 +307,9 @@ impl WoodstockClientService for WoodstockClient {
                         path: file.manifest.path.clone(),
                         ..Default::default()
                     }),
+
+                    state: EntryState::Todo as i32,
+                    state_message: None,
                 };
                 let result = tx.send(Ok(entry)).await;
                 if result.is_err() {

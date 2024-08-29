@@ -93,10 +93,19 @@ enum EntryType {
   REMOVE = 2;
 }
 
+enum EntryState {
+  TODO = 0;
+  DONE = 1;
+  ERROR = 2;
+}
+
 // Journal entry
 message FileManifestJournalEntry {
   EntryType type = 1;
   FileManifest manifest = 2;
+
+  EntryState state = 3;
+  optional string stateMessage = 4;
 }
 
 message Share {

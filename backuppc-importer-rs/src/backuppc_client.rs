@@ -18,7 +18,7 @@ use woodstock::{
     refresh_cache_request,
     server::client::Client,
     utils::path::{osstr_to_vec, path_to_vec, vec_to_path},
-    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryType,
+    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryState, EntryType,
     ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
     FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
     FileManifestXAttr, RefreshCacheRequest, Share,
@@ -217,6 +217,9 @@ impl Client for BackupPCClient {
                         index.apply(FileManifestJournalEntry {
                             r#type: EntryType::Add as i32,
                             manifest: Some(manifest),
+
+                            state: EntryState::Todo as i32,
+                            state_message: None,
                         });
                     }
                     None => {
@@ -261,12 +264,18 @@ impl Client for BackupPCClient {
                     return Some(FileManifestJournalEntry {
                         r#type: EntryType::Modify as i32,
                         manifest: Some(manifest),
+
+                        state: EntryState::Todo as i32,
+                        state_message: None,
                     });
                 }
 
                 Some(FileManifestJournalEntry {
                     r#type: EntryType::Add as i32,
                     manifest: Some(manifest),
+
+                    state: EntryState::Todo as i32,
+                    state_message: None,
                 })
             }
         });
@@ -289,6 +298,9 @@ impl Client for BackupPCClient {
                         path: file.manifest.path.clone(),
                         ..Default::default()
                     }),
+
+                    state: EntryState::Todo as i32,
+                    state_message: None,
                 };
             }
         });
