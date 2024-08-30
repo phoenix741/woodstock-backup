@@ -2,10 +2,14 @@
   <v-row>
     <v-col cols="2">
       <v-list>
-        <v-list-item @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.log`">
+        <v-list-item
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.log?tailable=false`"
+        >
           <v-list-item-title>Transfert Logs</v-list-item-title>
         </v-list-item>
-        <v-list-item @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.error.log`">
+        <v-list-item
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.error.log?tailable=false`"
+        >
           <v-list-item-title>Error Logs</v-list-item-title>
         </v-list-item>
       </v-list>
@@ -26,5 +30,5 @@ const props = defineProps<{
   backupNumber: number;
 }>();
 
-const logComponent = ref(`/api/hosts/${props.deviceId}/backups/${props.backupNumber}/log/backup.log`);
+const logComponent = ref(`/api/hosts/${props.deviceId}/backups/${props.backupNumber}/log/backup.log?tailable=false`);
 </script>

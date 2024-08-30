@@ -12,6 +12,7 @@
 use clap::{Parser, Subcommand};
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
+use commands::read_protobuf::read_log;
 use eyre::Result;
 
 mod commands;
@@ -48,6 +49,14 @@ enum Commands {
         /// Filter the output by file chunks
         #[clap(long)]
         filter_chunks: Option<String>,
+    },
+
+    ReadLog {
+        hostname: String,
+
+        backup_number: usize,
+
+        share_path: String,
     },
 
     GetChunk {
@@ -137,6 +146,16 @@ async fn main() -> Result<()> {
         } => read_protobuf(&path, &format, &filter_name, &filter_chunks)
             .await
             .expect("Failed to read protobuf file"),
+
+        Commands::ReadLog {
+            hostname,
+            backup_number,
+            share_path,
+        } => {
+            read_log(&context, &hostname, backup_number, &share_path)
+                .await
+                .expect("Failed to read log");
+        }
 
         Commands::GetChunk { chunk } => {
             read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");

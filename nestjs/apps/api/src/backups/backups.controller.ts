@@ -75,10 +75,11 @@ export class BackupController {
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
   ): void {
+    const filename = join(this.applicationConfig.hostPath, name, '' + number, `log`);
     if (tailable) {
-      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      tailLog(filename, res);
     } else {
-      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      getLog(filename, res);
     }
   }
 
@@ -93,10 +94,11 @@ export class BackupController {
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
   ): void {
+    const filename = join(this.applicationConfig.hostPath, name, '' + number, `error`);
     if (tailable) {
-      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      tailLog(filename, res);
     } else {
-      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.error.log`), res);
+      getLog(filename, res);
     }
   }
 }
