@@ -1,5 +1,5 @@
 use futures::{pin_mut, Stream, TryStreamExt};
-use log::{debug, error};
+use log::{debug, error, trace};
 use std::{path::Path, pin::Pin, sync::Arc};
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::ReceiverStream;
@@ -237,15 +237,8 @@ impl WoodstockClientService for WoodstockClient {
                     share = Some(header);
                 }
                 Some(refresh_cache_request::Field::FileManifest(manifest)) => {
-                    // debug!("Received manifest: {:?}", manifest);
-
-                    index.apply(FileManifestJournalEntry {
-                        r#type: EntryType::Add as i32,
-                        manifest: Some(manifest),
-
-                        state: EntryState::Todo as i32,
-                        state_message: None,
-                    });
+                    trace!("Received manifest: {:?}", manifest);
+                    index.add(FileManifestLight::from(manifest));
                 }
                 None => {
                     error!("Unknown message in refresh_cache request");
@@ -308,8 +301,8 @@ impl WoodstockClientService for WoodstockClient {
                         ..Default::default()
                     }),
 
-                    state: EntryState::Todo as i32,
-                    state_message: None,
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
                 let result = tx.send(Ok(entry)).await;
                 if result.is_err() {

@@ -155,7 +155,7 @@ mod tests {
         proto::ProtobufReader,
         scanner::{get_files, CreateManifestOptions},
         utils::path::list_to_globset,
-        EntryType, FileManifestJournalEntry,
+        FileManifestJournalEntry,
     };
     use eyre::Result;
     use futures::StreamExt;
@@ -187,12 +187,7 @@ mod tests {
                 with_xattr: cfg!(unix),
             };
 
-            let files = get_files(&share_path, &includes, &excludes, &options).map(|m| {
-                FileManifestJournalEntry {
-                    r#type: EntryType::Add as i32,
-                    manifest: Some(m),
-                }
-            });
+            let files = get_files(&share_path, &includes, &excludes, &options);
             save_file("./data/home.filelist.test", files, true, false).await?;
         };
 

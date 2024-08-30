@@ -49,8 +49,8 @@ pub fn generate_compare_stream(
                         manifest: Some(manifest),
                         r#type: EntryType::Modify as i32,
 
-                        state: EntryState::Todo as i32,
-                        state_message: None,
+                        state: EntryState::Metadata as i32,
+                        state_messages: Vec::new(),
                     };
                 }
             } else {
@@ -58,8 +58,8 @@ pub fn generate_compare_stream(
                     manifest: Some(manifest),
                     r#type: EntryType::Add as i32,
 
-                    state: EntryState::Todo as i32,
-                    state_message: None,
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
             }
         }
@@ -73,8 +73,8 @@ pub fn generate_compare_stream(
                     manifest: Some(entry.manifest.clone()),
                     r#type: EntryType::Remove as i32,
 
-                    state: EntryState::Todo as i32,
-                    state_message: None,
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
             }
         }

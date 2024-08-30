@@ -94,9 +94,11 @@ enum EntryType {
 }
 
 enum EntryState {
-  TODO = 0;
-  DONE = 1;
-  ERROR = 2;
+  METADATA = 0;
+  PARTIAL_METADATA = 1;
+  CHUNKS = 2;
+  CHUNKS_PARTIAL_METADATA = 3;
+  ERROR = 99;
 }
 
 // Journal entry
@@ -105,7 +107,7 @@ message FileManifestJournalEntry {
   FileManifest manifest = 2;
 
   EntryState state = 3;
-  optional string stateMessage = 4;
+  repeated string stateMessages = 4;
 }
 
 message Share {

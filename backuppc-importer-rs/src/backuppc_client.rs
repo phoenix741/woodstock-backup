@@ -214,13 +214,7 @@ impl Client for BackupPCClient {
                     Some(refresh_cache_request::Field::FileManifest(manifest)) => {
                         debug!("Received file manifest for : {:?}", manifest.path());
 
-                        index.apply(FileManifestJournalEntry {
-                            r#type: EntryType::Add as i32,
-                            manifest: Some(manifest),
-
-                            state: EntryState::Todo as i32,
-                            state_message: None,
-                        });
+                        index.add(FileManifestBackupPC::from(manifest));
                     }
                     None => {
                         error!("Unknown message in refresh_cache request");
@@ -265,8 +259,8 @@ impl Client for BackupPCClient {
                         r#type: EntryType::Modify as i32,
                         manifest: Some(manifest),
 
-                        state: EntryState::Todo as i32,
-                        state_message: None,
+                        state: EntryState::Metadata as i32,
+                        state_messages: Vec::new(),
                     });
                 }
 
@@ -274,8 +268,8 @@ impl Client for BackupPCClient {
                     r#type: EntryType::Add as i32,
                     manifest: Some(manifest),
 
-                    state: EntryState::Todo as i32,
-                    state_message: None,
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 })
             }
         });
@@ -299,8 +293,8 @@ impl Client for BackupPCClient {
                         ..Default::default()
                     }),
 
-                    state: EntryState::Todo as i32,
-                    state_message: None,
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
             }
         });

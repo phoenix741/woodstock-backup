@@ -5,7 +5,6 @@ use futures::{pin_mut, StreamExt};
 
 use woodstock::{
     config::{Context, Hosts},
-    manifest::PathManifest,
     scanner::{get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
 };

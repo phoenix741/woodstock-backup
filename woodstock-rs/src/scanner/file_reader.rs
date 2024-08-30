@@ -22,8 +22,8 @@ use crate::utils::path::vec_to_path;
 use crate::woodstock::ChunkInformation;
 use crate::woodstock::FileChunk;
 use crate::woodstock::{
-    file_chunk, EntryState, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
-    FileChunkHeader, FileManifest, FileManifestJournalEntry,
+    file_chunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter, FileChunkHeader, FileManifest,
+    FileManifestJournalEntry,
 };
 use crate::ChunkHashReply;
 use crate::ChunkHashRequest;
@@ -57,24 +57,18 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
         let files = get_files(share_path, includes, excludes, options);
         pin_mut!(files);
 
-        while let Some(manifest) = files.next().await {
-            let mut manifest = manifest;
+        while let Some(journal_entry) = files.next().await {
+            if let Some(ref manifest) = &journal_entry.manifest {
+                // Start by mark the file as viewed
+                index.mark(&manifest.path);
 
-            // Start by mark the file as viewed
-            index.mark(&manifest.path);
+                // If the file isn't modified, skip it
+                if !is_modified(index, manifest) {
+                    continue;
+                }
 
-            // If the file isn't modified, skip it
-            if !is_modified(index, &manifest) {
-                continue;
+                yield journal_entry;
             }
-
-            yield FileManifestJournalEntry {
-                r#type: EntryType::Add as i32,
-                manifest: Some(manifest),
-
-                state: EntryState::Todo as i32,
-                state_message: None,
-            };
         }
     })
 }

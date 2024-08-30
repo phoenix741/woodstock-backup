@@ -1,3 +1,4 @@
+use eyre::Result;
 #[cfg(unix)]
 use nix::libc::{S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO, S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK};
 
@@ -24,7 +25,7 @@ use std::os::windows::fs::MetadataExt;
 
 use crate::utils::path::path_to_vec;
 use crate::woodstock::{FileManifest, FileManifestStat, FileManifestType};
-use crate::{FileManifestAcl, FileManifestXAttr};
+use crate::{EntryState, EntryType, FileManifestAcl, FileManifestJournalEntry, FileManifestXAttr};
 
 #[derive(Clone)]
 pub struct CreateManifestOptions {
@@ -113,40 +114,39 @@ fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat 
     }
 }
 
-#[must_use]
-pub fn read_xattr(file: &Path) -> Vec<FileManifestXAttr> {
+fn read_xattr(file: &Path) -> Result<Vec<FileManifestXAttr>> {
     #[cfg(all(unix, feature = "xattr"))]
     {
-        xattr::list(file)
-            .map(|attrs| {
-                attrs
-                    .filter_map(|attr| {
-                        xattr::get(file, &attr).ok()?.map(|value| {
-                            let key = attr.as_encoded_bytes().to_vec();
-                            FileManifestXAttr { key, value }
-                        })
+        let attrs = xattr::list(file).map(|attrs| {
+            attrs
+                .filter_map(|attr| {
+                    xattr::get(file, &attr).ok()?.map(|value| {
+                        let key = attr.as_encoded_bytes().to_vec();
+                        FileManifestXAttr { key, value }
                     })
-                    .collect()
-            })
-            .unwrap_or_else(|_| Vec::new())
+                })
+                .collect()
+        })?;
+
+        Ok(attrs)
     }
     #[cfg(not(all(unix, feature = "xattr")))]
     {
         let _file = file;
-        Vec::new()
+        Ok(Vec::new())
     }
 }
 
-#[must_use]
-pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
+fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
     #[cfg(all(unix, feature = "acl"))]
     {
         use crate::FileManifestAclQualifier;
         use posix_acl::{PosixACL, Qualifier};
 
-        let acls: Result<PosixACL, posix_acl::ACLError> = PosixACL::read_acl(file);
+        let acls: PosixACL = PosixACL::read_acl(file)?;
+        let acls = acls.entries();
 
-        acls.map_or_else(|_| Vec::new(), |acls| acls.entries())
+        let acl = acls
             .iter()
             .map(|entry| {
                 let mut id = 0;
@@ -172,13 +172,15 @@ pub fn read_acl(file: &Path) -> Vec<FileManifestAcl> {
                     perm: entry.perm,
                 }
             })
-            .collect()
+            .collect();
+
+        Ok(acl)
     }
 
     #[cfg(not(all(unix, feature = "acl")))]
     {
         let _file = file;
-        Vec::new()
+        Ok(Vec::new())
     }
 }
 
@@ -197,7 +199,7 @@ fn create_manifest_from_file(
     share_path: &Path,
     path: &Path,
     options: &CreateManifestOptions,
-) -> Result<FileManifest, io::Error> {
+) -> Result<FileManifestJournalEntry> {
     let file = share_path.join(path);
 
     // Check if user has access to the file
@@ -209,32 +211,57 @@ fn create_manifest_from_file(
         Vec::new()
     };
 
+    let mut state = EntryState::Metadata;
+    let mut state_messages: Vec<String> = Vec::new();
+
     let xattr = if options.with_xattr {
-        read_xattr(&file)
+        match read_xattr(&file) {
+            Ok(xattr) => xattr,
+            Err(e) => {
+                state = EntryState::PartialMetadata;
+                state_messages.push(format!("{:#}", e));
+                Vec::new()
+            }
+        }
     } else {
         Vec::new()
     };
 
     let acl = if options.with_acl {
-        read_acl(&file)
+        match read_acl(&file) {
+            Ok(acl) => acl,
+            Err(e) => {
+                state = EntryState::PartialMetadata;
+                state_messages.push(format!("{:#}", e));
+                Vec::new()
+            }
+        }
     } else {
         Vec::new()
     };
 
-    Ok(FileManifest {
-        path: path_to_vec(path),
-        stats: Some(create_stats_from_metadata(&metadata)),
+    Ok(FileManifestJournalEntry {
+        r#type: EntryType::Add as i32,
+        manifest: Some(FileManifest {
+            path: path_to_vec(path),
+            stats: Some(create_stats_from_metadata(&metadata)),
 
-        xattr,
-        acl,
-        chunks: Vec::new(),
-        hash: Vec::new(),
-        symlink,
+            xattr,
+            acl,
+            chunks: Vec::new(),
+            hash: Vec::new(),
+            symlink,
 
-        metadata: HashMap::new(),
+            metadata: HashMap::new(),
+        }),
+
+        state: state as i32,
+        state_messages,
     })
 }
 
+// TODO: If a directory is not authorized, we should provide an error instead of
+// silently ignoring it.
 fn get_files_recursive(
     share_path: &Path,
     includes: &GlobSet,
@@ -311,7 +338,7 @@ pub fn get_files<'a>(
     includes: &'a GlobSet,
     excludes: &'a GlobSet,
     options: &'a CreateManifestOptions,
-) -> impl Stream<Item = FileManifest> + 'a {
+) -> impl Stream<Item = FileManifestJournalEntry> + 'a {
     stream!({
         let files = get_files_recursive(share_path, &includes, &excludes);
         pin_mut!(files);
