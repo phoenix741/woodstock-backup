@@ -101,4 +101,24 @@ export class BackupController {
       getLog(filename, res);
     }
   }
+
+  @Get(':number/log/:share.log')
+  @ApiOkResponse({
+    description: 'Get the share log of the server',
+    type: String,
+  })
+  getXFerLog(
+    @Param('name') name: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Param('share') share: string,
+    @Res() res: Response,
+  ): void {
+    res.header('Content-Type', 'text/plain;charset=utf-8');
+
+    this.backupsService.readLog(name, number, share).subscribe({
+      next: (data) => res.write(data + '\n'),
+      error: (err) => res.status(500).end(err.message),
+      complete: () => res.end(),
+    });
+  }
 }
