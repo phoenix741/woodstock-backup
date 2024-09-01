@@ -14,8 +14,9 @@ const logframe = ref(null);
 
 <style scoped>
 iframe {
+  display: block;
   border: 0;
-  height: 500px;
+  height: 450px;
   width: 100%;
 }
 </style>

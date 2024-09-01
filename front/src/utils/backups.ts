@@ -8,6 +8,24 @@ import {
 import { useApolloClient, useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
+export function useShare(deviceId: string, backupNumber: number) {
+  const { result: data, loading: isFetching } = useQuery(SharesBrowseDocument, {
+    hostname: deviceId,
+    number: backupNumber,
+  });
+
+  const shares = computed(() =>
+    data.value?.backup.shares
+      .map((fragment) => useFragment(FragmentFileDescriptionFragmentDoc, fragment))
+      .sort((a, b) => a.type.localeCompare(b.type) || a.path.localeCompare(b.path)),
+  );
+
+  return {
+    shares,
+    isFetching,
+  };
+}
+
 export function useBackups(deviceId: string) {
   const { result: data, loading: isFetching } = useQuery(BackupsDocument, {
     hostname: deviceId,
@@ -22,14 +40,11 @@ export function useBackups(deviceId: string) {
 }
 
 export function useBackupsBrowse(deviceId: string, backupNumber: number) {
-  const { client } = useApolloClient();
-
-  const { result: data, loading: isFetching } = useQuery(SharesBrowseDocument, {
-    hostname: deviceId,
-    number: backupNumber,
-  });
+  const { shares, isFetching } = useShare(deviceId, backupNumber);
 
   const browse = async (sharePath: string, path: string) => {
+    const { client } = useApolloClient();
+
     const { data } = await client.query({
       query: BackupsBrowseDocument,
       variables: {
@@ -44,12 +59,6 @@ export function useBackupsBrowse(deviceId: string, backupNumber: number) {
       .map((fragment) => useFragment(FragmentFileDescriptionFragmentDoc, fragment))
       .sort((a, b) => a.type.localeCompare(b.type) || a.path.localeCompare(b.path));
   };
-
-  const shares = computed(() =>
-    data.value?.backup.shares
-      .map((fragment) => useFragment(FragmentFileDescriptionFragmentDoc, fragment))
-      .sort((a, b) => a.type.localeCompare(b.type) || a.path.localeCompare(b.path)),
-  );
 
   return {
     shares,

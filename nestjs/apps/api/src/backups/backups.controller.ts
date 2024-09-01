@@ -102,7 +102,7 @@ export class BackupController {
     }
   }
 
-  @Get(':number/log/:share.log')
+  @Get(':number/xferLog/:share.log')
   @ApiOkResponse({
     description: 'Get the share log of the server',
     type: String,
