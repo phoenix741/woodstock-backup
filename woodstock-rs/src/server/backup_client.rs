@@ -630,7 +630,8 @@ impl<Clt: Client> BackupClient<Clt> {
                                     tonic::Code::Unavailable
                                     | tonic::Code::Unauthenticated
                                     | tonic::Code::PermissionDenied
-                                    | tonic::Code::DeadlineExceeded => {
+                                    | tonic::Code::DeadlineExceeded
+                                    | tonic::Code::Cancelled => {
                                         abort = Some(e);
                                         break;
                                     }
