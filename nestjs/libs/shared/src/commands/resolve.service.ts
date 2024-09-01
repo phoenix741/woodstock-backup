@@ -12,7 +12,7 @@ const NMBLOOKUP_ACTIVE_ENTRY = /^\s*([\w\s-]+?)\s*<(\w{2})\> - .*<ACTIVE>/i;
 
 @Injectable()
 export class ResolveService {
-  private logger = new Logger(ResolveService.name);
+  #logger = new Logger(ResolveService.name);
 
   constructor(private executeCommandService: ExecuteCommandService) {}
 
@@ -27,6 +27,7 @@ export class ResolveService {
    */
   async resolveFromConfig(hostname: string, config: InformationToResolve): Promise<string> {
     if (config.dhcp) {
+      this.#logger.log(`Resolve host ${hostname} from DHCP ...`);
       for (const dhcp of config.dhcp) {
         const ip = await this.searchIpFromRange(hostname, dhcp.address, dhcp.start, dhcp.end);
         if (ip) {
@@ -75,6 +76,9 @@ export class ResolveService {
     for (let n = start; n <= end; n++) {
       const ip = network + '.' + n;
       const { hostname } = await this.resolveNetbiosFromIP({ ip });
+
+      this.#logger.log(`Try to resolve ${host} with IP ${ip} find host ${hostname}`);
+
       if (hostname === host.toLowerCase()) {
         return ip;
       }
@@ -93,8 +97,12 @@ export class ResolveService {
   async resolveDNS(hostname: string): Promise<string | null> {
     try {
       const result = await dnsLookupPromise(hostname);
+
+      this.#logger.debug(`Resolve host ${hostname} from DNS find ${result.address} ...`);
       return result.address;
     } catch (err) {
+      this.#logger.debug(`Can't resolve host ${hostname} from DNS`);
+
       return null;
     }
   }
@@ -132,10 +140,10 @@ export class ResolveService {
     ipAddr = ipAddr || firstIpAddr;
 
     if (ipAddr) {
-      this.logger.debug(`Found IP addresse ${ipAddr} for host ${params.hostname}`);
+      this.#logger.debug(`Found IP addresse ${ipAddr} for host ${params.hostname}`);
       return ipAddr;
     } else {
-      this.logger.debug(`Couldn't find IP addresse for host ${params.hostname}`);
+      this.#logger.debug(`Couldn't find IP addresse for host ${params.hostname}`);
       return;
     }
   }
@@ -160,10 +168,10 @@ export class ResolveService {
     }
 
     if (netBiosHostName) {
-      this.logger.log(`Returning host ${netBiosHostName}, user ${netBiosUserName} for ip ${params.ip}`);
+      this.#logger.log(`Returning host ${netBiosHostName}, user ${netBiosUserName} for ip ${params.ip}`);
       return { hostname: netBiosHostName.toLowerCase(), username: (netBiosUserName || '').toLowerCase() };
     } else {
-      this.logger.error(`Can't find a netbios name for the ip ${params.ip}`);
+      this.#logger.error(`Can't find a netbios name for the ip ${params.ip}`);
       return {};
     }
   }
