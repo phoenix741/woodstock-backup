@@ -2,6 +2,7 @@ use async_stream::try_stream;
 use eyre::eyre;
 use futures::pin_mut;
 use futures::Stream;
+use log::warn;
 use log::{debug, error, info};
 use std::path::Path;
 use std::path::PathBuf;
@@ -193,7 +194,16 @@ impl Client for BackupGrpcClient {
 
         let response = client.execute_command(request).await?;
 
-        info!("Command {command} executed");
+        info!(
+            "Command {command} executed with result {}",
+            response.get_ref().code
+        );
+        if !response.get_ref().stdout.is_empty() {
+            info!("{}", response.get_ref().stdout);
+        }
+        if !response.get_ref().stderr.is_empty() {
+            warn!("{}", response.get_ref().stderr);
+        }
         Ok(response.into_inner())
     }
 
@@ -231,7 +241,7 @@ impl Client for BackupGrpcClient {
         info!(
             "Getting chunk hash from {} for {}",
             self.hostname,
-            vec_to_path(&request.filename).display()
+            vec_to_path(&request.filename).display(),
         );
 
         let client = self.client.clone();
@@ -252,9 +262,10 @@ impl Client for BackupGrpcClient {
 
     fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
         info!(
-            "Getting chunk from {} for {}",
+            "Getting chunk from {} for {} ({} chunks)",
             self.hostname,
-            vec_to_path(&request.filename).display()
+            vec_to_path(&request.filename).display(),
+            request.chunks_id.len()
         );
 
         try_stream!({
