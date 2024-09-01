@@ -1,3 +1,27 @@
+# [2.0.0-alpha.9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.8...v2.0.0-alpha.9) (2024-09-01)
+
+
+### Bug Fixes
+
+* :bug: improve lisibility of number of error of a backup, fix bug where woodstock try to make backup even if the host isn't present ([fe7775d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/fe7775ddbf399ffbdb75a721f03cc25efcc6f9f4))
+* 🐛 fix build on windows ([7e84132](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7e841324bfbb0b6fe8be7431414f3fa551b23f37))
+* 🐛 fix timeout on client side ([bc05bc3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/bc05bc33f42980853edff1904b63f6105db4f1a1))
+* 🐛 when file is modified, send modify entry instead of add (to permit upload of modified part) ([1412c1b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1412c1bb8b6c681fab15521b42a204504fc6fd30))
+
+
+### Features
+
+* :recycle: update protocol to use a unique sync method (instead upload + download) : less memory consumption on client ([da68267](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/da68267548c9d10c81c49225c4b75fd8288d0146))
+* :sparkles: add xfer log to api ([b12c161](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b12c161a959d2e76b43eff50cc364de656ce25bf))
+* :sparkles: show log on backup ([9214a76](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9214a769894f3a93fbb6a2a532f005b90286cc24))
+* ✨ add a state in the journal entry to trace error ([51d9671](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/51d9671f03d9f225b89d712697a52d919775e780))
+* ✨ parsing of metdata add information on success or failure of reading it ([2d686d1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/2d686d17eb8a3eb29ffaf4b43a052ad371b6f86a))
+* ✨ parsing on client side will log all error in the journal ([f13bb0e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f13bb0ede721986d0344bf7ec9bddfcd610631ad))
+* ✨ process error in the journal/log ([1d70f6e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1d70f6efef3c8d3cd3b30c63f946f9d8269f0787))
+* ✨ the expiration will be updated each time the service is called ([87263d8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/87263d88b17f3eab4b3cadc98f8593b9ac467cd4))
+* 🔊 add host and backup number in log informations ([0b1a3d8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/0b1a3d8d711e7d4d1f6ea45450fbd5b81b7c553e))
+* don't return next date if host should not be backupped ([1f51a2e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1f51a2e9c32f4ee2f0d0be40bbdfec3d52fbaa42))
+
 # [2.0.0-alpha.8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.7...v2.0.0-alpha.8) (2024-08-21)
 
 
