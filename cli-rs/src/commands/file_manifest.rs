@@ -7,7 +7,7 @@ use futures::{pin_mut, Stream, StreamExt};
 use indicatif::HumanBytes;
 use woodstock::{
     manifest::{Manifest, PathManifest},
-    EntryType, FileManifestJournalEntry,
+    EntryState, EntryType, FileManifestJournalEntry,
 };
 
 pub fn generate_compare_stream(
@@ -48,12 +48,18 @@ pub fn generate_compare_stream(
                     yield FileManifestJournalEntry {
                         manifest: Some(manifest),
                         r#type: EntryType::Modify as i32,
+
+                        state: EntryState::Metadata as i32,
+                        state_messages: Vec::new(),
                     };
                 }
             } else {
                 yield FileManifestJournalEntry {
                     manifest: Some(manifest),
                     r#type: EntryType::Add as i32,
+
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
             }
         }
@@ -66,6 +72,9 @@ pub fn generate_compare_stream(
                 yield FileManifestJournalEntry {
                     manifest: Some(entry.manifest.clone()),
                     r#type: EntryType::Remove as i32,
+
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 };
             }
         }

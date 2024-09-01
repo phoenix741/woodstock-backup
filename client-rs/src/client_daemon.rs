@@ -8,6 +8,7 @@
 #![recursion_limit = "512"]
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use eyre::Result;
@@ -69,6 +70,10 @@ async fn start_client(
     let client_ca_root = tonic::transport::Certificate::from_pem(root_ca);
 
     let server = Server::builder()
+        // TODO: Mutualisation with grpc_client
+        .http2_keepalive_interval(Some(Duration::from_secs(30)))
+        .http2_keepalive_timeout(Some(Duration::from_secs(60)))
+        .tcp_keepalive(Some(Duration::from_secs(30)))
         .tls_config(
             ServerTlsConfig::new()
                 .identity(identity)
@@ -299,7 +304,8 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
     let config_dir = args.config_dir;
     let log_path = config_dir
-        .clone().map_or_else(get_config_path, PathBuf::from)
+        .clone()
+        .map_or_else(get_config_path, PathBuf::from)
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");

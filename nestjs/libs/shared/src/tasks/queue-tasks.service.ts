@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { instanceToPlain, plainToInstance } from 'class-transformer';
 import {
@@ -30,6 +30,8 @@ import {
 
 @Injectable()
 export class QueueTasksService {
+  #logger = new Logger(QueueTasksService.name);
+
   async executeTasksFromJob<JobData, Context>(
     job: Job<JobData>,
     informations: QueueTasksInformations<Context>,
@@ -118,7 +120,7 @@ export class QueueTasksService {
   ): Observable<QueueTasks> {
     if (subtask.state !== QueueTaskState.WAITING) {
       if (subtask.state === QueueTaskState.RUNNING) {
-        context.logger.error(`Task ${subtask.taskName} previously running: fail the job`, subtask.taskName);
+        this.#logger.error(`Task ${subtask.taskName} previously running: fail the job`, subtask.taskName);
         subtask.state = QueueTaskState.FAILED;
       }
 
@@ -134,7 +136,7 @@ export class QueueTasksService {
     subtask.progression = new QueueTaskProgression();
     subtask.state = QueueTaskState.RUNNING;
 
-    context.logger.debug?.(`Start task ${subtask.taskName} `, subtask.taskName);
+    this.#logger.debug?.(`Start task ${subtask.taskName} `, subtask.taskName);
     return launchCommand.pipe(
       startWith(subtask.progression),
       map((progression) => {
@@ -142,7 +144,7 @@ export class QueueTasksService {
         return primaryTask;
       }),
       catchError((err) => {
-        context.logger.error(`Error while executing ${subtask.taskName} ${err.message}`, err.stack, subtask.taskName);
+        this.#logger.error(`Error while executing ${subtask.taskName} ${err.message}`, err.stack, subtask.taskName);
         subtask.state = QueueTaskState.FAILED;
         return of(primaryTask);
       }),
@@ -152,7 +154,7 @@ export class QueueTasksService {
             subtask.progression = subtask.progression || new QueueTaskProgression();
             subtask.state = QueueTaskState.SUCCESS;
           }
-          context.logger.debug?.(`End task with state ${subtask.state}`, subtask.taskName);
+          this.#logger.debug?.(`End task with state ${subtask.state}`, subtask.taskName);
           return primaryTask;
         },
       }),

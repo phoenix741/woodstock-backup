@@ -36,8 +36,24 @@
             <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }}</template>
             <template v-slot:[`item.existingFileCount`]="{ item }">{{ toNumber(item.existingFileCount) }}</template>
             <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.newFileCount) }}</template>
+            <template v-slot:[`item.removedFileCount`]="{ item }">{{ toNumber(item.removedFileCount) }}</template>
+            <template v-slot:[`item.modifiedFileCount`]="{ item }">{{ toNumber(item.modifiedFileCount) }}</template>
+
+            <template v-slot:[`item.errorCount`]="{ item }">
+              <v-chip :color="toErrorCountColor(item.errorCount)" size="small" label :text="toNumber(item.errorCount)">
+              </v-chip>
+            </template>
+
             <template v-slot:[`item.completed`]="{ item }">
-              <v-checkbox readonly v-model="item.completed" disabled></v-checkbox>
+              <v-progress-circular
+                v-if="!item.endDate"
+                indeterminate
+                color="primary"
+                width="20"
+                size="20"
+              ></v-progress-circular>
+
+              <v-checkbox v-if="item.endDate" readonly v-model="item.completed" disabled></v-checkbox>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -88,12 +104,21 @@ const headers: ReadonlyHeaders = [
   },
   { title: 'Start date', align: 'end', key: 'startDate' },
   { title: 'Duration (minutes)', align: 'end', key: 'duration' },
+
   { title: 'Files Count', align: 'end', key: 'fileCount' },
   { title: 'Files Size', align: 'end', key: 'fileSize' },
+
   { title: 'Existing Files Count', align: 'end', key: 'existingFileCount' },
   { title: 'Existing Files Size', align: 'end', key: 'existingFileSize' },
+
   { title: 'New Files Count', align: 'end', key: 'newFileCount' },
   { title: 'New Files Size', align: 'end', key: 'newFileSize' },
+
+  { title: 'Modified Files Count', align: 'end', key: 'modifiedFileCount' },
+  { title: 'Removed Files Count', align: 'end', key: 'removedFileCount' },
+
+  { title: 'Error Count', align: 'end', key: 'errorCount' },
+
   { title: 'Complete', align: 'center', key: 'completed' },
 ];
 
@@ -115,4 +140,8 @@ watch(
     showDialog.value = backups.value?.reduce((acc, backup) => ({ ...acc, [backup.number]: false }), {}) ?? {};
   },
 );
+
+function toErrorCountColor(errorCount: number): string {
+  return errorCount > 0 ? 'error' : 'success';
+}
 </script>

@@ -36,30 +36,26 @@ export class BackupsClientService {
     return context.executeCommand(command);
   }
 
-  async uploadFileList(context: WoodstockBackupClient, shares: Array<string>): Promise<void> {
-    await context.uploadFileList(shares);
-
-    await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
-  }
-
-  downloadFileList(
+  synchronizeFileList(
     context: WoodstockBackupClient,
     share: WoodstockBackupShare,
     abort?: AbortSignal,
   ): Observable<JsBackupProgression> {
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
-      const abortHandle = context.downloadFileList(share, (result) => {
+      const abortHandle = context.synchronizeFileList(share, (result) => {
         if (result.progress) {
           observer.next(result.progress);
         }
 
         if (result.error) {
+          this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
           observer.error(result.error);
           abort?.removeEventListener('abort', abortMethod);
         }
 
         if (result.complete) {
+          this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
           observer.complete();
           abort?.removeEventListener('abort', abortMethod);
         }
@@ -86,11 +82,13 @@ export class BackupsClientService {
         }
 
         if (result.error) {
+          this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
           observer.error(result.error);
           abort?.removeEventListener('abort', abortMethod);
         }
 
         if (result.complete) {
+          this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
           observer.complete();
           abort?.removeEventListener('abort', abortMethod);
         }
@@ -114,8 +112,8 @@ export class BackupsClientService {
     return context.countReferences();
   }
 
-  async saveBackup(context: WoodstockBackupClient, completed: boolean): Promise<void> {
-    await context.saveBackup(completed);
+  async saveBackup(context: WoodstockBackupClient, finished: boolean, completed: boolean): Promise<void> {
+    await context.saveBackup(finished, completed);
 
     await this.backupsService.invalidateBackup(context.hostname, context.backupNumber);
   }

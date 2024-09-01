@@ -60,12 +60,12 @@ async fn main() -> Result<()> {
 
     let mut client = BackupClient::new(grpc_client, &args.hostname, backup_number, &context);
 
-    term.write_line(&format!("[1/10] {}Authenticating", Emoji("🔐 ", "")))?;
+    term.write_line(&format!("[1/9] {}Authenticating", Emoji("🔐 ", "")))?;
 
     client.authenticate(&host_configuration.password).await?;
 
     term.write_line(&format!(
-        "[2/10] {}Create backup directory",
+        "[2/9] {}Create backup directory",
         Emoji("🔐 ", "")
     ))?;
 
@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
 
     client.init_backup_directory(&shares).await?;
 
-    term.write_line(&format!("[3/10] {}Execute pre-commands", Emoji("⚙️ ", "")))?;
+    term.write_line(&format!("[3/9] {}Execute pre-commands", Emoji("⚙️ ", "")))?;
 
     if let Some(pre_commands) = host_configuration.operations.pre_commands {
         for pre_command in pre_commands {
@@ -101,22 +101,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    term.write_line(&format!("[4/10] {}Upload last file list", Emoji("⬆️ ", "")))?;
-
-    if let Some(ref operation) = host_configuration.operations.operation {
-        let shares = operation
-            .shares
-            .iter()
-            .map(|share| share.name.clone())
-            .collect::<Vec<_>>();
-
-        if let Err(err) = client.upload_file_list(shares).await {
-            error!("Error uploading file list: {}", err);
-            abort = true;
-        }
-    }
-
-    term.write_line(&format!("[5/10] {}Download file list", Emoji("⬇️ ", "")))?;
+    term.write_line(&format!("[4/9] {}Download file list", Emoji("⬇️ ", "")))?;
 
     if let Some(ref operation) = host_configuration.operations.operation {
         let includes = operation.includes.clone().unwrap_or_default();
@@ -136,7 +121,7 @@ async fn main() -> Result<()> {
             };
 
             if !abort {
-                if let Err(err) = client.download_file_list(&share, &|_| {}).await {
+                if let Err(err) = client.synchronize_file_list(&share, &|_| {}).await {
                     error!("Error downloading file list: {}", err);
                     abort = true;
                 }
@@ -144,7 +129,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    term.write_line(&format!("[6/10] {}Download chunks", Emoji("💾 ", "")))?;
+    term.write_line(&format!("[5/9] {}Download chunks", Emoji("💾 ", "")))?;
 
     let progress_max = client.progress().await.progress_max;
     let bar = ProgressBar::new(progress_max);
@@ -175,7 +160,7 @@ async fn main() -> Result<()> {
     }
     bar.finish();
 
-    term.write_line(&format!("[7/10] {}Execute post-commands", Emoji("⚙️ ", "")))?;
+    term.write_line(&format!("[6/9] {}Execute post-commands", Emoji("⚙️ ", "")))?;
 
     if let Some(post_commands) = host_configuration.operations.post_commands {
         for post_command in post_commands {
@@ -208,7 +193,7 @@ async fn main() -> Result<()> {
         abort = true;
     }
 
-    term.write_line(&format!("[8/10] {}Compact manifests", Emoji("📦 ", "")))?;
+    term.write_line(&format!("[7/9] {}Compact manifests", Emoji("📦 ", "")))?;
 
     if let Some(ref operation) = host_configuration.operations.operation {
         for share in &operation.shares {
@@ -217,15 +202,15 @@ async fn main() -> Result<()> {
     }
 
     term.write_line(&format!(
-        "[9/10] {}Count reference of backup",
+        "[8/9] {}Count reference of backup",
         Emoji("📏 ", "")
     ))?;
 
     client.count_references().await?;
 
-    client.save_backup(!abort).await?;
+    client.save_backup(true, !abort).await?;
 
-    term.write_line("[10/10] Fin")?;
+    term.write_line("[9/9] Fin")?;
 
     Ok(())
 }

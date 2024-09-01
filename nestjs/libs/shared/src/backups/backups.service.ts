@@ -2,6 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import { CoreBackupsService, JsBackup } from '@woodstock/shared-rs';
 import { Cache } from 'cache-manager';
+import { Observable } from 'rxjs';
 
 @Injectable()
 export class BackupsService {
@@ -16,6 +17,33 @@ export class BackupsService {
 
   getLogDirectory(hostname: string, backupNumber: number): string {
     return this.backupsService.getLogDirectory(hostname, backupNumber);
+  }
+
+  readLog(hostname: string, backupNumber: number, sharePath: string, abort?: AbortSignal): Observable<String> {
+    return new Observable((observer) => {
+      let abortMethod: () => void = () => {};
+      const abortHandle = this.backupsService.readLog(hostname, backupNumber, sharePath, (result) => {
+        if (result.progress) {
+          observer.next(result.progress);
+        }
+
+        if (result.error) {
+          observer.error(result.error);
+          abort?.removeEventListener('abort', abortMethod);
+        }
+
+        if (result.complete) {
+          observer.complete();
+          abort?.removeEventListener('abort', abortMethod);
+        }
+      });
+      abortMethod = () => {
+        abortHandle.abort();
+        observer.error(new Error('Download aborted'));
+      };
+
+      abort?.addEventListener('abort', abortMethod);
+    });
   }
 
   getHostPath(hostname: string): string {

@@ -10,8 +10,7 @@ describe('BackupClientProgress', () => {
     authenticate: () => 0,
     createBackupDirectory: () => 0,
     executeCommand: () => 0,
-    uploadFileList: () => 0,
-    downloadFileList: () => 0,
+    synchronizeFileList: () => 0,
     createBackup: () => 0,
     compact: () => 0,
     countReferences: () => 0,
@@ -82,10 +81,10 @@ describe('BackupClientProgress', () => {
       { type: JsEntryType.Add, manifest: { path: Buffer.from('file5'), stats: { size: 500n } } },
       { type: JsEntryType.Remove, manifest: { path: Buffer.from('file6') } },
     ];
-    mockBackupClient.downloadFileList = jest.fn().mockReturnValue(from(it));
+    mockBackupClient.synchronizeFileList = jest.fn().mockReturnValue(from(it));
 
     // WHEN
-    const observable = backupClientProgress.downloadFileList(fakeClient, {
+    const observable = backupClientProgress.synchronizeFileList(fakeClient, {
       sharePath: 'sharePath',
       includes: [],
       excludes: [],

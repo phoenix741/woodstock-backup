@@ -204,18 +204,13 @@ async fn launch_backup(
         .map(|s| vec_to_osstr(s))
         .filter_map(|s| s.into_string().ok())
         .collect();
-    let backuppc_shares_str: Vec<&str> = backuppc_shares.iter().map(std::string::String::as_str).collect();
+    let backuppc_shares_str: Vec<&str> = backuppc_shares
+        .iter()
+        .map(std::string::String::as_str)
+        .collect();
     client.init_backup_directory(&backuppc_shares_str).await?;
 
-    backup_bar.set_message("Upload last file list");
-    backup_bar.tick();
-
-    if let Err(err) = client.upload_file_list(backuppc_shares.clone()).await {
-        error!("Error uploading file list: {}", err);
-        abort = true;
-    }
-
-    backup_bar.set_message("Download file list");
+    backup_bar.set_message("Synchronize file list");
     backup_bar.tick();
 
     for share in &backuppc_shares {
@@ -226,8 +221,8 @@ async fn launch_backup(
         };
 
         if !abort {
-            if let Err(err) = client.download_file_list(&share, &|_| {}).await {
-                error!("Error downloading file list: {}", err);
+            if let Err(err) = client.synchronize_file_list(&share, &|_| {}).await {
+                error!("Error synchronize file list: {}", err);
                 abort = true;
             }
         }
@@ -270,7 +265,7 @@ async fn launch_backup(
 
     client.count_references().await?;
 
-    client.save_backup(!abort).await?;
+    client.save_backup(true, !abort).await?;
 
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();

@@ -3,15 +3,28 @@ use log::{Level, Metadata, Record};
 
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction};
 use napi::{Error, JsFunction, Result};
+use tokio::task_local;
 use woodstock::config::Context;
 
 use crate::config::context::{JsBackupContext, LogLevel};
+
+pub struct LogBackupContext {
+  pub hostname: String,
+  pub backup_number: u32,
+}
+
+task_local! {
+  pub static LOG_CONTEXT: LogBackupContext;
+}
 
 #[napi(object)]
 pub struct JsBackupLog {
   pub level: LogLevel,
   pub context: String,
   pub message: String,
+
+  pub hostname: Option<String>,
+  pub backup_number: Option<u32>,
 }
 
 #[napi(object)]
@@ -38,16 +51,25 @@ impl log::Log for JavascriptLog {
 
   fn log(&self, record: &Record) {
     if self.enabled(record.metadata()) {
+      let mut message = JsBackupLogMessage {
+        progress: Some(JsBackupLog {
+          level: record.level().into(),
+          context: record.target().to_string(),
+          message: record.args().to_string(),
+
+          hostname: None,
+          backup_number: None,
+        }),
+        error: None,
+        complete: false,
+      };
+      let _ = LOG_CONTEXT.try_with(|data| {
+        message.progress.as_mut().unwrap().hostname = Some(data.hostname.clone());
+        message.progress.as_mut().unwrap().backup_number = Some(data.backup_number);
+      });
+
       self.tsfn.call(
-        JsBackupLogMessage {
-          progress: Some(JsBackupLog {
-            level: record.level().into(),
-            context: record.target().to_string(),
-            message: record.args().to_string(),
-          }),
-          error: None,
-          complete: false,
-        },
+        message,
         napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
       );
     }

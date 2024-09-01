@@ -2,6 +2,7 @@ use async_stream::try_stream;
 use eyre::eyre;
 use futures::pin_mut;
 use futures::Stream;
+use log::warn;
 use log::{debug, error, info};
 use std::path::Path;
 use std::path::PathBuf;
@@ -23,12 +24,11 @@ use crate::ExecuteCommandReply;
 use crate::ExecuteCommandRequest;
 use crate::FileChunk;
 use crate::FileManifestJournalEntry;
-use crate::LaunchBackupRequest;
 use crate::RefreshCacheRequest;
 use crate::{
     utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient, AuthenticateReply,
-    AuthenticateRequest, Empty as ProtoEmpty,
+    AuthenticateRequest,
 };
 use eyre::Result;
 
@@ -194,29 +194,25 @@ impl Client for BackupGrpcClient {
 
         let response = client.execute_command(request).await?;
 
-        info!("Command {command} executed");
+        info!(
+            "Command {command} executed with result {}",
+            response.get_ref().code
+        );
+        if !response.get_ref().stdout.is_empty() {
+            info!("{}", response.get_ref().stdout);
+        }
+        if !response.get_ref().stderr.is_empty() {
+            warn!("{}", response.get_ref().stderr);
+        }
         Ok(response.into_inner())
     }
 
-    async fn refresh_cache(
+    fn synchronize_file_list(
         &mut self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
-    ) -> Result<ProtoEmpty> {
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         info!("Send cache refresh to {}", self.hostname);
 
-        let mut client = self.client.clone();
-        let request = self.create_request(cache)?;
-        let reply = client.refresh_cache(request).await?;
-
-        info!("Cache refreshed");
-
-        Ok(reply.into_inner())
-    }
-
-    fn download_file_list(
-        &mut self,
-        request: LaunchBackupRequest,
-    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         let client = self.client.clone();
 
         try_stream!({
@@ -224,9 +220,9 @@ impl Client for BackupGrpcClient {
 
             let mut client = client;
 
-            let request = self.create_request(request)?;
+            let request = self.create_request(cache)?;
 
-            let messages = client.launch_backup(request).await?;
+            let messages = client.synchronize_file_list(request).await?;
             let mut messages = messages.into_inner();
 
             while let Some(message) = messages.message().await? {
@@ -245,7 +241,7 @@ impl Client for BackupGrpcClient {
         info!(
             "Getting chunk hash from {} for {}",
             self.hostname,
-            vec_to_path(&request.filename).display()
+            vec_to_path(&request.filename).display(),
         );
 
         let client = self.client.clone();
@@ -266,9 +262,10 @@ impl Client for BackupGrpcClient {
 
     fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
         info!(
-            "Getting chunk from {} for {}",
+            "Getting chunk from {} for {} ({} chunks)",
             self.hostname,
-            vec_to_path(&request.filename).display()
+            vec_to_path(&request.filename).display(),
+            request.chunks_id.len()
         );
 
         try_stream!({

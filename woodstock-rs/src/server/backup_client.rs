@@ -19,9 +19,8 @@ use crate::{
     proto::ProtobufWriter,
     refresh_cache_request,
     utils::path::path_to_vec,
-    ChunkHashRequest, ChunkInformation, EntryType, ExecuteCommandReply, FileManifest,
-    FileManifestJournalEntry, LaunchBackupRequest, PoolRefCount, RefreshCacheHeader,
-    RefreshCacheRequest, Share,
+    ChunkHashRequest, ChunkInformation, EntryState, EntryType, ExecuteCommandReply, FileManifest,
+    FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest, Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
@@ -74,7 +73,7 @@ impl<Clt: Client> BackupClient<Clt> {
         self.progression.lock().await.clone()
     }
 
-    async fn to_backup(&self, is_complete: bool) -> Backup {
+    async fn to_backup(&self, is_finish: bool, is_complete: bool) -> Backup {
         let now = SystemTime::now();
         let progression = self.progression.lock().await.clone();
 
@@ -93,7 +92,7 @@ impl<Clt: Client> BackupClient<Clt> {
                     .unwrap_or_default()
                     .as_secs(),
             },
-            end_date: if is_complete {
+            end_date: if is_finish {
                 match self.fake_date {
                     Some(fake_date) => {
                         let duration = if let Some(start_date) = progression.start_transfer_date {
@@ -114,6 +113,8 @@ impl<Clt: Client> BackupClient<Clt> {
             } else {
                 None
             },
+
+            error_count: progression.error_count,
 
             file_count: progression.file_count,
             new_file_count: progression.new_file_count,
@@ -174,7 +175,7 @@ impl<Clt: Client> BackupClient<Clt> {
         // Load Reference count
         self.refcnt.lock().await.load_refcnt(true).await;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -184,51 +185,12 @@ impl<Clt: Client> BackupClient<Clt> {
 
         let result = self.client.execute_command(command).await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(result)
     }
 
-    pub async fn upload_file_list(&mut self, shares: Vec<String>) -> Result<()> {
-        info!("Upload file list for {:?}", shares);
-
-        let hostname = self.hostname.clone();
-        let current_backup_id = self.current_backup_id;
-        let context = self.context.clone().clone();
-
-        let refresh_cache_stream = stream!({
-            let backups = Backups::new(&context);
-            for share in shares {
-                let manifest = backups.get_manifest(&hostname, current_backup_id, &share);
-                let header = RefreshCacheRequest {
-                    field: Some(refresh_cache_request::Field::Header(RefreshCacheHeader {
-                        share_path: share,
-                    })),
-                };
-
-                yield header;
-
-                let entries = manifest.read_manifest_entries();
-                pin_mut!(entries);
-
-                while let Some(entry) = entries.next().await {
-                    let request = RefreshCacheRequest {
-                        field: Some(refresh_cache_request::Field::FileManifest(entry)),
-                    };
-
-                    yield request;
-                }
-            }
-        });
-
-        self.client.refresh_cache(refresh_cache_stream).await?;
-
-        self.save_backup(false).await?;
-
-        Ok(())
-    }
-
-    pub async fn download_file_list(
+    pub async fn synchronize_file_list(
         &mut self,
         share: &Share,
         callback: &impl Fn(&BackupProgression),
@@ -241,9 +203,31 @@ impl<Clt: Client> BackupClient<Clt> {
         let backups = Backups::new(&self.context);
         let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
 
-        let response = self.client.download_file_list(LaunchBackupRequest {
-            share: Some(share.clone()),
+        let share_refresh_stream = share.clone();
+        let manifest_refresh_stream = manifest.clone();
+
+        let refresh_cache_stream = stream!({
+            let header = RefreshCacheRequest {
+                field: Some(refresh_cache_request::Field::Header(
+                    share_refresh_stream.clone(),
+                )),
+            };
+
+            yield header;
+
+            let entries = manifest_refresh_stream.read_manifest_entries();
+            pin_mut!(entries);
+
+            while let Some(entry) = entries.next().await {
+                let request = RefreshCacheRequest {
+                    field: Some(refresh_cache_request::Field::FileManifest(entry)),
+                };
+
+                yield request;
+            }
         });
+
+        let response = self.client.synchronize_file_list(refresh_cache_stream);
 
         let progression = Arc::new(Mutex::new(BackupProgression::default()));
 
@@ -302,7 +286,7 @@ impl<Clt: Client> BackupClient<Clt> {
                 .insert(share.share_path.clone(), progression.progress_max);
         }
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(result?)
     }
@@ -448,10 +432,10 @@ impl<Clt: Client> BackupClient<Clt> {
     async fn download_manifest_chunk<Fut, F>(
         &self,
         share_path: &str,
-        mut file_manifest: FileManifest,
+        file_manifest: &mut FileManifest,
         is_add: bool,
         callback: &F,
-    ) -> Result<FileManifest>
+    ) -> Result<()>
     where
         F: Fn(PoolChunkInformation) -> Fut,
         Fut: Future<Output = ()>,
@@ -465,7 +449,7 @@ impl<Clt: Client> BackupClient<Clt> {
         if chunk_count == 0 {
             file_manifest.chunks = vec![];
             file_manifest.hash = SHA256_EMPTYSTRING.to_vec();
-            return Ok(file_manifest);
+            return Ok(());
         }
 
         let filename = Path::new(share_path).join(file_manifest.path());
@@ -474,13 +458,12 @@ impl<Clt: Client> BackupClient<Clt> {
         let (mut chunks, missing_chunks) = if is_add {
             (BTreeMap::new(), Vec::new())
         } else {
-            self.get_chunks(&mut file_manifest, &filename, callback)
-                .await?
+            self.get_chunks(file_manifest, &filename, callback).await?
         };
 
         if chunks.is_empty() || !missing_chunks.is_empty() {
             self.download_zone(
-                &mut file_manifest,
+                file_manifest,
                 &mut chunks,
                 ChunkInformation {
                     filename,
@@ -538,7 +521,11 @@ impl<Clt: Client> BackupClient<Clt> {
         }
 
         let path = file_manifest.path();
-        let mut stats = file_manifest.stats.unwrap_or_default();
+        if file_manifest.stats.is_none() {
+            file_manifest.stats = Some(Default::default());
+        }
+
+        let stats = file_manifest.stats.as_mut().unwrap();
         stats.compressed_size = compressed_size;
         if stats.size != size {
             error!(
@@ -547,7 +534,6 @@ impl<Clt: Client> BackupClient<Clt> {
             );
         }
         stats.size = size;
-        file_manifest.stats = Some(stats);
         file_manifest.chunks = chunks_hash;
 
         // TODO: Add optional coherence check (in another thread ?)
@@ -566,7 +552,7 @@ impl<Clt: Client> BackupClient<Clt> {
         }
         //}
 
-        Ok(file_manifest)
+        Ok(())
     }
 
     pub async fn create_backup(
@@ -604,8 +590,10 @@ impl<Clt: Client> BackupClient<Clt> {
             let is_add = file_manifest_journal_entry.r#type() == EntryType::Add;
             let is_remove = file_manifest_journal_entry.r#type() == EntryType::Remove;
             let is_special_file = file_manifest_journal_entry.is_special_file();
-            if !is_remove && !is_special_file {
-                if let Some(file_manifest) = file_manifest_journal_entry.manifest {
+            let is_error = file_manifest_journal_entry.state() == EntryState::Error;
+
+            if !is_remove && !is_special_file && !is_error {
+                if let Some(file_manifest) = file_manifest_journal_entry.manifest.as_mut() {
                     // TODO: Parrallellise to download CHUNK_SIZE manifest max at the same time
                     let progression = Arc::clone(&progression);
 
@@ -622,18 +610,27 @@ impl<Clt: Client> BackupClient<Clt> {
                         .await;
 
                     match file_manifest {
-                        Ok(file_manifest) => {
-                            file_manifest_journal_entry.manifest = Some(file_manifest);
+                        Ok(()) => {
+                            file_manifest_journal_entry.state = match file_manifest_journal_entry
+                                .state()
+                            {
+                                EntryState::PartialMetadata => EntryState::ChunksPartialMetadata,
+                                EntryState::Metadata => EntryState::Chunks,
+                                _ => file_manifest_journal_entry.state(),
+                            }
+                                as i32;
                         }
                         Err(e) => {
                             error!("Can't download chunk for {:?}: {}", path, e);
+
                             let tonic_status = e.downcast_ref::<tonic::Status>();
                             if let Some(tonic_status) = tonic_status {
                                 // Si l'erreur est de type tonic (pas connecté, erreur d'authentification, ...) alors on abort
                                 match tonic_status.code() {
                                     tonic::Code::Unavailable
                                     | tonic::Code::Unauthenticated
-                                    | tonic::Code::PermissionDenied => {
+                                    | tonic::Code::PermissionDenied
+                                    | tonic::Code::DeadlineExceeded => {
                                         abort = Some(e);
                                         break;
                                     }
@@ -641,36 +638,46 @@ impl<Clt: Client> BackupClient<Clt> {
                                 }
                             }
 
-                            // FIXME: What to do in case of error (delete file, vanished file)
-                            error_count += 1;
-                            continue;
+                            file_manifest_journal_entry.state = EntryState::Error as i32;
+                            file_manifest_journal_entry
+                                .state_messages
+                                .push(format!("{:#}", e));
                         }
                     };
                 }
             }
 
-            match file_manifest_journal_entry.r#type() {
-                EntryType::Add => {
-                    let size = file_manifest_journal_entry.size();
-                    let compressed_size = file_manifest_journal_entry.compressed_size();
+            let is_error = file_manifest_journal_entry.state() == EntryState::Error;
+            if is_error {
+                error_count += 1;
+            }
 
-                    let mut progression = progression.lock().await;
-                    progression.new_file_count += 1;
-                    progression.new_file_size += size;
-                    progression.new_compressed_file_size += compressed_size;
-                }
-                EntryType::Modify => {
-                    let size = file_manifest_journal_entry.size();
-                    let compressed_size = file_manifest_journal_entry.compressed_size();
+            if file_manifest_journal_entry.state() == EntryState::Chunks
+                || file_manifest_journal_entry.state() == EntryState::ChunksPartialMetadata
+            {
+                match file_manifest_journal_entry.r#type() {
+                    EntryType::Add => {
+                        let size = file_manifest_journal_entry.size();
+                        let compressed_size = file_manifest_journal_entry.compressed_size();
 
-                    let mut progression = progression.lock().await;
-                    progression.modified_file_count += 1;
-                    progression.modified_file_size += size;
-                    progression.modified_compressed_file_size += compressed_size;
-                }
-                EntryType::Remove => {
-                    let mut progression = progression.lock().await;
-                    progression.removed_file_count += 1;
+                        let mut progression = progression.lock().await;
+                        progression.new_file_count += 1;
+                        progression.new_file_size += size;
+                        progression.new_compressed_file_size += compressed_size;
+                    }
+                    EntryType::Modify => {
+                        let size = file_manifest_journal_entry.size();
+                        let compressed_size = file_manifest_journal_entry.compressed_size();
+
+                        let mut progression = progression.lock().await;
+                        progression.modified_file_count += 1;
+                        progression.modified_file_size += size;
+                        progression.modified_compressed_file_size += compressed_size;
+                    }
+                    EntryType::Remove => {
+                        let mut progression = progression.lock().await;
+                        progression.removed_file_count += 1;
+                    }
                 }
             }
 
@@ -719,7 +726,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         self.client.close().await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -758,7 +765,7 @@ impl<Clt: Client> BackupClient<Clt> {
             .add_backup_share_path(&self.hostname, self.current_backup_id, share_path)
             .await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
@@ -782,16 +789,16 @@ impl<Clt: Client> BackupClient<Clt> {
         )
         .await?;
 
-        self.save_backup(false).await?;
+        self.save_backup(false, false).await?;
 
         Ok(())
     }
 
-    pub async fn save_backup(&self, is_complete: bool) -> Result<()> {
+    pub async fn save_backup(&self, is_finish: bool, is_complete: bool) -> Result<()> {
         info!("Save backup (complete = {is_complete})");
 
         let backups = Backups::new(&self.context);
-        let backup = self.to_backup(is_complete).await;
+        let backup = self.to_backup(is_finish, is_complete).await;
 
         backups
             .add_or_replace_backup(&self.hostname, &backup)

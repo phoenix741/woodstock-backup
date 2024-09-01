@@ -5,8 +5,10 @@ import { ApplicationLogger } from '@woodstock/shared';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  await NestFactory.createApplicationContext(AppModule, {
-    logger: new ApplicationLogger('stats'),
+  const app = await NestFactory.createApplicationContext(AppModule, {
+    bufferLogs: true,
   });
+  app.useLogger(app.get(ApplicationLogger));
+  app.flushLogs();
 }
 bootstrap();

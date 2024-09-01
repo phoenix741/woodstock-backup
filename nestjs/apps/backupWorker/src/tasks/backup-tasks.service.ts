@@ -1,13 +1,11 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import {
   BackupContext,
-  BackupLogger,
   BackupNameTask,
   BackupOperation,
   ExecuteCommandOperation,
   JobBackupData,
   JobService,
-  QUEUE_TASK_FAILED_STATE,
   QueueGroupTasks,
   QueueSubTask,
   QueueTaskContext,
@@ -82,13 +80,13 @@ export class BackupTasksService {
     return backupGroup;
   }
 
-  async #createGlobalContext(job: Job<JobBackupData>, clientLogger: BackupLogger, logger: BackupLogger) {
+  async #createGlobalContext(job: Job<JobBackupData>) {
     if (job.data.ip === undefined) {
       throw new InternalServerErrorException('No IP provided');
     }
 
     const connection = await this.backupsClient.createClient(job.data.host, job.data.ip, job.data.number ?? 0);
-    const globalContext = new QueueTaskContext(new BackupContext(job.data, clientLogger, connection), logger);
+    const globalContext = new QueueTaskContext(new BackupContext(job.data, connection));
 
     globalContext.commands.set(BackupNameTask.CONNECTION_TASK, async (gc) => {
       if (!gc.globalContext.config?.password) {
@@ -108,18 +106,12 @@ export class BackupTasksService {
 
       return this.backupsClient.executeCommand(gc.globalContext.connection, lc.command);
     });
-    globalContext.commands.set(BackupNameTask.REFRESH_CACHE_TASK, (gc, lc) => {
-      if (!lc.shares) {
-        throw new InternalServerErrorException('No shares provided');
-      }
-      return this.backupsClient.uploadFileList(gc.globalContext.connection, lc.shares);
-    });
     globalContext.commands.set(BackupNameTask.FILELIST_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
         throw new InternalServerErrorException('No includes, excludes or sharePath provided');
       }
 
-      return this.backupsClient.downloadFileList(gc.globalContext.connection, { includes, excludes, sharePath });
+      return this.backupsClient.synchronizeFileList(gc.globalContext.connection, { includes, excludes, sharePath });
     });
     globalContext.commands.set(BackupNameTask.CHUNKS_TASK, (gc, { includes, excludes, sharePath }) => {
       if (!includes || !excludes || !sharePath) {
@@ -162,17 +154,13 @@ export class BackupTasksService {
       );
     });
     globalContext.commands.set(BackupNameTask.SAVE_BACKUP_TASK, (gc, _, isFailing) => {
-      return this.backupsClient.saveBackup(gc.globalContext.connection, !isFailing);
+      return this.backupsClient.saveBackup(gc.globalContext.connection, true, !isFailing);
     });
 
     return globalContext;
   }
 
-  async prepareBackupTask(
-    job: Job<JobBackupData>,
-    clientLogger: BackupLogger,
-    logger: BackupLogger,
-  ): Promise<QueueTasksInformations<BackupContext>> {
+  async prepareBackupTask(job: Job<JobBackupData>): Promise<QueueTasksInformations<BackupContext>> {
     const config = job.data.config;
 
     const task = new QueueTasks('GLOBAL')
@@ -184,13 +172,6 @@ export class BackupTasksService {
               BackupNameTask.INIT_DIRECTORY_TASK,
               { shares: config?.operations?.operation?.shares.map((share) => share.name) || [] },
               QueueTaskPriority.INITIALISATION,
-            ),
-          )
-          .add(
-            new QueueSubTask(
-              BackupNameTask.REFRESH_CACHE_TASK,
-              { shares: config?.operations?.operation?.shares.map((share) => share.name) || [] },
-              QueueTaskPriority.PRE_PROCESSING,
             ),
           ),
       )
@@ -205,7 +186,7 @@ export class BackupTasksService {
           .add(new QueueSubTask(BackupNameTask.SAVE_BACKUP_TASK, {}, QueueTaskPriority.FINALISATION)),
       );
 
-    return new QueueTasksInformations(task, await this.#createGlobalContext(job, clientLogger, logger));
+    return new QueueTasksInformations(task, await this.#createGlobalContext(job));
   }
 
   launchBackupTask(job: Job<JobBackupData>, informations: QueueTasksInformations<BackupContext>, signal: AbortSignal) {

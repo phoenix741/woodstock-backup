@@ -1,12 +1,28 @@
 use std::time::SystemTime;
 
-use napi::{Error, Result};
+use futures_util::StreamExt;
+use napi::{
+  threadsafe_function::{
+    ErrorStrategy::{self},
+    ThreadsafeFunction,
+  },
+  Error, JsFunction, Result,
+};
 use woodstock::{
   config::{Backups, Context},
   pool::{Refcnt, RefcntApplySens},
+  proto::ProtobufReader,
+  FileManifestJournalEntry,
 };
 
-use crate::{config::context::JsBackupContext, models::JsBackup};
+use crate::{config::context::JsBackupContext, models::JsBackup, server::AbortHandle};
+
+#[napi(object)]
+pub struct JsBaskupsLog {
+  pub progress: Option<String>,
+  pub error: Option<String>,
+  pub complete: bool,
+}
 
 #[napi(js_name = "CoreBackupsService")]
 pub struct JsBackupsService {
@@ -47,6 +63,75 @@ impl JsBackupsService {
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
     let path = self.backups.get_log_directory(&hostname, backup_number);
     Ok(path.to_string_lossy().to_string())
+  }
+
+  #[napi]
+  pub fn read_log(
+    &self,
+    hostname: String,
+    backup_number: u32,
+    share_path: String,
+    #[napi(ts_arg_type = "(result: JsBaskupsLog) => void")] callback: JsFunction,
+  ) -> Result<AbortHandle> {
+    let tsfn: ThreadsafeFunction<JsBaskupsLog, ErrorStrategy::Fatal> =
+      callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
+
+    let manifest = self
+      .backups
+      .get_manifest(&hostname, backup_number as usize, &share_path);
+    let log_path = manifest.log_path;
+
+    let handle = tokio::spawn(async move {
+      let Ok(mut messages) = ProtobufReader::<FileManifestJournalEntry>::new(&log_path, true).await
+      else {
+        tsfn.call(
+          JsBaskupsLog {
+            progress: None,
+            error: Some(format!("Could not read {}", log_path.display()).to_string()),
+            complete: true,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+        return;
+      };
+
+      let mut messages = messages.into_stream();
+
+      while let Some(message) = messages.next().await {
+        let Ok(message) = message else {
+          tsfn.call(
+            JsBaskupsLog {
+              progress: None,
+              error: Some(format!("Could not message from {}", log_path.display()).to_string()),
+              complete: true,
+            },
+            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+          );
+          break;
+        };
+        let log_line = message.to_log();
+
+        tsfn.call(
+          JsBaskupsLog {
+            progress: Some(log_line),
+            error: None,
+            complete: false,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+      }
+
+      tsfn.call(
+        JsBaskupsLog {
+          progress: None,
+          error: None,
+          complete: true,
+        },
+        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+      );
+    });
+
+    Ok(AbortHandle::new(handle))
   }
 
   #[napi]

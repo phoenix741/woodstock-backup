@@ -9,7 +9,7 @@ use futures::{Future, StreamExt};
 use tokio::fs::{remove_file, rename};
 
 use crate::proto::ProtobufReader;
-use crate::{proto::save_file, FileManifest, FileManifestJournalEntry, PoolRefCount};
+use crate::{proto::save_file, EntryState, FileManifest, FileManifestJournalEntry, PoolRefCount};
 
 use super::IndexManifest;
 
@@ -17,11 +17,13 @@ pub struct ManifestChunk {
     pub sha256: Vec<u8>,
 }
 
+#[derive(Clone)]
 pub struct Manifest {
     pub manifest_name: String,
     pub manifest_path: PathBuf,
     pub file_list_path: PathBuf,
     pub journal_path: PathBuf,
+    pub log_path: PathBuf,
     pub new_path: PathBuf,
 }
 
@@ -33,6 +35,7 @@ impl Manifest {
             manifest_path: path.join(format!("{manifest_name}.manifest")),
             file_list_path: path.join(format!("{manifest_name}.filelist")),
             journal_path: path.join(format!("{manifest_name}.journal")),
+            log_path: path.join(format!("{manifest_name}.log")),
             new_path: path.join(format!("{manifest_name}.new",)),
         }
     }
@@ -47,6 +50,7 @@ impl Manifest {
             &self.manifest_path,
             &self.file_list_path,
             &self.journal_path,
+            &self.log_path,
             &self.new_path,
         ] {
             let _ = remove_file(path).await;
@@ -81,6 +85,11 @@ impl Manifest {
 
                 while let Some(manifest) = manifests.next().await {
                     if let Ok(manifest) = manifest {
+                        // Ignore error entries
+                        if manifest.state() == EntryState::Error {
+                            continue;
+                        }
+
                         yield manifest;
                     }
                 }
@@ -155,7 +164,7 @@ impl Manifest {
 
         save_file(&self.new_path, all_messages, true, false).await?;
 
-        let _ = remove_file(&self.journal_path).await;
+        let _ = rename(&self.journal_path, &self.log_path).await;
         let _ = remove_file(&self.file_list_path).await;
         let _ = remove_file(&self.manifest_path).await;
 

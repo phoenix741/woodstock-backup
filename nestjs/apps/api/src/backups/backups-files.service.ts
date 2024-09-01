@@ -38,6 +38,12 @@ export class BackupsFilesService {
             ino: 0n,
             nlink: 0n,
           },
+          symlink: Buffer.from(''),
+          acl: [],
+          chunks: [],
+          hash: Buffer.from(''),
+          metadata: {},
+          xattr: [],
         }),
     );
     return shares;

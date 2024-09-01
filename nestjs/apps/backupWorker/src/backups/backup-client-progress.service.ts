@@ -62,17 +62,8 @@ export class BackupClientProgress {
     );
   }
 
-  uploadFileList(context: WoodstockBackupClient, shares: string[]): Observable<QueueTaskProgression> {
-    const refreshCache$ = defer(() => this.backupClient.uploadFileList(context, shares));
-    return refreshCache$.pipe(
-      map(() => new QueueTaskProgression()),
-      startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),
-      startWith(new QueueTaskProgression({ progressCurrent: 1n, progressMax: 1n })),
-    );
-  }
-
-  downloadFileList(context: WoodstockBackupClient, share: WoodstockBackupShare): Observable<QueueTaskProgression> {
-    return this.backupClient.downloadFileList(context, share).pipe(
+  synchronizeFileList(context: WoodstockBackupClient, share: WoodstockBackupShare): Observable<QueueTaskProgression> {
+    return this.backupClient.synchronizeFileList(context, share).pipe(
       map((value) => {
         const progression = toProgress(value);
         return new QueueTaskProgression({
@@ -128,8 +119,8 @@ export class BackupClientProgress {
     );
   }
 
-  saveBackup(context: WoodstockBackupClient, completed: boolean): Observable<QueueTaskProgression> {
-    const saveBackup$ = defer(() => this.backupClient.saveBackup(context, completed));
+  saveBackup(context: WoodstockBackupClient, finished: boolean, completed: boolean): Observable<QueueTaskProgression> {
+    const saveBackup$ = defer(() => this.backupClient.saveBackup(context, finished, completed));
 
     return saveBackup$.pipe(
       startWith(new QueueTaskProgression({ progressCurrent: 0n, progressMax: 0n })),

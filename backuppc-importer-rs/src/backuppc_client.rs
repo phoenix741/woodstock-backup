@@ -6,11 +6,11 @@ use backuppc_pool_reader::{
     decode_attribut::{FileAttributes, FileType},
     view::BackupPC,
 };
-use eyre::{eyre, Result};
+use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::{debug, error};
 use sha3::{Digest, Sha3_256};
-use tokio::sync::Mutex;
+use tokio::{runtime::Runtime, sync::Mutex};
 use woodstock::{
     config::{BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64},
     file_chunk,
@@ -18,10 +18,10 @@ use woodstock::{
     refresh_cache_request,
     server::client::Client,
     utils::path::{osstr_to_vec, path_to_vec, vec_to_path},
-    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, Empty as ProtoEmpty,
-    EntryType, ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
+    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryState, EntryType,
+    ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
     FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
-    FileManifestXAttr, LaunchBackupRequest, RefreshCacheRequest,
+    FileManifestXAttr, RefreshCacheRequest, Share,
 };
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
@@ -29,7 +29,6 @@ use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
 pub struct BackupPCClient {
     hostname: String,
     number: usize,
-    index: Arc<Mutex<HashMap<String, IndexManifest<FileManifestBackupPC>>>>,
     view: Arc<Mutex<BackupPC>>,
 }
 
@@ -91,7 +90,6 @@ impl BackupPCClient {
         Self {
             hostname: hostname.to_string(),
             number,
-            index: Arc::new(Mutex::new(HashMap::new())),
             view: Arc::new(Mutex::new(view)),
         }
     }
@@ -185,69 +183,58 @@ impl Client for BackupPCClient {
         unimplemented!("No command available for import");
     }
 
-    async fn refresh_cache(
+    fn synchronize_file_list(
         &mut self,
         stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
-    ) -> Result<ProtoEmpty> {
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         debug!("Start refreshing cache");
         pin_mut!(stream);
 
-        let mut index_map: HashMap<String, IndexManifest<FileManifestBackupPC>> = HashMap::new();
-        let mut current_path: Option<String> = None;
+        let index: Arc<Mutex<IndexManifest<FileManifestBackupPC>>> =
+            Arc::new(Mutex::new(IndexManifest::new()));
+        let mut share: Option<Share> = None;
 
-        while let Some(request) = stream.next().await {
-            match request.field {
-                Some(refresh_cache_request::Field::Header(header)) => {
-                    debug!("Received header: {:?}", header);
-                    let path = header.share_path.clone();
-                    if !index_map.contains_key(&path) {
-                        index_map.insert(path.clone(), IndexManifest::new());
-                    }
-                    current_path = Some(path);
-                }
-                Some(refresh_cache_request::Field::FileManifest(manifest)) => {
-                    debug!("Received file manifest for : {:?}", manifest.path());
+        let rt = Runtime::new().unwrap();
 
-                    let current_path = current_path.clone();
-                    let current_path = current_path.unwrap_or_default();
-                    let index = index_map.get_mut(&current_path);
-                    if let Some(index) = index {
-                        index.apply(FileManifestJournalEntry {
-                            r#type: EntryType::Add as i32,
-                            manifest: Some(manifest),
-                        });
-                    } else {
-                        error!("Missing header in refresh_cache request");
-                        return Err(eyre!("Missing header in refresh_cache request",));
+        let cache_index = index.clone();
+        rt.block_on(async {
+            let mut index = cache_index.lock().await;
+
+            while let Some(request) = stream.next().await {
+                match request.field {
+                    Some(refresh_cache_request::Field::Header(header)) => {
+                        debug!("Received header: {:?}", header);
+                        if share.is_some() {
+                            error!("Header already defined");
+                            continue;
+                        }
+
+                        share = Some(header);
                     }
-                }
-                None => {
-                    error!("Unknown message in refresh_cache request");
-                    return Err(eyre!("Unknown message"));
+                    Some(refresh_cache_request::Field::FileManifest(manifest)) => {
+                        debug!("Received file manifest for : {:?}", manifest.path());
+
+                        index.add(FileManifestBackupPC::from(manifest));
+                    }
+                    None => {
+                        error!("Unknown message in refresh_cache request");
+                    }
                 }
             }
+        });
+
+        debug!("Start downloading file list");
+        if share.is_none() {
+            error!("Share must be defined");
         }
 
-        *self.index.lock().await = index_map;
-
-        Ok(ProtoEmpty {})
-    }
-
-    fn download_file_list(
-        &mut self,
-        request: LaunchBackupRequest,
-    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
-        debug!("Start downloading file list");
-        let share = request.share.unwrap();
-        let remove_share = share.share_path.clone();
+        let share = share.unwrap();
 
         let share_path = osstr_to_vec(&OsString::from(&share.share_path));
 
         let stream = self.get_files(&share_path);
 
-        let index = self.index.clone();
-        let remove_index = self.index.clone();
-
+        let added_index = index.clone();
         let stream = stream.filter_map(move |manifest| {
             debug!(
                 "File {:?} {:?} have been changed or added",
@@ -255,58 +242,60 @@ impl Client for BackupPCClient {
                 manifest.file_mode()
             );
 
-            let share = share.share_path.clone();
-            let index = index.clone();
-
+            let added_index = added_index.clone();
             async move {
-                let mut index = index.lock().await;
-                let index = index.get_mut(&share);
-                if let Some(index) = index {
-                    index.mark(&manifest.path);
+                let mut index = added_index.lock().await;
+                index.mark(&manifest.path);
 
-                    let entry = index.get_entry(&manifest.path);
-                    if let Some(entry) = entry {
-                        let backuppc_digest = manifest.metadata.get(BPC_DIGEST);
+                let entry = index.get_entry(&manifest.path);
+                if let Some(entry) = entry {
+                    let backuppc_digest = manifest.metadata.get(BPC_DIGEST);
 
-                        if Some(&entry.manifest.backuppc_digest) == backuppc_digest {
-                            return None;
-                        }
-
-                        return Some(FileManifestJournalEntry {
-                            r#type: EntryType::Modify as i32,
-                            manifest: Some(manifest),
-                        });
+                    if Some(&entry.manifest.backuppc_digest) == backuppc_digest {
+                        return None;
                     }
+
+                    return Some(FileManifestJournalEntry {
+                        r#type: EntryType::Modify as i32,
+                        manifest: Some(manifest),
+
+                        state: EntryState::Metadata as i32,
+                        state_messages: Vec::new(),
+                    });
                 }
 
                 Some(FileManifestJournalEntry {
                     r#type: EntryType::Add as i32,
                     manifest: Some(manifest),
+
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
                 })
             }
         });
 
+        let remove_index = index.clone();
         let remove_stream = stream!({
             debug!("Start removing files from the index");
 
-            let mut index = remove_index.lock().await;
-            let index = index.get_mut(&remove_share);
-            if let Some(index) = index {
-                let file_to_remove = index.walk();
-                for file in file_to_remove {
-                    if file.mark_viewed {
-                        continue;
-                    }
-
-                    debug!("Detect file {:?} to remove", file.path());
-                    yield FileManifestJournalEntry {
-                        r#type: EntryType::Remove as i32,
-                        manifest: Some(FileManifest {
-                            path: file.manifest.path.clone(),
-                            ..Default::default()
-                        }),
-                    };
+            let index = remove_index.lock().await;
+            let file_to_remove = index.walk();
+            for file in file_to_remove {
+                if file.mark_viewed {
+                    continue;
                 }
+
+                debug!("Detect file {:?} to remove", file.path());
+                yield FileManifestJournalEntry {
+                    r#type: EntryType::Remove as i32,
+                    manifest: Some(FileManifest {
+                        path: file.manifest.path.clone(),
+                        ..Default::default()
+                    }),
+
+                    state: EntryState::Metadata as i32,
+                    state_messages: Vec::new(),
+                };
             }
         });
 

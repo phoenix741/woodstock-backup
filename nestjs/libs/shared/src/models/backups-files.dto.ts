@@ -175,7 +175,7 @@ export class FileDescription {
   @ApiHideProperty()
   metadata: Record<string, Buffer>;
 
-  constructor(partial: Partial<JsFileManifest>) {
+  constructor(partial: JsFileManifest) {
     Object.assign(this, partial);
     this.stats = this.stats && new FileStat(this.stats);
     this.acl = this.acl && this.acl.map((acl) => new FileAcl(acl));

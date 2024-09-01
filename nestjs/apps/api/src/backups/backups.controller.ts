@@ -75,10 +75,11 @@ export class BackupController {
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
   ): void {
+    const filename = join(this.applicationConfig.hostPath, name, '' + number, `log`);
     if (tailable) {
-      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      tailLog(filename, res);
     } else {
-      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      getLog(filename, res);
     }
   }
 
@@ -93,10 +94,31 @@ export class BackupController {
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
   ): void {
+    const filename = join(this.applicationConfig.hostPath, name, '' + number, `error`);
     if (tailable) {
-      tailLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.log`), res);
+      tailLog(filename, res);
     } else {
-      getLog(join(this.applicationConfig.hostPath, name, 'logs', `backup.${number}.error.log`), res);
+      getLog(filename, res);
     }
+  }
+
+  @Get(':number/xferLog/:share.log')
+  @ApiOkResponse({
+    description: 'Get the share log of the server',
+    type: String,
+  })
+  getXFerLog(
+    @Param('name') name: string,
+    @Param('number', ParseIntPipe) number: number,
+    @Param('share') share: string,
+    @Res() res: Response,
+  ): void {
+    res.header('Content-Type', 'text/plain;charset=utf-8');
+
+    this.backupsService.readLog(name, number, share).subscribe({
+      next: (data) => res.write(data + '\n'),
+      error: (err) => res.status(500).end(err.message),
+      complete: () => res.end(),
+    });
   }
 }

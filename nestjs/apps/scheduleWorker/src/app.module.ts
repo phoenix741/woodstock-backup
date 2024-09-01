@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CacheConfigService, ConfigProviderModule, SharedModule } from '@woodstock/shared';
+import {
+  ApplicationLogger,
+  BackupsService,
+  CacheConfigService,
+  ConfigProviderModule,
+  SharedModule,
+} from '@woodstock/shared';
 import { SchedulerConsumer } from './scheduler/scheduler.consumer.js';
 import { SchedulerService } from './scheduler/scheduler.service.js';
 import { StatsService } from './scheduler/stats.service.js';
@@ -18,6 +24,15 @@ import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.j
     ConfigProviderModule,
     SharedModule,
   ],
-  providers: [SchedulerConsumer, SchedulerService, StatsService],
+  providers: [
+    SchedulerConsumer,
+    SchedulerService,
+    StatsService,
+    {
+      provide: ApplicationLogger,
+      useFactory: (backupsService) => new ApplicationLogger('stats', backupsService),
+      inject: [BackupsService],
+    },
+  ],
 })
 export class AppModule {}

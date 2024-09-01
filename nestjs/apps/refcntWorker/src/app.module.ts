@@ -2,6 +2,8 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import {
   ApplicationConfigService,
+  ApplicationLogger,
+  BackupsService,
   CacheConfigService,
   ConfigProviderModule,
   initializeLog,
@@ -22,7 +24,14 @@ import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.j
     ConfigProviderModule,
     SharedModule,
   ],
-  providers: [RefcntConsumer],
+  providers: [
+    RefcntConsumer,
+    {
+      provide: ApplicationLogger,
+      useFactory: (backupsService) => new ApplicationLogger('refcnt', backupsService),
+      inject: [BackupsService],
+    },
+  ],
 })
 export class AppModule implements OnApplicationBootstrap {
   constructor(private readonly config: ApplicationConfigService) {}

@@ -57,21 +57,24 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
         let files = get_files(share_path, includes, excludes, options);
         pin_mut!(files);
 
-        while let Some(manifest) = files.next().await {
-            let mut manifest = manifest;
+        while let Some(mut journal_entry) = files.next().await {
+            if let Some(ref manifest) = &journal_entry.manifest {
+                // Start by mark the file as viewed
+                index.mark(&manifest.path);
 
-            // Start by mark the file as viewed
-            index.mark(&manifest.path);
+                // If the file isn't modified, skip it
+                match is_modified(index, manifest) {
+                    Some(false) => continue,
+                    Some(true) => {
+                        journal_entry.r#type = EntryType::Modify as i32;
+                    }
+                    None => {
+                        journal_entry.r#type = EntryType::Add as i32;
+                    }
+                }
 
-            // If the file isn't modified, skip it
-            if !is_modified(index, &manifest) {
-                continue;
+                yield journal_entry;
             }
-
-            yield FileManifestJournalEntry {
-                r#type: EntryType::Add as i32,
-                manifest: Some(manifest),
-            };
         }
     })
 }
@@ -87,9 +90,9 @@ pub fn get_files_with_hash<'a, T: PathManifest>(
 ///
 /// # Returns
 ///
-/// A boolean indicating whether the file is modified or not.
+/// A boolean indicating whether the file is modified or not (if None is returned the file isn't in the index).
 ///
-fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifest) -> bool {
+fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifest) -> Option<bool> {
     let entry = index.get_entry(&manifest.path);
     match entry {
         Some(entry) => {
@@ -98,18 +101,18 @@ fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifes
 
             // The file is modified
             if entry.manifest.last_modified() != manifest_stats.last_modified {
-                return true;
+                return Some(true);
             }
 
             // The size is different
             if entry.manifest.size() != manifest_stats.size {
-                return true;
+                return Some(true);
             }
 
-            false
+            Some(false)
         }
         // Not in the index, so it's a new file
-        None => true,
+        None => None,
     }
 }
 

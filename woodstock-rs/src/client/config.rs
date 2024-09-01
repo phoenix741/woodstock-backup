@@ -28,6 +28,9 @@ pub struct ClientConfig {
     /// The timeout for backup operations in seconds. Defaults to 3600 seconds (1 hour).
     #[serde(default = "ClientConfig::default_backup_timeout")]
     pub backup_timeout: u64,
+    /// The max duration of a backup operation in seconds. Defaults to 43200 seconds (12 hours).
+    #[serde(default = "ClientConfig::default_max_backup_seconds")]
+    pub max_backup_seconds: u64,
 
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
@@ -61,8 +64,15 @@ impl ClientConfig {
     }
 
     /// Returns the default backup timeout in seconds.
+    /// Defaults to 1 hours.
     fn default_backup_timeout() -> u64 {
         3600
+    }
+
+    /// Returns the default max backup duration in seconds.
+    /// Defaults to 24 hours.
+    fn default_max_backup_seconds() -> u64 {
+        12 * 3600
     }
 }
 
@@ -75,6 +85,7 @@ impl Default for ClientConfig {
             password: String::new(),
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
+            max_backup_seconds: ClientConfig::default_max_backup_seconds(),
             xattr: false,
             acl: false,
         }

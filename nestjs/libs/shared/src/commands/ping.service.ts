@@ -32,8 +32,7 @@ export class PingService {
   // TODO: IPv6
   async ping(ip: string, hostname: string): Promise<boolean> {
     try {
-      await grpcPing(ip, hostname, this.config.context);
-      return true;
+      return await grpcPing(ip, hostname, this.config.context);
     } catch (err) {
       return false;
     }

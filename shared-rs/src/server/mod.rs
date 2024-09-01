@@ -18,7 +18,10 @@ use woodstock::{
   },
 };
 
-use crate::config::context::{JsBackupContext, LogLevel};
+use crate::{
+  config::context::{JsBackupContext, LogLevel},
+  log::{LogBackupContext, LOG_CONTEXT},
+};
 
 #[napi(object)]
 pub struct WoodstockBackupCommandReply {
@@ -208,50 +211,70 @@ impl WoodstockBackupClient {
 
   #[napi]
   pub async fn authenticate(&self, password: String) -> Result<()> {
-    let mut client = self.client.lock().await;
-    client
-      .authenticate(&password)
-      .await
-      .map_err(|_| Error::from_reason("Can't authenticate with the given password".to_string()))?;
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let mut client = self.client.lock().await;
+          client.authenticate(&password).await.map_err(|_| {
+            Error::from_reason("Can't authenticate with the given password".to_string())
+          })?;
 
-    Ok(())
+          Ok(())
+        },
+      )
+      .await
   }
 
   #[napi]
   pub async fn create_backup_directory(&self, shares: Vec<String>) -> Result<()> {
-    let client = self.client.lock().await;
-    let shares = shares
-      .iter()
-      .map(std::string::String::as_str)
-      .collect::<Vec<_>>();
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let client = self.client.lock().await;
+          let shares = shares
+            .iter()
+            .map(std::string::String::as_str)
+            .collect::<Vec<_>>();
 
-    client
-      .init_backup_directory(&shares)
+          client
+            .init_backup_directory(&shares)
+            .await
+            .map_err(|_| Error::from_reason("Can't create backup directory".to_string()))
+        },
+      )
       .await
-      .map_err(|_| Error::from_reason("Can't create backup directory".to_string()))
   }
 
   #[napi]
   pub async fn execute_command(&self, command: String) -> Result<WoodstockBackupCommandReply> {
-    let mut client = self.client.lock().await;
-    client
-      .execute_command(&command)
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let mut client = self.client.lock().await;
+          client
+            .execute_command(&command)
+            .await
+            .map(std::convert::Into::into)
+            .map_err(|_| Error::from_reason("Can't execute command".to_string()))
+        },
+      )
       .await
-      .map(std::convert::Into::into)
-      .map_err(|_| Error::from_reason("Can't execute command".to_string()))
   }
 
   #[napi]
-  pub async fn upload_file_list(&self, shares: Vec<String>) -> Result<()> {
-    let mut client = self.client.lock().await;
-    client
-      .upload_file_list(shares)
-      .await
-      .map_err(|_| Error::from_reason("Can't upload file list".to_string()))
-  }
-
-  #[napi]
-  pub fn download_file_list(
+  pub fn synchronize_file_list(
     &self,
     share: WoodstockBackupShare,
     #[napi(ts_arg_type = "(result: JsBackupProgressionMessage) => void")] callback: JsFunction,
@@ -262,44 +285,57 @@ impl WoodstockBackupClient {
 
     let client = self.client.clone();
 
-    let handle = tokio::spawn(async move {
-      let mut client = client.lock().await;
-      let result = client
-        .download_file_list(&share.into(), &|progression| {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: Some(progression.into()),
-              error: None,
-              complete: false,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-          );
-        })
-        .await
-        .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
+    let hostname = self.hostname.clone();
+    let backup_number = self.backup_number as u32;
 
-      match result {
-        Ok(()) => {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: None,
-              error: None,
-              complete: true,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-          );
-        }
-        Err(e) => {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: None,
-              error: Some(e.to_string()),
-              complete: true,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-          );
-        }
-      }
+    let handle = tokio::spawn(async move {
+      LOG_CONTEXT
+        .scope(
+          LogBackupContext {
+            hostname,
+            backup_number,
+          },
+          async {
+            let mut client = client.lock().await;
+            let result = client
+              .synchronize_file_list(&share.into(), &|progression| {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: Some(progression.into()),
+                    error: None,
+                    complete: false,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+                );
+              })
+              .await
+              .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
+
+            match result {
+              Ok(()) => {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: None,
+                    error: None,
+                    complete: true,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                );
+              }
+              Err(e) => {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: None,
+                    error: Some(e.to_string()),
+                    complete: true,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                );
+              }
+            }
+          },
+        )
+        .await
     });
 
     Ok(AbortHandle::new(handle))
@@ -317,44 +353,57 @@ impl WoodstockBackupClient {
 
     let client = self.client.clone();
 
-    let handle = tokio::spawn(async move {
-      let client = client.lock().await;
-      let result = client
-        .create_backup(&share_path, &|progression| {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: Some(progression.into()),
-              error: None,
-              complete: false,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-          );
-        })
-        .await
-        .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
+    let hostname = self.hostname.clone();
+    let backup_number = self.backup_number as u32;
 
-      match result {
-        Ok(()) => {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: None,
-              error: None,
-              complete: true,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-          );
-        }
-        Err(e) => {
-          tsfn.call(
-            JsBackupProgressionMessage {
-              progress: None,
-              error: Some(e.to_string()),
-              complete: true,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-          );
-        }
-      }
+    let handle = tokio::spawn(async move {
+      LOG_CONTEXT
+        .scope(
+          LogBackupContext {
+            hostname,
+            backup_number,
+          },
+          async {
+            let client = client.lock().await;
+            let result = client
+              .create_backup(&share_path, &|progression| {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: Some(progression.into()),
+                    error: None,
+                    complete: false,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+                );
+              })
+              .await
+              .map_err(|e| Error::from_reason(format!("Can't download file list: {e}")));
+
+            match result {
+              Ok(()) => {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: None,
+                    error: None,
+                    complete: true,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                );
+              }
+              Err(e) => {
+                tsfn.call(
+                  JsBackupProgressionMessage {
+                    progress: None,
+                    error: Some(e.to_string()),
+                    complete: true,
+                  },
+                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                );
+              }
+            }
+          },
+        )
+        .await
     });
 
     Ok(AbortHandle::new(handle))
@@ -362,37 +411,77 @@ impl WoodstockBackupClient {
 
   #[napi]
   pub async fn compact(&self, share_path: String) -> Result<()> {
-    let client = self.client.lock().await;
-    client
-      .compact(&share_path)
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let client = self.client.lock().await;
+          client
+            .compact(&share_path)
+            .await
+            .map_err(|_| Error::from_reason("Can't compact".to_string()))
+        },
+      )
       .await
-      .map_err(|_| Error::from_reason("Can't compact".to_string()))
   }
 
   #[napi]
   pub async fn count_references(&self) -> Result<()> {
-    let client = self.client.lock().await;
-    client
-      .count_references()
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let client = self.client.lock().await;
+          client
+            .count_references()
+            .await
+            .map_err(|_| Error::from_reason("Can't count references".to_string()))
+        },
+      )
       .await
-      .map_err(|_| Error::from_reason("Can't count references".to_string()))
   }
 
   #[napi]
-  pub async fn save_backup(&self, completed: bool) -> Result<()> {
-    let client = self.client.lock().await;
-    client
-      .save_backup(completed)
+  pub async fn save_backup(&self, finished: bool, completed: bool) -> Result<()> {
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let client = self.client.lock().await;
+          client
+            .save_backup(finished, completed)
+            .await
+            .map_err(|_| Error::from_reason("Can't save backup".to_string()))
+        },
+      )
       .await
-      .map_err(|_| Error::from_reason("Can't save backup".to_string()))
   }
 
   #[napi]
   pub async fn close(&self) -> Result<()> {
-    let mut client = self.client.lock().await;
-    client
-      .close()
+    LOG_CONTEXT
+      .scope(
+        LogBackupContext {
+          hostname: self.hostname.clone(),
+          backup_number: self.backup_number as u32,
+        },
+        async {
+          let mut client = self.client.lock().await;
+          client
+            .close()
+            .await
+            .map_err(|_| Error::from_reason("Can't close".to_string()))
+        },
+      )
       .await
-      .map_err(|_| Error::from_reason("Can't close".to_string()))
   }
 }

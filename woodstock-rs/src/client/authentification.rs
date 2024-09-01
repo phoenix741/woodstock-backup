@@ -4,9 +4,11 @@ use jsonwebtoken::{
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::client::config::ClientConfig;
@@ -24,16 +26,21 @@ struct Claims {
     is_authenticated: bool,
 }
 
+struct ContextData {
+    exp: u64,
+}
+
 /// The goal of this module is to provide a way to create and verify a JWT token
 /// using the HS256 algorithm.
 pub struct Service {
-    context: HashSet<String>,
+    context: HashMap<String, Arc<Mutex<ContextData>>>,
     certificate_path: PathBuf,
     hostname: String,
     password: String,
     encoding_secret: EncodingKey,
     decoding_secret: DecodingKey,
     backup_timeout: u64,
+    max_backup_seconds: u64,
 }
 
 impl Service {
@@ -50,13 +57,14 @@ impl Service {
     #[must_use]
     pub fn new(certificate_path: &Path, config: &ClientConfig) -> Self {
         Self {
-            context: HashSet::new(),
+            context: HashMap::new(),
             certificate_path: certificate_path.to_path_buf(),
             hostname: config.hostname.to_string(),
             password: config.password.to_string(),
             encoding_secret: EncodingKey::from_secret(config.secret.as_bytes()),
             decoding_secret: DecodingKey::from_secret(config.secret.as_bytes()),
             backup_timeout: config.backup_timeout,
+            max_backup_seconds: config.max_backup_seconds,
         }
     }
 
@@ -93,7 +101,7 @@ impl Service {
             iss: self.hostname.to_string(),
             aud: self.hostname.to_string(),
             sub: uuid.clone(),
-            exp: get_current_timestamp() + self.backup_timeout,
+            exp: get_current_timestamp() + self.max_backup_seconds,
 
             session_id: uuid.clone(),
             is_authenticated: true,
@@ -106,7 +114,12 @@ impl Service {
             self.hostname
         );
 
-        self.context.insert(uuid);
+        self.context.insert(
+            uuid,
+            Arc::new(Mutex::new(ContextData {
+                exp: get_current_timestamp() + self.backup_timeout,
+            })),
+        );
 
         Ok(token)
     }
@@ -125,7 +138,7 @@ impl Service {
     ///
     /// An error is returned if the token is invalid.
     ///
-    pub fn check_context(&self, token: &str) -> Result<String> {
+    pub async fn check_context(&self, token: &str) -> Result<String> {
         debug!("Check the context of the token");
 
         // Decode JWT Token
@@ -136,7 +149,20 @@ impl Service {
 
         let token_data = decode::<Claims>(token, &self.decoding_secret, &validation)?;
 
-        if !self.context.contains(token_data.claims.session_id.as_str()) {
+        let context = self.context.get(token_data.claims.session_id.as_str());
+        if let Some(context) = context {
+            let mut context = context.lock().await;
+
+            if context.exp < get_current_timestamp() {
+                warn!(
+                    "Session id of the token {} expired",
+                    token_data.claims.session_id
+                );
+
+                return Err(eyre!("Session expired"));
+            }
+            context.exp = get_current_timestamp() + self.backup_timeout;
+        } else {
             warn!(
                 "Session id of the token {} invalid",
                 token_data.claims.session_id
@@ -158,7 +184,7 @@ impl Service {
 
     #[must_use]
     pub fn validate_session(&self, session_id: &str) -> bool {
-        self.context.contains(session_id)
+        self.context.contains_key(session_id)
     }
 
     /// Logs out the session associated with the provided token.

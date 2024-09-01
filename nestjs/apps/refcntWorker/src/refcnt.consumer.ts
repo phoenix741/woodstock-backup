@@ -1,7 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { ApplicationConfigService, PoolService } from '@woodstock/shared';
-import { BackupLogger, BackupsService, HostsService, RefcntJobData } from '@woodstock/shared';
+import { BackupsService, HostsService, RefcntJobData } from '@woodstock/shared';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -133,7 +133,7 @@ export class RefcntConsumer extends WorkerHost {
     const dryRun = !fix;
 
     const logger = new JobLogger(this.applicationConfig, job);
-    const globalContext = new QueueTaskContext({}, logger);
+    const globalContext = new QueueTaskContext({});
 
     const hosts = await this.hostService.getHosts();
     const backups = (
@@ -197,7 +197,7 @@ export class RefcntConsumer extends WorkerHost {
 
   async #prepareVerifyChecksum(job: Job<RefcntJobData>) {
     const logger = new JobLogger(this.applicationConfig, job);
-    const globalContext = new QueueTaskContext({}, logger);
+    const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set('prepare', async () => {
       return new QueueTaskProgression({ progressMax: await this.poolService.countChunk() });
@@ -216,9 +216,7 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   #createGlobalContext(hostname?: string, backupNumber?: number, target?: string) {
-    const logger = new BackupLogger(this.backupsService, hostname ?? 'refcnt', backupNumber);
-
-    const globalContext = new QueueTaskContext({}, logger);
+    const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set(RefcntTaskNameEnum.ADD_REFCNT_POOL_TASK, async () => {
       if (hostname === undefined || backupNumber === undefined) {

@@ -58,6 +58,7 @@ async fn server_and_client_stub(
         acl: false,
         xattr: false,
         backup_timeout: 1000,
+        max_backup_seconds: 1000,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);
@@ -165,16 +166,13 @@ async fn test_server_backup() {
             .await
             .unwrap();
 
-        let shares = vec![share_path.clone()];
-        client.upload_file_list(shares).await.unwrap();
-
         let share = Share {
             includes: vec![],
             excludes: vec![],
             share_path: share_path.clone(),
         };
 
-        client.download_file_list(&share, &|_| {}).await.unwrap();
+        client.synchronize_file_list(&share, &|_| {}).await.unwrap();
 
         client.create_backup(&share_path, &|_| {}).await.unwrap();
 
@@ -184,7 +182,7 @@ async fn test_server_backup() {
 
         client.count_references().await.unwrap();
 
-        client.save_backup(true).await.unwrap();
+        client.save_backup(true, true).await.unwrap();
     };
 
     // Wait for completion, when the client request future completes

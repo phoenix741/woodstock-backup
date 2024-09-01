@@ -59,10 +59,7 @@ export type QueueSubTaskCommand<GlobalContext, LocalContext> = (
 export class QueueTaskContext<GlobalContext> {
   commands = new Map<string, QueueSubTaskCommand<GlobalContext, TaskLocalContext>>();
 
-  constructor(
-    public readonly globalContext: GlobalContext,
-    public readonly logger: LoggerService,
-  ) {}
+  constructor(public readonly globalContext: GlobalContext) {}
 }
 
 export class TaskLocalContext {
