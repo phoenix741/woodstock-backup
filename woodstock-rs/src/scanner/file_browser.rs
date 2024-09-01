@@ -12,7 +12,6 @@ use futures::pin_mut;
 use futures::stream::StreamExt;
 use futures::Stream;
 use globset::GlobSet;
-use nix::NixPath;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,6 +24,12 @@ use std::os::windows::fs::MetadataExt;
 use crate::utils::path::path_to_vec;
 use crate::woodstock::{FileManifest, FileManifestStat, FileManifestType};
 use crate::{EntryState, EntryType, FileManifestAcl, FileManifestJournalEntry, FileManifestXAttr};
+
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref EMPTY_PATH: PathBuf = PathBuf::from("");
+}
 
 #[derive(Clone)]
 pub struct CreateManifestOptions {
@@ -292,7 +297,7 @@ async fn one_level(
     includes: &GlobSet,
     excludes: &GlobSet,
 ) -> Vec<PathEntryWithError> {
-    if !path.is_empty() && !is_file_authorized(path, includes, excludes) {
+    if !path.eq(&*EMPTY_PATH) && !is_file_authorized(path, includes, excludes) {
         return Vec::new();
     }
 
@@ -361,7 +366,7 @@ fn get_files_recursive(
     let excludes = excludes.clone();
 
     futures::stream::unfold(
-        (vec![PathBuf::from("")], share_path, includes, excludes),
+        (vec![EMPTY_PATH.clone()], share_path, includes, excludes),
         |(mut to_visit, share_path, includes, excludes)| async {
             let path: PathBuf = to_visit.pop()?;
 
