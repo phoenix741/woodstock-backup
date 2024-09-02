@@ -1,3 +1,11 @@
+# [2.0.0-alpha.10](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.9...v2.0.0-alpha.10) (2024-09-02)
+
+
+### Bug Fixes
+
+* :loud_sound: add log for resolving dns ([746a4bb](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/746a4bbecf7f6e6dd94a1d0d5b89b86ff2fc28bf))
+* 🐛 fix timeout that cause cancel ([fbe46c2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/fbe46c224fbef881cf55991f73accd29ffe17cff))
+
 # [2.0.0-alpha.9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.8...v2.0.0-alpha.9) (2024-09-01)
 
 
