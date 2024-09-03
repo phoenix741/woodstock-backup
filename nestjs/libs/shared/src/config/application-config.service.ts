@@ -48,7 +48,7 @@ export class ApplicationConfigService {
   }
 
   get certificatePath(): string {
-    return this.configService.get('CONFIG_PATH', join(this.backupPath, 'certs'));
+    return this.configService.get('CERTIFICATES_PATH', join(this.backupPath, 'certs'));
   }
 
   get configPath(): string {
