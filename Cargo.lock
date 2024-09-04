@@ -3000,7 +3000,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock_shared-rs"
-version = "2.0.0-alpha.10"
+version = "2.0.0-alpha.11"
 dependencies = [
  "futures-util",
  "log",

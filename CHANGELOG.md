@@ -1,3 +1,10 @@
+# [2.0.0-alpha.11](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.10...v2.0.0-alpha.11) (2024-09-04)
+
+
+### Bug Fixes
+
+* update certificate path configuration ([17710e5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/17710e51bb73d01025e1c289346e77686aab9083))
+
 # [2.0.0-alpha.10](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.9...v2.0.0-alpha.10) (2024-09-02)
 
 
