@@ -309,8 +309,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for woodstock in &woodstock_backups {
         debug!(
-            "Woodstock backup {}/{}: {}",
-            woodstock.hostname, woodstock.backup_number, woodstock.size
+            "Woodstock backup {}/{}: {} (start at {})",
+            woodstock.hostname, woodstock.backup_number, woodstock.size, woodstock.start_time
         );
     }
 
@@ -319,8 +319,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for backuppc in &backuppc_backups {
         debug!(
-            "BackupPC backup {}/{}: {}",
-            backuppc.hostname, backuppc.backup_number, backuppc.size
+            "BackupPC backup {}/{}: {} (start at {})",
+            backuppc.hostname, backuppc.backup_number, backuppc.size, backuppc.start_time
         );
     }
 

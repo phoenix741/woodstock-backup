@@ -10,7 +10,8 @@ use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::{debug, error};
 use sha3::{Digest, Sha3_256};
-use tokio::{runtime::Runtime, sync::Mutex};
+use tokio::sync::{mpsc, Mutex};
+use tokio_stream::wrappers::ReceiverStream;
 use woodstock::{
     config::{BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64},
     file_chunk,
@@ -26,6 +27,7 @@ use woodstock::{
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
 
+#[derive(Clone)]
 pub struct BackupPCClient {
     hostname: String,
     number: usize,
@@ -167,23 +169,8 @@ impl BackupPCClient {
             }
         })
     }
-}
 
-#[async_trait]
-impl Client for BackupPCClient {
-    async fn ping(&self) -> Result<bool> {
-        Ok(true)
-    }
-
-    async fn authenticate(&mut self, _password: &str) -> Result<AuthenticateReply> {
-        unimplemented!("No authentication required for BackupPCClient");
-    }
-
-    async fn execute_command(&mut self, _command: &str) -> Result<ExecuteCommandReply> {
-        unimplemented!("No command available for import");
-    }
-
-    fn synchronize_file_list(
+    async fn async_synchronize_file_list(
         &mut self,
         stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
     ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
@@ -194,34 +181,30 @@ impl Client for BackupPCClient {
             Arc::new(Mutex::new(IndexManifest::new()));
         let mut share: Option<Share> = None;
 
-        let rt = Runtime::new().unwrap();
+        let refresh_index = index.clone();
+        let mut refresh_index = refresh_index.lock().await;
 
-        let cache_index = index.clone();
-        rt.block_on(async {
-            let mut index = cache_index.lock().await;
-
-            while let Some(request) = stream.next().await {
-                match request.field {
-                    Some(refresh_cache_request::Field::Header(header)) => {
-                        debug!("Received header: {:?}", header);
-                        if share.is_some() {
-                            error!("Header already defined");
-                            continue;
-                        }
-
-                        share = Some(header);
+        while let Some(request) = stream.next().await {
+            match request.field {
+                Some(refresh_cache_request::Field::Header(header)) => {
+                    debug!("Received header: {:?}", header);
+                    if share.is_some() {
+                        error!("Header already defined");
+                        continue;
                     }
-                    Some(refresh_cache_request::Field::FileManifest(manifest)) => {
-                        debug!("Received file manifest for : {:?}", manifest.path());
 
-                        index.add(FileManifestBackupPC::from(manifest));
-                    }
-                    None => {
-                        error!("Unknown message in refresh_cache request");
-                    }
+                    share = Some(header);
+                }
+                Some(refresh_cache_request::Field::FileManifest(manifest)) => {
+                    debug!("Received file manifest for : {:?}", manifest.path());
+
+                    refresh_index.add(FileManifestBackupPC::from(manifest));
+                }
+                None => {
+                    error!("Unknown message in refresh_cache request");
                 }
             }
-        });
+        }
 
         debug!("Start downloading file list");
         if share.is_none() {
@@ -229,12 +212,11 @@ impl Client for BackupPCClient {
         }
 
         let share = share.unwrap();
-
         let share_path = osstr_to_vec(&OsString::from(&share.share_path));
 
-        let stream = self.get_files(&share_path);
+        let add_index = index.clone();
 
-        let added_index = index.clone();
+        let stream = self.get_files(&share_path);
         let stream = stream.filter_map(move |manifest| {
             debug!(
                 "File {:?} {:?} have been changed or added",
@@ -242,12 +224,14 @@ impl Client for BackupPCClient {
                 manifest.file_mode()
             );
 
-            let added_index = added_index.clone();
-            async move {
-                let mut index = added_index.lock().await;
-                index.mark(&manifest.path);
+            let add_index = add_index.clone();
 
-                let entry = index.get_entry(&manifest.path);
+            async move {
+                let mut add_index = add_index.lock().await;
+
+                add_index.mark(&manifest.path);
+
+                let entry = add_index.get_entry(&manifest.path);
                 if let Some(entry) = entry {
                     let backuppc_digest = manifest.metadata.get(BPC_DIGEST);
 
@@ -275,11 +259,12 @@ impl Client for BackupPCClient {
         });
 
         let remove_index = index.clone();
+
         let remove_stream = stream!({
             debug!("Start removing files from the index");
 
-            let index = remove_index.lock().await;
-            let file_to_remove = index.walk();
+            let remove_index = remove_index.lock().await;
+            let file_to_remove = remove_index.walk();
             for file in file_to_remove {
                 if file.mark_viewed {
                     continue;
@@ -300,6 +285,45 @@ impl Client for BackupPCClient {
         });
 
         stream.chain(remove_stream).map(Ok)
+    }
+}
+
+#[async_trait]
+impl Client for BackupPCClient {
+    async fn ping(&self) -> Result<bool> {
+        Ok(true)
+    }
+
+    async fn authenticate(&mut self, _password: &str) -> Result<AuthenticateReply> {
+        unimplemented!("No authentication required for BackupPCClient");
+    }
+
+    async fn execute_command(&mut self, _command: &str) -> Result<ExecuteCommandReply> {
+        unimplemented!("No command available for import");
+    }
+
+    fn synchronize_file_list(
+        &mut self,
+        stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
+        let (tx, rx) = mpsc::channel(100);
+
+        // Clone les références nécessaires pour l'appel asynchrone
+        let mut self_clone = self.clone();
+        let stream_clone = stream;
+
+        tokio::spawn(async move {
+            let result_stream = self_clone.async_synchronize_file_list(stream_clone).await;
+            pin_mut!(result_stream);
+
+            while let Some(item) = result_stream.next().await {
+                if tx.send(item).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        ReceiverStream::new(rx)
     }
 
     async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
