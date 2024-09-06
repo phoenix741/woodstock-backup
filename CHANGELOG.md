@@ -1,3 +1,10 @@
+# [2.0.0-alpha.12](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.11...v2.0.0-alpha.12) (2024-09-06)
+
+
+### Bug Fixes
+
+* 🐛 fix crash of backuppc importer on synchronisation of filelist ([acc046f](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/acc046f12f0d77062d503abcb713bad3fac7a948))
+
 # [2.0.0-alpha.11](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.10...v2.0.0-alpha.11) (2024-09-04)
 
 
