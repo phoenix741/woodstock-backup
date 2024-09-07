@@ -48,7 +48,7 @@ impl BackupGrpcClient {
 
         if let Some(session_id) = session_id {
             let mut request = Request::new(request);
-            request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
+            // request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
             request.metadata_mut().insert(
                 "x-session-id",
                 session_id
@@ -98,7 +98,7 @@ impl BackupGrpcClient {
             .keep_alive_while_idle(true)
             .tls_config(tls)?
             .tcp_keepalive(Some(Duration::from_secs(30)))
-            .timeout(Duration::from_secs(120))
+            // .timeout(Duration::from_secs(120))
             .connect()
             .await?;
 
