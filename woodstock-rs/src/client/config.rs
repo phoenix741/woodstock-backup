@@ -11,6 +11,8 @@ use std::path::PathBuf;
 
 use eyre::Result;
 
+use crate::config::DEFAULT_PORT;
+
 /// Represents the configuration for the client.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -34,6 +36,10 @@ pub struct ClientConfig {
 
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
+    pub disable_mdns: bool,
+
+    /// If extended attributes should be save on linux platform (default: false)
+    #[serde(default)]
     pub xattr: bool,
 
     /// If the acl should be saved on linux platform
@@ -52,7 +58,7 @@ impl ClientConfig {
 
     /// Returns the default bind address of the client.
     fn default_bind() -> String {
-        "0.0.0.0:3657".to_string()
+        format!("0.0.0.0:{}", DEFAULT_PORT).to_string()
     }
 
     /// Generates a random 64-byte hexadecimal string as the default secret key for the client.
@@ -74,6 +80,10 @@ impl ClientConfig {
     fn default_max_backup_seconds() -> u64 {
         12 * 3600
     }
+
+    pub fn version() -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 impl Default for ClientConfig {
@@ -86,6 +96,7 @@ impl Default for ClientConfig {
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
+            disable_mdns: false,
             xattr: false,
             acl: false,
         }

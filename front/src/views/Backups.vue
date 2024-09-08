@@ -30,12 +30,12 @@
               >{{ item.number }}
             </template>
             <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate * 1000) }}</template>
-            <template v-slot:[`item.fileSize`]="{ item }">{{ filesize(item.fileSize) }}</template>
-            <template v-slot:[`item.existingFileSize`]="{ item }">{{ filesize(item.existingFileSize) }}</template>
-            <template v-slot:[`item.newFileSize`]="{ item }">{{ filesize(item.newFileSize) }}</template>
-            <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }}</template>
-            <template v-slot:[`item.existingFileCount`]="{ item }">{{ toNumber(item.existingFileCount) }}</template>
-            <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.newFileCount) }}</template>
+            <template v-slot:[`item.fileCount`]="{ item }"
+              >{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize) }})</template
+            >
+            <template v-slot:[`item.newFileCount`]="{ item }"
+              >{{ toNumber(item.newFileCount) }} ({{ filesize(item.newFileSize) }})</template
+            >
             <template v-slot:[`item.removedFileCount`]="{ item }">{{ toNumber(item.removedFileCount) }}</template>
             <template v-slot:[`item.modifiedFileCount`]="{ item }">{{ toNumber(item.modifiedFileCount) }}</template>
 
@@ -105,19 +105,14 @@ const headers: ReadonlyHeaders = [
   { title: 'Start date', align: 'end', key: 'startDate' },
   { title: 'Duration (minutes)', align: 'end', key: 'duration' },
 
-  { title: 'Files Count', align: 'end', key: 'fileCount' },
-  { title: 'Files Size', align: 'end', key: 'fileSize' },
+  { title: 'Total Files', align: 'end', key: 'fileCount' },
 
-  { title: 'Existing Files Count', align: 'end', key: 'existingFileCount' },
-  { title: 'Existing Files Size', align: 'end', key: 'existingFileSize' },
+  { title: 'New Files', align: 'end', key: 'newFileCount' },
 
-  { title: 'New Files Count', align: 'end', key: 'newFileCount' },
-  { title: 'New Files Size', align: 'end', key: 'newFileSize' },
+  { title: 'Modified Files', align: 'end', key: 'modifiedFileCount' },
+  { title: 'Removed Files', align: 'end', key: 'removedFileCount' },
 
-  { title: 'Modified Files Count', align: 'end', key: 'modifiedFileCount' },
-  { title: 'Removed Files Count', align: 'end', key: 'removedFileCount' },
-
-  { title: 'Error Count', align: 'end', key: 'errorCount' },
+  { title: 'Errors', align: 'end', key: 'errorCount' },
 
   { title: 'Complete', align: 'center', key: 'completed' },
 ];

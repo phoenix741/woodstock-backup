@@ -22,28 +22,6 @@ export class BackupTaskShare {
   excludes?: string[];
 }
 
-/**
- * Part of config file
- *
- * Store information about a DHCP Address
- */
-@ObjectType()
-export class DhcpAddress {
-  @ApiProperty({ example: '192.168.101' })
-  @Matches(/^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$/)
-  address!: string;
-
-  @ApiProperty({ example: 0 })
-  @Min(0)
-  @Max(255)
-  start!: number;
-
-  @ApiProperty({ example: 50 })
-  @Min(0)
-  @Max(255)
-  end!: number;
-}
-
 @ObjectType()
 export class ExecuteCommandOperation {
   @ApiProperty({ example: '/bin/true' })
@@ -108,8 +86,8 @@ export class HostConfiguration {
   @ApiProperty({ example: [] })
   addresses?: string[];
 
-  @ValidateNested()
-  dhcp?: DhcpAddress[];
+  @ApiProperty({ example: 5678 })
+  port: number;
 
   @ValidateNested()
   operations?: HostConfigOperation = new HostConfigOperation();

@@ -38,7 +38,12 @@ export function toDay(age: number) {
 }
 
 export function toMinutes(age: number) {
-  return formatDuration(intervalToDuration({ start: 0, end: age }));
+  const duration = intervalToDuration({ start: 0, end: age });
+  if (duration.seconds) {
+    duration.minutes = (duration.minutes ?? 0) + 1;
+    duration.seconds = 0;
+  }
+  return formatDuration(duration);
 }
 
 export function toDateTime(value: number) {

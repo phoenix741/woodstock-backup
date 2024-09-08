@@ -12,12 +12,13 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use eyre::Result;
-use log::{debug, LevelFilter};
+use log::{debug, error, info, LevelFilter};
 use tokio::sync::oneshot;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use woodstock::client::config::{get_config_path, read_config};
+use woodstock::client::resolve::mdns_responder;
 use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
@@ -85,10 +86,24 @@ async fn start_client(
                 .accept_compressed(CompressionEncoding::Gzip),
         );
 
+    let mut daemon = None;
+    if config.disable_mdns {
+        info!("mDNS is disabled");
+    } else {
+        info!("mDNS is enabled");
+        daemon = Some(mdns_responder(&config)?);
+    }
+
     server
         .serve_with_shutdown(addr, async {
             shutdown_signal.await.ok();
-            println!("Graceful context shutdown");
+            if let Some(daemon) = daemon {
+                if let Err(e) = daemon.shutdown() {
+                    error!("Failed to shutdown mDNS daemon: {}", e);
+                }
+            }
+
+            info!("Graceful context shutdown");
         })
         .await?;
 

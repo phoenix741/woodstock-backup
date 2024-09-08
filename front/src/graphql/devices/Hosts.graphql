@@ -6,7 +6,9 @@ query Hosts {
       startDate
       fileSize
       completed
+      agentVersion
     }
+    agentVersion
     timeSinceLastBackup
     dateToNextBackup
     lastBackupState

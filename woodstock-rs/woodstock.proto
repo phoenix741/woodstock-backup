@@ -180,6 +180,7 @@ message AuthenticateRequest {
 }
 
 message AuthenticateReply {
+  string agentVersion = 1;
   string sessionId = 3;
 }
 

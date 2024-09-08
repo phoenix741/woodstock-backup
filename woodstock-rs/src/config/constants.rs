@@ -1,3 +1,9 @@
+/// Default port for woodstock
+pub const DEFAULT_PORT: u16 = 3657;
+
+/// mDNS service name
+pub const MDNS_SERVICE_NAME: &str = "_woodstock._tcp.local.";
+
 /// Size of the chunk in the pool directory
 pub const CHUNK_SIZE: usize = 1 << 24; // 16MB
 pub const CHUNK_SIZE_U64: u64 = 1 << 24; // 16MB

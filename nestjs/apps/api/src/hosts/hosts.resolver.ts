@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { NotFoundException, Res } from '@nestjs/common';
 import { Args, Float, Int, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, HostConfiguration, JobBackupData, JobService, QueueName } from '@woodstock/shared';
+import { Backup, HostConfiguration, JobBackupData, JobService, QueueName, ResolveService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Host } from './hosts.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
@@ -13,6 +13,7 @@ export class HostsResolver {
     private hostsService: HostsService,
     private backupsService: BackupsService,
     private jobService: JobService,
+    private resolveService: ResolveService,
   ) {}
 
   @Query(() => [Host])
@@ -78,5 +79,18 @@ export class HostsResolver {
       return await backupJobs[0].getState();
     }
     return undefined;
+  }
+
+  @ResolveField(() => String, { nullable: true })
+  async agentVersion(@Parent() host: Host): Promise<string | undefined> {
+    const informations = await this.resolveService.getInformations(host.name);
+    return informations?.version;
+  }
+
+  @ResolveField(() => [String], { nullable: true })
+  async addresses(@Parent() host: Host): Promise<string[] | undefined> {
+    const configuration = await this.hostsService.getHost(host.name);
+    const addresses = await this.resolveService.resolveFromConfig(host.name, configuration);
+    return addresses;
   }
 }

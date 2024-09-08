@@ -44,4 +44,6 @@ export class Backup {
   modifiedCompressedFileSize!: bigint;
 
   speed!: number;
+
+  agentVersion?: string;
 }

@@ -45,23 +45,6 @@ impl From<woodstock::config::Schedule> for JsSchedule {
 // ************* Host **************
 
 #[napi(object)]
-pub struct JsDhcpAddress {
-  pub address: String,
-  pub start: u8,
-  pub end: u8,
-}
-
-impl From<woodstock::config::DhcpAddress> for JsDhcpAddress {
-  fn from(dhcp_address: woodstock::config::DhcpAddress) -> Self {
-    Self {
-      address: dhcp_address.address,
-      start: dhcp_address.start,
-      end: dhcp_address.end,
-    }
-  }
-}
-
-#[napi(object)]
 pub struct JsBackupTaskShare {
   pub name: String,
   pub includes: Option<Vec<String>>,
@@ -142,7 +125,7 @@ pub struct JsHostConfiguration {
   pub is_local: Option<bool>,
   pub password: String,
   pub addresses: Option<Vec<String>>,
-  pub dhcp: Option<Vec<JsDhcpAddress>>,
+  pub port: u16,
   pub operations: JsHostConfigOperation,
   pub schedule: Option<JsSchedule>,
 }
@@ -153,9 +136,7 @@ impl From<woodstock::config::HostConfiguration> for JsHostConfiguration {
       is_local: host_configuration.is_local,
       password: host_configuration.password,
       addresses: host_configuration.addresses,
-      dhcp: host_configuration
-        .dhcp
-        .map(|d| d.into_iter().map(std::convert::Into::into).collect()),
+      port: host_configuration.port,
       operations: host_configuration.operations.into(),
       schedule: host_configuration.schedule.map(std::convert::Into::into),
     }
@@ -191,6 +172,8 @@ pub struct JsBackup {
   pub existing_compressed_file_size: BigInt,
 
   pub speed: f64,
+
+  pub agent_version: Option<String>,
 }
 
 impl From<woodstock::config::Backup> for JsBackup {
@@ -223,6 +206,8 @@ impl From<woodstock::config::Backup> for JsBackup {
       existing_compressed_file_size: backup.existing_compressed_file_size.into(),
 
       speed: backup.speed,
+
+      agent_version: backup.agent_version.clone(),
     }
   }
 }

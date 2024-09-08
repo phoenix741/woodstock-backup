@@ -30,6 +30,7 @@ pub struct BackupClient<Clt: Client> {
 
     hostname: String,
     current_backup_id: usize,
+    agent_version: Option<String>,
     fake_date: Option<SystemTime>,
 
     progress_max: HashMap<String, u64>,
@@ -53,6 +54,7 @@ impl<Clt: Client> BackupClient<Clt> {
             client,
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
+            agent_version: None,
             progress_max: HashMap::new(),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
@@ -79,6 +81,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         Backup {
             number: self.current_backup_id,
+            agent_version: self.agent_version.clone(),
             completed: is_complete,
 
             start_date: match self.fake_date {
@@ -145,7 +148,8 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn authenticate(&mut self, password: &str) -> Result<()> {
         info!("Authenticate to the server");
 
-        self.client.authenticate(password).await?;
+        let response = self.client.authenticate(password).await?;
+        self.agent_version = Some(response.agent_version);
 
         Ok(())
     }

@@ -31,6 +31,11 @@
             <template v-slot:[`item.lastBackupSize`]="{ item }">
               <template v-if="item.lastBackupSize">{{ filesize(item.lastBackupSize) }}</template>
             </template>
+            <template v-slot:[`item.agentVersion`]="{ item }">
+              <v-chip :color="item.online ? 'green' : 'red'" variant="outlined" rounded>{{
+                item.agentVersion || 'offline'
+              }}</v-chip>
+            </template>
           </v-data-table>
         </v-sheet>
       </v-col>
@@ -74,6 +79,7 @@ const headers: ReadonlyHeaders = [
   { title: 'Last backup age', align: 'end', key: 'lastBackupAge' },
   { title: 'Next Backup', align: 'end', key: 'nextBackup' },
   { title: 'Last backup size', align: 'end', key: 'lastBackupSize' },
+  { title: 'Agent', align: 'start', key: 'agentVersion' },
   { title: 'State', align: 'end', key: 'state' },
 ];
 
@@ -86,6 +92,8 @@ const devicesDataTable = computed(() => {
     lastBackupSize: device.lastBackup?.fileSize,
     state: getState(device),
     configuration: device.configuration,
+    agentVersion: device.agentVersion ?? device.lastBackup?.agentVersion ?? '',
+    online: !!device.agentVersion,
   }));
 });
 </script>

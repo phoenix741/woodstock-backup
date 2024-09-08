@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::DEFAULT_PORT;
+
 // ************ Schedule ************
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,13 +22,6 @@ pub struct Schedule {
 }
 
 // ************* Host **************
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DhcpAddress {
-    pub address: String,
-    pub start: u8,
-    pub end: u8,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupTaskShare {
@@ -62,9 +57,14 @@ pub struct HostConfiguration {
     pub is_local: Option<bool>,
     pub password: String,
     pub addresses: Option<Vec<String>>,
-    pub dhcp: Option<Vec<DhcpAddress>>,
+    #[serde(default = "default_port")]
+    pub port: u16,
     pub operations: HostConfigOperation,
     pub schedule: Option<Schedule>,
+}
+
+fn default_port() -> u16 {
+    DEFAULT_PORT
 }
 
 // ************ Backup ****************
@@ -98,4 +98,6 @@ pub struct Backup {
     pub existing_compressed_file_size: u64,
 
     pub speed: f64,
+
+    pub agent_version: Option<String>,
 }

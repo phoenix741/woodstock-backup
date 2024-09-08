@@ -4,6 +4,7 @@ use futures::pin_mut;
 use futures::Stream;
 use log::warn;
 use log::{debug, error, info};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -48,7 +49,7 @@ impl BackupGrpcClient {
 
         if let Some(session_id) = session_id {
             let mut request = Request::new(request);
-            request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
+            // request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
             request.metadata_mut().insert(
                 "x-session-id",
                 session_id
@@ -91,14 +92,19 @@ impl BackupGrpcClient {
             .ca_certificate(server_root_ca_cert)
             .identity(client_identity);
 
-        let connection_string = format!("https://{ip}:3657");
+        // Parse the ip that can be an ip or an ip + port
+        let addr = ip
+            .parse::<SocketAddr>()
+            .map_err(|e| eyre!("Invalid IP address: {}", e))?;
+
+        let connection_string = format!("https://{}:{}", addr.ip(), addr.port());
         let channel = Channel::from_shared(connection_string)?
             .connect_timeout(Duration::from_secs(60)) // TODO: Configurable
             .keep_alive_timeout(Duration::from_secs(60))
             .keep_alive_while_idle(true)
             .tls_config(tls)?
             .tcp_keepalive(Some(Duration::from_secs(30)))
-            .timeout(Duration::from_secs(120))
+            // .timeout(Duration::from_secs(120))
             .connect()
             .await?;
 
