@@ -119,17 +119,6 @@ export class HostConsumer extends WorkerHost {
         await this.backupsService.invalidateBackup(job.data.host);
 
         this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1);
-
-        const lastBackup = await this.backupsService.getLastBackup(job.data.host);
-        // Check if the previous backup is incomplete, we can remove it
-        const mayBeIncompleteBackup = await this.backupsService.getPreviousBackup(job.data.host, job.data.number || -1);
-        if (
-          mayBeIncompleteBackup &&
-          !mayBeIncompleteBackup.completed &&
-          lastBackup?.number !== mayBeIncompleteBackup.number
-        ) {
-          await this.hostsQueue.add('remove_backup', { host: job.data.host, number: mayBeIncompleteBackup.number });
-        }
       }
     });
     this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
