@@ -86,6 +86,9 @@ export class HostConfiguration {
   @ApiProperty({ example: [] })
   addresses?: string[];
 
+  @ApiProperty({ example: 5678 })
+  port: number;
+
   @ValidateNested()
   operations?: HostConfigOperation = new HostConfigOperation();
 

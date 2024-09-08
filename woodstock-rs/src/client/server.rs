@@ -144,7 +144,10 @@ impl WoodstockClientService for WoodstockClient {
         let session_id = service.authenticate(token);
 
         match session_id {
-            Ok(session_id) => Ok(tonic::Response::new(AuthenticateReply { session_id })),
+            Ok(session_id) => Ok(tonic::Response::new(AuthenticateReply {
+                agent_version: ClientConfig::version(),
+                session_id,
+            })),
             Err(e) => {
                 error!("Failed to authenticate: {:?}", e);
 

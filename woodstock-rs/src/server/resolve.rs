@@ -1,3 +1,4 @@
+use dns_lookup::lookup_host;
 use eyre::Result;
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use std::{
@@ -6,29 +7,25 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::{
-    net::{lookup_host, TcpStream},
-    sync::Mutex,
-    time::timeout,
-};
+use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 
 use crate::config::MDNS_SERVICE_NAME;
 
-async fn is_reachable(ip: IpAddr, port: u16) -> Result<bool> {
+async fn is_reachable(ip: IpAddr, port: u16) -> bool {
     let addr = SocketAddr::new(ip, port);
 
     // Tentative de connexion avec un timeout pour éviter de bloquer indéfiniment
-    match timeout(Duration::from_secs(2), TcpStream::connect(&addr)).await {
-        Ok(Ok(_stream)) => Ok(true), // Connexion réussie
-        _ => Ok(false),              // Échec de la connexion ou timeout
-    }
+    matches!(
+        timeout(Duration::from_secs(2), TcpStream::connect(&addr)).await,
+        Ok(Ok(_stream))
+    )
 }
 
-async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Result<Vec<IpAddr>> {
+async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
     let mut reachable_ips = Vec::new();
 
     for ip in ips {
-        if is_reachable(ip, port).await? {
+        if is_reachable(ip, port).await {
             reachable_ips.push(ip);
         }
     }
@@ -50,18 +47,11 @@ async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Result<Vec<IpAddr>> {
         }
     });
 
-    Ok(reachable_ips)
+    reachable_ips
 }
 
-pub async fn resolve_dns(hostname: &str) -> Option<Vec<SocketAddr>> {
-    match lookup_host(hostname).await {
-        Ok(addresses) => {
-            let addresses = addresses.collect::<Vec<_>>();
-
-            Some(addresses)
-        }
-        Err(_) => None,
-    }
+pub fn resolve_dns(hostname: &str) -> Vec<IpAddr> {
+    lookup_host(hostname).ok().unwrap_or_default()
 }
 
 #[derive(Debug, Clone)]
@@ -114,8 +104,6 @@ impl SocketAddrResolver {
                     .to_string();
                 let addresses = info.get_addresses().iter().cloned().collect::<Vec<_>>();
 
-                let addresses = is_reachables(addresses, port).await?;
-
                 let socket_addr_info = SocketAddrInformation {
                     hostname: hostname.to_string(),
                     port,
@@ -131,19 +119,24 @@ impl SocketAddrResolver {
         Ok(())
     }
 
-    pub async fn resolve(&self, hostname: &str) -> Option<Vec<SocketAddr>> {
+    pub async fn resolve(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
         let host_map = self.host_map.lock().await;
-        if let Some(socket_addr_info) = host_map.get(hostname) {
-            Some(
-                socket_addr_info
-                    .addresses
-                    .iter()
-                    .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
-                    .collect(),
-            )
+        let addresses = if let Some(socket_addr_info) = host_map.get(hostname) {
+            let addresses =
+                is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
+
+            addresses
+                .iter()
+                .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
+                .collect()
         } else {
-            resolve_dns(hostname).await
-        }
+            resolve_dns(hostname)
+                .iter()
+                .map(|ip| SocketAddr::new(*ip, default_port))
+                .collect()
+        };
+
+        Some(addresses)
     }
 
     pub async fn get_informations(&self, hostname: &str) -> Option<SocketAddrInformation> {

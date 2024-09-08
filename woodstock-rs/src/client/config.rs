@@ -11,6 +11,8 @@ use std::path::PathBuf;
 
 use eyre::Result;
 
+use crate::config::DEFAULT_PORT;
+
 /// Represents the configuration for the client.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -56,7 +58,7 @@ impl ClientConfig {
 
     /// Returns the default bind address of the client.
     fn default_bind() -> String {
-        "0.0.0.0:3657".to_string()
+        format!("0.0.0.0:{}", DEFAULT_PORT).to_string()
     }
 
     /// Generates a random 64-byte hexadecimal string as the default secret key for the client.

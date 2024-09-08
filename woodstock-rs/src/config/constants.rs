@@ -1,3 +1,6 @@
+/// Default port for woodstock
+pub const DEFAULT_PORT: u16 = 3657;
+
 /// mDNS service name
 pub const MDNS_SERVICE_NAME: &str = "_woodstock._tcp.local.";
 

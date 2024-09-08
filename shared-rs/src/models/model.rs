@@ -125,6 +125,7 @@ pub struct JsHostConfiguration {
   pub is_local: Option<bool>,
   pub password: String,
   pub addresses: Option<Vec<String>>,
+  pub port: u16,
   pub operations: JsHostConfigOperation,
   pub schedule: Option<JsSchedule>,
 }
@@ -135,6 +136,7 @@ impl From<woodstock::config::HostConfiguration> for JsHostConfiguration {
       is_local: host_configuration.is_local,
       password: host_configuration.password,
       addresses: host_configuration.addresses,
+      port: host_configuration.port,
       operations: host_configuration.operations.into(),
       schedule: host_configuration.schedule.map(std::convert::Into::into),
     }
@@ -170,6 +172,8 @@ pub struct JsBackup {
   pub existing_compressed_file_size: BigInt,
 
   pub speed: f64,
+
+  pub agent_version: Option<String>,
 }
 
 impl From<woodstock::config::Backup> for JsBackup {
@@ -202,6 +206,8 @@ impl From<woodstock::config::Backup> for JsBackup {
       existing_compressed_file_size: backup.existing_compressed_file_size.into(),
 
       speed: backup.speed,
+
+      agent_version: backup.agent_version.clone(),
     }
   }
 }

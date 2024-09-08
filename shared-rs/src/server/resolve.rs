@@ -1,5 +1,5 @@
 use napi::{Error, Result};
-use woodstock::server::resolve::SocketAddrResolver;
+use woodstock::{config::DEFAULT_PORT, server::resolve::SocketAddrResolver};
 
 use super::AbortHandle;
 
@@ -23,10 +23,11 @@ impl From<woodstock::server::resolve::SocketAddrInformation> for JsSocketAddrInf
 }
 
 #[napi]
-pub async fn resolve_dns(hostname: String) -> Option<Vec<String>> {
+pub fn resolve_dns(hostname: String) -> Vec<String> {
   woodstock::server::resolve::resolve_dns(&hostname)
-    .await
-    .map(|addresses| addresses.iter().map(|addr| addr.to_string()).collect())
+    .iter()
+    .map(|addr| addr.to_string())
+    .collect()
 }
 
 #[napi(js_name = "CoreClientResolver")]
@@ -56,11 +57,12 @@ impl CoreClientResolver {
   }
 
   #[napi]
-  pub async fn resolve(&self, hostname: String) -> Option<Vec<String>> {
+  pub async fn resolve(&self, hostname: String, default_port: Option<u16>) -> Option<Vec<String>> {
+    let default_port = default_port.unwrap_or(DEFAULT_PORT);
     let resolver = self.resolver.clone();
 
     resolver
-      .resolve(&hostname)
+      .resolve(&hostname, default_port)
       .await
       .map(|addresses| addresses.iter().map(|addr| addr.to_string()).collect())
   }
