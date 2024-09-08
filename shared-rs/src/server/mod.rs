@@ -1,4 +1,5 @@
 mod abort_handle;
+pub mod resolve;
 pub mod tools;
 
 pub use abort_handle::AbortHandle;

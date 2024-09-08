@@ -1,10 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ExecuteCommandService } from './execute-command.service.js';
-import { InformationToResolve } from './resolve.model.js';
 import { ResolveService } from './resolve.service.js';
-import { CommandParameters } from './tools.service.js';
-import { grpcPing } from '@woodstock/shared-rs';
+import { grpcPing, JsHostConfiguration } from '@woodstock/shared-rs';
 import { ApplicationConfigService } from '../config/application-config.service.js';
+import { InformationToResolve } from './resolve.model.js';
 
 @Injectable()
 export class PingService {
@@ -15,21 +13,25 @@ export class PingService {
     private resolveService: ResolveService,
   ) {}
 
-  async pingFromConfig(hostname: string, config: InformationToResolve): Promise<boolean> {
+  async pingFromConfig(hostname: string, config?: InformationToResolve): Promise<string | undefined> {
     try {
       this.logger.debug(`Ping host ${hostname} from config`);
       const ip = await this.resolveService.resolveFromConfig(hostname, config);
-      this.logger.debug(`IP for the host ${hostname} is ${ip}`);
-      const result = await this.ping(ip, hostname);
-      this.logger.debug(`Ping of the host ${hostname} with IP ${ip}: ${result}`);
-      return result;
+
+      for (const address of ip) {
+        this.logger.debug(`IP for the host ${hostname} is ${address}`);
+        const result = await this.ping(address, hostname);
+        this.logger.debug(`Ping of the host ${hostname} with IP ${address}: ${result}`);
+
+        if (result) {
+          return address;
+        }
+      }
     } catch (err) {
       this.logger.debug(`Can't find an ip for the host ${hostname}`);
-      return false;
     }
   }
 
-  // TODO: IPv6
   async ping(ip: string, hostname: string): Promise<boolean> {
     try {
       return await grpcPing(ip, hostname, this.config.context);

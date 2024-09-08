@@ -43,6 +43,7 @@ hex = { version = "0.4.3", features = ["serde"] }
 hostname = "0.3.1"
 jsonwebtoken = "9.3.0"
 lazy_static = "1.4.0"
+mdns-sd = "0.11.3"
 log = { version = "0.4.21", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
 percent-encoding = "2.3.1"
 prost = "0.12"

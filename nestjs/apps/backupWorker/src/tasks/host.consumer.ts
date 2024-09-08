@@ -1,6 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
-import { ApplicationLogger, ResolveService } from '@woodstock/shared';
+import { ApplicationLogger, PingService, ResolveService } from '@woodstock/shared';
 import { BackupsService, JobBackupData, JobService, QueueName, QUEUE_TASK_FAILED_STATE } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { inspect } from 'util';
@@ -28,7 +28,7 @@ export class HostConsumer extends WorkerHost {
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
     private applicationLogger: ApplicationLogger,
     private hostConsumerUtilService: HostConsumerUtilService,
-    private resolveService: ResolveService,
+    private pingService: PingService,
     private backupsService: BackupsService,
     private removeService: RemoveService,
     private jobService: JobService,
@@ -79,7 +79,7 @@ export class HostConsumer extends WorkerHost {
         return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, async () => {
           this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
           if (!backupTask.ip && !backupTask.config?.isLocal) {
-            backupTask.ip = await this.resolveService.resolveFromConfig(backupTask.host, config);
+            backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
             if (!backupTask.ip) {
               throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
             }

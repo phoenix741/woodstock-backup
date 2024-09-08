@@ -1,6 +1,12 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { CoreBackupsService, CoreFilesService, CoreHostsService, CorePoolService } from '@woodstock/shared-rs';
+import {
+  CoreBackupsService,
+  CoreClientResolver,
+  CoreFilesService,
+  CoreHostsService,
+  CorePoolService,
+} from '@woodstock/shared-rs';
 import { CertificateService } from './authentification';
 import { JobService } from './backuping';
 import { BackupsService, HostsService, LockService } from './backups';
@@ -72,6 +78,10 @@ const providers = [
       provide: CorePoolService,
       useFactory: (config: ApplicationConfigService) => new CorePoolService(config.context),
       inject: [ApplicationConfigService],
+    },
+    {
+      provide: CoreClientResolver,
+      useFactory: () => new CoreClientResolver(),
     },
   ],
   exports: [...providers, RegisteredQueue],

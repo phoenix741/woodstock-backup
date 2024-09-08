@@ -34,6 +34,10 @@ pub struct ClientConfig {
 
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
+    pub disable_mdns: bool,
+
+    /// If extended attributes should be save on linux platform (default: false)
+    #[serde(default)]
     pub xattr: bool,
 
     /// If the acl should be saved on linux platform
@@ -74,6 +78,10 @@ impl ClientConfig {
     fn default_max_backup_seconds() -> u64 {
         12 * 3600
     }
+
+    pub fn version() -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 impl Default for ClientConfig {
@@ -86,6 +94,7 @@ impl Default for ClientConfig {
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
+            disable_mdns: false,
             xattr: false,
             acl: false,
         }

@@ -39,6 +39,7 @@ async fn server_and_client_stub() -> (
         secret: "secret".to_string(),
         acl: false,
         xattr: false,
+        disable_mdns: true,
         backup_timeout: 3600,
         max_backup_seconds: 3600,
     };

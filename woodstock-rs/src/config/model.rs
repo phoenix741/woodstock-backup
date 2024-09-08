@@ -22,13 +22,6 @@ pub struct Schedule {
 // ************* Host **************
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DhcpAddress {
-    pub address: String,
-    pub start: u8,
-    pub end: u8,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupTaskShare {
     pub name: String,
     pub includes: Option<Vec<String>>,
@@ -62,7 +55,6 @@ pub struct HostConfiguration {
     pub is_local: Option<bool>,
     pub password: String,
     pub addresses: Option<Vec<String>>,
-    pub dhcp: Option<Vec<DhcpAddress>>,
     pub operations: HostConfigOperation,
     pub schedule: Option<Schedule>,
 }
