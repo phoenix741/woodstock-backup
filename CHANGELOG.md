@@ -1,3 +1,17 @@
+# [2.0.0-alpha.13](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.12...v2.0.0-alpha.13) (2024-09-08)
+
+
+### Bug Fixes
+
+* 🐛 fix timeout on request is too short to download very big file ([d33551e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d33551e8f52f42f8c5cfc190affef86f22bc02aa))
+* **workflow:** :bug: don't remove uncomplete backup (will be made with rotation) ([25cb92e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/25cb92eff21e27d9c57e85af1595ff4569aa66fa))
+
+
+### Features
+
+* 🎉 fix [#72](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/72) add resolve module to server and client ([1858629](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1858629e53b9b9424040ce54b79248e5b571883d))
+* fix [#69](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/69) add agentVersion on host and backup ([c4bde6b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c4bde6b433badbb2eca73faf3a9427f154c76f76))
+
 # [2.0.0-alpha.12](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.11...v2.0.0-alpha.12) (2024-09-06)
 
 
