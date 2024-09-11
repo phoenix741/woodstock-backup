@@ -9,6 +9,7 @@ pub struct JsSocketAddrInformation {
   pub port: u16,
   pub version: String,
   pub addresses: Vec<String>,
+  pub is_online: bool,
 }
 
 impl From<woodstock::server::resolve::SocketAddrInformation> for JsSocketAddrInformation {
@@ -18,6 +19,7 @@ impl From<woodstock::server::resolve::SocketAddrInformation> for JsSocketAddrInf
       port: info.port,
       version: info.version,
       addresses: info.addresses.iter().map(|addr| addr.to_string()).collect(),
+      is_online: info.is_online,
     }
   }
 }

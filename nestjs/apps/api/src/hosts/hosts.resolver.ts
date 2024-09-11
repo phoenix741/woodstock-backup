@@ -3,7 +3,7 @@ import { NotFoundException, Res } from '@nestjs/common';
 import { Args, Float, Int, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, HostConfiguration, JobBackupData, JobService, QueueName, ResolveService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
-import { Host } from './hosts.dto.js';
+import { Host, HostAvailibilityState } from './hosts.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
 
 @Resolver(() => Host)
@@ -85,6 +85,23 @@ export class HostsResolver {
   async agentVersion(@Parent() host: Host): Promise<string | undefined> {
     const informations = await this.resolveService.getInformations(host.name);
     return informations?.version;
+  }
+
+  @ResolveField(() => HostAvailibilityState, { nullable: true })
+  async availibilityState(@Parent() host: Host): Promise<HostAvailibilityState | undefined> {
+    const informations = await this.resolveService.getInformations(host.name);
+    if (!informations) {
+      const configuration = await this.hostsService.getHost(host.name);
+
+      if (configuration?.addresses) {
+        // If the host has addresses, we can't known if it's online or not
+        return HostAvailibilityState.Unknown;
+      }
+
+      return HostAvailibilityState.Offline;
+    }
+
+    return informations.isOnline ? HostAvailibilityState.Online : HostAvailibilityState.Offline;
   }
 
   @ResolveField(() => [String], { nullable: true })

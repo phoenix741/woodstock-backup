@@ -13,6 +13,7 @@ use clap::{Parser, Subcommand};
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
 use commands::read_protobuf::read_log;
+use commands::resolve::resolve_mdns;
 use eyre::Result;
 
 mod commands;
@@ -124,6 +125,11 @@ enum Commands {
         /// The share path to scan
         share_path: String,
     },
+
+    ResolveMDns {
+        /// The hostname to resolve
+        hostname: String,
+    },
 }
 
 #[tokio::main]
@@ -216,6 +222,11 @@ async fn main() -> Result<()> {
         } => list_client_files(&hostname, &share_path, &context)
             .await
             .expect("Failed to list files"),
+        Commands::ResolveMDns { hostname } => {
+            resolve_mdns(&context, &hostname)
+                .await
+                .expect("Failed to resolve mDNS");
+        }
     }
 
     Ok(())

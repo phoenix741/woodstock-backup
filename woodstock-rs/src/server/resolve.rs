@@ -1,6 +1,6 @@
 use dns_lookup::lookup_host;
 use eyre::Result;
-use mdns_sd::{ServiceDaemon, ServiceEvent};
+use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
@@ -60,6 +60,7 @@ pub struct SocketAddrInformation {
     pub port: u16,
     pub version: String,
     pub addresses: Vec<IpAddr>,
+    pub is_online: bool,
 }
 
 /// The goal of this module is to provide a way to resolve a `SocketAddr` from a given hostname.
@@ -85,34 +86,54 @@ impl SocketAddrResolver {
         })
     }
 
+    async fn update_host(&self, info: &ServiceInfo) {
+        // Hostname without .local. suffix
+        let hostname = info.get_hostname();
+        let hostname = hostname.trim_end_matches(".local.");
+
+        let port = info.get_port();
+
+        let version = info
+            .get_property("version")
+            .map(|version| version.val_str())
+            .unwrap_or_default()
+            .to_string();
+        let addresses = info.get_addresses().iter().cloned().collect::<Vec<_>>();
+
+        let socket_addr_info = SocketAddrInformation {
+            hostname: hostname.to_string(),
+            port,
+            version,
+            addresses,
+            is_online: true,
+        };
+
+        let mut host_map = self.host_map.lock().await;
+        host_map.insert(hostname.to_string(), socket_addr_info);
+    }
+
+    async fn update_online_status(&self, hostname: &str, is_online: bool) {
+        let mut host_map = self.host_map.lock().await;
+        if let Some(socket_addr_info) = host_map.get_mut(hostname) {
+            socket_addr_info.is_online = is_online;
+        }
+    }
+
     pub async fn listen(&self) -> Result<()> {
         let mdns = ServiceDaemon::new()?;
         let receiver = mdns.browse(MDNS_SERVICE_NAME)?;
 
         while let Ok(event) = receiver.recv() {
-            if let ServiceEvent::ServiceResolved(info) = event {
-                // Hostname without .local. suffix
-                let hostname = info.get_hostname();
-                let hostname = hostname.trim_end_matches(".local.");
-
-                let port = info.get_port();
-
-                let version = info
-                    .get_property("version")
-                    .map(|version| version.val_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let addresses = info.get_addresses().iter().cloned().collect::<Vec<_>>();
-
-                let socket_addr_info = SocketAddrInformation {
-                    hostname: hostname.to_string(),
-                    port,
-                    version,
-                    addresses,
-                };
-
-                let mut host_map = self.host_map.lock().await;
-                host_map.insert(hostname.to_string(), socket_addr_info);
+            match event {
+                ServiceEvent::ServiceResolved(info) => {
+                    self.update_host(&info).await;
+                }
+                ServiceEvent::ServiceRemoved(service_type, full_name) => {
+                    let service_type = format!(".{}", service_type);
+                    let hostname = full_name.trim_end_matches(&service_type);
+                    self.update_online_status(hostname, false).await;
+                }
+                _ => {}
             }
         }
 

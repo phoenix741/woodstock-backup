@@ -1,4 +1,4 @@
-import { ObjectType } from '@nestjs/graphql';
+import { ObjectType, registerEnumType } from '@nestjs/graphql';
 import { Backup } from '@woodstock/shared';
 
 export enum ClientType {
@@ -19,3 +19,11 @@ export class HostInformation {
     public lastBackup?: Backup,
   ) {}
 }
+
+export enum HostAvailibilityState {
+  Online = 'online',
+  Offline = 'offline',
+  Unknown = 'unknown',
+}
+
+registerEnumType(HostAvailibilityState, { name: 'HostAvailibilityState' });

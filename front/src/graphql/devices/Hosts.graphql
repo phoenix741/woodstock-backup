@@ -9,6 +9,7 @@ query Hosts {
       agentVersion
     }
     agentVersion
+    availibilityState
     timeSinceLastBackup
     dateToNextBackup
     lastBackupState

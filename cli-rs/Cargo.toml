@@ -31,6 +31,7 @@ indicatif = "0.17.8"
 log = { version = "0.4.21", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
 multi_log = "0.1.2"
 tokio = { version = "1.0", features = ["fs", "macros", "rt-multi-thread"] }
+tokio-util = "0.7.12"
 tonic = { version = "0.11", features = ["tls", "gzip"] }
 woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
   "pool", "server", "client"

@@ -3022,6 +3022,7 @@ dependencies = [
  "log",
  "multi_log",
  "tokio",
+ "tokio-util",
  "tonic",
  "woodstock-rs",
 ]
