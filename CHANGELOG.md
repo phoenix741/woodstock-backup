@@ -1,3 +1,10 @@
+# [2.0.0-alpha.14](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.13...v2.0.0-alpha.14) (2024-09-11)
+
+
+### Features
+
+* ✨ fix [#72](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/72) : the goal is show to the user if the host is online or offline ([44e121e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/44e121e79817af01795794d757ddccd08dd8f703))
+
 # [2.0.0-alpha.13](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.12...v2.0.0-alpha.13) (2024-09-08)
 
 

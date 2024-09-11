@@ -1,7 +1,7 @@
 [package]
 name = "woodstock-client-rs"
 description = "Woodstock client daemon"
-version = "2.0.0-alpha.13"
+version = "2.0.0-alpha.14"
 edition = "2021"
 authors = ["Ulrich Vandenhekke"]
 license = "MIT"
