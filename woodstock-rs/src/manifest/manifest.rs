@@ -1,9 +1,7 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use async_stream::stream;
+use eyre::Result;
 use futures::{pin_mut, Stream};
 use futures::{Future, StreamExt};
 use tokio::fs::{remove_file, rename};
@@ -45,7 +43,7 @@ impl Manifest {
         self.manifest_path.exists() && !self.journal_path.exists()
     }
 
-    pub async fn remove(&self) -> io::Result<()> {
+    pub async fn remove(&self) -> Result<()> {
         for path in &[
             &self.manifest_path,
             &self.file_list_path,
@@ -62,8 +60,7 @@ impl Manifest {
     // TODO: Add log when fail
     pub fn read_manifest_entries(&self) -> impl Stream<Item = FileManifest> + '_ {
         stream!({
-            let mut manifests =
-                ProtobufReader::<FileManifest>::new(&self.manifest_path, true).await;
+            let manifests = ProtobufReader::<FileManifest>::new(&self.manifest_path, true).await;
             if let Ok(mut manifests) = manifests {
                 let mut manifests = manifests.into_stream();
 
@@ -78,7 +75,7 @@ impl Manifest {
 
     pub fn read_journal_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + '_ {
         stream!({
-            let mut manifests =
+            let manifests =
                 ProtobufReader::<FileManifestJournalEntry>::new(&self.journal_path, true).await;
             if let Ok(mut manifests) = manifests {
                 let mut manifests = manifests.into_stream();
@@ -99,7 +96,7 @@ impl Manifest {
 
     pub fn read_filelist_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + '_ {
         stream!({
-            let mut manifests =
+            let manifests =
                 ProtobufReader::<FileManifestJournalEntry>::new(&self.file_list_path, true).await;
             if let Ok(mut manifests) = manifests {
                 let mut manifests = manifests.into_stream();
@@ -116,8 +113,8 @@ impl Manifest {
     pub async fn save_filelist_entries(
         &self,
         source: impl Stream<Item = FileManifestJournalEntry>,
-    ) -> io::Result<()> {
-        save_file(&self.file_list_path, source, true, false).await
+    ) -> Result<()> {
+        save_file(&self.file_list_path, source, false).await
     }
 
     pub async fn load_index(&self) -> IndexManifest<FileManifest> {
@@ -152,7 +149,7 @@ impl Manifest {
         })
     }
 
-    pub async fn compact<Fut, F>(&self, mapping_callback: &F) -> io::Result<()>
+    pub async fn compact<Fut, F>(&self, mapping_callback: &F) -> Result<()>
     where
         F: Fn(FileManifest) -> Fut,
         Fut: Future<Output = Option<FileManifest>>,
@@ -162,7 +159,7 @@ impl Manifest {
             .filter_map(|message| async { mapping_callback(message).await });
         pin_mut!(all_messages);
 
-        save_file(&self.new_path, all_messages, true, false).await?;
+        save_file(&self.new_path, all_messages, false).await?;
 
         let _ = rename(&self.journal_path, &self.log_path).await;
         let _ = remove_file(&self.file_list_path).await;

@@ -1,7 +1,8 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use hyper_util::rt::TokioIo;
+use std::{collections::HashMap, path::Path};
+use tokio_stream::StreamExt;
 
 use futures::{pin_mut, Future};
-use tempfile::NamedTempFile;
 use tonic::{
     transport::{Channel, Endpoint, Server, Uri},
     Request,
@@ -16,16 +17,6 @@ use woodstock::{
     AuthenticateRequest, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
     RefreshCacheRequest, Share,
 };
-
-#[cfg(unix)]
-use tokio::net::{UnixListener, UnixStream};
-#[cfg(unix)]
-use tokio_stream::{wrappers::UnixListenerStream, StreamExt};
-
-#[cfg(windows)]
-use tokio::net::{TcpListener, TcpStream};
-#[cfg(windows)]
-use tokio_stream::{wrappers::TcpListenerStream, StreamExt};
 
 async fn server_and_client_stub() -> (
     impl Future<Output = ()>,
@@ -46,52 +37,32 @@ async fn server_and_client_stub() -> (
 
     let woodstock_client = WoodstockClient::new(config_path, &config);
 
-    let socket = NamedTempFile::new().unwrap();
-    let socket = Arc::new(socket.into_temp_path());
-    std::fs::remove_file(socket.as_ref()).unwrap();
-
-    #[cfg(unix)]
-    let stream = {
-        let uds = UnixListener::bind(&*socket).unwrap();
-        UnixListenerStream::new(uds)
-    };
-
-    #[cfg(windows)]
-    let random_port = rand::random::<u16>() % 1000 + 1000;
-    #[cfg(windows)]
-    let stream = {
-        let listener = TcpListener::bind(format!("127.0.0.1:{random_port}"))
-            .await
-            .unwrap();
-        TcpListenerStream::new(listener)
-    };
+    let (client, server) = tokio::io::duplex(1024);
 
     let serve_future = async {
         let result = Server::builder()
             .add_service(WoodstockClientServiceServer::new(woodstock_client))
-            .serve_with_incoming(stream)
+            .serve_with_incoming(tokio_stream::once(Ok::<_, std::io::Error>(server)))
             .await;
 
         assert!(result.is_ok());
     };
 
-    // Connect to the server over a Unix socket
-    // The URL will be ignored.
-    #[cfg(unix)]
-    let socket = Arc::clone(&socket);
+    let mut client = Some(client);
     let channel = Endpoint::try_from("http://any.url")
         .unwrap()
         .connect_with_connector(service_fn(move |_: Uri| {
-            #[cfg(unix)]
-            let socket = Arc::clone(&socket);
+            let client = client.take();
 
             async move {
-                #[cfg(unix)]
-                let stream = UnixStream::connect(&*socket);
-                #[cfg(windows)]
-                let stream = TcpStream::connect(format!("127.0.0.1:{random_port}"));
-
-                stream.await
+                if let Some(client) = client {
+                    Ok(TokioIo::new(client))
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "Client already taken",
+                    ))
+                }
             }
         }))
         .await
@@ -141,6 +112,10 @@ async fn test_client_authentification() {
     let config_path = std::path::Path::new("./data");
     let (serve_future, mut client) = server_and_client_stub().await;
 
+    tokio::spawn(async move {
+        serve_future.await;
+    });
+
     let request_future = async {
         let result = client
             .authenticate(Request::new(AuthenticateRequest {
@@ -168,16 +143,17 @@ async fn test_client_authentification() {
     };
 
     // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
+    request_future.await;
 }
 
 #[tokio::test]
 async fn test_client_execute_command() {
     let config_path = std::path::Path::new("./data");
     let (serve_future, mut client) = server_and_client_stub().await;
+
+    tokio::spawn(async move {
+        serve_future.await;
+    });
 
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
@@ -217,10 +193,7 @@ async fn test_client_execute_command() {
     };
 
     // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
+    request_future.await;
 }
 
 #[tokio::test]
@@ -229,6 +202,10 @@ async fn test_client_download_file_list() {
     let config_path = std::path::Path::new("./data");
 
     let (serve_future, mut client) = server_and_client_stub().await;
+
+    tokio::spawn(async move {
+        serve_future.await;
+    });
 
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
@@ -273,10 +250,7 @@ async fn test_client_download_file_list() {
     };
 
     // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
+    request_future.await;
 }
 
 #[tokio::test]
@@ -285,6 +259,10 @@ async fn test_client_get_chunk_hash() {
     let config_path = std::path::Path::new("./data");
 
     let (serve_future, mut client) = server_and_client_stub().await;
+
+    tokio::spawn(async move {
+        serve_future.await;
+    });
 
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
@@ -336,10 +314,7 @@ async fn test_client_get_chunk_hash() {
     };
 
     // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
+    request_future.await;
 }
 
 #[tokio::test]
@@ -348,6 +323,10 @@ async fn test_client_get_chunk() {
     let config_path = std::path::Path::new("./data");
 
     let (serve_future, mut client) = server_and_client_stub().await;
+
+    tokio::spawn(async move {
+        serve_future.await;
+    });
 
     let request_future = async {
         let session_id = get_session_id(config_path, &mut client).await.unwrap();
@@ -420,8 +399,5 @@ async fn test_client_get_chunk() {
     };
 
     // Wait for completion, when the client request future completes
-    tokio::select! {
-        () = serve_future => panic!("server returned first"),
-        () = request_future => (),
-    }
+    request_future.await;
 }

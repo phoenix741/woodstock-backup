@@ -1,7 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::path::PathBuf;
 
 use console::Term;
 use eyre::Result;
@@ -9,11 +6,7 @@ use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use log::error;
 
 use woodstock::{
-    config::{Backups, Context, Hosts},
-    pool::{
-        check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
-        PoolChunkWrapper, PoolLock, Refcnt,
-    },
+    config::Context, pool::Refcnt, server::pool_fsck::PoolFsck, utils::lock::PoolLock,
 };
 
 pub async fn check_compression(ctxt: &Context) -> Result<()> {
@@ -64,27 +57,12 @@ pub async fn check_compression(ctxt: &Context) -> Result<()> {
 }
 
 pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+    let pool_fsck = PoolFsck::new(ctxt);
 
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
-    pool_refcnt.load_refcnt(false).await;
-    pool_refcnt.load_unused().await;
-
-    let mut chunks = pool_refcnt
-        .list_refcnt()
-        .map(|refcnt| refcnt.sha256.clone())
-        .collect::<Vec<_>>();
-    chunks.extend(
-        pool_refcnt
-            .list_unused()
-            .map(|unused| unused.sha256.clone()),
-    );
-
-    let mut error_count: u64 = 0;
-    let mut total_count: u64 = 0;
+    let max = pool_fsck.verify_chunk_max().await?;
 
     let term = Term::stdout();
-    let bar = ProgressBar::new(chunks.len() as u64);
+    let bar = ProgressBar::new(max.len() as u64);
     bar.set_style(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
@@ -92,98 +70,27 @@ pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
         .unwrap(),
     );
 
-    for refcnt in chunks {
-        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&refcnt));
-
-        let is_valid = wrapper.check_chunk_information().await?;
-        if !is_valid {
-            error_count += 1;
-        }
-
-        total_count += 1;
-        bar.inc(1);
-    }
+    let result = pool_fsck
+        .verify_chunk(&|progress| {
+            bar.set_position(progress.progress_current as u64);
+        })
+        .await?;
 
     bar.finish();
 
     term.write_line(&std::format!(
         "Total errors: {}/{}",
-        HumanCount(error_count),
-        HumanCount(total_count)
+        HumanCount(result.error),
+        HumanCount(result.count)
     ))?;
 
     Ok(())
 }
 
 pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+    let pool_fsck = PoolFsck::new(ctxt);
 
-    let hosts = Hosts::new(ctxt);
-    let backups = Backups::new(ctxt);
-
-    let mut error_count = 0;
-    let mut total_count = 0;
-    let mut count = 1;
-
-    for host in hosts.list_hosts().await? {
-        let backups = backups.get_backups(&host).await;
-        count += backups.len() + 1;
-    }
-
-    let term = Term::stdout();
-    let bar = ProgressBar::new(count as u64);
-    bar.set_style(
-        ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
-        )
-        .unwrap(),
-    );
-
-    for host in hosts.list_hosts().await? {
-        let backups = backups.get_backups(&host).await;
-        for backup in backups {
-            let result = check_backup_integrity(&host, backup.number, dry_run, ctxt).await?;
-
-            error_count += result.error_count;
-            total_count += result.total_count;
-
-            bar.inc(1);
-        }
-
-        let result = check_host_integrity(&host, dry_run, ctxt).await?;
-
-        error_count += result.error_count;
-        total_count += result.total_count;
-
-        bar.inc(1);
-    }
-
-    let result = check_pool_integrity(dry_run, ctxt).await?;
-
-    error_count += result.error_count;
-    total_count += result.total_count;
-
-    bar.inc(1);
-
-    bar.finish();
-
-    term.write_line(&std::format!(
-        "Total errors: {}/{}",
-        HumanCount(error_count as u64),
-        HumanCount(total_count as u64)
-    ))?;
-
-    Ok(())
-}
-
-pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
-
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
-    pool_refcnt.load_refcnt(false).await;
-    pool_refcnt.load_unused().await;
-
-    let total = pool_refcnt.list_unused().count() + pool_refcnt.list_refcnt().count();
+    let total = pool_fsck.verify_refcnt_max().await?;
 
     let term = Term::stdout();
     let bar = ProgressBar::new(total as u64);
@@ -194,7 +101,42 @@ pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
         .unwrap(),
     );
 
-    let result = check_unused(dry_run, &|p| bar.inc(p as u64), ctxt).await?;
+    let result = pool_fsck
+        .verify_refcnt(dry_run, &|progress| {
+            bar.set_position(progress.progress_current as u64);
+        })
+        .await?;
+
+    bar.finish();
+
+    term.write_line(&std::format!(
+        "Total errors: {}/{}",
+        HumanCount(result.error),
+        HumanCount(result.count)
+    ))?;
+
+    Ok(())
+}
+
+pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
+    let pool_fsck = PoolFsck::new(ctxt);
+
+    let total = pool_fsck.verify_unused_max().await?;
+
+    let term = Term::stdout();
+    let bar = ProgressBar::new(total as u64);
+    bar.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
+        )
+        .unwrap(),
+    );
+
+    let result = pool_fsck
+        .verify_unused(dry_run, &|p| {
+            bar.set_position(p.progress_current as u64);
+        })
+        .await?;
 
     bar.finish();
 
@@ -219,16 +161,14 @@ pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
 }
 
 pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+    let pool_fsck = PoolFsck::new(ctxt);
 
     let target = target.map(PathBuf::from);
-    let mut refcnt = Refcnt::new(&ctxt.config.path.pool_path);
-    refcnt.load_unused().await;
 
-    let total = Arc::new(Mutex::new(0));
+    let total = pool_fsck.clean_unused_max().await?;
 
     let term = Term::stdout();
-    let bar = ProgressBar::new(refcnt.list_unused().count() as u64);
+    let bar = ProgressBar::new(total as u64);
     bar.set_style(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
@@ -236,26 +176,15 @@ pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result
         .unwrap(),
     );
 
-    refcnt
-        .remove_unused_files(&ctxt.config.path.pool_path, target, &|unused| {
-            let compressed_size = unused
-                .clone()
-                .map(|f| f.compressed_size)
-                .unwrap_or_default();
-
-            let mut total = total.lock().unwrap();
-            *total += compressed_size;
-
-            bar.inc(1);
+    let result = pool_fsck
+        .clean_unused_pool(target, &|p| {
+            bar.set_position(p.progress_current as u64);
         })
         .await?;
 
     bar.finish();
 
-    term.write_line(&std::format!(
-        "Total removed: {}",
-        HumanBytes(*total.lock().unwrap())
-    ))?;
+    term.write_line(&std::format!("Total removed: {}", HumanBytes(result.size)))?;
 
     Ok(())
 }

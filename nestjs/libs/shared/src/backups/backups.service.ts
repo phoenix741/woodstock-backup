@@ -81,16 +81,6 @@ export class BackupsService {
     return new Date().getTime() / 1000 - (lastBackup?.startDate ?? 0);
   }
 
-  async removeBackup(hostname: string, backupNumber: number): Promise<JsBackup> {
-    const backup = this.backupsService.removeBackup(hostname, backupNumber);
-    await this.invalidateBackup(hostname, backupNumber);
-    return backup;
-  }
-
-  removeRefcntOfHost(hostname: string, backupNumber: number): Promise<void> {
-    return this.backupsService.removeRefcntOfHost(hostname, backupNumber);
-  }
-
   async invalidateBackup(hostname: string, backupNumber?: number): Promise<void> {
     if (backupNumber) {
       await this.cacheManager.del(`backup-${hostname}-${backupNumber}`);

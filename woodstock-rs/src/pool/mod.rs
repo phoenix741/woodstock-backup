@@ -1,5 +1,4 @@
 mod fsck;
-mod lock;
 mod pool_chunk_information;
 mod pool_chunk_wrapper;
 mod pool_chunk_wrapper_writer;
@@ -8,14 +7,16 @@ mod refcnt;
 mod utils;
 
 pub use fsck::*;
-pub use lock::*;
 pub use pool_chunk_information::*;
 pub use pool_chunk_wrapper::*;
 pub use pool_chunk_wrapper_writer::*;
 pub use refcnt::*;
 pub use utils::*;
 
-use crate::config::{Backups, Context};
+use crate::{
+    config::{Backups, Context},
+    utils::lock::PoolLock,
+};
 
 use eyre::Result;
 use log::{debug, info};

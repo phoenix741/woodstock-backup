@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
   CorePoolService,
+  FsckProgressMessage,
   JsFsckCount,
-  JsPoolUnused,
-  VerifyChunkCount,
-  VerifyChunkProgress,
+  JsFsckProgression,
+  JsPoolProgression,
 } from '@woodstock/shared-rs';
 import { defer, Observable, switchMap } from 'rxjs';
 import { LockService } from './lock.service';
@@ -31,13 +31,13 @@ export class PoolService {
     );
   }
 
-  countUnused(): Promise<bigint> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.countUnused());
+  countUnused(): Promise<number> {
+    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.removeUnusedMax());
   }
 
-  removeUnused(target?: string): Observable<JsPoolUnused> {
+  removeUnused(target?: string): Observable<JsPoolProgression> {
     const removeUnused = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
-      return new Observable<JsPoolUnused>((observer) => {
+      return new Observable<JsPoolProgression>((observer) => {
         let abortMethod: () => void = () => {};
         const abortHandle = this.poolService.removeUnused(target, (result) => {
           if (result.progress) {
@@ -64,13 +64,13 @@ export class PoolService {
     return defer(() => removeUnused).pipe(switchMap((x) => x));
   }
 
-  countChunk(): Promise<bigint> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.countChunk());
+  countChunk(): Promise<number> {
+    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyChunkMax());
   }
 
-  verifyChunk(): Observable<VerifyChunkCount> {
+  verifyChunk(): Observable<JsFsckProgression> {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
-      return new Observable<VerifyChunkCount>((observer) => {
+      return new Observable<JsFsckProgression>((observer) => {
         let abortMethod: () => void = () => {};
         const abortHandle = this.poolService.verifyChunk((result) => {
           if (result.progress) {
@@ -97,29 +97,48 @@ export class PoolService {
     return defer(() => verifyChunk).pipe(switchMap((x) => x));
   }
 
-  checkBackupIntegrity(hostname: string, backupNumber: number, dryRun: boolean): Promise<JsFsckCount> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () =>
-      this.poolService.checkBackupIntegrity(hostname, backupNumber, dryRun),
-    );
+  verifyRefcntMax(): Promise<number> {
+    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyUnusedMax());
   }
 
-  checkHostIntegrity(hostname: string, dryRun: boolean): Promise<JsFsckCount> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () =>
-      this.poolService.checkHostIntegrity(hostname, dryRun),
-    );
-  }
-
-  checkPoolIntegrity(dryRun: boolean): Promise<JsFsckCount> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () =>
-      this.poolService.checkPoolIntegrity(dryRun),
-    );
-  }
-
-  processUnused(dryRun: boolean): Observable<VerifyChunkProgress> {
+  verifyRefcnt(dryRun: boolean): Observable<JsPoolProgression> {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
-      return new Observable<VerifyChunkProgress>((observer) => {
+      return new Observable<JsPoolProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.checkUnused(dryRun, (result) => {
+        const abortHandle = this.poolService.verifyUnused(dryRun, (result) => {
+          if (result.progress) {
+            observer.next(result.progress);
+          }
+
+          if (result.error) {
+            abort?.removeEventListener('abort', abortMethod);
+            observer.error(result.error);
+          }
+
+          if (result.complete) {
+            abort?.removeEventListener('abort', abortMethod);
+            observer.complete();
+          }
+        });
+        abortMethod = () => {
+          abortHandle.abort();
+        };
+
+        abort?.addEventListener('abort', abortMethod);
+      });
+    });
+    return defer(() => verifyChunk).pipe(switchMap((x) => x));
+  }
+
+  verifyUnusedMax(): Promise<number> {
+    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyUnusedMax());
+  }
+
+  verifyUnused(dryRun: boolean): Observable<JsPoolProgression> {
+    const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
+      return new Observable<JsPoolProgression>((observer) => {
+        let abortMethod: () => void = () => {};
+        const abortHandle = this.poolService.verifyUnused(dryRun, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }

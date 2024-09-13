@@ -8,25 +8,25 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-stream = "0.3.5"
-async-trait = "0.1.80"
-backuppc_pool_reader = "^2.0.0"
-clap = { version = "4.5.4", features = ["derive"] }
-color-eyre = "0.6.3"
-console = "0.15.8"
-env_logger = "0.11.3"
-eyre = "0.6.12"
-futures = "0.3.30"
-indicatif = "0.17.8"
-log = { version = "0.4.21", default-features = false, features = [
+async-stream = "^0.3"
+async-trait = "^0.1"
+backuppc_pool_reader = "^2.0"
+clap = { version = "^4.5", features = ["derive"] }
+color-eyre = "^0.6"
+console = "^0.15"
+env_logger = "^0.11"
+eyre = "^0.6"
+futures = "^0.3"
+indicatif = "^0.17"
+log = { version = "^0.4", default-features = false, features = [
   "std",
   "max_level_debug",
   "release_max_level_info",
 ] }
-lru = "0.12.3"
-sha3 = "0.10.8"
-tokio = "1.37.0"
-tokio-stream = "0.1.15"
+lru = "^0.12"
+sha3 = "^0.10"
+tokio = "^1.40"
+tokio-stream = "^0.1"
 woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
   "server",
 ] }

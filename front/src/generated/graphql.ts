@@ -20,6 +20,18 @@ export type Scalars = {
   DateTime: { input: any; output: any; }
 };
 
+export type ApplicationEvent = {
+  __typename?: 'ApplicationEvent';
+  errorMessages: Array<Scalars['String']['output']>;
+  information?: Maybe<EventInformation>;
+  source: EventSource;
+  status: EventStatus;
+  step: EventStep;
+  timestamp: Scalars['DateTime']['output'];
+  type: EventType;
+  uuid: Scalars['String']['output'];
+};
+
 export type Backup = {
   __typename?: 'Backup';
   agentVersion?: Maybe<Scalars['String']['output']>;
@@ -120,6 +132,67 @@ export enum EnumFileType {
   Socket = 'Socket',
   Symlink = 'Symlink',
   Unknown = 'Unknown'
+}
+
+export type EventBackupInformation = {
+  __typename?: 'EventBackupInformation';
+  hostname: Scalars['String']['output'];
+  number: Scalars['Float']['output'];
+  sharePath: Array<Scalars['String']['output']>;
+};
+
+export type EventInformation = EventBackupInformation | EventPoolCleanedInformation | EventPoolInformation | EventRefCountInformation;
+
+export type EventPoolCleanedInformation = {
+  __typename?: 'EventPoolCleanedInformation';
+  count: Scalars['Float']['output'];
+  size: Scalars['Float']['output'];
+};
+
+export type EventPoolInformation = {
+  __typename?: 'EventPoolInformation';
+  fix: Scalars['Boolean']['output'];
+  inNothing: Scalars['Float']['output'];
+  inRefcnt: Scalars['Float']['output'];
+  inUnused: Scalars['Float']['output'];
+  missing: Scalars['Float']['output'];
+};
+
+export type EventRefCountInformation = {
+  __typename?: 'EventRefCountInformation';
+  count: Scalars['Float']['output'];
+  error: Scalars['Float']['output'];
+  fix: Scalars['Boolean']['output'];
+};
+
+export enum EventSource {
+  Cli = 'Cli',
+  Import = 'Import',
+  User = 'User',
+  Woodstock = 'Woodstock'
+}
+
+export enum EventStatus {
+  ClientDisconnected = 'ClientDisconnected',
+  GenericError = 'GenericError',
+  None = 'None',
+  ServerCrashed = 'ServerCrashed',
+  Success = 'Success'
+}
+
+export enum EventStep {
+  End = 'End',
+  Start = 'Start'
+}
+
+export enum EventType {
+  Backup = 'Backup',
+  ChecksumChecked = 'ChecksumChecked',
+  Delete = 'Delete',
+  PoolChecked = 'PoolChecked',
+  PoolCleaned = 'PoolCleaned',
+  RefcntChecked = 'RefcntChecked',
+  Restore = 'Restore'
 }
 
 export type ExecuteCommandOperation = {
@@ -347,6 +420,7 @@ export type Query = {
   __typename?: 'Query';
   backup: Backup;
   backups: Array<Backup>;
+  events: Array<ApplicationEvent>;
   host: Host;
   hosts: Array<Host>;
   informations: ServerInformations;
@@ -365,6 +439,12 @@ export type QueryBackupArgs = {
 
 export type QueryBackupsArgs = {
   hostname: Scalars['String']['input'];
+};
+
+
+export type QueryEventsArgs = {
+  firstEvent: Scalars['DateTime']['input'];
+  lastEvent: Scalars['DateTime']['input'];
 };
 
 
@@ -497,6 +577,14 @@ export type SharesBrowseQuery = { __typename?: 'Query', backup: { __typename?: '
       & { ' $fragmentRefs'?: { 'FragmentFileDescriptionFragment': FragmentFileDescriptionFragment } }
     )> } };
 
+export type EventsQueryVariables = Exact<{
+  firstEvent: Scalars['DateTime']['input'];
+  lastEvent: Scalars['DateTime']['input'];
+}>;
+
+
+export type EventsQuery = { __typename?: 'Query', events: Array<{ __typename?: 'ApplicationEvent', uuid: string, type: EventType, step: EventStep, source: EventSource, timestamp: any, errorMessages: Array<string>, status: EventStatus, information?: { __typename: 'EventBackupInformation', hostname: string, number: number, sharePath: Array<string> } | { __typename: 'EventPoolCleanedInformation', size: number, count: number } | { __typename: 'EventPoolInformation', fix: boolean, inUnused: number, inRefcnt: number, inNothing: number, missing: number } | { __typename: 'EventRefCountInformation', fix: boolean, count: number, error: number } | null }> };
+
 export type CleanupPoolMutationVariables = Exact<{ [key: string]: never; }>;
 
 
@@ -603,6 +691,7 @@ export const BackupsBrowseDocument = {"kind":"Document","definitions":[{"kind":"
 export const CreateBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"createBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<CreateBackupMutation, CreateBackupMutationVariables>;
 export const RemoveBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"removeBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<RemoveBackupMutation, RemoveBackupMutationVariables>;
 export const SharesBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SharesBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"shares"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<SharesBrowseQuery, SharesBrowseQueryVariables>;
+export const EventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Events"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"events"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"firstEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}}},{"kind":"Argument","name":{"kind":"Name","value":"lastEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uuid"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"errorMessages"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"information"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"sharePath"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventRefCountInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fix"}},{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"error"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fix"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}}]}}]}}]}}]} as unknown as DocumentNode<EventsQuery, EventsQueryVariables>;
 export const CleanupPoolDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"cleanupPool"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cleanupPool"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<CleanupPoolMutation, CleanupPoolMutationVariables>;
 export const FsckPoolDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"fsckPool"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"fix"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"checkAndFixPool"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"fix"},"value":{"kind":"Variable","name":{"kind":"Name","value":"fix"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<FsckPoolMutation, FsckPoolMutationVariables>;
 export const VerifyChecksumDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"verifyChecksum"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"verifyChecksum"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<VerifyChecksumMutation, VerifyChecksumMutationVariables>;

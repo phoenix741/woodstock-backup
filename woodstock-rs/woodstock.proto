@@ -2,9 +2,82 @@ syntax = "proto3";
 
 package woodstock;
 
-message Empty {
+// Event Protocol
 
+enum EventType {
+  Backup = 0;
+  Restore = 1;
+  Delete = 2;
+  RefcntChecked = 3;
+  PoolChecked = 4;
+  ChecksumChecked = 5;
+  PoolCleaned = 6;
 }
+
+enum EventStep {
+  Start = 0;
+  End = 1;
+}
+
+enum EventSource {
+  User = 0;
+  Woodstock = 1;
+  Import = 2;
+  Cli = 3;
+}
+
+enum EventStatus {
+  None = 0;
+  Success = 1;
+  ClientDisconnected = 2;
+  ServerCrashed = 3;
+  GenericError = 4;
+}
+
+message EventBackupInformation {
+  string hostname = 1;
+  uint64 number = 2;
+  repeated string sharePath = 3;
+}
+
+message EventRefCountInformation {
+  bool fix = 1;
+  uint64 count = 2;
+  uint64 error = 3;
+}
+
+message EventPoolInformation {
+  bool fix = 1;
+  uint64 in_unused = 4;
+  uint64 in_refcnt = 5;
+  uint64 in_nothing = 6;
+  uint64 missing = 7;
+}
+
+message EventPoolCleanedInformation {
+  uint64 size = 1;
+  uint64 count = 2;
+}
+
+message Event {
+  bytes id = 12;
+  EventType type = 1;
+  EventStep step = 2;
+  uint64 timestamp = 3;
+  EventSource source = 4;
+  optional string user = 5;
+  repeated string errorMessages = 6; 
+  EventStatus status = 7;
+  
+  oneof information {
+    EventBackupInformation backup = 8;
+    EventRefCountInformation refcnt = 9;
+    EventPoolCleanedInformation poolCleaned = 10;
+    EventPoolInformation pool = 11;
+  }
+}
+
+// Pool Protocol
 
 message PoolUnused {
   bytes sha256 = 1;
@@ -17,6 +90,12 @@ message PoolRefCount {
   uint32 refCount = 2;
   uint64 size = 3;
   uint64 compressedSize = 4;
+}
+
+// Backup Protocol
+
+message Empty {
+
 }
 
 enum FileManifestType {

@@ -4,6 +4,7 @@
       <v-btn variant="text" to="/devices">Devices</v-btn>
       <v-btn variant="text" to="/tasks/active">Tasks</v-btn>
       <v-btn variant="text" to="/pool">Pool</v-btn>
+      <v-btn variant="text" to="/events">Events</v-btn>
 
       <v-spacer></v-spacer>
 

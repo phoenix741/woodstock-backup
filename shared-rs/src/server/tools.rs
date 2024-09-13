@@ -11,8 +11,7 @@ pub async fn grpc_ping(ip: String, hostname: String, context: &JsBackupContext) 
   ping(ip, hostname, &context)
     .await
     .map_err(|e| Error::from_reason(e.to_string()))
-    .map(|ping| {
+    .inspect(|&ping| {
       debug!("Ping result: {:?}", ping);
-      ping
     })
 }

@@ -12,6 +12,7 @@ pub mod pool;
 pub mod server;
 
 pub mod config;
+pub mod events;
 pub mod manifest;
 pub mod proto;
 pub mod statistics;

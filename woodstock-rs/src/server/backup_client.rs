@@ -10,22 +10,26 @@ use eyre::{eyre, Result};
 use futures::{pin_mut, Future, StreamExt};
 use log::{debug, error, info};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use crate::{
     config::{Backup, Backups, Context, SHA256_EMPTYSTRING},
+    events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
     manifest::PathManifest,
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
-    proto::ProtobufWriter,
+    proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     utils::path::path_to_vec,
-    ChunkHashRequest, ChunkInformation, EntryState, EntryType, ExecuteCommandReply, FileManifest,
-    FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest, Share,
+    ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource, EventStatus,
+    ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest,
+    Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
 
 pub struct BackupClient<Clt: Client> {
+    uuid: Vec<u8>,
     client: Clt,
 
     hostname: String,
@@ -37,6 +41,7 @@ pub struct BackupClient<Clt: Client> {
     progression: Arc<Mutex<BackupProgression>>,
     refcnt: Arc<Mutex<Refcnt>>,
 
+    source: EventSource,
     context: Context,
 }
 
@@ -49,8 +54,11 @@ impl<Clt: Client> BackupClient<Clt> {
         info!(
             "Initialize backup client for {hostname}/{backup_number} in {destination_directory:?}"
         );
+        let uuid = Uuid::new_v4();
+        let uuid = uuid.as_bytes().to_vec();
 
         BackupClient {
+            uuid,
             client,
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
@@ -58,6 +66,7 @@ impl<Clt: Client> BackupClient<Clt> {
             progress_max: HashMap::new(),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
+            source: ctxt.source,
             context: ctxt.clone(),
             fake_date: None,
         }
@@ -181,6 +190,17 @@ impl<Clt: Client> BackupClient<Clt> {
 
         self.save_backup(false, false).await?;
 
+        // Register the event
+        create_event_backup_start(
+            &self.context.config.path.events_path,
+            &self.uuid,
+            self.source,
+            &self.hostname,
+            self.current_backup_id,
+            shares,
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -292,7 +312,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         self.save_backup(false, false).await?;
 
-        Ok(result?)
+        result
     }
 
     /// The goal is to download a zone and split the zone in multiple chunk.
@@ -584,8 +604,11 @@ impl<Clt: Client> BackupClient<Clt> {
 
         // Start by reading file list
         let mut journal_writer =
-            ProtobufWriter::<FileManifestJournalEntry>::new(&manifest.journal_path, true, false)
-                .await?;
+            ProtobufWriter::<CompressedWriter, FileManifestJournalEntry>::new_compressed(
+                &manifest.journal_path,
+                false,
+            )
+            .await?;
         let file_list = manifest.read_filelist_entries();
         pin_mut!(file_list);
 
@@ -808,6 +831,25 @@ impl<Clt: Client> BackupClient<Clt> {
         backups
             .add_or_replace_backup(&self.hostname, &backup)
             .await?;
+
+        if is_finish {
+            let shares = backups
+                .get_backup_share_paths(&self.hostname, self.current_backup_id)
+                .await;
+            let shares = shares.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+
+            // Register the event
+            create_event_backup_end(
+                &self.context.config.path.events_path,
+                &self.uuid,
+                self.source,
+                &self.hostname,
+                self.current_backup_id,
+                &shares,
+                EventStatus::Success,
+            )
+            .await?;
+        }
 
         Ok(())
     }

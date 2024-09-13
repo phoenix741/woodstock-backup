@@ -25,9 +25,11 @@ use log::debug;
 use log::error;
 use log::info;
 use woodstock::config::{Backups, Context, Hosts};
+use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
 use woodstock::pool::RefcntApplySens;
 use woodstock::server::backup_client::BackupClient;
+use woodstock::server::backup_remove::BackupRemove;
 use woodstock::Share;
 
 #[derive(Debug)]
@@ -100,53 +102,6 @@ pub async fn add_refcnt_to_pool(
         &backup_refcnt,
         &RefcntApplySens::Increase,
         date,
-        ctxt,
-    )
-    .await?;
-
-    info!("Refcnt applied to pool");
-
-    Ok(())
-}
-
-pub async fn remove_refcnt_of_pool(
-    ctxt: &Context,
-    from_directory: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Remove refcnt to pool for {}", from_directory.display());
-    let mut backup_refcnt = Refcnt::new(from_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    info!("Apply refcnt to pool");
-    Refcnt::apply_all_from(
-        &ctxt.config.path.pool_path,
-        &backup_refcnt,
-        &RefcntApplySens::Decrease,
-        &SystemTime::now(),
-        ctxt,
-    )
-    .await?;
-
-    info!("Refcnt applied to pool");
-
-    Ok(())
-}
-
-pub async fn remove_refcnt_of_host(
-    ctxt: &Context,
-    host_directory: &Path,
-    from_directory: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Remove refcnt to host for {}", from_directory.display());
-    let mut backup_refcnt = Refcnt::new(from_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    info!("Apply refcnt to pool");
-    Refcnt::apply_all_from(
-        host_directory,
-        &backup_refcnt,
-        &RefcntApplySens::Decrease,
-        &SystemTime::now(),
         ctxt,
     )
     .await?;
@@ -302,7 +257,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.woodstock_pool
     ))?;
 
-    let context = Context::new(PathBuf::from(args.woodstock_pool), log::Level::Info);
+    let context = Context::new(
+        PathBuf::from(args.woodstock_pool),
+        log::Level::Info,
+        woodstock::EventSource::Import,
+        None,
+    );
 
     let mut woodstock_backups = list_woodstock_backups(&context).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
@@ -401,8 +361,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     total_bar.finish();
 
     if !args.only_one {
-        term.write_line(&format!("[3/4] {}Remove old backups", Emoji("🗑️ ", "")))?;
-
         // List backups in woodstock that is not in backuppc
         let mut woodstock_backups = list_woodstock_backups(&context).await;
         woodstock_backups.sort_by_key(|backup| backup.start_time);
@@ -428,6 +386,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
 
+        term.write_line(&format!(
+            "[3/4] {}Remove {} old backups",
+            Emoji("🗑️ ", ""),
+            woodstock_backups_to_remove.len()
+        ))?;
+
         let total_bar = ProgressBar::new(size);
         total_bar.set_style(
             ProgressStyle::with_template(
@@ -438,27 +402,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_bar.set_message(format!("{}/{}", 0, length));
         total_bar.tick();
 
-        let backups_config = Backups::new(&context);
         for (count, backup) in woodstock_backups_to_remove.into_iter().enumerate() {
-            remove_refcnt_of_pool(
-                &context,
-                &backups_config
-                    .get_backup_destination_directory(&backup.hostname, backup.backup_number),
-            )
-            .await?;
+            let remover = BackupRemove::new(&backup.hostname, backup.backup_number, &context);
 
-            let host_directory = backups_config.get_host_path(&backup.hostname);
-            remove_refcnt_of_host(
-                &context,
-                host_directory.as_path(),
-                &backups_config
-                    .get_backup_destination_directory(&backup.hostname, backup.backup_number),
-            )
-            .await?;
+            remove_refcnt_to_pool(&context, &backup.hostname, backup.backup_number).await?;
 
-            backups_config
-                .remove_backup(&backup.hostname, backup.backup_number)
-                .await?;
+            remover.remove_refcnt_of_host().await?;
+
+            remover.remove_backup().await?;
 
             total_bar.inc(backup.size);
             total_bar.set_message(format!("{}/{}", count + 1, length));

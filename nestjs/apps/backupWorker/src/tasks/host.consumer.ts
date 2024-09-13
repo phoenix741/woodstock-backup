@@ -136,7 +136,7 @@ export class HostConsumer extends WorkerHost {
             job.updateData(backupTask);
           }
 
-          const informations = this.removeService.prepareRemoveTask(job);
+          const informations = await this.removeService.prepareRemoveTask(job);
           await this.removeService.launchRemoveTask(job, informations, signal);
         });
       } catch (err) {

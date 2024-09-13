@@ -18,21 +18,21 @@ name = "ws_sync"
 path = "src/wssync.rs"
 
 [dependencies]
-async-stream = "0.2"
-clap = { version = "4.5.4", features = ["derive"] }
-color-eyre = "0.6.3"
-console = "0.15.8"
-env_logger = "0.11.3"
-eyre = "0.6.12"
-flate2 = { version = "1.0.28" }
-futures = "0.3.30"
-hex = { version = "0.4.3", features = ["serde"] }
-indicatif = "0.17.8"
-log = { version = "0.4.21", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
-multi_log = "0.1.2"
-tokio = { version = "1.0", features = ["fs", "macros", "rt-multi-thread"] }
-tokio-util = "0.7.12"
-tonic = { version = "0.11", features = ["tls", "gzip"] }
+async-stream = "^0.3"
+clap = { version = "^4.5", features = ["derive"] }
+color-eyre = "^0.6"
+console = "^0.15"
+env_logger = "^0.11"
+eyre = "^0.6"
+flate2 = { version = "^1.0" }
+futures = "^0.3"
+hex = { version = "^0.4", features = ["serde"] }
+indicatif = "^0.17"
+log = { version = "^0.4", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
+multi_log = "^0.1"
+tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
+tokio-util = "^0.7"
+tonic = { version = "^0.12", features = ["tls", "gzip"] }
 woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
   "pool", "server", "client"
 ] }

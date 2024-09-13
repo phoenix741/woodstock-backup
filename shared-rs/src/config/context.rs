@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use log::Level;
-use woodstock::config::{Configuration, ConfigurationPath, Context};
+use woodstock::config::{Configuration, ConfigurationPath, Context, OptionalConfigurationPath};
 
 #[napi]
 pub enum LogLevel {
@@ -33,6 +33,7 @@ pub struct ContextInput {
   pub logs_path: Option<String>,
   pub pool_path: Option<String>,
   pub jobs_path: Option<String>,
+  pub events_path: Option<String>,
   pub log_level: Option<String>,
 }
 
@@ -58,15 +59,20 @@ impl From<&JsBackupContext> for Context {
 pub fn generate_context(context: ContextInput) -> JsBackupContext {
   JsBackupContext {
     context: Context {
+      source: woodstock::EventSource::Woodstock,
+      username: None,
       config: Configuration {
         path: ConfigurationPath::new(
           PathBuf::from(&context.backup_path),
-          context.certificates_path.map(|p| PathBuf::from(&p)),
-          context.config_path.map(|p| PathBuf::from(&p)),
-          context.hosts_path.map(|p| PathBuf::from(&p)),
-          context.logs_path.map(|p| PathBuf::from(&p)),
-          context.pool_path.map(|p| PathBuf::from(&p)),
-          context.jobs_path.map(|p| PathBuf::from(&p)),
+          OptionalConfigurationPath {
+            certificates_path: context.certificates_path.map(|p| PathBuf::from(&p)),
+            config_path: context.config_path.map(|p| PathBuf::from(&p)),
+            hosts_path: context.hosts_path.map(|p| PathBuf::from(&p)),
+            logs_path: context.logs_path.map(|p| PathBuf::from(&p)),
+            pool_path: context.pool_path.map(|p| PathBuf::from(&p)),
+            jobs_path: context.jobs_path.map(|p| PathBuf::from(&p)),
+            events_path: context.events_path.map(|p| PathBuf::from(&p)),
+          },
         ),
         log_level: match context
           .log_level
