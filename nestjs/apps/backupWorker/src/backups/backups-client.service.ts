@@ -1,5 +1,4 @@
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ApplicationConfigService, BackupsService } from '@woodstock/shared';
 import {
   JsBackupProgression,
@@ -7,7 +6,6 @@ import {
   WoodstockBackupCommandReply,
   WoodstockBackupShare,
 } from '@woodstock/shared-rs';
-import { Cache } from 'cache-manager';
 import { Observable } from 'rxjs';
 
 @Injectable()

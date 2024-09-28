@@ -111,6 +111,8 @@ const icon = computed(() => {
         return `mdi-delete`;
       }
       return `mdi-delete-clock`;
+    default:
+      return undefined;
   }
 });
 
@@ -157,7 +159,7 @@ const eventStatusColor = computed(() => {
     case EventStatus.GenericError:
     case EventStatus.ServerCrashed:
       return 'error';
-    case EventStatus.None:
+    default:
       return '';
   }
 });
@@ -198,10 +200,11 @@ const title = computed(() => {
 
 const subtitle = computed(() => {
   switch (props.event?.information?.__typename) {
-    case 'EventBackupInformation':
+    case 'EventBackupInformation': {
       const backupInformation = props.event.information as EventBackupInformation;
       return `${backupInformation?.hostname} - ${backupInformation?.number}`;
-    case 'EventPoolInformation':
+    }
+    case 'EventPoolInformation': {
       const poolInformation = props.event.information as EventPoolInformation;
       const errorCount = poolInformation?.inNothing + poolInformation?.missing;
       const poolFixed = poolInformation?.fix;
@@ -209,28 +212,35 @@ const subtitle = computed(() => {
         return 'No errors found';
       }
       return `${errorCount} errors ${poolFixed ? 'fixed' : 'found'}`;
-    case 'EventPoolCleanedInformation':
+    }
+    case 'EventPoolCleanedInformation': {
       const poolCleanedInformation = props.event.information as EventPoolCleanedInformation;
       const size = filesize(poolCleanedInformation?.size);
       return `${size} cleaned`;
-    case 'EventRefCountInformation':
+    }
+    case 'EventRefCountInformation': {
       const refCountInformation = props.event.information as EventRefCountInformation;
       const refcountFix = refCountInformation?.fix;
       if (refCountInformation.error === 0) {
         return 'No errors found';
       }
       return `${refCountInformation.error} errors ${refcountFix ? 'fixed' : 'found'}`;
+    }
+    default:
+      return '';
   }
 });
 
 const shoudFix = computed(() => {
   switch (props.event?.information?.__typename) {
-    case 'EventPoolInformation':
+    case 'EventPoolInformation': {
       const poolInformation = props.event.information as EventPoolInformation;
       return !poolInformation?.fix && poolInformation?.missing + poolInformation?.inNothing > 0;
-    case 'EventRefCountInformation':
+    }
+    case 'EventRefCountInformation': {
       const refCountInformation = props.event.information as EventRefCountInformation;
       return !refCountInformation?.fix && refCountInformation?.error > 0;
+    }
     default:
       return false;
   }

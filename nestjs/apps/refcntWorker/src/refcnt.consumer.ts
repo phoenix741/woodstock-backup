@@ -1,7 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { ApplicationConfigService, PoolService } from '@woodstock/shared';
-import { BackupsService, HostsService, RefcntJobData } from '@woodstock/shared';
+import { ApplicationConfigService, BackupsService, HostsService, PoolService, RefcntJobData } from '@woodstock/shared';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -11,7 +10,6 @@ import {
   QueueTasksInformations,
   QueueTasksService,
 } from '@woodstock/shared/tasks';
-import { JobLogger } from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
 import { map, scan } from 'rxjs';
 
@@ -82,7 +80,7 @@ export class RefcntConsumer extends WorkerHost {
         break;
       }
       case 'verify_checksum': {
-        const informations = await this.#prepareVerifyChecksum(job);
+        const informations = await this.#prepareVerifyChecksum();
         await this.queueTasksService.executeTasksFromJob(job, informations);
         break;
       }
@@ -129,13 +127,13 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   async #prepareFsck(job: Job<RefcntJobData>) {
-    const { fix, refcnt, unused } = job.data;
+    const { fix, unused } = job.data;
     const dryRun = !fix;
 
     const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set('prepare', async (_gc, {}) => {
-      let count = (await this.poolService.verifyRefcntMax()) + (await this.poolService.verifyUnusedMax());
+      const count = (await this.poolService.verifyRefcntMax()) + (await this.poolService.verifyUnusedMax());
       return new QueueTaskProgression({ progressMax: BigInt(count) });
     });
     globalContext.commands.set('refcnt_backup', () => {
@@ -163,8 +161,7 @@ export class RefcntConsumer extends WorkerHost {
     return new QueueTasksInformations(tasks, globalContext);
   }
 
-  async #prepareVerifyChecksum(job: Job<RefcntJobData>) {
-    const logger = new JobLogger(this.applicationConfig, job);
+  async #prepareVerifyChecksum() {
     const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set('prepare', async () => {

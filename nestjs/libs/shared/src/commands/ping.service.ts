@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ResolveService } from './resolve.service.js';
-import { grpcPing, JsHostConfiguration } from '@woodstock/shared-rs';
+import { grpcPing } from '@woodstock/shared-rs';
 import { ApplicationConfigService } from '../config/application-config.service.js';
 import { InformationToResolve } from './resolve.model.js';
+import { ResolveService } from './resolve.service.js';
 
 @Injectable()
 export class PingService {

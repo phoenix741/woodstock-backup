@@ -1,5 +1,5 @@
 <template>
-  <v-chip v-for="share of information.sharePath" class="ma-2" label
+  <v-chip v-for="share of information.sharePath" :key="share" class="ma-2" label
     ><v-icon icon="mdi-share-variant" start></v-icon>{{ share }}</v-chip
   >
 </template>

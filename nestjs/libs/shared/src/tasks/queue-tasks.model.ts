@@ -1,4 +1,3 @@
-import { LoggerService } from '@nestjs/common';
 import { Exclude, Transform, Type } from 'class-transformer';
 import { Observable } from 'rxjs';
 

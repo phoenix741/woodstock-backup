@@ -103,8 +103,8 @@ export class ApplicationLogger implements LoggerService {
   #getLogger(message: Record<string, unknown>): Logger {
     const storage = logAsyncLocalStorage.getStore();
 
-    let hostname = (message.hostname as string | undefined) ?? storage?.hostname;
-    let backupNumber = (message.backupNumber as number | undefined) ?? storage?.backupNumber;
+    const hostname = (message.hostname as string | undefined) ?? storage?.hostname;
+    const backupNumber = (message.backupNumber as number | undefined) ?? storage?.backupNumber;
 
     if (hostname !== undefined && backupNumber !== undefined) {
       return this.#getBackupLogger(hostname, backupNumber);

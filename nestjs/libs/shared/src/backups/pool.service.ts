@@ -1,11 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CorePoolService,
-  FsckProgressMessage,
-  JsFsckCount,
-  JsFsckProgression,
-  JsPoolProgression,
-} from '@woodstock/shared-rs';
+import { CorePoolService, JsFsckProgression, JsPoolProgression } from '@woodstock/shared-rs';
 import { defer, Observable, switchMap } from 'rxjs';
 import { LockService } from './lock.service';
 

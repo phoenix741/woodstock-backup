@@ -14,7 +14,7 @@ export class ResolveService implements OnModuleInit, OnApplicationShutdown {
     this.#abort = this.resolver.listen();
   }
 
-  onApplicationShutdown(signal?: string) {
+  onApplicationShutdown() {
     this.#logger.log('Shutting down DNS resolution');
     this.#abort?.abort();
   }

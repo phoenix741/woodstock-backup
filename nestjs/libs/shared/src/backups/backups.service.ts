@@ -19,7 +19,7 @@ export class BackupsService {
     return this.backupsService.getLogDirectory(hostname, backupNumber);
   }
 
-  readLog(hostname: string, backupNumber: number, sharePath: string, abort?: AbortSignal): Observable<String> {
+  readLog(hostname: string, backupNumber: number, sharePath: string, abort?: AbortSignal): Observable<string> {
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
       const abortHandle = this.backupsService.readLog(hostname, backupNumber, sharePath, (result) => {

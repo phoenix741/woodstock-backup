@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { instanceToPlain } from 'class-transformer';
 import { lastValueFrom } from 'rxjs';
@@ -86,16 +85,6 @@ describe('QueueTasksService', () => {
           .add(new QueueSubTask('refcnt-pool', { command: 'refcnt-pool' }, QueueTaskPriority.FINALISATION)),
       );
   });
-
-  function fakeLogger() {
-    const logger = new Logger('fakeLogger');
-    logger.log = jest.fn();
-    logger.debug = jest.fn();
-    logger.error = jest.fn();
-    logger.verbose = jest.fn();
-    logger.warn = jest.fn();
-    return logger;
-  }
 
   it('should be defined', () => {
     expect(service).toBeDefined();
