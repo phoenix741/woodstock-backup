@@ -76,7 +76,7 @@ export class ApplicationConfigService {
   }
 
   get logPath(): string {
-    return this.configService.get('LOG_PATH', join(this.backupPath, 'log'));
+    return this.configService.get('LOGS_PATH', join(this.backupPath, 'logs'));
   }
 
   get poolPath(): string {

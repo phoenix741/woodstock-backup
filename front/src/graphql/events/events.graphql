@@ -1,0 +1,35 @@
+query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {
+  events(firstEvent: $firstEvent, lastEvent: $lastEvent) {
+    uuid
+    type
+    step
+    source
+    timestamp
+    errorMessages
+    status
+    information {
+      __typename
+      ... on EventBackupInformation {
+        hostname
+        number
+        sharePath
+      }
+      ... on EventRefCountInformation {
+        fix
+        count
+        error
+      }
+      ... on EventPoolInformation {
+        fix
+        inUnused
+        inRefcnt
+        inNothing
+        missing
+      }
+      ... on EventPoolCleanedInformation {
+        size
+        count
+      }
+    }
+  }
+}

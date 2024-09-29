@@ -1,5 +1,11 @@
 {
   "possibleTypes": {
+    "EventInformation": [
+      "EventBackupInformation",
+      "EventPoolCleanedInformation",
+      "EventPoolInformation",
+      "EventRefCountInformation"
+    ],
     "SubTaskOrGroupTasks": [
       "JobGroupTasks",
       "JobSubTask"

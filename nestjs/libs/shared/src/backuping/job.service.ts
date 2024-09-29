@@ -70,7 +70,7 @@ export class JobService extends QueueEventsHost {
     const timeToNextBackup = timeToNextBackupSecs * 1000;
     const date = new Date(Date.now() + timeToNextBackup);
 
-    let schedulerConfig = await this.schedulerConfigService.getScheduler();
+    const schedulerConfig = await this.schedulerConfigService.getScheduler();
     const interval = cronParser.parseExpression(schedulerConfig.wakeupSchedule!, {
       currentDate: date,
     });

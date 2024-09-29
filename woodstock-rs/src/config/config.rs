@@ -1,6 +1,8 @@
 use log::Level;
 use std::{env, path::PathBuf};
 
+use crate::EventSource;
+
 #[derive(Clone)]
 
 pub struct ConfigurationPath {
@@ -11,29 +13,49 @@ pub struct ConfigurationPath {
     pub logs_path: PathBuf,
     pub pool_path: PathBuf,
     pub jobs_path: PathBuf,
+    pub events_path: PathBuf,
 
     pub config_path_hosts: PathBuf,
     pub config_path_scheduler: PathBuf,
     pub config_path_tools: PathBuf,
 }
 
+#[derive(Default)]
+
+pub struct OptionalConfigurationPath {
+    pub certificates_path: Option<PathBuf>,
+    pub config_path: Option<PathBuf>,
+    pub hosts_path: Option<PathBuf>,
+    pub logs_path: Option<PathBuf>,
+    pub pool_path: Option<PathBuf>,
+    pub jobs_path: Option<PathBuf>,
+    pub events_path: Option<PathBuf>,
+}
+
 impl ConfigurationPath {
     #[must_use]
-    pub fn new(
-        backup_path: PathBuf,
-        certificates_path: Option<PathBuf>,
-        config_path: Option<PathBuf>,
-        hosts_path: Option<PathBuf>,
-        logs_path: Option<PathBuf>,
-        pool_path: Option<PathBuf>,
-        jobs_path: Option<PathBuf>,
-    ) -> Self {
-        let certificates_path = certificates_path.unwrap_or_else(|| backup_path.join("certs"));
-        let config_path = config_path.unwrap_or_else(|| backup_path.join("config"));
-        let hosts_path = hosts_path.unwrap_or_else(|| backup_path.join("hosts"));
-        let logs_path = logs_path.unwrap_or_else(|| backup_path.join("logs"));
-        let pools_path = pool_path.unwrap_or_else(|| backup_path.join("pool"));
-        let jobs_path = jobs_path.unwrap_or_else(|| logs_path.join("jobs"));
+    pub fn new(backup_path: PathBuf, optional_path: OptionalConfigurationPath) -> Self {
+        let certificates_path = optional_path
+            .certificates_path
+            .unwrap_or_else(|| backup_path.join("certs"));
+        let config_path = optional_path
+            .config_path
+            .unwrap_or_else(|| backup_path.join("config"));
+        let hosts_path = optional_path
+            .hosts_path
+            .unwrap_or_else(|| backup_path.join("hosts"));
+        let logs_path = optional_path
+            .logs_path
+            .unwrap_or_else(|| backup_path.join("logs"));
+        let pools_path = optional_path
+            .pool_path
+            .unwrap_or_else(|| backup_path.join("pool"));
+        let jobs_path = optional_path
+            .jobs_path
+            .unwrap_or_else(|| logs_path.join("jobs"));
+        let events_path = optional_path
+            .events_path
+            .unwrap_or_else(|| backup_path.join("events"));
 
         let config_path_hosts = config_path.join("hosts.yml");
         let config_path_scheduler = config_path.join("scheduler.yml");
@@ -45,6 +67,7 @@ impl ConfigurationPath {
             config_path,
             hosts_path,
             logs_path,
+            events_path,
             pool_path: pools_path,
             jobs_path,
 
@@ -64,12 +87,15 @@ impl Default for ConfigurationPath {
 
         ConfigurationPath::new(
             backup_path,
-            env::var("CERTIFICATES_PATH").ok().map(PathBuf::from),
-            env::var("CONFIG_PATH").ok().map(PathBuf::from),
-            env::var("HOSTS_PATH").ok().map(PathBuf::from),
-            env::var("LOGS_PATH").ok().map(PathBuf::from),
-            env::var("POOL_PATH").ok().map(PathBuf::from),
-            env::var("JOBS_PATH").ok().map(PathBuf::from),
+            OptionalConfigurationPath {
+                certificates_path: env::var("CERTIFICATES_PATH").ok().map(PathBuf::from),
+                config_path: env::var("CONFIG_PATH").ok().map(PathBuf::from),
+                hosts_path: env::var("HOSTS_PATH").ok().map(PathBuf::from),
+                logs_path: env::var("LOGS_PATH").ok().map(PathBuf::from),
+                pool_path: env::var("POOL_PATH").ok().map(PathBuf::from),
+                jobs_path: env::var("JOBS_PATH").ok().map(PathBuf::from),
+                events_path: env::var("EVENTS_PATH").ok().map(PathBuf::from),
+            },
         )
     }
 }
@@ -85,7 +111,7 @@ impl Configuration {
     #[must_use]
     pub fn new(backup_path: PathBuf, log_level: Level) -> Self {
         Self {
-            path: ConfigurationPath::new(backup_path, None, None, None, None, None, None),
+            path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
             log_level,
         }
     }
@@ -113,16 +139,35 @@ impl Default for Configuration {
 ///
 /// The goal of the `Context` struct is to hold the configuration of the application.
 /// and pass the values to the functions that need them.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Context {
     pub config: Configuration,
+    pub source: EventSource,
+    pub username: Option<String>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            config: Configuration::default(),
+            source: EventSource::Cli,
+            username: None,
+        }
+    }
 }
 
 impl Context {
     #[must_use]
-    pub fn new(backup_path: PathBuf, log_level: Level) -> Self {
+    pub fn new(
+        backup_path: PathBuf,
+        log_level: Level,
+        source: EventSource,
+        username: Option<&str>,
+    ) -> Self {
         Self {
             config: Configuration::new(backup_path, log_level),
+            source,
+            username: username.map(|s| s.to_string()),
         }
     }
 }

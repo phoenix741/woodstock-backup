@@ -1,65 +1,130 @@
 use async_compression::tokio::write::ZlibEncoder;
+use eyre::Result;
 use futures::StreamExt;
 use futures::{pin_mut, Stream};
 use log::{info, warn};
 use prost::Message;
-use std::{
-    io,
-    path::{Path, PathBuf},
-    pin::Pin,
-};
+use std::io::SeekFrom;
+use std::path::{Path, PathBuf};
+use tokio::io::AsyncSeekExt;
 use tokio::{
     fs::{create_dir_all, remove_file, rename, File},
     io::{AsyncWrite, AsyncWriteExt, BufWriter},
 };
 
-pub struct ProtobufWriter<T: Message> {
-    writer: Pin<Box<dyn AsyncWrite + Send>>,
-    _marker: std::marker::PhantomData<T>,
+pub type UnCompressedWriter = BufWriter<File>;
+pub type CompressedWriter = ZlibEncoder<BufWriter<File>>;
 
+async fn create_file<P: AsRef<Path>>(
+    path: P,
+    is_atomic: bool,
+) -> Result<(BufWriter<File>, Option<PathBuf>)> {
+    let path = path.as_ref();
+    let parent = path.parent().unwrap_or(path);
+    create_dir_all(parent).await?;
+
+    let temp_path = if is_atomic {
+        Some(path.with_extension(format!("tmp.{}", uuid::Uuid::new_v4())))
+    } else {
+        None
+    };
+
+    let save_path = temp_path.as_deref().unwrap_or(path);
+    let file = File::create(save_path).await?;
+    let writer = BufWriter::new(file);
+
+    Ok((writer, temp_path))
+}
+
+async fn open_file<P: AsRef<Path>>(path: P) -> Result<(BufWriter<File>, Option<PathBuf>)> {
+    let path = path.as_ref();
+
+    let file = File::options().create(true).append(true).open(path).await?;
+    let writer = BufWriter::new(file);
+
+    Ok((writer, None))
+}
+
+// Structure générique
+pub struct ProtobufWriter<W, T>
+where
+    W: AsyncWrite + Unpin + Send,
+    T: Message,
+{
+    writer: W,
+    _marker: std::marker::PhantomData<T>,
     is_atomic: bool,
     original_path: PathBuf,
     temp_path: Option<PathBuf>,
 }
 
-impl<T: Message> ProtobufWriter<T> {
-    pub async fn new<P: AsRef<Path>>(path: P, compress: bool, is_atomic: bool) -> io::Result<Self> {
-        // Create the directory if it does not exist.
-        let path: &Path = path.as_ref();
-        let parent = path.parent().unwrap_or(path);
-        create_dir_all(parent).await?;
-
-        // If is atomic the filename will be modified
-        let temp_path = if is_atomic {
-            Some(path.with_extension(format!("tmp.{}", uuid::Uuid::new_v4())))
-        } else {
-            None
-        };
-
-        let save_path = match &temp_path {
-            Some(path) => path.as_ref(),
-            None => path,
-        };
-
-        // Create the buffer
-        let file = File::create(save_path).await?;
-        let writer: Pin<Box<dyn AsyncWrite + Send>> = if compress {
-            Box::pin(ZlibEncoder::new(BufWriter::new(file)))
-        } else {
-            Box::pin(BufWriter::new(file))
-        };
+impl<T> ProtobufWriter<UnCompressedWriter, T>
+where
+    T: Message,
+{
+    // Constructeur pour écriture sans compression
+    pub async fn new<P: AsRef<Path>>(path: P, is_atomic: bool) -> Result<Self> {
+        let (writer, temp_path) = create_file(&path, is_atomic).await?;
+        let path = path.as_ref();
 
         Ok(Self {
             writer,
             _marker: std::marker::PhantomData,
             is_atomic,
-
             original_path: path.to_path_buf(),
             temp_path,
         })
     }
 
-    pub async fn write(&mut self, message: &T) -> io::Result<()> {
+    // Constructeur pour écriture sans compression
+    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let (writer, temp_path) = open_file(&path).await?;
+        let path = path.as_ref();
+
+        Ok(Self {
+            writer,
+            _marker: std::marker::PhantomData,
+            is_atomic: false,
+            original_path: path.to_path_buf(),
+            temp_path,
+        })
+    }
+
+    pub async fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let count = self.writer.get_mut().seek(pos).await?;
+
+        Ok(count)
+    }
+}
+
+impl<T> ProtobufWriter<CompressedWriter, T>
+where
+    T: Message,
+{
+    // Constructeur pour écriture avec compression
+    pub async fn new_compressed<P: AsRef<Path>>(path: P, is_atomic: bool) -> Result<Self> {
+        let (writer, temp_path) = create_file(&path, is_atomic).await?;
+        let path = path.as_ref();
+
+        let writer = ZlibEncoder::new(writer); // Compression activée
+
+        Ok(Self {
+            writer,
+            _marker: std::marker::PhantomData,
+            is_atomic,
+            original_path: path.to_path_buf(),
+            temp_path,
+        })
+    }
+}
+
+impl<W, T> ProtobufWriter<W, T>
+where
+    W: AsyncWrite + Unpin + Send,
+    T: Message,
+{
+    // Méthode d'écriture d'un message protobuf
+    pub async fn write(&mut self, message: &T) -> Result<()> {
         let mut buf = Vec::new();
         message.encode_length_delimited(&mut buf)?;
         self.writer.write_all(&buf).await?;
@@ -67,7 +132,7 @@ impl<T: Message> ProtobufWriter<T> {
         Ok(())
     }
 
-    pub async fn write_all(&mut self, messages: impl IntoIterator<Item = T>) -> io::Result<()> {
+    pub async fn write_all(&mut self, messages: impl IntoIterator<Item = T>) -> Result<()> {
         for message in messages {
             self.write(&message).await?;
         }
@@ -75,7 +140,7 @@ impl<T: Message> ProtobufWriter<T> {
         Ok(())
     }
 
-    pub async fn cancel(&mut self) -> io::Result<()> {
+    pub async fn cancel(&mut self) -> Result<()> {
         // If the file is atomic, the temporary file will be deleted.
         if self.is_atomic {
             if let Some(ref temp_path) = self.temp_path {
@@ -88,7 +153,7 @@ impl<T: Message> ProtobufWriter<T> {
         Ok(())
     }
 
-    pub async fn flush(&mut self) -> io::Result<()> {
+    pub async fn flush(&mut self) -> Result<()> {
         // If ZLibEncoder
         self.writer.shutdown().await?;
 
@@ -122,15 +187,15 @@ impl<T: Message> ProtobufWriter<T> {
 pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
     path: P,
     source: impl Stream<Item = T>,
-    compress: bool,
     is_atomic: bool,
-) -> io::Result<()> {
+) -> Result<()> {
     info!(
-        "Saving file to {:?} (compress = {compress}, is_atomic = {is_atomic})",
+        "Saving file to {:?} (is_atomic = {is_atomic})",
         path.as_ref()
     );
 
-    let mut writer = ProtobufWriter::<T>::new(&path, compress, is_atomic).await?;
+    let mut writer =
+        ProtobufWriter::<CompressedWriter, T>::new_compressed(&path, is_atomic).await?;
     pin_mut!(source);
 
     while let Some(message) = source.next().await {
@@ -188,7 +253,7 @@ mod tests {
             };
 
             let files = get_files(&share_path, &includes, &excludes, &options);
-            save_file("./data/home.filelist.test", files, true, false).await?;
+            save_file("./data/home.filelist.test", files, false).await?;
         };
 
         {
@@ -227,7 +292,7 @@ mod tests {
                 }
             });
 
-            save_file("./data/home.filelist.copy", messages, true, true)
+            save_file("./data/home.filelist.copy", messages, true)
                 .await
                 .unwrap();
         }

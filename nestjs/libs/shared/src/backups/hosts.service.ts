@@ -23,7 +23,7 @@ export class HostsService {
   async getSchedule(hostname: string): Promise<JsSchedule> {
     const config = await this.getHost(hostname);
 
-    let schedulerConfig = await this.schedulerConfigService.getScheduler();
+    const schedulerConfig = await this.schedulerConfigService.getScheduler();
     return Object.assign({}, schedulerConfig.defaultSchedule, config.schedule);
   }
 

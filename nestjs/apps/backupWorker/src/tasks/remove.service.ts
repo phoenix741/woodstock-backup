@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, LoggerService } from '@nestjs/common';
-import { BackupsService, JobBackupData, JobService } from '@woodstock/shared';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { ApplicationConfigService, JobBackupData, JobService } from '@woodstock/shared';
+import { WoodstockBackupRemove } from '@woodstock/shared-rs';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -18,13 +19,17 @@ export enum RemoveTaskName {
 @Injectable()
 export class RemoveService {
   constructor(
-    private backupsService: BackupsService,
+    private applicationConfig: ApplicationConfigService,
     private queueTasksService: QueueTasksService,
     private jobService: JobService,
   ) {}
 
-  #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number) {
-    const globalContext = new QueueTaskContext({});
+  async #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number) {
+    const remover = await WoodstockBackupRemove.createClient(hostname, backupNumber, this.applicationConfig.context);
+
+    const globalContext = new QueueTaskContext({
+      remover,
+    });
 
     globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_POOL_TASK, async () => {
       await this.jobService.launchRefcntJob(
@@ -35,17 +40,17 @@ export class RemoveService {
         'remove_backup',
       );
     });
-    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, async () => {
-      await this.backupsService.removeRefcntOfHost(hostname, backupNumber);
+    globalContext.commands.set(RemoveTaskName.REMOVE_REFCNT_HOST_TASK, async (gc) => {
+      await gc.globalContext.remover.removeRefcntOfHost();
     });
-    globalContext.commands.set(RemoveTaskName.REMOVE_BACKUP_TASK, async () => {
-      await this.backupsService.removeBackup(hostname, backupNumber);
+    globalContext.commands.set(RemoveTaskName.REMOVE_BACKUP_TASK, async (gc) => {
+      await gc.globalContext.remover.removeBackup();
     });
 
     return globalContext;
   }
 
-  prepareRemoveTask(job: Job<JobBackupData>) {
+  async prepareRemoveTask(job: Job<JobBackupData>) {
     const { host, number } = job.data;
     if (!host || number === undefined) {
       throw new BadRequestException(`Host and backup number should be defined`);
@@ -56,7 +61,7 @@ export class RemoveService {
       .add(new QueueSubTask(RemoveTaskName.REMOVE_REFCNT_POOL_TASK))
       .add(new QueueSubTask(RemoveTaskName.REMOVE_BACKUP_TASK));
 
-    return new QueueTasksInformations(task, this.#createGlobalContext(job, host, number));
+    return new QueueTasksInformations(task, await this.#createGlobalContext(job, host, number));
   }
 
   launchRemoveTask(job: Job<JobBackupData>, informations: QueueTasksInformations<unknown>, signal: AbortSignal) {

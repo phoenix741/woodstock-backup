@@ -1,7 +1,7 @@
 import { Field, ObjectType } from '@nestjs/graphql';
 import { ApiExtraModels, ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
-import { IsNumber, Matches, Max, Min, ValidateNested } from 'class-validator';
+import { IsNumber, ValidateNested } from 'class-validator';
 
 import { Schedule } from '../config';
 

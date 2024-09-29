@@ -14,7 +14,6 @@ use futures::StreamExt;
 use crate::config::Backups;
 use crate::config::Context;
 use crate::config::Hosts;
-use crate::pool::lock::PoolLock;
 use crate::proto::save_file;
 use crate::statistics::write_statistics;
 use crate::statistics::PoolStatistics;
@@ -237,8 +236,6 @@ impl Refcnt {
         callback: &impl Fn(&Option<PoolUnused>),
     ) -> Result<()> {
         debug!("Remove unused files");
-        let _lock = PoolLock::new(pool_path).lock().await?;
-
         let unused = self.unused.values().cloned().collect::<Vec<PoolUnused>>();
         for pool_unused in unused {
             let wrapper = PoolChunkWrapper::new(pool_path, Some(&pool_unused.sha256));
@@ -379,7 +376,7 @@ impl Refcnt {
                 None
             }
         });
-        save_file(&self.refcnt_path, source, true, true).await?;
+        save_file(&self.refcnt_path, source, true).await?;
 
         write_statistics(&self.statistics, &self.path, date).await?;
 
@@ -390,7 +387,7 @@ impl Refcnt {
         debug!("Save unused");
         // Save the unused
         let source = stream::iter(self.unused.values().cloned());
-        save_file(&self.unused_path, source, true, true).await?;
+        save_file(&self.unused_path, source, true).await?;
 
         Ok(())
     }
@@ -504,7 +501,8 @@ mod tests {
         let _clean_up = CleanUp;
 
         let path = PathBuf::from("./data");
-        let context = crate::config::Context::new(path, Level::Debug);
+        let context =
+            crate::config::Context::new(path, Level::Debug, crate::EventSource::Cli, None);
         let refcnt1 = create_refcnt(vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
         let refcnt2 = create_refcnt(vec![
             &SHA3_256_1,

@@ -11,7 +11,7 @@ use crate::{
     PoolUnused,
 };
 
-use super::{lock::PoolLock, Refcnt};
+use super::Refcnt;
 
 pub struct FsckCount {
     pub error_count: usize,
@@ -112,8 +112,6 @@ pub async fn check_host_integrity(
 }
 
 pub async fn check_pool_integrity(dry_run: bool, ctxt: &Context) -> Result<FsckCount> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
-
     let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
@@ -140,8 +138,6 @@ pub async fn check_unused(
     cb: &impl Fn(usize),
     ctxt: &Context,
 ) -> Result<FsckUnusedCount> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
-
     let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;

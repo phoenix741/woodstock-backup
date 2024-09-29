@@ -40,8 +40,20 @@ pub struct PoolLock {
 }
 
 impl PoolLock {
-    #[must_use] 
-    pub fn new_with_name(path: &Path, name: &str) -> Self {
+    #[must_use]
+    pub fn new_with_filename<P: AsRef<Path>>(path: &P, name: &str) -> Self {
+        let path = path.as_ref();
+        PoolLock {
+            name: name.to_string(),
+            lock_file: path.to_path_buf(),
+            locked: false,
+            abort_handle: None,
+        }
+    }
+
+    #[must_use]
+    pub fn new_with_name<P: AsRef<Path>>(path: &P, name: &str) -> Self {
+        let path = path.as_ref();
         PoolLock {
             name: name.to_string(),
             lock_file: path.join("lock"),
@@ -50,10 +62,14 @@ impl PoolLock {
         }
     }
 
-    #[must_use] 
-    pub fn new(path: &Path) -> Self {
+    #[must_use]
+    pub fn new<P: AsRef<Path>>(path: &P) -> Self {
+        let path = path.as_ref();
         PoolLock {
-            name: path.to_str().map(std::string::ToString::to_string).unwrap_or_default(),
+            name: path
+                .to_str()
+                .map(std::string::ToString::to_string)
+                .unwrap_or_default(),
             lock_file: path.join("lock"),
             locked: false,
             abort_handle: None,
@@ -266,7 +282,7 @@ mod tests {
     #[test]
     fn test_pool_lock_new() {
         let path = Path::new("./data/");
-        let lock = PoolLock::new_with_name(path, "test_pool_lock_new");
+        let lock = PoolLock::new_with_name(&path, "test_pool_lock_new");
 
         assert_eq!(lock.lock_file, path.join("lock"));
         assert!(!lock.locked);
@@ -276,7 +292,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_pool_lock_lock() {
         let path = Path::new("./data/");
-        let lock = PoolLock::new_with_name(path, "test_pool_lock_lock");
+        let lock = PoolLock::new_with_name(&path, "test_pool_lock_lock");
         let result = lock.lock().await;
 
         assert!(result.is_ok());
@@ -291,7 +307,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_pool_lock_drop() {
         let path = Path::new("./data/");
-        let lock = PoolLock::new_with_name(path, "test_pool_lock_drop");
+        let lock = PoolLock::new_with_name(&path, "test_pool_lock_drop");
         let result = lock.lock().await;
 
         assert!(result.is_ok());
@@ -311,7 +327,7 @@ mod tests {
     async fn test_pool_lock_blocked() {
         // Create a first lock
         let path = Path::new("./data/");
-        let lock = PoolLock::new_with_name(path, "test_pool_lock_blocked_1");
+        let lock = PoolLock::new_with_name(&path, "test_pool_lock_blocked_1");
 
         let result = lock.lock().await;
 

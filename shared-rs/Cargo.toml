@@ -9,8 +9,9 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-futures-util = "0.3.30"
-log = { version = "0.4.21", default-features = false, features = [
+chrono = "0.4.38"
+futures-util = "^0.3"
+log = { version = "^0.4", default-features = false, features = [
   "std",
   "max_level_debug",
   "release_max_level_info",
@@ -20,7 +21,8 @@ napi = { version = "^2.16", default-features = false, features = [
   "tokio_rt",
 ] }
 napi-derive = "^2.16"
-tokio = "1.37.0"
+tokio = "^1.40"
+uuid = { version = "^1.10", features = ["v4"] }
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
   "server",

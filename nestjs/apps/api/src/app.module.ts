@@ -37,6 +37,8 @@ import { ServerResolver } from './server/server.resolver.js';
 import { CacheModule } from '@nestjs/cache-manager';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import { CacheConfigService } from '@woodstock/shared';
+import { EventsService } from './events/events.service.js';
+import { EventsResolver } from './events/events.resolver.js';
 
 @Module({
   imports: [
@@ -71,26 +73,28 @@ import { CacheConfigService } from '@woodstock/shared';
     PrometheusController,
   ],
   providers: [
-    CacheConfigService,
     BackupController,
     BackupsFilesController,
     BackupsFilesService,
     BackupsResolver,
     BigIntScalar,
+    CacheConfigService,
+    EventsResolver,
+    EventsService,
     HostController,
     HostsResolver,
+    PoolResolver,
+    PrometheusService,
     QueueController,
     QueueResolver,
     QueueService,
-    RefcntQueueService,
     QueueUtils,
+    RefcntQueueService,
     ServerController,
+    ServerResolver,
     ServerService,
     ServeStaticService,
-    ServerResolver,
     StatsResolver,
-    PrometheusService,
-    PoolResolver,
     {
       provide: 'BACKUP_QUEUE_PUB_SUB',
       useValue: new PubSub(),

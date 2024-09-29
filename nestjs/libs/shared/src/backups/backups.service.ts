@@ -19,7 +19,7 @@ export class BackupsService {
     return this.backupsService.getLogDirectory(hostname, backupNumber);
   }
 
-  readLog(hostname: string, backupNumber: number, sharePath: string, abort?: AbortSignal): Observable<String> {
+  readLog(hostname: string, backupNumber: number, sharePath: string, abort?: AbortSignal): Observable<string> {
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
       const abortHandle = this.backupsService.readLog(hostname, backupNumber, sharePath, (result) => {
@@ -79,16 +79,6 @@ export class BackupsService {
     }
 
     return new Date().getTime() / 1000 - (lastBackup?.startDate ?? 0);
-  }
-
-  async removeBackup(hostname: string, backupNumber: number): Promise<JsBackup> {
-    const backup = this.backupsService.removeBackup(hostname, backupNumber);
-    await this.invalidateBackup(hostname, backupNumber);
-    return backup;
-  }
-
-  removeRefcntOfHost(hostname: string, backupNumber: number): Promise<void> {
-    return this.backupsService.removeRefcntOfHost(hostname, backupNumber);
   }
 
   async invalidateBackup(hostname: string, backupNumber?: number): Promise<void> {

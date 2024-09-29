@@ -6,7 +6,7 @@ use futures::StreamExt;
 use woodstock::{
     config::{Backups, Context},
     proto::ProtobufReader,
-    FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
+    Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -15,6 +15,7 @@ pub enum ProtobufFormat {
     FileManifestJournalEntry,
     RefCount,
     Unused,
+    Event,
 }
 
 pub async fn read_protobuf(
@@ -133,6 +134,16 @@ pub async fn read_protobuf(
                         continue;
                     }
                 }
+
+                print!("{message}");
+            }
+        }
+        ProtobufFormat::Event => {
+            let mut messages = ProtobufReader::<Event>::new(path, false).await?;
+            let mut messages = messages.into_stream();
+
+            while let Some(message) = messages.next().await {
+                let message = message?;
 
                 print!("{message}");
             }

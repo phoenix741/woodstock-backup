@@ -1,10 +1,18 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { NotFoundException, Res } from '@nestjs/common';
-import { Args, Float, Int, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, HostConfiguration, JobBackupData, JobService, QueueName, ResolveService } from '@woodstock/shared';
+import { NotFoundException } from '@nestjs/common';
+import { Args, Float, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import {
+  Backup,
+  BackupsService,
+  HostConfiguration,
+  HostsService,
+  JobBackupData,
+  JobService,
+  QueueName,
+  ResolveService,
+} from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Host, HostAvailibilityState } from './hosts.dto.js';
-import { BackupsService, HostsService } from '@woodstock/shared';
 
 @Resolver(() => Host)
 export class HostsResolver {

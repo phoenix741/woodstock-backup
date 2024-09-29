@@ -14,38 +14,12 @@ on:
       - "beta"
 
 jobs:
-  # Start by creating the release where all the file will be built
-  clientrs:
+  unittest:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            features: --features all
-            binary_name: binaries-linux-acl
-            node-version: 20.x
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            features: --no-default-features --features "client,pool,server"
-            binary_name: binaries-linux
-            node-version: 20.x
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            features: --features all
-            binary_name: binaries-windows
-            node-version: 20.x
-        # Disabled musl target for (depending of libm, libc,...)
-        # - os: ubuntu-latest
-        #   target: x86_64-unknown-linux-musl
-        #   node-version: 20.x
-        # need dependencies: # musl-dev musl-tools
-
+    runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
-        if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
           apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev
@@ -58,22 +32,18 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: ${{ matrix.target }}
           cache: true
 
       - name: Install Node.JS
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 20.x
           cache: "npm"
 
       - name: Unit test (release)
-        run: cargo test --release --target ${{ matrix.target }} ${{ matrix.features }} -- --nocapture
+        run: cargo test --release -- --nocapture
         env:
           RUST_LOG: debug
-
-      - name: Build (release)
-        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
 
       - name: Install Node.JS dependencies
         run: |
@@ -100,6 +70,51 @@ jobs:
           npm run build
           cd ..
 
+  clientrs:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --features all
+            binary_name: binaries-linux-acl
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --no-default-features --features "client,pool,server"
+            binary_name: binaries-linux
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: --features all
+            binary_name: binaries-windows
+        # Disabled musl target for (depending of libm, libc,...)
+        # - os: ubuntu-latest
+        #   target: x86_64-unknown-linux-musl
+        # need dependencies: # musl-dev musl-tools
+
+    steps:
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: true
+
+      - name: Build (release)
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
@@ -115,7 +130,7 @@ jobs:
   upload:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [clientrs, backuppc]
+    needs: [clientrs, unittest]
     runs-on: ubuntu-latest
     steps:
       - name: Install dependencies

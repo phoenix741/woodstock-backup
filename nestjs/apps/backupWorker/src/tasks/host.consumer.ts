@@ -1,7 +1,14 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadGatewayException, Logger, NotFoundException } from '@nestjs/common';
-import { ApplicationLogger, PingService, ResolveService } from '@woodstock/shared';
-import { BackupsService, JobBackupData, JobService, QueueName, QUEUE_TASK_FAILED_STATE } from '@woodstock/shared';
+import {
+  ApplicationLogger,
+  BackupsService,
+  JobBackupData,
+  JobService,
+  PingService,
+  QUEUE_TASK_FAILED_STATE,
+  QueueName,
+} from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { inspect } from 'util';
 import { LaunchBackupError } from '../backups/backup.error.js';
@@ -136,7 +143,7 @@ export class HostConsumer extends WorkerHost {
             job.updateData(backupTask);
           }
 
-          const informations = this.removeService.prepareRemoveTask(job);
+          const informations = await this.removeService.prepareRemoveTask(job);
           await this.removeService.launchRemoveTask(job, informations, signal);
         });
       } catch (err) {

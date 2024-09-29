@@ -1,7 +1,6 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { BadRequestException, Logger, NotFoundException } from '@nestjs/common';
-import { ApplicationConfigService, PoolService } from '@woodstock/shared';
-import { BackupsService, HostsService, RefcntJobData } from '@woodstock/shared';
+import { ApplicationConfigService, BackupsService, HostsService, PoolService, RefcntJobData } from '@woodstock/shared';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -11,7 +10,6 @@ import {
   QueueTasksInformations,
   QueueTasksService,
 } from '@woodstock/shared/tasks';
-import { JobLogger } from '@woodstock/shared/tasks';
 import { Job } from 'bullmq';
 import { map, scan } from 'rxjs';
 
@@ -82,7 +80,7 @@ export class RefcntConsumer extends WorkerHost {
         break;
       }
       case 'verify_checksum': {
-        const informations = await this.#prepareVerifyChecksum(job);
+        const informations = await this.#prepareVerifyChecksum();
         await this.queueTasksService.executeTasksFromJob(job, informations);
         break;
       }
@@ -129,65 +127,33 @@ export class RefcntConsumer extends WorkerHost {
   }
 
   async #prepareFsck(job: Job<RefcntJobData>) {
-    const { fix, refcnt, unused } = job.data;
+    const { fix, unused } = job.data;
     const dryRun = !fix;
 
-    const logger = new JobLogger(this.applicationConfig, job);
     const globalContext = new QueueTaskContext({});
 
-    const hosts = await this.hostService.getHosts();
-    const backups = (
-      await Promise.all(
-        hosts.map(async (host) =>
-          (await this.backupsService.getBackups(host)).map((backup) => ({ host, number: backup.number })),
-        ),
-      )
-    ).flat();
-
     globalContext.commands.set('prepare', async (_gc, {}) => {
-      return new QueueTaskProgression({ progressMax: BigInt(hosts.length + backups.length + 1) });
+      const count = (await this.poolService.verifyRefcntMax()) + (await this.poolService.verifyUnusedMax());
+      return new QueueTaskProgression({ progressMax: BigInt(count) });
     });
-    globalContext.commands.set('refcnt_backup', async (gc, { host, number }) => {
-      if (!host) throw new Error('host is required');
-      if (number === undefined) throw new Error('number is required');
-
-      await this.poolService.checkBackupIntegrity(host, number, dryRun);
-
-      return new QueueTaskProgression({ progressCurrent: 1n });
-    });
-    globalContext.commands.set('refcnt_host', async (gc, { host }) => {
-      if (!host) throw new Error('host is required');
-
-      await this.poolService.checkHostIntegrity(host, dryRun);
-
-      return new QueueTaskProgression({ progressCurrent: 1n });
-    });
-    globalContext.commands.set('refcnt_pool', async () => {
-      await this.poolService.checkPoolIntegrity(dryRun);
-
-      return new QueueTaskProgression({ progressCurrent: 1n });
+    globalContext.commands.set('refcnt_backup', () => {
+      return this.poolService.verifyRefcnt(dryRun).pipe(
+        map((val) => {
+          return new QueueTaskProgression({
+            progressCurrent: BigInt(val.progressCurrent),
+          });
+        }),
+      );
     });
     globalContext.commands.set('refcnt_unused', () => {
       return this.poolService
-        .processUnused(dryRun)
-        .pipe(
-          map((val) => new QueueTaskProgression({ progressCurrent: val.progressCount, progressMax: val.totalCount })),
-        );
+        .verifyUnused(dryRun)
+        .pipe(map((val) => new QueueTaskProgression({ progressCurrent: BigInt(val.progressCurrent) })));
     });
 
     const tasks = new QueueTasks('GLOBAL', {}).add(new QueueSubTask('prepare', {}, QueueTaskPriority.INITIALISATION));
 
-    if (refcnt) {
-      for (const backup of backups) {
-        tasks.add(
-          new QueueSubTask('refcnt_backup', { host: backup.host, number: backup.number }, QueueTaskPriority.PROCESSING),
-        );
-      }
-      for (const host of hosts) {
-        tasks.add(new QueueSubTask('refcnt_host', { host }, QueueTaskPriority.PROCESSING));
-      }
-      tasks.add(new QueueSubTask('refcnt_pool', {}, QueueTaskPriority.PROCESSING));
-    }
+    tasks.add(new QueueSubTask('refcnt_backup', {}, QueueTaskPriority.PROCESSING));
     if (unused) {
       tasks.add(new QueueSubTask('refcnt_unused', {}, QueueTaskPriority.PROCESSING));
     }
@@ -195,17 +161,16 @@ export class RefcntConsumer extends WorkerHost {
     return new QueueTasksInformations(tasks, globalContext);
   }
 
-  async #prepareVerifyChecksum(job: Job<RefcntJobData>) {
-    const logger = new JobLogger(this.applicationConfig, job);
+  async #prepareVerifyChecksum() {
     const globalContext = new QueueTaskContext({});
 
     globalContext.commands.set('prepare', async () => {
-      return new QueueTaskProgression({ progressMax: await this.poolService.countChunk() });
+      return new QueueTaskProgression({ progressMax: BigInt(await this.poolService.countChunk()) });
     });
     globalContext.commands.set(RefcntTaskNameEnum.VERIFY_CHECKSUM, () => {
       return this.poolService
         .verifyChunk()
-        .pipe(map((val) => new QueueTaskProgression({ progressCurrent: val.totalCount })));
+        .pipe(map((val) => new QueueTaskProgression({ progressCurrent: BigInt(val.totalCount) })));
     });
 
     const tasks = new QueueTasks('GLOBAL', {}).add(new QueueSubTask('prepare', {}, QueueTaskPriority.INITIALISATION));
@@ -244,8 +209,8 @@ export class RefcntConsumer extends WorkerHost {
           return new QueueTaskProgression({
             progressCurrent: acc.progressCurrent + 1n,
             fileCount: acc.fileCount + 1,
-            fileSize: acc.fileSize + BigInt(val.size || 0),
-            compressedFileSize: acc.compressedFileSize + BigInt(val.compressedSize || 0),
+            fileSize: acc.fileSize + BigInt(val.fileSize || 0),
+            compressedFileSize: acc.compressedFileSize + BigInt(val.compressedFileSize || 0),
           });
         }, new QueueTaskProgression()),
       );

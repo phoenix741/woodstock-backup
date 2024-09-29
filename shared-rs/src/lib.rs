@@ -1,6 +1,7 @@
 #![deny(clippy::all)]
 
 pub mod config;
+pub mod events;
 pub mod log;
 pub mod models;
 pub mod server;
