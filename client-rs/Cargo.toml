@@ -18,15 +18,6 @@ assets = [
     ["debian/config.yaml", "/etc/woodstock/config.yaml", "0600"],
 ]
 
-[package.metadata.deb.variants.debug]
-assets =  [
-    # binary
-    ["target/debug/ws_client_daemon", "usr/bin/", "755"],
-    # assets
-    ["debian/config.yaml", "/etc/woodstock/config.yaml", "0600"],
-]
-
-
 [[bin]] # Bin to run the HelloWorld gRPC server
 name = "ws_client_daemon"
 path = "src/client_daemon.rs"
