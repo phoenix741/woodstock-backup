@@ -1,3 +1,10 @@
+# [2.0.0-alpha.16](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.15...v2.0.0-alpha.16) (2024-09-29)
+
+
+### Bug Fixes
+
+* 🚑️ connect to client not working anymore ([fde0130](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/fde0130493b2139a62119864789871005d8931d8))
+
 # [2.0.0-alpha.15](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.14...v2.0.0-alpha.15) (2024-09-29)
 
 
