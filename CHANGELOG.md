@@ -1,3 +1,10 @@
+# [2.0.0-alpha.15](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.14...v2.0.0-alpha.15) (2024-09-29)
+
+
+### Features
+
+* ✨ [#70](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/70): Add read and write events ([b605391](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b605391e7bb052979779fbd3ddc5df84069970c0))
+
 # [2.0.0-alpha.14](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.13...v2.0.0-alpha.14) (2024-09-11)
 
 

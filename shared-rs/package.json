@@ -1,6 +1,6 @@
 {
   "name": "@woodstock/shared-rs",
-  "version": "2.0.0-alpha.14",
+  "version": "2.0.0-alpha.15",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
