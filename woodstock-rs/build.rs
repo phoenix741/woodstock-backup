@@ -32,7 +32,7 @@ fn main() -> Result<()> {
             "FileManifest.symlink",
             "#[serde_as(as = \"serde_with::base64::Base64\")]",
         )
-        .compile(&["./woodstock.proto"], &["./"])?;
+        .compile_protos(&["./woodstock.proto"], &["./"])?;
 
     // If musl
     if std::env::var("CARGO_CFG_TARGET_ENV").unwrap() == "musl" {

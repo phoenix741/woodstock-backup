@@ -324,6 +324,9 @@ async fn main() -> Result<()> {
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");
+    // env_logger::builder()
+    //     .filter_level(LevelFilter::Debug)
+    //     .init();
 
     let subcommand = args.subcommand;
     match subcommand {

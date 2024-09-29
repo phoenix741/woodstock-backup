@@ -1,7 +1,7 @@
 use super::{client::Client, grpc_client::BackupGrpcClient};
 use crate::config::Context;
 use eyre::Result;
-use log::debug;
+use log::{debug, error};
 
 pub async fn ping(ip: String, hostname: String, context: &Context) -> Result<bool> {
     let grpc_client = BackupGrpcClient::new(&hostname, &ip, context).await;
@@ -17,7 +17,7 @@ pub async fn ping(ip: String, hostname: String, context: &Context) -> Result<boo
             }
         }
         Err(e) => {
-            debug!("Error creating grpc client: {:?}", e);
+            error!("Error creating grpc client: {:?}", e);
             Ok(false)
         }
     }
