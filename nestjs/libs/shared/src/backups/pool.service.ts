@@ -92,7 +92,7 @@ export class PoolService {
   }
 
   verifyRefcntMax(): Promise<number> {
-    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyUnusedMax());
+    return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyRefcntMax());
   }
 
   verifyRefcnt(dryRun: boolean): Observable<JsFsckProgression> {
