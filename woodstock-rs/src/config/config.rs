@@ -3,7 +3,7 @@ use std::{env, path::PathBuf};
 
 use crate::EventSource;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub struct ConfigurationPath {
     pub backup_path: PathBuf,
@@ -20,8 +20,6 @@ pub struct ConfigurationPath {
     pub config_path_tools: PathBuf,
 }
 
-#[derive(Default)]
-
 pub struct OptionalConfigurationPath {
     pub certificates_path: Option<PathBuf>,
     pub config_path: Option<PathBuf>,
@@ -30,6 +28,20 @@ pub struct OptionalConfigurationPath {
     pub pool_path: Option<PathBuf>,
     pub jobs_path: Option<PathBuf>,
     pub events_path: Option<PathBuf>,
+}
+
+impl Default for OptionalConfigurationPath {
+    fn default() -> Self {
+        OptionalConfigurationPath {
+            certificates_path: env::var("CERTIFICATES_PATH").ok().map(PathBuf::from),
+            config_path: env::var("CONFIG_PATH").ok().map(PathBuf::from),
+            hosts_path: env::var("HOSTS_PATH").ok().map(PathBuf::from),
+            logs_path: env::var("LOGS_PATH").ok().map(PathBuf::from),
+            pool_path: env::var("POOL_PATH").ok().map(PathBuf::from),
+            jobs_path: env::var("JOBS_PATH").ok().map(PathBuf::from),
+            events_path: env::var("EVENTS_PATH").ok().map(PathBuf::from),
+        }
+    }
 }
 
 impl ConfigurationPath {
@@ -85,22 +97,11 @@ impl Default for ConfigurationPath {
             env::var("BACKUP_PATH").unwrap_or_else(|_| "/var/lib/woodstock".to_string()),
         );
 
-        ConfigurationPath::new(
-            backup_path,
-            OptionalConfigurationPath {
-                certificates_path: env::var("CERTIFICATES_PATH").ok().map(PathBuf::from),
-                config_path: env::var("CONFIG_PATH").ok().map(PathBuf::from),
-                hosts_path: env::var("HOSTS_PATH").ok().map(PathBuf::from),
-                logs_path: env::var("LOGS_PATH").ok().map(PathBuf::from),
-                pool_path: env::var("POOL_PATH").ok().map(PathBuf::from),
-                jobs_path: env::var("JOBS_PATH").ok().map(PathBuf::from),
-                events_path: env::var("EVENTS_PATH").ok().map(PathBuf::from),
-            },
-        )
+        ConfigurationPath::new(backup_path, OptionalConfigurationPath::default())
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 pub struct Configuration {
     pub path: ConfigurationPath,
@@ -139,7 +140,7 @@ impl Default for Configuration {
 ///
 /// The goal of the `Context` struct is to hold the configuration of the application.
 /// and pass the values to the functions that need them.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Context {
     pub config: Configuration,
     pub source: EventSource,
