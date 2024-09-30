@@ -95,11 +95,11 @@ export class PoolService {
     return this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, () => this.poolService.verifyUnusedMax());
   }
 
-  verifyRefcnt(dryRun: boolean): Observable<JsPoolProgression> {
+  verifyRefcnt(dryRun: boolean): Observable<JsFsckProgression> {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
-      return new Observable<JsPoolProgression>((observer) => {
+      return new Observable<JsFsckProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.verifyUnused(dryRun, (result) => {
+        const abortHandle = this.poolService.verifyRefcnt(dryRun, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
