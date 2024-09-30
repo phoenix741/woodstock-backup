@@ -1,3 +1,10 @@
+# [2.0.0-alpha.18](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.17...v2.0.0-alpha.18) (2024-09-30)
+
+
+### Bug Fixes
+
+* :bug: fix progression on refcnt and pool chunk ([37fd08b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/37fd08b7969c3b31f992f30eae124438705aecb2))
+
 # [2.0.0-alpha.17](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.16...v2.0.0-alpha.17) (2024-09-30)
 
 
