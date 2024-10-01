@@ -1,3 +1,10 @@
+# [2.0.0-alpha.19](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.18...v2.0.0-alpha.19) (2024-10-01)
+
+
+### Bug Fixes
+
+* :bug: fix using environment variable on woodstock import ([035bf08](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/035bf08556f0fffd2d2dc2bf5d8e55bdc45a5a21))
+
 # [2.0.0-alpha.18](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.17...v2.0.0-alpha.18) (2024-09-30)
 
 
