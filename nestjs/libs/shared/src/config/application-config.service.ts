@@ -72,7 +72,7 @@ export class ApplicationConfigService {
   }
 
   get hostPath(): string {
-    return this.configService.get('HOST_PATH', join(this.backupPath, 'hosts'));
+    return this.configService.get('HOSTS_PATH', join(this.backupPath, 'hosts'));
   }
 
   get logPath(): string {
@@ -84,7 +84,7 @@ export class ApplicationConfigService {
   }
 
   get jobPath(): string {
-    return this.configService.get('JOB_PATH', join(this.logPath, 'jobs'));
+    return this.configService.get('JOBS_PATH', join(this.logPath, 'jobs'));
   }
 
   get redis(): RedisOptions {

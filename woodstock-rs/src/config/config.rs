@@ -116,6 +116,11 @@ impl Configuration {
             log_level,
         }
     }
+
+    #[must_use]
+    pub fn version() -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 impl Default for Configuration {

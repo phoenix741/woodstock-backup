@@ -241,6 +241,10 @@ struct Cli {
     /// Option to set the transfert of only one
     #[clap(short, long)]
     only_one: bool,
+
+    /// Dry run
+    #[clap(short, long)]
+    dry_run: bool,
 }
 
 #[tokio::main]
@@ -250,19 +254,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
     let term = Term::stdout();
 
+    let context = Context::new(
+        PathBuf::from(args.woodstock_pool.clone()),
+        log::Level::Info,
+        woodstock::EventSource::Import,
+        None,
+    );
+
+    // Write version
+    term.write_line(&format!(
+        "BackupPC to Woodstock migration tool v{}",
+        woodstock::config::Configuration::version()
+    ))?;
+
+    // Display path used to make the migration
+    term.write_line("Woodstock path:")?;
+    term.write_line(&format!(
+        "  - Backup:      {:?}",
+        context.config.path.backup_path
+    ))?;
+    term.write_line(&format!(
+        "  - Certificate: {:?}",
+        context.config.path.certificates_path
+    ))?;
+    term.write_line(&format!(
+        "  - Config:      {:?}",
+        context.config.path.config_path
+    ))?;
+    term.write_line(&format!(
+        "  - Hosts:       {:?}",
+        context.config.path.hosts_path
+    ))?;
+    term.write_line(&format!(
+        "  - Logs:        {:?}",
+        context.config.path.logs_path
+    ))?;
+    term.write_line(&format!(
+        "  - Events:      {:?}",
+        context.config.path.events_path
+    ))?;
+    term.write_line(&format!(
+        "  - Pool:        {:?}",
+        context.config.path.pool_path
+    ))?;
+    term.write_line(&format!(
+        "  - Jobs:        {:?}",
+        context.config.path.jobs_path
+    ))?;
+
     term.write_line(&format!(
         "[1/4] {}Import BackupPC pool {} to Woodstock pool {}",
         Emoji("➡️ ", ""),
         args.backuppc_pool,
         args.woodstock_pool
     ))?;
-
-    let context = Context::new(
-        PathBuf::from(args.woodstock_pool),
-        log::Level::Info,
-        woodstock::EventSource::Import,
-        None,
-    );
 
     let mut woodstock_backups = list_woodstock_backups(&context).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
@@ -344,12 +389,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .unwrap()
         );
 
-        let result = launch_backup(&context, &args.backuppc_pool, &backup, &mut backup_bar).await;
-        if let Err(err) = result {
-            error!(
-                "Error during backup of {}/{}: {}",
-                backup.hostname, backup.backup_number, err
-            );
+        if !args.dry_run {
+            let result =
+                launch_backup(&context, &args.backuppc_pool, &backup, &mut backup_bar).await;
+            if let Err(err) = result {
+                error!(
+                    "Error during backup of {}/{}: {}",
+                    backup.hostname, backup.backup_number, err
+                );
+            }
         }
 
         backup_bar.finish();
@@ -403,13 +451,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_bar.tick();
 
         for (count, backup) in woodstock_backups_to_remove.into_iter().enumerate() {
-            let remover = BackupRemove::new(&backup.hostname, backup.backup_number, &context);
+            if !args.dry_run {
+                let remover = BackupRemove::new(&backup.hostname, backup.backup_number, &context);
 
-            remove_refcnt_to_pool(&context, &backup.hostname, backup.backup_number).await?;
+                remove_refcnt_to_pool(&context, &backup.hostname, backup.backup_number).await?;
 
-            remover.remove_refcnt_of_host().await?;
+                remover.remove_refcnt_of_host().await?;
 
-            remover.remove_backup().await?;
+                remover.remove_backup().await?;
+            }
 
             total_bar.inc(backup.size);
             total_bar.set_message(format!("{}/{}", count + 1, length));
