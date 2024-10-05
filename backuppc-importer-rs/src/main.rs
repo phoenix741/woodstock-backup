@@ -259,6 +259,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::Level::Info,
         woodstock::EventSource::Import,
         None,
+        1,
     );
 
     // Write version

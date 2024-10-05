@@ -7,47 +7,22 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Console List directory",
+      "name": "Mount",
       "cargo": {
         "args": [
           "build",
           "--bin",
-          "console"
+          "ws_console",
         ]
       },
       "args": [
-        "list-directory",
-        "pc-ulrich.eden.lan",
-        "/home"
+        "mount",
+        "--hostname",
+        "pc-ulrich",
+        "--backup-number",
+        "21",
+        "/home/phoenix/tmp/test"
       ]
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "WS Sync",
-      "cargo": {
-        "args": [
-          "build",
-          "--bin",
-          "ws_sync"
-        ]
-      },
-      "args": [
-        "pc-ulrich.eden.lan",
-        "192.168.101.14"
-      ]
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Client",
-      "cargo": {
-        "args": [
-          "build",
-          "--bin",
-          "client"
-        ]
-      }
     }
   ]
 }

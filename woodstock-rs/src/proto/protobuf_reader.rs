@@ -16,6 +16,7 @@ use tokio::{
 pub struct ProtobufReader<T: Message + Default> {
     reader: Pin<Box<dyn AsyncRead + Send + Sync>>,
     _marker: std::marker::PhantomData<T>,
+    buffer: Vec<u8>, // Buffer réutilisable
 }
 
 impl<T: Message + Default> ProtobufReader<T> {
@@ -30,10 +31,12 @@ impl<T: Message + Default> ProtobufReader<T> {
         Ok(Self {
             reader,
             _marker: std::marker::PhantomData,
+            buffer: Vec::with_capacity(1024), // Taille initiale du buffer
         })
     }
 
     pub async fn read(&mut self, buf: &mut T) -> io::Result<()> {
+        self.buffer.clear();
         let mut encoded_length = Vec::with_capacity(10);
         // Read the length of the message (varint), one byte at a time. Each byte in the varint has a continuation bit that indicates if the byte that follows it is part of the varint. This is the most significant bit (MSB) of the byte (sometimes also called the sign bit). The lower 7 bits are a payload; the resulting integer is built by appending together the 7-bit payloads of its constituent bytes.
 
@@ -49,15 +52,15 @@ impl<T: Message + Default> ProtobufReader<T> {
         let length = prost::decode_length_delimiter(&encoded_length[..])?;
         let real_length_size = prost::length_delimiter_len(length);
 
-        let mut message_buf = Vec::with_capacity(length + real_length_size);
-        message_buf.extend_from_slice(&encoded_length);
+        self.buffer.reserve(length + real_length_size);
+        self.buffer.extend_from_slice(&encoded_length);
 
         let mut messages_bytes = vec![0u8; length];
         self.reader.read_exact(&mut messages_bytes).await?;
 
-        message_buf.extend_from_slice(&messages_bytes);
+        self.buffer.extend_from_slice(&messages_bytes);
 
-        buf.merge_length_delimited(&message_buf[..])?;
+        buf.merge_length_delimited(&self.buffer[..])?;
 
         Ok(())
     }

@@ -35,6 +35,7 @@ pub struct ContextInput {
   pub jobs_path: Option<String>,
   pub events_path: Option<String>,
   pub log_level: Option<String>,
+  pub cache_size: Option<u32>,
 }
 
 #[napi(js_name = "BackupContext")]
@@ -87,6 +88,10 @@ pub fn generate_context(context: ContextInput) -> JsBackupContext {
           "trace" => Level::Trace,
           _ => Level::Info,
         },
+        cache_size: context
+          .cache_size
+          .and_then(|f| usize::try_from(f).ok())
+          .unwrap_or(1),
       },
     },
   }

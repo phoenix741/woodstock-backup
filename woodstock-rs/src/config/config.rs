@@ -106,14 +106,16 @@ impl Default for ConfigurationPath {
 pub struct Configuration {
     pub path: ConfigurationPath,
     pub log_level: Level,
+    pub cache_size: usize,
 }
 
 impl Configuration {
     #[must_use]
-    pub fn new(backup_path: PathBuf, log_level: Level) -> Self {
+    pub fn new(backup_path: PathBuf, log_level: Level, cache_size: usize) -> Self {
         Self {
             path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
             log_level,
+            cache_size,
         }
     }
 
@@ -138,7 +140,16 @@ impl Default for Configuration {
             Err(_) => Level::Info,
         };
 
-        Self { path, log_level }
+        let cache_size = match env::var("CACHE_SIZE") {
+            Ok(size) => size.parse().unwrap_or(10),
+            Err(_) => 10,
+        };
+
+        Self {
+            path,
+            log_level,
+            cache_size,
+        }
     }
 }
 
@@ -169,9 +180,10 @@ impl Context {
         log_level: Level,
         source: EventSource,
         username: Option<&str>,
+        cache_size: usize,
     ) -> Self {
         Self {
-            config: Configuration::new(backup_path, log_level),
+            config: Configuration::new(backup_path, log_level, cache_size),
             source,
             username: username.map(|s| s.to_string()),
         }

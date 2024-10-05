@@ -10,7 +10,7 @@ ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
   apk add --no-cache musl-dev clang clang-dev alpine-sdk cmake protoc acl-dev nodejs npm; \
   else \
-  apt-get update && apt-get install -y cmake protobuf-c-compiler protobuf-codegen protobuf-compiler libacl1-dev nodejs npm; \
+  apt-get update && apt-get install -y cmake protobuf-c-compiler protobuf-codegen protobuf-compiler libacl1-dev  libfuse-dev nodejs npm; \
   fi
 
 RUN cargo install cargo-chef --locked && rm -rf $CARGO_HOME/registry/
@@ -88,7 +88,7 @@ FROM node:$NODE_VERSION AS dist
 RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
   apk add --no-cache acl; \
   else \
-  apt-get update && apt-get install -y libacl1 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+  apt-get update && apt-get install -y libacl1  libfuse2 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
   fi
 
 RUN npm install pm2 -g

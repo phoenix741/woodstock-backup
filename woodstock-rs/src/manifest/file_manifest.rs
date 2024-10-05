@@ -98,6 +98,14 @@ impl FileManifest {
     }
 
     #[must_use]
+    pub fn size(&self) -> u64 {
+        self.stats
+            .as_ref()
+            .map(|stats| stats.size)
+            .unwrap_or_default()
+    }
+
+    #[must_use]
     pub fn chunk_count(&self) -> usize {
         let size = self.size();
         let chunk_count = size / CHUNK_SIZE_U64;

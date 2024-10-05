@@ -8,6 +8,9 @@
 //! * check all chunks
 //! * recalculate all the chunks
 //!
+mod commands;
+#[cfg(feature = "fuse_unix")]
+mod filesystem;
 
 use clap::{Parser, Subcommand};
 use commands::file_manifest::compare;
@@ -16,7 +19,8 @@ use commands::read_protobuf::read_log;
 use commands::resolve::resolve_mdns;
 use eyre::Result;
 
-mod commands;
+#[cfg(feature = "fuse_unix")]
+use commands::mount::{mount, MountOption};
 
 use crate::commands::client::list_client_files;
 use crate::commands::pool::{
@@ -130,6 +134,24 @@ enum Commands {
         /// The hostname to resolve
         hostname: String,
     },
+
+    #[cfg(feature = "fuse_unix")]
+    Mount {
+        /// The hostname to mount
+        #[clap(long)]
+        hostname: Option<String>,
+
+        /// The backup number to mount
+        #[clap(long)]
+        backup_number: Option<usize>,
+
+        /// The path to mount
+        #[clap(long)]
+        path: Option<String>,
+
+        /// The mount point
+        mount_point: String,
+    },
 }
 
 #[tokio::main]
@@ -226,6 +248,26 @@ async fn main() -> Result<()> {
             resolve_mdns(&context, &hostname)
                 .await
                 .expect("Failed to resolve mDNS");
+        }
+
+        #[cfg(feature = "fuse_unix")]
+        Commands::Mount {
+            hostname,
+            backup_number,
+            path,
+            mount_point,
+        } => {
+            mount(
+                &context,
+                &MountOption {
+                    hostname,
+                    backup_number,
+                    path,
+                    mount_point,
+                },
+            )
+            .await
+            .expect("Failed to mount");
         }
     }
 
