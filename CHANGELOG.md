@@ -1,3 +1,10 @@
+# [2.0.0-alpha.20](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.19...v2.0.0-alpha.20) (2024-10-11)
+
+
+### Features
+
+* ✨ [#58](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/58) mount directory from pool ([2016696](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/201669613bd20f60e4631e6f42b7101039d4cb89))
+
 # [2.0.0-alpha.19](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.18...v2.0.0-alpha.19) (2024-10-01)
 
 
