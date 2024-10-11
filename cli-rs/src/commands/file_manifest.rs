@@ -5,10 +5,7 @@ use console::{style, Term};
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use indicatif::HumanBytes;
-use woodstock::{
-    manifest::{Manifest, PathManifest},
-    EntryState, EntryType, FileManifestJournalEntry,
-};
+use woodstock::{manifest::Manifest, EntryState, EntryType, FileManifestJournalEntry};
 
 pub fn generate_compare_stream(
     manifest1: &str,

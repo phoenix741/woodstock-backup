@@ -502,7 +502,7 @@ mod tests {
 
         let path = PathBuf::from("./data");
         let context =
-            crate::config::Context::new(path, Level::Debug, crate::EventSource::Cli, None);
+            crate::config::Context::new(path, Level::Debug, crate::EventSource::Cli, None, 1);
         let refcnt1 = create_refcnt(vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
         let refcnt2 = create_refcnt(vec![
             &SHA3_256_1,

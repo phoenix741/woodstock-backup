@@ -32,6 +32,7 @@ fn create_context() -> Context {
                 },
             ),
             log_level: log::Level::Warn,
+            cache_size: 1,
         },
     }
 }

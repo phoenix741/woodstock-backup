@@ -1,7 +1,9 @@
 use globset::{GlobBuilder, GlobSetBuilder};
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use std::{
+    collections::HashSet,
     ffi::{OsStr, OsString},
+    hash::Hash,
     path::{Path, PathBuf},
 };
 
@@ -137,4 +139,19 @@ pub fn mangle(path: &str) -> String {
 #[must_use]
 pub fn unmangle(path: &str) -> String {
     percent_decode_str(path).decode_utf8_lossy().to_string()
+}
+
+/// Filter all value to return only unique values
+///
+/// # Arguments
+///
+/// * `iterable` - The iterable to filter
+///
+/// # Returns
+///
+/// A new iterable with only unique values
+#[must_use]
+pub fn unique<T: Eq + Hash + Clone>(iterable: impl IntoIterator<Item = T>) -> Vec<T> {
+    let unique_elts: HashSet<T> = HashSet::from_iter(iterable);
+    unique_elts.into_iter().collect()
 }

@@ -16,7 +16,6 @@ use crate::{
     config::{Backup, Backups, Context, SHA256_EMPTYSTRING},
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
-    manifest::PathManifest,
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,

@@ -23,8 +23,10 @@ use crate::{
     FileManifest,
 };
 
-struct FileManifestReaderState<'manifest> {
-    manifest: &'manifest FileManifest,
+struct FileManifestReaderState {
+    file_path: PathBuf,
+    chunks: Vec<Vec<u8>>,
+
     pool_path: PathBuf,
     position: usize,
 
@@ -32,12 +34,15 @@ struct FileManifestReaderState<'manifest> {
     current_chunk: Option<ZlibDecoder<BufReader<File>>>,
 }
 
-impl<'manifest> FileManifestReaderState<'manifest> {
-    pub fn new(pool_path: &Path, manifest: &'manifest FileManifest) -> Self {
+impl FileManifestReaderState {
+    pub fn new(pool_path: &Path, manifest: &FileManifest) -> Self {
         Self {
+            file_path: manifest.path().to_path_buf(),
+            chunks: manifest.chunks.clone(),
+
             pool_path: pool_path.to_path_buf(),
-            manifest,
             position: 0,
+
             current_chunk_number: 0,
             current_chunk: None,
         }
@@ -48,7 +53,7 @@ impl<'manifest> FileManifestReaderState<'manifest> {
     }
 
     fn active_chunk(&self) -> Option<&Vec<u8>> {
-        self.manifest.chunks.get(self.get_chunk_number())
+        self.chunks.get(self.get_chunk_number())
     }
 
     async fn open_chunk(&self, active_chunk: &Vec<u8>) -> Result<ZlibDecoder<BufReader<File>>> {
@@ -86,7 +91,7 @@ impl<'manifest> FileManifestReaderState<'manifest> {
             warn!(
                 "Corrupted chunk {} for file {:?}",
                 self.get_chunk_number(),
-                self.manifest.path()
+                self.file_path
             );
             return Ok(0);
         }
@@ -104,7 +109,8 @@ impl<'manifest> FileManifestReaderState<'manifest> {
 }
 
 impl FileManifest {
-    #[must_use] pub fn open_from_pool(&self, pool_path: &Path) -> impl AsyncBufRead + '_ {
+    #[must_use]
+    pub fn open_from_pool(&self, pool_path: &Path) -> impl AsyncBufRead {
         let state = FileManifestReaderState::new(pool_path, self);
 
         let stream = unfold(state, |mut state| async move {

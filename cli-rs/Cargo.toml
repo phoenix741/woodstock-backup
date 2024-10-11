@@ -9,6 +9,10 @@ license = "MIT"
 [package.metadata.deb]
 license-file = ["../LICENSE", "0"]
 
+[features]
+default = ["fuse_unix"]
+fuse_unix = ["dep:lru", "dep:twox-hash", "dep:libc", "dep:fuser", "dep:rand"]
+
 [[bin]]
 name = "ws_console"
 path = "src/console.rs"
@@ -37,3 +41,10 @@ woodstock-rs = { path = "../woodstock-rs", default-features = false, features = 
   "pool", "server", "client"
 ] }
 
+# Fuse dependencies
+[target.'cfg(unix)'.dependencies]
+lru = { version = "^0.12", optional = true }
+twox-hash = { version = "^1.6", optional = true }
+libc = { version = "^0.2", optional = true }
+fuser = { version = "0.14", optional = true }
+rand = { version = "^0.8", optional = true }

@@ -73,6 +73,14 @@ impl Manifest {
         })
     }
 
+    pub async fn read_manifest_entries_to_end(&self) -> Result<Vec<FileManifest>> {
+        let mut manifests = ProtobufReader::<FileManifest>::new(&self.manifest_path, true).await?;
+        let mut result = Vec::new();
+        manifests.read_to_end(&mut result).await?;
+
+        Ok(result)
+    }
+
     pub fn read_journal_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + '_ {
         stream!({
             let manifests =

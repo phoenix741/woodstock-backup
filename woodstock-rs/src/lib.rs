@@ -17,6 +17,7 @@ pub mod manifest;
 pub mod proto;
 pub mod statistics;
 pub mod utils;
+pub mod view;
 
 mod woodstock {
     #![allow(clippy::all, clippy::pedantic)]
