@@ -8,7 +8,7 @@ members = [
 ]
 resolver = "2"
 
-[profile.dev.package."*"]
+[profile.dev.package.flate2]
 opt-level = 3
 
 [profile.release]

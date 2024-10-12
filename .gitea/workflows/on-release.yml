@@ -80,11 +80,11 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: --features all
-            binary_name: binaries-linux-acl
+            binary_name: binaries-linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             features: --no-default-features --features "client,pool,server,fuse_unix"
-            binary_name: binaries-linux
+            binary_name: binaries-linux-lite
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             features: --no-default-features --features "client,pool,server"
@@ -99,7 +99,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -115,17 +115,40 @@ jobs:
       - name: Build (release)
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
 
+      - name: Rename binary
+        if: ${{ matrix.binary_name == 'binaries-linux-lite' }}
+        run: |
+          mv target/${{ matrix.target }}/release/ws_client_daemon target/${{ matrix.target }}/release/ws_client_daemon_lite
+          mv target/${{ matrix.target }}/release/ws_console target/${{ matrix.target }}/release/ws_console_lite
+          mv target/${{ matrix.target }}/release/ws_backuppc_importer target/${{ matrix.target }}/release/ws_backuppc_importer_lite
+
+      - name: Archive binary
+        run: |
+          mkdir zipfile
+          cd target/${{ matrix.target }}/release
+          cp ws_client_daemon* ../../../zipfile
+          cp ws_console* ../../../zipfile
+          cp ws_backuppc_importer* ../../../zipfile
+          find ../../../zipfile -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+
+      - name: Archive binary (Linux)
+        shell: bash
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd zipfile
+          zip -r "binaries-${{ matrix.target }}.zip" *
+
+      - name: Archive binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          powershell -Command "Compress-Archive -Path zipfile\* -DestinationPath zipfile\binaries-${{ matrix.target }}.zip"
+
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
           name: ${{ matrix.binary_name }}
           path: |
-            target/${{ matrix.target }}/release/ws_client_daemon
-            target/${{ matrix.target }}/release/ws_client_daemon.exe
-            target/${{ matrix.target }}/release/ws_console
-            target/${{ matrix.target }}/release/ws_console.exe
-            target/${{ matrix.target }}/release/ws_backuppc_importer
-            target/${{ matrix.target }}/release/ws_backuppc_importer.exe
+            zipfile/binaries-${{ matrix.target }}.zip
 
   upload:
     env:
@@ -166,20 +189,6 @@ jobs:
       - name: Download artifacts
         uses: christopherhx/gitea-download-artifact@v4
 
-      - name: Display structure of downloaded files
-        run: |
-          mkdir bin
-          mv ./binaries-linux-acl/ws_client_daemon ./bin/ws_client_daemon
-          mv ./binaries-linux-acl/ws_console ./bin/ws_console
-          mv ./binaries-linux/ws_client_daemon ./bin/ws_client_daemon_lite
-          mv ./binaries-linux/ws_console ./bin/ws_console_lite
-          mv ./binaries-linux/ws_backuppc_importer ./bin/ws_backuppc_importer
-          mv ./binaries-windows/ws_client_daemon.exe ./bin/ws_client_daemon.exe
-          mv ./binaries-windows/ws_console.exe ./bin/ws_console.exe
-          mv ./binaries-windows/ws_backuppc_importer.exe ./bin/ws_backuppc_importer.exe
-          shasum --algorithm 256 --binary ./bin/* | tee ./bin/SHA256SUM.txt
-          cat ./bin/SHA256SUM.txt
-
       - name: Import GPG key
         if: github.event_name == 'push'
         id: import-gpg
@@ -197,6 +206,17 @@ jobs:
           echo "keyid:       ${{ steps.import-gpg.outputs.keyid }}"
           echo "name:        ${{ steps.import-gpg.outputs.name }}"
           echo "email:       ${{ steps.import-gpg.outputs.email }}"
+
+      - name: Display structure of downloaded files
+        run: |
+          mkdir zipfile
+          mv ./binaries-*/* ./zipfile/
+          cd ./zipfile
+          shasum --algorithm 256 --binary ./* | tee ./SHA256SUM.txt
+          cat ./SHA256SUM.txt
+          for file in *; do
+            gpg --batch --yes --armor --detach-sign "$file"
+          done
 
       - name: Release
         if: github.event_name == 'push'
