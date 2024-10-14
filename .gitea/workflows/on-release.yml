@@ -14,6 +14,41 @@ on:
       - "beta"
 
 jobs:
+  prerelease:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        if: github.event_name == 'push'
+        run: |
+          apt-get update
+          apt-get install -y git-lfs jq
+
+      - name: Checkout project
+        if: github.event_name == 'push'
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        if: github.event_name == 'push'
+        uses: actions/setup-node@v4
+        with:
+          cache: "npm"
+
+      - name: Install dependencies
+        if: github.event_name == 'push'
+        run: npm ci
+
+      - name: Calculate next version
+        if: github.event_name == 'push'
+        id: next_version
+        run: |
+          npx semantic-release --dry-run | tee semantic_release_output.txt
+          NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' semantic_release_output.txt)
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
   unittest:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
@@ -71,6 +106,7 @@ jobs:
           cd ..
 
   clientrs:
+    needs: [prerelease]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ${{ matrix.os }}
@@ -112,15 +148,14 @@ jobs:
           target: ${{ matrix.target }}
           cache: true
 
+      - name: Mise à jour des versions
+        if: github.event_name == 'push'
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces version --all ${{ steps.next_version.outputs.NEXT_VERSION }}
+
       - name: Build (release)
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
-
-      - name: Rename binary
-        if: ${{ matrix.binary_name == 'binaries-linux-lite' }}
-        run: |
-          mv target/${{ matrix.target }}/release/ws_client_daemon target/${{ matrix.target }}/release/ws_client_daemon_lite
-          mv target/${{ matrix.target }}/release/ws_console target/${{ matrix.target }}/release/ws_console_lite
-          mv target/${{ matrix.target }}/release/ws_backuppc_importer target/${{ matrix.target }}/release/ws_backuppc_importer_lite
 
       - name: Archive binary
         run: |
@@ -129,26 +164,27 @@ jobs:
           cp ws_client_daemon* ../../../zipfile
           cp ws_console* ../../../zipfile
           cp ws_backuppc_importer* ../../../zipfile
-          find ../../../zipfile -type f \( -name "*.d" -o -name "*.pdb" \) -delete
 
       - name: Archive binary (Linux)
         shell: bash
         if: matrix.os == 'ubuntu-latest'
         run: |
           cd zipfile
-          zip -r "binaries-${{ matrix.target }}.zip" *
+          find . -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+          zip -r "${{ matrix.binary_name }}-${{ matrix.target }}.zip" *
 
       - name: Archive binary (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          powershell -Command "Compress-Archive -Path zipfile\* -DestinationPath zipfile\binaries-${{ matrix.target }}.zip"
+          cd zipfile
+          powershell -Command "Get-ChildItem -Path * -Exclude *.d,*.pdb | Compress-Archive -DestinationPath ${{ matrix.binary_name }}-${{ matrix.target }}.zip"
 
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
           name: ${{ matrix.binary_name }}
           path: |
-            zipfile/binaries-${{ matrix.target }}.zip
+            zipfile/${{ matrix.binary_name }}-${{ matrix.target }}.zip
 
   upload:
     env:
@@ -208,6 +244,7 @@ jobs:
           echo "email:       ${{ steps.import-gpg.outputs.email }}"
 
       - name: Display structure of downloaded files
+        if: github.event_name == 'push'
         run: |
           mkdir zipfile
           mv ./binaries-*/* ./zipfile/
