@@ -13,6 +13,7 @@ import {
 } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { Host, HostAvailibilityState } from './hosts.dto.js';
+import { ExtendedBackup } from '../backups/backups.resolver.js';
 
 @Resolver(() => Host)
 export class HostsResolver {
@@ -46,13 +47,21 @@ export class HostsResolver {
   }
 
   @ResolveField(() => [Backup])
-  async backups(@Parent() host: Host): Promise<Backup[]> {
-    return await this.backupsService.getBackups(host.name);
+  async backups(@Parent() host: Host): Promise<ExtendedBackup[]> {
+    return (await this.backupsService.getBackups(host.name)).map((backup) => ({
+      hostname: host.name,
+      ...backup,
+    }));
   }
 
   @ResolveField(() => Backup, { nullable: true })
-  async lastBackup(@Parent() host: Host): Promise<Backup | undefined> {
-    return (await this.backupsService.getLastBackup(host.name)) ?? undefined;
+  async lastBackup(@Parent() host: Host): Promise<ExtendedBackup | undefined> {
+    const lastBackup = await this.backupsService.getLastBackup(host.name);
+
+    if (lastBackup) {
+      return { hostname: host.name, ...lastBackup };
+    }
+    return undefined;
   }
 
   @ResolveField(() => Float, { nullable: true })

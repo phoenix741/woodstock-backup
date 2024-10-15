@@ -7,7 +7,7 @@ import { BackupsFilesService } from './backups-files.service.js';
 import { JobResponse } from './backups.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
 
-interface ExtendedBackup extends Backup {
+export interface ExtendedBackup extends Backup {
   hostname: string;
 }
 
@@ -52,6 +52,7 @@ export class BackupsResolver {
   @ResolveField(() => [FileDescription])
   @UseInterceptors(ClassSerializerInterceptor)
   async shares(@Parent() parent: ExtendedBackup): Promise<FileDescription[]> {
+    console.log('xx', parent);
     return this.service.listShare(parent.hostname, parent.number);
   }
 
