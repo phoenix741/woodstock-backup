@@ -1,5 +1,8 @@
 use hyper_util::rt::TokioIo;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use tokio_stream::StreamExt;
 
 use futures::{pin_mut, Future};
@@ -33,6 +36,9 @@ async fn server_and_client_stub() -> (
         disable_mdns: true,
         backup_timeout: 3600,
         max_backup_seconds: 3600,
+        auto_update: false,
+        log_directory: Some(PathBuf::from("./data")),
+        update_delay: 1000,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);

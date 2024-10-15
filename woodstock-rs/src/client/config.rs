@@ -13,6 +13,8 @@ use eyre::Result;
 
 use crate::config::DEFAULT_PORT;
 
+const DAYLY_UPDATE: u64 = 24 * 3600;
+
 /// Represents the configuration for the client.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
@@ -45,6 +47,18 @@ pub struct ClientConfig {
     /// If the acl should be saved on linux platform
     #[serde(default)]
     pub acl: bool,
+
+    /// Update automatically client daemon
+    #[serde(default = "ClientConfig::default_automatic_update")]
+    pub auto_update: bool,
+
+    /// Delay between two update check
+    #[serde(default = "ClientConfig::default_update_delay")]
+    pub update_delay: u64,
+
+    /// Log directory
+    #[serde(default)]
+    pub log_directory: Option<PathBuf>,
 }
 
 impl ClientConfig {
@@ -76,13 +90,21 @@ impl ClientConfig {
     }
 
     /// Returns the default max backup duration in seconds.
-    /// Defaults to 24 hours.
+    /// Defaults to 12 hours.
     fn default_max_backup_seconds() -> u64 {
         12 * 3600
     }
 
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    pub fn default_automatic_update() -> bool {
+        cfg!(windows)
+    }
+
+    pub fn default_update_delay() -> u64 {
+        DAYLY_UPDATE
     }
 }
 
@@ -99,6 +121,9 @@ impl Default for ClientConfig {
             disable_mdns: false,
             xattr: false,
             acl: false,
+            auto_update: ClientConfig::default_automatic_update(),
+            update_delay: ClientConfig::default_update_delay(),
+            log_directory: None,
         }
     }
 }

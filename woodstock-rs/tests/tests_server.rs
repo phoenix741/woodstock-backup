@@ -52,6 +52,9 @@ async fn server_and_client_stub(
         disable_mdns: true,
         backup_timeout: 1000,
         max_backup_seconds: 1000,
+        auto_update: false,
+        log_directory: Some(PathBuf::from("./data")),
+        update_delay: 1000,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);

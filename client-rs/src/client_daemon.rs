@@ -13,7 +13,10 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use eyre::Result;
 use log::{debug, error, info, LevelFilter};
+use self_update::cargo_crate_version;
 use tokio::sync::oneshot;
+use tokio::task::spawn_blocking;
+use tokio::time::{interval_at, Instant};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
@@ -43,6 +46,8 @@ enum Commands {
 
     #[cfg(windows)]
     RunService,
+
+    SelfUpdate,
 }
 
 async fn start_client(
@@ -310,6 +315,73 @@ pub mod winserv {
 
         Ok(())
     }
+
+    pub fn restart_service() -> eyre::Result<()> {
+        let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
+        let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
+
+        let service = service_manager.open_service(
+            SERVICE_NAME,
+            ServiceAccess::CHANGE_CONFIG | ServiceAccess::STOP | ServiceAccess::START,
+        )?;
+
+        service.stop()?;
+
+        let start = Instant::now();
+        let timeout = Duration::from_secs(5);
+        while start.elapsed() < timeout {
+            if service.query_status()?.current_state == ServiceState::Stopped {
+                break;
+            }
+            sleep(Duration::from_secs(1));
+        }
+
+        service.start(&Vec::<OsString>::new())?;
+
+        Ok(())
+    }
+}
+
+fn update(automatic: bool) -> Result<()> {
+    println!("Checking for updates...");
+
+    let result = self_update::backends::gitea::Update::configure()
+        .with_host("https://gogs.shadoware.org")
+        .repo_owner("ShadowareOrg")
+        .repo_name("woodstock-backup")
+        .identifier("binaries")
+        .bin_name("ws_client_daemon")
+        .show_download_progress(true)
+        .current_version(cargo_crate_version!())
+        .no_confirm(automatic)
+        .build()?
+        .update()?;
+
+    match result {
+        self_update::Status::UpToDate(_) => println!("Already up-to-date"),
+        self_update::Status::Updated(version) => {
+            #[cfg(windows)]
+            {
+                // Restart the service
+                winserv::restart_service()?;
+            }
+
+            println!("Updated to {}", version)
+        }
+    }
+
+    Ok(())
+}
+
+async fn schedule_weekly_updates(update_delay: u64) {
+    let duration = Duration::from_secs(update_delay);
+    let mut interval = interval_at(Instant::now() + duration, duration);
+    loop {
+        interval.tick().await;
+        if let Err(err) = update(true) {
+            println!("Failed to update: {}", err);
+        }
+    }
 }
 
 #[tokio::main]
@@ -317,10 +389,15 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     let args = Cli::parse();
-    let config_dir = args.config_dir;
-    let log_path = config_dir
-        .clone()
-        .map_or_else(get_config_path, PathBuf::from)
+
+    let config_path = args.config_dir.as_ref().map(PathBuf::from);
+    let config_path = config_path.unwrap_or_else(get_config_path);
+    let config_yml = config_path.join("config.yaml");
+    let config = read_config(config_yml).expect("Failed to read config");
+
+    let log_path = config
+        .log_directory
+        .unwrap_or(config_path)
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");
@@ -328,11 +405,21 @@ async fn main() -> Result<()> {
     //     .filter_level(LevelFilter::Debug)
     //     .init();
 
+    // Lancer la mise à jour au démarrage
+    if config.auto_update {
+        if let Err(err) = update(true) {
+            error!("Failed to update: {}", err);
+        }
+
+        // Démarrer la tâche de mise à jour hebdomadaire
+        tokio::spawn(schedule_weekly_updates(config.update_delay));
+    }
+
     let subcommand = args.subcommand;
     match subcommand {
         #[cfg(windows)]
         Some(Commands::InstallService) => {
-            winserv::install_service(config_dir)?;
+            winserv::install_service(args.config_dir)?;
         }
 
         #[cfg(windows)]
@@ -345,11 +432,15 @@ async fn main() -> Result<()> {
             winserv::run()?;
         }
 
-        #[cfg(not(windows))]
-        Some(_) => {
-            println!("Subcommand not supported on this platform");
+        Some(Commands::SelfUpdate) => {
+            let _ = spawn_blocking(|| {
+                let result = update(false);
+                if let Err(err) = result {
+                    println!("Failed to update: {}", err);
+                }
+            })
+            .await;
         }
-
         None => {
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
@@ -358,7 +449,7 @@ async fn main() -> Result<()> {
                 signal_tx.send(()).unwrap();
             });
 
-            start_client(config_dir, signal_rx).await?;
+            start_client(args.config_dir, signal_rx).await?;
         }
     }
 
