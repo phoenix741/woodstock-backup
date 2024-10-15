@@ -71,6 +71,10 @@ impl<Clt: Client> BackupClient<Clt> {
         }
     }
 
+    pub fn set_agent_version(&mut self, agent_version: String) {
+        self.agent_version = Some(agent_version);
+    }
+
     pub fn set_fake_date(&mut self, fake_date: Option<SystemTime>) {
         self.fake_date = fake_date;
     }
