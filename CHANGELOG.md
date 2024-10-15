@@ -1,3 +1,16 @@
+# [2.0.0-alpha.21](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.20...v2.0.0-alpha.21) (2024-10-15)
+
+
+### Bug Fixes
+
+* 💚 add environment variables for release automation and version ([60ca1d5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/60ca1d54a2f75f9b108f734a9c91011973a6bf0f))
+* 🔖 [#75](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/75) fix version of rust binary ([e07d14c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e07d14c100117fb3da3a78cf2079bcee52efe8b3))
+
+
+### Features
+
+* ✨ implement self-update with the self-update crates ([0970331](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/09703315e55146553c2cebe48ebe92e528276189))
+
 # [2.0.0-alpha.20](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.19...v2.0.0-alpha.20) (2024-10-11)
 
 

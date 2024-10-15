@@ -1,6 +1,6 @@
 {
   "name": "@woodstock/shared-rs-win32-x64-msvc",
-  "version": "2.0.0-alpha.20",
+  "version": "2.0.0-alpha.21",
   "os": [
     "win32"
   ],
