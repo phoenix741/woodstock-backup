@@ -18,6 +18,8 @@ jobs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
+    outputs:
+      next_version: "${{ steps.next_version.outputs.next_version }}"
     steps:
       - name: Install dependencies
         if: github.event_name == 'push'
@@ -44,10 +46,15 @@ jobs:
       - name: Calculate next version
         if: github.event_name == 'push'
         id: next_version
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITEA_URL: https://gogs.shadoware.org
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npx semantic-release --dry-run | tee semantic_release_output.txt
-          NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' semantic_release_output.txt)
-          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+          NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-.]+)?' semantic_release_output.txt)
+          echo "Next detected version: \"$NEXT_VERSION\""
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
 
   unittest:
     env:
@@ -152,7 +159,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           cargo install cargo-workspaces
-          cargo workspaces version --all ${{ steps.next_version.outputs.NEXT_VERSION }}
+          cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Build (release)
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
