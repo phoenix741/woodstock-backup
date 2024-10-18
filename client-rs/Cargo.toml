@@ -30,7 +30,7 @@ env_logger = "^0.11"
 eyre = "^0.6"
 log = { version = "^0.4", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
 multi_log = "^0.1"
-self_update = { git= "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease" }
+self_update = { git= "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease", features = ["archive-zip", "compression-zip-deflate"] }
 semver = "1.0.23"
 simple-logging = "^2.0"
 tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread", "signal"] }
