@@ -13,7 +13,7 @@ Extract the contents of the zip file to `/etc/woodstock/`. Then, follow these st
 
     ```bash
     sudo curl https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/repository.key -o /etc/apt/keyrings/gitea-ShadowareOrg.asc
-    echo "deb [signed-by=/etc/apt/keyrings/gitea-ShadowareOrg.asc] https://gogs.shadoware.org/api/packages/ShadowareOrg/debian $distribution $component" | sudo tee -a /etc/apt/sources.list.d/gitea-shadowareorg.list
+    echo "deb [signed-by=/etc/apt/keyrings/gitea-ShadowareOrg.asc] https://gogs.shadoware.org/api/packages/ShadowareOrg/debian bookworm main" | sudo tee -a /etc/apt/sources.list.d/gitea-shadowareorg.list
     sudo apt update
     ```
 

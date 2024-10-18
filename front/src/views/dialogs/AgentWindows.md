@@ -21,13 +21,7 @@ service:
 3. Install the agent as a service using the following command:
 
     ```powershell
-    .\ws_client_daemon.exe --config C:\ProgramData\woodstock install-service
-    ```
-
-4. Start the service with the following command:
-  
-    ```powershell
-    .\ws_client_daemon.exe run-service
+    .\ws_client_daemon.exe --config-dir C:\ProgramData\woodstock install-service
     ```
 
 The agent is now installed and running as a Windows service. It will automatically start with your
