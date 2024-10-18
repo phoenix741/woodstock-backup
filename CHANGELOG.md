@@ -1,3 +1,10 @@
+# [2.0.0-alpha.22](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.21...v2.0.0-alpha.22) (2024-10-18)
+
+
+### Bug Fixes
+
+* :adhesive_bandage: fix getting the agent from gitea ([5f19a89](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5f19a895abaec244273f0a62c64ffb83b1f346d3))
+
 # [2.0.0-alpha.21](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.20...v2.0.0-alpha.21) (2024-10-15)
 
 
