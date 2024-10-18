@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  Inject,
   Logger,
   NotFoundException,
   Param,
@@ -21,20 +22,18 @@ import { join } from 'path';
 import { ClientType, HostInformation } from './hosts.dto.js';
 import { BackupsService, HostsService } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
+import * as JSZip from 'jszip';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
-const CLIENT_URL_MAPPING: Record<ClientType, string> = {
-  [ClientType.Windows]: 'ws_client_daemon.exe',
-  [ClientType.Linux]: 'ws_client_daemon',
-  [ClientType.LinuxLite]: 'ws_client_daemon_lite',
-  [ClientType.None]: 'ws_client_daemon',
+const ZIP_URL_MAPPING: Record<ClientType, string | undefined> = {
+  [ClientType.Windows]: 'binaries-windows-x86_64-pc-windows-msvc.zip',
+  [ClientType.Linux]: 'binaries-linux-x86_64-unknown-linux-gnu.zip',
+  [ClientType.LinuxLite]: 'binaries-linux-lite-x86_64-unknown-linux-gnu.zip',
+  [ClientType.None]: undefined,
 };
 
-const CLIENT_ZIP_URL_MAPPING: Record<ClientType, string> = {
-  [ClientType.Windows]: 'ws_client_daemon.exe',
-  [ClientType.Linux]: 'ws_client_daemon',
-  [ClientType.LinuxLite]: 'ws_client_daemon',
-  [ClientType.None]: 'ws_client_daemon',
-};
+const CLIENT_DAEMON_FILENAME = (windows: boolean) => `ws_client_daemon${windows ? '.exe' : ''}`;
 
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('hosts')
@@ -42,6 +41,7 @@ export class HostController {
   #logger = new Logger(HostController.name);
 
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private config: ApplicationConfigService,
     private certificateService: CertificateService,
     private backupsService: BackupsService,
@@ -89,16 +89,28 @@ export class HostController {
   }
 
   async #findClient(clientType: ClientType, version: string): Promise<Buffer> {
-    const clientName = CLIENT_URL_MAPPING[clientType];
+    const zipName = ZIP_URL_MAPPING[clientType];
+    const clientUrl = `https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases/download/v${version}/${zipName}`;
 
-    const clientUrl = `https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases/download/v${version}/${clientName}`;
-    this.#logger.log(`Downloading client from ${clientUrl}`);
+    return Buffer.from(
+      await this.cacheManager.wrap(clientUrl, async () => {
+        this.#logger.log(`Downloading client from ${clientUrl}`);
 
-    const response = await fetch(clientUrl);
+        const response = await fetch(clientUrl);
+        const body = await response.arrayBuffer();
+        const zip = await JSZip.loadAsync(body);
 
-    const body = await response.arrayBuffer();
+        const clientFile = zip.file(CLIENT_DAEMON_FILENAME(clientType === ClientType.Windows));
+        if (!clientFile) {
+          throw new Error(`File ${CLIENT_DAEMON_FILENAME} not found in the ZIP`);
+        }
 
-    return Buffer.from(body);
+        const buffer = await clientFile.async('nodebuffer');
+
+        return buffer.toString('base64');
+      }),
+      'base64',
+    );
   }
 
   @Get(':name/client')
@@ -139,7 +151,7 @@ export class HostController {
       name: `config.yaml`,
     });
     if (clientType !== ClientType.None) {
-      const name = CLIENT_ZIP_URL_MAPPING[clientType];
+      const name = CLIENT_DAEMON_FILENAME(clientType === ClientType.Windows);
 
       archive.append(await this.#findClient(clientType, await this.#findVersion()), { name, mode: 0o755 });
     }
