@@ -1,3 +1,10 @@
+# [2.0.0-alpha.23](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.22...v2.0.0-alpha.23) (2024-10-18)
+
+
+### Bug Fixes
+
+* 🩹 fix unzipping archive ([f50c5a6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f50c5a63bcbefc7ddc60c51c3f3eb41a4d39b166))
+
 # [2.0.0-alpha.22](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.21...v2.0.0-alpha.22) (2024-10-18)
 
 
