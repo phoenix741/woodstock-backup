@@ -24,6 +24,7 @@ use indicatif::ProgressStyle;
 use log::debug;
 use log::error;
 use log::info;
+use woodstock::client::config::ClientConfig;
 use woodstock::config::{Backups, Context, Hosts};
 use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
@@ -150,6 +151,7 @@ async fn launch_backup(
 
     let mut client = BackupClient::new(backuppc_client, &backup.hostname, backup_number, context);
     client.set_fake_date(UNIX_EPOCH.checked_add(Duration::from_secs(backup.start_time)));
+    client.set_agent_version(ClientConfig::version());
 
     backup_bar.set_message("Create backup directory");
     backup_bar.tick();
