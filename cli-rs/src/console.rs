@@ -9,7 +9,7 @@
 //! * recalculate all the chunks
 //!
 mod commands;
-#[cfg(feature = "fuse_unix")]
+#[cfg(all(unix, feature = "fuse_unix"))]
 mod filesystem;
 
 use clap::{Parser, Subcommand};
@@ -19,7 +19,7 @@ use commands::read_protobuf::read_log;
 use commands::resolve::resolve_mdns;
 use eyre::Result;
 
-#[cfg(feature = "fuse_unix")]
+#[cfg(all(unix, feature = "fuse_unix"))]
 use commands::mount::{mount, MountOption};
 
 use crate::commands::client::list_client_files;
@@ -135,7 +135,7 @@ enum Commands {
         hostname: String,
     },
 
-    #[cfg(feature = "fuse_unix")]
+    #[cfg(all(unix, feature = "fuse_unix"))]
     Mount {
         /// The hostname to mount
         #[clap(long)]
@@ -250,7 +250,7 @@ async fn main() -> Result<()> {
                 .expect("Failed to resolve mDNS");
         }
 
-        #[cfg(feature = "fuse_unix")]
+        #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {
             hostname,
             backup_number,
