@@ -1,6 +1,6 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use futures_util::{pin_mut, StreamExt};
+use futures_util::pin_mut;
 use napi::{
   bindgen_prelude::Buffer,
   threadsafe_function::{
@@ -9,18 +9,82 @@ use napi::{
   },
   Error, JsFunction, Result,
 };
-use tokio::io::AsyncReadExt;
+use tokio::{io::AsyncReadExt, sync::Mutex};
 use woodstock::{
-  config::{Backups, Context, BUFFER_SIZE},
+  config::{Context, BUFFER_SIZE},
   utils::path::vec_to_path,
+  view::WoodstockView,
   FileManifest,
 };
 
 use crate::{config::context::JsBackupContext, models::JsFileManifest};
 
+#[napi(js_name = "ViewerService")]
+pub struct JsViewerService {
+  view: Arc<Mutex<WoodstockView>>,
+  hostname: String,
+  backup_number: usize,
+}
+
+#[napi]
+impl JsViewerService {
+  #[must_use]
+  #[napi(constructor)]
+  pub fn new(context: &JsBackupContext, hostname: String, backup_number: u32) -> Self {
+    let context: Context = context.into();
+    let backup_number = usize::try_from(backup_number).expect("Backup number is too large");
+
+    Self {
+      view: Arc::new(Mutex::new(WoodstockView::new(&context))),
+      hostname,
+      backup_number,
+    }
+  }
+
+  #[napi]
+  pub async fn list_dir(&self, share_path: String, path: Buffer) -> Result<Vec<JsFileManifest>> {
+    let path: Vec<u8> = path.into();
+    let path = vec_to_path(&path);
+    let path = path.strip_prefix("/").unwrap_or(&path).to_path_buf();
+
+    let mut view = self.view.lock().await;
+
+    let entries = view
+      .list_file_from_dir(&self.hostname, self.backup_number, &share_path, &path)
+      .await
+      .map_err(|err| Error::from_reason(err.to_string()))?;
+
+    let entries = entries.iter().cloned().map(JsFileManifest::from).collect();
+
+    Ok(entries)
+  }
+
+  #[napi]
+  pub async fn list_dir_recursive(
+    &self,
+    share_path: String,
+    path: Buffer,
+  ) -> Result<Vec<JsFileManifest>> {
+    let path: Vec<u8> = path.into();
+    let path = vec_to_path(&path);
+    let path = path.strip_prefix("/").unwrap_or(&path).to_path_buf();
+
+    let mut view = self.view.lock().await;
+
+    let entries = view
+      .list_all_files(&self.hostname, self.backup_number, &share_path, &path)
+      .await
+      .map_err(|err| Error::from_reason(err.to_string()))?;
+
+    let entries = entries.iter().cloned().map(JsFileManifest::from).collect();
+
+    Ok(entries)
+  }
+}
+
 #[napi(js_name = "CoreFilesService")]
 pub struct JsFilesService {
-  backups: Backups,
+  context: JsBackupContext,
   pool_path: PathBuf,
 }
 
@@ -29,67 +93,21 @@ impl JsFilesService {
   #[napi(constructor)]
   #[must_use]
   pub fn new(context: &JsBackupContext) -> Self {
-    let context: Context = context.into();
+    let rust_context: Context = context.into();
+    let pool_path = rust_context.config.path.pool_path.clone();
 
-    Self {
-      backups: Backups::new(&context),
-      pool_path: context.config.path.pool_path.clone(),
-    }
+    let context = (*context).clone();
+
+    Self { context, pool_path }
   }
 
   #[napi]
-  pub fn list(
-    &self,
-    hostname: String,
-    backup_number: u32,
-    share_path: String,
-    path: Buffer,
-    recursive: bool,
-
-    #[napi(ts_arg_type = "(err: null | Error, result: JsFileManifest | null) => void")]
-    callback: JsFunction,
-  ) -> Result<()> {
-    let tsfn: ThreadsafeFunction<Option<JsFileManifest>, ErrorStrategy::CalleeHandled> =
-      callback.create_threadsafe_function(0, |ctx| {
-        let Some(value) = ctx.value else {
-          return Ok(vec![]);
-        };
-        Ok(vec![value])
-      })?;
-
-    let backup_number = usize::try_from(backup_number)
-      .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
-    let manifest = self
-      .backups
-      .get_manifest(&hostname, backup_number, &share_path);
-
-    let path: Vec<u8> = path.into();
-    let search_path = vec_to_path(&path);
-
-    let tsfn = tsfn.clone();
-
-    tokio::spawn(async move {
-      let entries = manifest.read_manifest_entries();
-      pin_mut!(entries);
-
-      while let Some(entry) = entries.next().await {
-        let path = entry.path();
-        // If not recursif we keep only all files that is in the search path directory, else we keep all file that are in a lower level directory
-        if (recursive && path.starts_with(&search_path)) || (!recursive && path == search_path) {
-          let file = JsFileManifest::from(entry);
-
-          tsfn.call(Ok(Some(file)), ThreadsafeFunctionCallMode::Blocking);
-        }
-      }
-
-      tsfn.call(Ok(None), ThreadsafeFunctionCallMode::Blocking);
-    });
-
-    Ok(())
+  pub fn create_viewer(&self, hostname: String, backup_number: u32) -> Result<JsViewerService> {
+    Ok(JsViewerService::new(&self.context, hostname, backup_number))
   }
 
   #[napi]
-  pub fn read_manifest(
+  pub fn read_file(
     &self,
     manifest: JsFileManifest,
 

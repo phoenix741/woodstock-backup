@@ -2,6 +2,8 @@
 
 query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {
   backup(hostname: $hostname, number: $number) {
+    id
+
     files(sharePath: $sharePath, path: $path) {
       ...FragmentFileDescription
     }

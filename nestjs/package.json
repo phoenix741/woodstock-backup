@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@apollo/server": "^4.11.0",
+    "@isaacs/ttlcache": "^1.4.1",
     "@nestjs/apollo": "^12.2.0",
     "@nestjs/bullmq": "^10.2.1",
     "@nestjs/cache-manager": "^2.2.2",
@@ -66,7 +67,6 @@
     "graphql-subscriptions": "^2.0.0",
     "graphql-tools": "^9.0.2",
     "ioredis": "^5.4.1",
-    "ix": "^5.0.0",
     "js-yaml": "^4.1.0",
     "jszip": "^3.10.1",
     "logform": "^2.6.1",

@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
-import { Args, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
+import { ClassSerializerInterceptor, NotFoundException, Res, UseInterceptors } from '@nestjs/common';
+import { Args, ID, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
 import { Backup, FileDescription, JobBackupData, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service.js';
@@ -49,10 +49,14 @@ export class BackupsResolver {
     return Object.assign({ hostname }, backup);
   }
 
+  @ResolveField(() => ID)
+  id(@Parent() parent: ExtendedBackup): string {
+    return `${parent.hostname}-${parent.number}`;
+  }
+
   @ResolveField(() => [FileDescription])
   @UseInterceptors(ClassSerializerInterceptor)
   async shares(@Parent() parent: ExtendedBackup): Promise<FileDescription[]> {
-    console.log('xx', parent);
     return this.service.listShare(parent.hostname, parent.number);
   }
 

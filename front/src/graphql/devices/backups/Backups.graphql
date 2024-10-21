@@ -1,5 +1,7 @@
 query Backups($hostname: String!) {
   backups(hostname: $hostname) {
+    id
+
     number
     completed
 

@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import archiver from 'archiver';
 import { constants as constantsFs } from 'fs';
-import { count, toArray } from 'ix/asynciterable';
 import { FilesService } from './files.service';
 
 import { CoreBackupsService, CoreFilesService, JsFileManifest } from '@woodstock/shared-rs';
