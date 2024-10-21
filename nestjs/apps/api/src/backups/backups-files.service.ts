@@ -2,9 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { unmangle, FileDescription, BackupsService, FilesService } from '@woodstock/shared';
 import { JsFileManifestType } from '@woodstock/shared-rs';
 import { Archiver } from 'archiver';
-import { toArray } from 'ix/asynciterable';
-import { map } from 'ix/asynciterable/operators';
-
 @Injectable()
 export class BackupsFilesService {
   constructor(
@@ -50,13 +47,9 @@ export class BackupsFilesService {
   }
 
   async list(name: string, number: number, sharePath: string, path = '/'): Promise<FileDescription[]> {
-    return (
-      await toArray(
-        this.filesService
-          .searchFiles(name, number, sharePath, unmangle(path))
-          .pipe(map((file) => new FileDescription(file))),
-      )
-    ).sort((a, b) => a.type - b.type || a.path.compare(b.path));
+    const fileManifests = await this.filesService.list(name, number, sharePath, unmangle(path));
+    const descriptions = fileManifests.map((file) => new FileDescription(file));
+    return descriptions.toSorted((a, b) => a.type - b.type || a.path.compare(b.path));
   }
 
   async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path = '') {

@@ -1,4 +1,4 @@
-import { ObjectType, registerEnumType } from '@nestjs/graphql';
+import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { Backup } from '@woodstock/shared';
 
 export enum ClientType {
@@ -10,6 +10,7 @@ export enum ClientType {
 
 @ObjectType()
 export class Host {
+  @Field(() => ID)
   name!: string;
 }
 

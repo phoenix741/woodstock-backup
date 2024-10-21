@@ -11,15 +11,16 @@ import type { TypedDocumentNode as DocumentNode } from '@graphql-typed-document-
  * 3. It does not support dead code elimination, so it will add unused operations.
  *
  * Therefore it is highly recommended to use the babel or swc plugin for production.
+ * Learn more about it here: https://the-guild.dev/graphql/codegen/plugins/presets/preset-client#reducing-bundle-size
  */
 const documents = {
     "query Hosts {\n  hosts {\n    name\n    lastBackup {\n      number\n      startDate\n      fileSize\n      completed\n      agentVersion\n    }\n    agentVersion\n    availibilityState\n    timeSinceLastBackup\n    dateToNextBackup\n    lastBackupState\n    configuration {\n      schedule {\n        activated\n      }\n    }\n  }\n}": types.HostsDocument,
-    "query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}": types.BackupsDocument,
-    "query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}": types.BackupsBrowseDocument,
+    "query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    id\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}": types.BackupsDocument,
+    "query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}": types.BackupsBrowseDocument,
     "mutation createBackup($hostname: String!) {\n  createBackup(hostname: $hostname) {\n    id\n  }\n}": types.CreateBackupDocument,
     "mutation removeBackup($hostname: String!, $number: Int!) {\n  removeBackup(hostname: $hostname, number: $number) {\n    id\n  }\n}": types.RemoveBackupDocument,
     "fragment FragmentFileDescription on FileDescription {\n  path\n  type\n  stats {\n    ownerId\n    groupId\n    mode\n    size\n    lastModified\n  }\n  symlink\n}": types.FragmentFileDescriptionFragmentDoc,
-    "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}": types.SharesBrowseDocument,
+    "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}": types.SharesBrowseDocument,
     "query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n  events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n    uuid\n    type\n    step\n    source\n    timestamp\n    errorMessages\n    status\n    information {\n      __typename\n      ... on EventBackupInformation {\n        hostname\n        number\n        sharePath\n      }\n      ... on EventRefCountInformation {\n        fix\n        count\n        error\n      }\n      ... on EventPoolInformation {\n        fix\n        inUnused\n        inRefcnt\n        inNothing\n        missing\n      }\n      ... on EventPoolCleanedInformation {\n        size\n        count\n      }\n    }\n  }\n}": types.EventsDocument,
     "mutation cleanupPool {\n  cleanupPool {\n    id\n  }\n}": types.CleanupPoolDocument,
     "mutation fsckPool($fix: Boolean!) {\n  checkAndFixPool(fix: $fix) {\n    id\n  }\n}": types.FsckPoolDocument,
@@ -52,11 +53,11 @@ export function graphql(source: "query Hosts {\n  hosts {\n    name\n    lastBac
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}"): (typeof documents)["query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}"];
+export function graphql(source: "query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    id\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}"): (typeof documents)["query Backups($hostname: String!) {\n  backups(hostname: $hostname) {\n    id\n    number\n    completed\n    startDate\n    endDate\n    errorCount\n    fileCount\n    newFileCount\n    existingFileCount\n    removedFileCount\n    modifiedFileCount\n    fileSize\n    newFileSize\n    existingFileSize\n    speed\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}"): (typeof documents)["query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}"];
+export function graphql(source: "query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}"): (typeof documents)["query BackupsBrowse($hostname: String!, $number: Int!, $sharePath: String!, $path: String!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    files(sharePath: $sharePath, path: $path) {\n      ...FragmentFileDescription\n    }\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
@@ -72,7 +73,7 @@ export function graphql(source: "fragment FragmentFileDescription on FileDescrip
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}"): (typeof documents)["query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}"];
+export function graphql(source: "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}"): (typeof documents)["query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
