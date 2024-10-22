@@ -1,3 +1,5 @@
+import { FragmentFileDescriptionFragment } from '@/generated/graphql';
+
 export interface BackupSizeByDate {
   startDate: number;
   fileSize: bigint;
@@ -5,9 +7,11 @@ export interface BackupSizeByDate {
 }
 
 export interface TreeViewNode {
+  id: string;
   sharePath: string;
   path: string[];
   displayName: string;
   children?: TreeViewNode[];
-  isHidden: boolean;
+  node: FragmentFileDescriptionFragment;
+  props: Record<string, unknown>;
 }

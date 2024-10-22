@@ -5,42 +5,44 @@
         :deviceId="props.deviceId"
         :backupNumber="props.backupNumber"
         :hiddenFiles="false"
+        @select="selected = $event"
       ></BackupFilesTreeComponent>
     </v-col>
-    <v-col cols="6" v-if="selected && selected?.file">
+    selected = {{ selected }}
+    <v-col cols="6" v-if="selected">
       <v-table>
         <tbody>
           <tr>
             <td>Path</td>
-            <td>{{ selected.text }}</td>
+            <td>{{ selected.path.join('/') }}</td>
           </tr>
           <tr>
             <td>Type</td>
-            <td>{{ selected.file.type }}</td>
+            <td>{{ selected.node.type }}</td>
           </tr>
-          <tr v-if="selected.file.symlink">
+          <tr v-if="selected.node.symlink">
             <td>Symlink</td>
-            <td>{{ selected.file.symlink }}</td>
+            <td>{{ selected.node.symlink }}</td>
           </tr>
-          <tr v-if="selected.file.stats?.ownerId">
+          <tr v-if="selected.node.stats?.ownerId">
             <td>Owner</td>
-            <td>{{ selected.file.stats.ownerId }}</td>
+            <td>{{ selected.node.stats.ownerId }}</td>
           </tr>
-          <tr v-if="selected.file.stats?.groupId">
+          <tr v-if="selected.node.stats?.groupId">
             <td>Group</td>
-            <td>{{ selected.file.stats.groupId }}</td>
+            <td>{{ selected.node.stats.groupId }}</td>
           </tr>
-          <tr v-if="selected.file.stats?.mode">
+          <tr v-if="selected.node.stats?.mode">
             <td>Mode</td>
-            <td>{{ (selected.file.stats.mode & 0o7777).toString(8) }}</td>
+            <td>{{ (selected.node.stats.mode & 0o7777).toString(8) }}</td>
           </tr>
-          <tr v-if="selected.file.stats?.size">
+          <tr v-if="selected.node.stats?.size">
             <td>Size</td>
-            <td>{{ filesize(parseInt(selected.file.stats.size)) }}</td>
+            <td>{{ filesize(parseInt(selected.node.stats.size)) }}</td>
           </tr>
-          <tr v-if="selected.file.stats?.lastModified">
+          <tr v-if="selected.node.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.file.stats.lastModified) * 1000) }}</td>
+            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified) * 1000) }}</td>
           </tr>
         </tbody>
         <tfoot>
@@ -61,15 +63,18 @@ import { toDateTime } from '../hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { computed } from 'vue';
 import BackupFilesTreeComponent from '@/components/backups/BackupFilesTreeComponent.vue';
+import { TreeViewNode } from './backups.interface';
 
 const props = defineProps<{
   deviceId: string;
   backupNumber: number;
 }>();
 
-const selected = ref<Node | undefined>(undefined);
+const selected = ref<TreeViewNode | undefined>(undefined);
 const selectedPath = computed(
   () =>
-    `/api/hosts/${props.deviceId}/backups/${props.backupNumber}/files/download?sharePath=${selected.value?.sharePath}&path=${selected.value?.file?.path}`,
+    `/api/hosts/${props.deviceId}/backups/${props.backupNumber}/files/download?sharePath=${
+      selected.value?.sharePath
+    }&path=${selected.value?.path.join('/')}`,
 );
 </script>
