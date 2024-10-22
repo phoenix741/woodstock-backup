@@ -36,7 +36,7 @@ struct Cli {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Subcommand)]
+#[derive(Subcommand, PartialEq)]
 enum Commands {
     #[cfg(windows)]
     InstallService,
@@ -60,6 +60,15 @@ async fn start_client(
     debug!("Config path: {}", config_path.display());
     let config_yml = config_path.join("config.yaml");
     let config = read_config(config_yml).expect("Failed to read config");
+
+    if config.auto_update {
+        if let Err(err) = update(true) {
+            error!("Failed to update: {}", err);
+        }
+
+        // Démarrer la tâche de mise à jour hebdomadaire
+        tokio::spawn(schedule_weekly_updates(config.update_delay));
+    }
 
     let root_ca = config_path.join("rootCA.pem");
     let private_key = config_path.join(format!("{}_server.key", config.hostname));
@@ -405,18 +414,7 @@ async fn main() -> Result<()> {
     //     .filter_level(LevelFilter::Debug)
     //     .init();
 
-    // Lancer la mise à jour au démarrage
-    if config.auto_update {
-        if let Err(err) = update(true) {
-            error!("Failed to update: {}", err);
-        }
-
-        // Démarrer la tâche de mise à jour hebdomadaire
-        tokio::spawn(schedule_weekly_updates(config.update_delay));
-    }
-
-    let subcommand = args.subcommand;
-    match subcommand {
+    match args.subcommand {
         #[cfg(windows)]
         Some(Commands::InstallService) => {
             winserv::install_service(args.config_dir)?;
