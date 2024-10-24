@@ -25,8 +25,8 @@ export class FilesService {
   ) {}
 
   #getViewer(hostname: string, backupNumber: number): ViewerService {
-    let key = `${hostname}-${backupNumber}`;
-    let viewer = this.cache.get<ViewerService>(key) ?? this.fileService.createViewer(hostname, backupNumber);
+    const key = `${hostname}-${backupNumber}`;
+    const viewer = this.cache.get<ViewerService>(key) ?? this.fileService.createViewer(hostname, backupNumber);
     this.cache.set(key, viewer);
     return viewer;
   }
@@ -41,7 +41,7 @@ export class FilesService {
   }
 
   async list(hostname: string, backupNumber: number, sharePath: string, path: Buffer): Promise<Array<JsFileManifest>> {
-    let view = this.#getViewer(hostname, backupNumber);
+    const view = this.#getViewer(hostname, backupNumber);
     const files = await view.listDir(sharePath, path);
     return files;
   }
@@ -55,7 +55,7 @@ export class FilesService {
   }
 
   async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path: Buffer) {
-    let view = this.#getViewer(hostname, backupNumber);
+    const view = this.#getViewer(hostname, backupNumber);
     const manifests = await view.listDirRecursive(sharePath, path);
 
     for await (const manifest of manifests) {
@@ -66,12 +66,12 @@ export class FilesService {
       if (isRegular) {
         archiver.append(this.readFileStream(manifest), {
           name: manifest.path.toString('utf-8'),
-          date: manifest.stats?.lastModified ? new Date(manifest.stats.lastModified) : undefined,
+          date: manifest.stats?.lastModified ? new Date(manifest.stats.lastModified * 1000) : undefined,
           mode: manifest.stats?.mode,
           stats: {
             size: manifest.stats?.size ? Number(manifest.stats?.size) : 0,
             mode: manifest.stats?.mode,
-            mtime: manifest.stats?.lastModified ? new Date(manifest.stats?.lastModified) : undefined,
+            mtime: manifest.stats?.lastModified ? new Date(manifest.stats?.lastModified * 1000) : undefined,
             isFile: () => isRegular,
             isDirectory: () => isDirectory,
             isSymbolicLink: () => isSymLink,
@@ -86,8 +86,8 @@ export class FilesService {
             uid: manifest.stats?.ownerId,
             gid: manifest.stats?.groupId,
             rdev: manifest.stats?.rdev ? Number(manifest.stats?.rdev) : 0,
-            atime: manifest.stats?.lastRead ? new Date(manifest.stats?.lastRead) : undefined,
-            ctime: manifest.stats?.created ? new Date(manifest.stats?.created) : undefined,
+            atime: manifest.stats?.lastRead ? new Date(manifest.stats?.lastRead * 1000) : undefined,
+            ctime: manifest.stats?.created ? new Date(manifest.stats?.created * 1000) : undefined,
 
             blksize: 0,
             blocks: 0,

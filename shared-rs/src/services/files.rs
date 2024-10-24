@@ -113,7 +113,7 @@ impl JsFilesService {
 
     #[napi(ts_arg_type = "(err: null | Error, result: Buffer) => void")] callback: JsFunction,
   ) -> Result<()> {
-    let tsfn: ThreadsafeFunction<Option<Vec<u8>>, ErrorStrategy::CalleeHandled> = callback
+    let tsfn: ThreadsafeFunction<Option<Buffer>, ErrorStrategy::CalleeHandled> = callback
       .create_threadsafe_function(0, |ctx| {
         let Some(value) = ctx.value else {
           return Ok(vec![]);
@@ -154,7 +154,7 @@ impl JsFilesService {
         }
 
         tsfn.call(
-          Ok(Some(buffer[..size].to_vec())),
+          Ok(Some(Buffer::from(buffer[..size].to_vec()))),
           ThreadsafeFunctionCallMode::Blocking,
         );
       }

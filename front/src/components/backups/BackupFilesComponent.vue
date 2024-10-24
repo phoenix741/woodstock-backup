@@ -8,9 +8,8 @@
         @select="selected = $event"
       ></BackupFilesTreeComponent>
     </v-col>
-    selected = {{ selected }}
-    <v-col cols="6" v-if="selected">
-      <v-table>
+    <v-col cols="6">
+      <v-table v-if="selected">
         <tbody>
           <tr>
             <td>Path</td>

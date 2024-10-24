@@ -14,7 +14,8 @@
       activatable
       transition
       :style="cssVars"
-      @click:select="onSelect($event)"
+      @update:activated="onSelect"
+      return-object
     >
       <template v-slot:prepend="{ item, isOpen }">
         <v-icon v-if="item.node.type == EnumFileType.Directory">
@@ -121,11 +122,18 @@ function encodeId(id: string) {
 }
 
 function onSelect(node: unknown) {
-  if (!isTreeNode(node)) {
+  // node is array of tree node
+  if (!Array.isArray(node)) {
     return;
   }
 
-  emit('select', node);
+  if (!isTreeNode(node[0])) {
+    return;
+  }
+
+  console.log('selected', node);
+
+  emit('select', node[0]);
 }
 </script>
 
