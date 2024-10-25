@@ -23,6 +23,22 @@
         "21",
         "/home/phoenix/tmp/test"
       ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "resolve-m-dns",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "resolve-m-dns",
+        "pc-m-ulrich"
+      ]
     }
   ]
 }

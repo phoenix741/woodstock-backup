@@ -18,6 +18,19 @@
       "args": [
         "self-update"
       ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "execute",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_client_daemon",
+        ]
+      },
+      "args": []
     }
   ]
 }

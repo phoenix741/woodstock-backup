@@ -16,7 +16,7 @@ use crate::config::DEFAULT_PORT;
 const DAYLY_UPDATE: u64 = 24 * 3600;
 
 /// Represents the configuration for the client.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
     /// The hostname of the client. Defaults to the system's hostname.
     #[serde(default = "ClientConfig::default_hostname")]

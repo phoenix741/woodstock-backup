@@ -1,33 +1,133 @@
 use eyre::Result;
-use log::info;
+use log::{error, info};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
+use tokio::sync::Mutex;
+use tokio::task::AbortHandle;
 
-use crate::config::MDNS_SERVICE_NAME;
+use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX};
 
 use super::config::ClientConfig;
 
-pub fn mdns_responder(config: &ClientConfig) -> Result<ServiceDaemon> {
-    let addr: std::net::SocketAddr = config.bind.parse()?;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
+const CHECK_INTERVAL: u64 = 10;
+const MAX_INTERVAL: u64 = CHECK_INTERVAL * 6;
+
+fn create_service_info(config: &ClientConfig) -> ServiceInfo {
+    let addr: std::net::SocketAddr = config.bind.parse().expect("Failed to parse bind address");
     let port = addr.port();
 
     let properties = [("version", ClientConfig::version())];
 
-    let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-    let my_service = ServiceInfo::new(
+    ServiceInfo::new(
         MDNS_SERVICE_NAME,
         &config.hostname,
-        &format!("{}.local.", &config.hostname),
+        &format!("{}{}", &config.hostname, MDNS_SUFFIX),
         "",
         port,
         &properties[..],
     )
     .expect("Failed to create service info for mDNS")
-    .enable_addr_auto();
+    .enable_addr_auto()
+}
 
-    // Register with the daemon, which publishes the service.
-    mdns.register(my_service)
-        .expect("Failed to register our service");
-    info!("Service mDNS enregistré et disponible.");
+#[derive(Clone)]
+pub struct MdnsClient {
+    daemon: Arc<Mutex<Option<ServiceDaemon>>>,
+    observer: Arc<Mutex<Option<tokio::task::AbortHandle>>>,
+    config: ClientConfig,
+}
 
-    Ok(mdns)
+impl MdnsClient {
+    pub async fn new(config: ClientConfig) -> Result<Self> {
+        let daemon = Self {
+            daemon: Arc::new(Mutex::new(None)),
+            observer: Arc::new(Mutex::new(None)),
+            config,
+        };
+        daemon.start().await?;
+
+        let observer = daemon.wakeup_observe();
+        daemon.observer.lock().await.replace(observer);
+
+        Ok(daemon)
+    }
+
+    fn full_name(&self) -> String {
+        format!("{}{}", &self.config.hostname, MDNS_SUFFIX)
+    }
+
+    async fn refresh(&self) {
+        // Start by stopping the current daemon
+        self.stop().await;
+
+        // Sleep 10 seconds to let the daemon unregister the service
+        tokio::time::sleep(Duration::from_secs(10)).await;
+
+        if let Err(e) = self.start().await {
+            error!("Failed to refresh mDNS service: {}", e);
+        }
+    }
+
+    fn wakeup_observe(&self) -> AbortHandle {
+        let self_clone = self.clone();
+        let handler = tokio::spawn(async move {
+            let mut current_time = std::time::Instant::now();
+            loop {
+                thread::sleep(Duration::from_secs(CHECK_INTERVAL));
+                if std::time::Instant::elapsed(&current_time).as_secs() > MAX_INTERVAL {
+                    info!("Device woke up, refreshing mDNS service");
+                    self_clone.refresh().await;
+                }
+                current_time = std::time::Instant::now();
+            }
+        });
+
+        handler.abort_handle()
+    }
+
+    pub async fn start(&self) -> Result<()> {
+        let mdns = ServiceDaemon::new().expect("Failed to create daemon");
+        let my_service = create_service_info(&self.config);
+
+        // Register with the daemon, which publishes the service.
+        mdns.register(my_service)
+            .expect("Failed to register our service");
+
+        info!("Service mDNS enregistré et disponible.");
+
+        self.daemon.lock().await.replace(mdns);
+
+        Ok(())
+    }
+
+    pub async fn stop(&self) {
+        if let Some(daemon) = self.daemon.lock().await.take() {
+            match daemon.unregister(&self.full_name()) {
+                Ok(receiver) => match receiver.recv() {
+                    Ok(status) => info!("Service mDNS retiré avec succès: {:?}.", status),
+                    Err(e) => error!("Échec de la suppression du service mDNS: {}", e),
+                },
+                Err(e) => error!("Failed to unregister mDNS service: {}", e),
+            }
+
+            match daemon.shutdown() {
+                Ok(receiver) => match receiver.recv() {
+                    Ok(status) => info!("Service mDNS daemon arrêté avec succès: {:?}.", status),
+                    Err(e) => error!("Échec de l'arrêt du service mDNS daemon: {}", e),
+                },
+                Err(e) => error!("Échec de l'arrêt du service mDNS daemon: {}", e),
+            }
+        }
+    }
+
+    pub async fn shutdown(&self) {
+        if let Some(observer) = self.observer.lock().await.take() {
+            observer.abort();
+        }
+
+        self.stop().await;
+    }
 }

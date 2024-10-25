@@ -7,6 +7,9 @@
 //!
 #![recursion_limit = "512"]
 
+#[cfg(windows)]
+pub mod winfw;
+
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -21,7 +24,7 @@ use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use woodstock::client::config::{get_config_path, read_config};
-use woodstock::client::resolve::mdns_responder;
+use woodstock::client::resolve::MdnsClient;
 use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
@@ -47,6 +50,12 @@ enum Commands {
     #[cfg(windows)]
     RunService,
 
+    #[cfg(windows)]
+    InstallFwRule,
+
+    #[cfg(windows)]
+    RemoveFwRule,
+
     SelfUpdate,
 }
 
@@ -62,9 +71,12 @@ async fn start_client(
     let config = read_config(config_yml).expect("Failed to read config");
 
     if config.auto_update {
-        if let Err(err) = update(true) {
-            error!("Failed to update: {}", err);
-        }
+        let _ = spawn_blocking(|| {
+            if let Err(err) = update(true) {
+                error!("Failed to update: {}", err);
+            }
+        })
+        .await;
 
         // Démarrer la tâche de mise à jour hebdomadaire
         tokio::spawn(schedule_weekly_updates(config.update_delay));
@@ -105,16 +117,14 @@ async fn start_client(
         info!("mDNS is disabled");
     } else {
         info!("mDNS is enabled");
-        daemon = Some(mdns_responder(&config)?);
+        daemon = Some(MdnsClient::new(config.clone()).await?);
     }
 
     server
         .serve_with_shutdown(addr, async {
             shutdown_signal.await.ok();
             if let Some(daemon) = daemon {
-                if let Err(e) = daemon.shutdown() {
-                    error!("Failed to shutdown mDNS daemon: {}", e);
-                }
+                daemon.shutdown().await;
             }
 
             info!("Graceful context shutdown");
@@ -122,6 +132,76 @@ async fn start_client(
         .await?;
 
     Ok(())
+}
+
+#[cfg(windows)]
+pub mod winfirewall {
+    use crate::winfw::{
+        create_firewall_rule, delete_firewall_rule, rule_exists, Actions, FwRule, Protocols,
+    };
+    use eyre::Result;
+    use std::net::SocketAddr;
+    use woodstock::config::DEFAULT_PORT;
+
+    fn get_port_from_address(address: &str) -> u16 {
+        match address.parse::<SocketAddr>() {
+            Ok(socket_addr) => socket_addr.port(),
+            Err(_) => DEFAULT_PORT,
+        }
+    }
+
+    pub fn add_firewall_rule(bind: &str) -> Result<()> {
+        let port = get_port_from_address(bind);
+
+        // Règle pour autoriser le trafic TCP entrant sur le port spécifique
+        let tcp_rule_name = "Woodstock Client Daemon TCP";
+        if rule_exists(tcp_rule_name)? {
+            delete_firewall_rule(tcp_rule_name)?;
+        }
+
+        let tcp_rule = FwRule {
+            name: tcp_rule_name.to_string(),
+            description: format!("Allow incoming TCP traffic on port {}", port),
+            local_ports: port.to_string(),
+            protocol: Protocols::Tcp,
+            action: Actions::Allow,
+            enabled: true,
+            ..FwRule::default()
+        };
+        create_firewall_rule(&tcp_rule)?;
+
+        // Règle pour autoriser le trafic UDP entrant et sortant sur le port mDNS (5353)
+        let udp_rule_name = "Woodstock Client Daemon mDNS";
+        if rule_exists(udp_rule_name)? {
+            delete_firewall_rule(udp_rule_name)?;
+        }
+
+        let udp_rule = FwRule {
+            name: udp_rule_name.to_string(),
+            description: "Allow incoming and outgoing UDP traffic on port 5353 for mDNS"
+                .to_string(),
+            local_ports: "5353".to_string(),
+            protocol: Protocols::Udp,
+            action: Actions::Allow,
+            enabled: true,
+            ..FwRule::default()
+        };
+        create_firewall_rule(&udp_rule)?;
+
+        Ok(())
+    }
+
+    pub fn remove_firewall_rule() -> Result<()> {
+        // Supprimer la règle TCP
+        let tcp_rule_name = "Woodstock Client Daemon TCP";
+        delete_firewall_rule(tcp_rule_name)?;
+
+        // Supprimer la règle UDP
+        let udp_rule_name = "Woodstock Client Daemon mDNS";
+        delete_firewall_rule(udp_rule_name)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
@@ -410,24 +490,34 @@ async fn main() -> Result<()> {
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");
-    // env_logger::builder()
-    //     .filter_level(LevelFilter::Debug)
-    //     .init();
+    // env_logger::builder().filter_level(LevelFilter::Info).init();
 
     match args.subcommand {
         #[cfg(windows)]
         Some(Commands::InstallService) => {
+            winfirewall::add_firewall_rule(&config.bind)?;
             winserv::install_service(args.config_dir)?;
         }
 
         #[cfg(windows)]
         Some(Commands::RemoveService) => {
+            winfirewall::remove_firewall_rule()?;
             winserv::uninstall_service()?;
         }
 
         #[cfg(windows)]
         Some(Commands::RunService) => {
             winserv::run()?;
+        }
+
+        #[cfg(windows)]
+        Some(Commands::InstallFwRule) => {
+            winfirewall::add_firewall_rule(&config.bind)?;
+        }
+
+        #[cfg(windows)]
+        Some(Commands::RemoveFwRule) => {
+            winfirewall::remove_firewall_rule()?;
         }
 
         Some(Commands::SelfUpdate) => {
@@ -440,6 +530,9 @@ async fn main() -> Result<()> {
             .await;
         }
         None => {
+            #[cfg(windows)]
+            winfirewall::add_firewall_rule(&config.bind)?;
+
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
             tokio::spawn(async move {
@@ -448,6 +541,9 @@ async fn main() -> Result<()> {
             });
 
             start_client(args.config_dir, signal_rx).await?;
+
+            // Force the server to stop
+            std::process::exit(0);
         }
     }
 
