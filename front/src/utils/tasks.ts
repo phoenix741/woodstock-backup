@@ -1,15 +1,5 @@
-import { FragmentType, useFragment } from '@/generated';
-import {
-  BackupTaskFragmentDoc,
-  JobFragmentDoc,
-  JobProgression,
-  JobProgressionFragmentDoc,
-  ProgressTaskFragmentDoc,
-  QueueTaskState,
-  QueueTasksJobUpdatedDocument,
-  TaskDescriptionFragmentDoc,
-  TasksDocument,
-} from '@/generated/graphql';
+import { FragmentType, graphql, useFragment } from '@/generated';
+import { ProgressTaskFragment, QueueTaskState } from '@/generated/graphql';
 import { UseQueryReturn, useQuery } from '@vue/apollo-composable';
 import { Ref, computed } from 'vue';
 import { JobTaskGui } from './tasks.interface';
@@ -93,16 +83,21 @@ function getFailedReason(details: FragmentType<typeof TaskDescriptionFragmentDoc
 function mapProgression({
   compressedFileSize,
   newCompressedFileSize,
+
   fileSize,
   newFileSize,
+
   fileCount,
   newFileCount,
+
   errorCount,
+
   progressCurrent,
   progressMax,
+
   speed,
   percent,
-}: Partial<JobProgression> | undefined = {}) {
+}: Partial<ProgressTaskFragment> | undefined = {}) {
   return {
     compressedFileSize,
     newCompressedFileSize,
@@ -169,10 +164,92 @@ function toBackupTask(job: FragmentType<typeof JobFragmentDoc>): JobTaskGui {
     startDate: jobFragment.data.startDate ?? undefined,
     state: jobFragment.data.state,
     failedReason: jobFragment.failedReason ?? undefined,
-    progression: mapProgression(useFragment(JobProgressionFragmentDoc, jobFragment.data.progression) ?? undefined),
+    progression: mapProgression(useFragment(ProgressTaskFragmentDoc, jobFragment.data.progression) ?? undefined),
     details: jobFragment.data.subtasks.map((subtask) => toDetailTask(subtask)),
   };
 }
+
+const ProgressTaskFragmentDoc = graphql(/* GraphQL */ `
+  fragment ProgressTask on JobProgression {
+    progressCurrent
+    progressMax
+
+    fileSize
+    newFileSize
+
+    compressedFileSize
+    newCompressedFileSize
+
+    fileCount
+    newFileCount
+
+    errorCount
+
+    percent
+    speed
+  }
+`);
+
+const TaskDescriptionFragmentDoc = graphql(/* GraphQL */ `
+  fragment TaskDescription on SubTaskOrGroupTasks {
+    __typename
+    ... on JobSubTask {
+      taskName
+      description
+      state
+    }
+  }
+`);
+
+const BackupTaskFragmentDoc = graphql(/* GraphQL */ `
+  fragment BackupTask on SubTaskOrGroupTasks {
+    __typename
+    ... on JobGroupTasks {
+      groupName
+      description
+      state
+      progression {
+        ...ProgressTask
+      }
+      taskDescription: subtasks {
+        ...TaskDescription
+      }
+    }
+    ... on JobSubTask {
+      taskName
+      description
+      state
+      progression {
+        ...ProgressTask
+      }
+    }
+  }
+`);
+
+const JobFragmentDoc = graphql(/* GraphQL */ `
+  fragment Job on Job {
+    id
+    queueName
+    name
+    failedReason
+    state
+    data {
+      host
+      number
+      startDate
+      groupName
+      description
+      ip
+      state
+      progression {
+        ...ProgressTask
+      }
+      subtasks {
+        ...BackupTask
+      }
+    }
+  }
+`);
 
 export function useTasks(
   taskFilter: Ref<string[]>,
@@ -185,12 +262,31 @@ export function useTasks(
       queueName: queueName.value,
     },
   }));
-  const { result: data, loading: isFetching, subscribeToMore } = useQuery(TasksDocument, variables);
+  const {
+    result: data,
+    loading: isFetching,
+    subscribeToMore,
+  } = useQuery(
+    graphql(/* GraphQL */ `
+      query Tasks($input: QueueListInput!) {
+        queue(input: $input) {
+          ...Job
+        }
+      }
+    `),
+    variables,
+  );
 
   const tasks = computed(() => data.value?.queue.map((job) => toBackupTask(job)) ?? []);
 
   subscribeToMore(() => ({
-    document: QueueTasksJobUpdatedDocument,
+    document: graphql(/* GraphQL */ `
+      subscription QueueTasksJobUpdated {
+        jobUpdated {
+          ...Job
+        }
+      }
+    `),
     updateQuery: (previousResult, { subscriptionData }) => {
       if (!subscriptionData.data.jobUpdated) return previousResult;
       const jobFragment = useFragment(JobFragmentDoc, subscriptionData.data.jobUpdated);

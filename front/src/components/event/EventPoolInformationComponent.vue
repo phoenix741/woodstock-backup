@@ -8,8 +8,11 @@
 </template>
 
 <script setup lang="ts">
-import { EventPoolInformation } from '@/generated/graphql';
+import { FragmentType, useFragment } from '@/generated';
 import { toNumber } from '../hosts/hosts.utils';
+import { EventPoolInformationFragment } from './events.fragment';
 
-defineProps<{ information: EventPoolInformation }>();
+const props = defineProps<{ information: FragmentType<typeof EventPoolInformationFragment> }>();
+
+const information = useFragment(EventPoolInformationFragment, props.information)
 </script>

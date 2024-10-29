@@ -1,8 +1,0 @@
-query ServerInformations {
-  informations {
-    platform
-    uptime
-    hostname
-    woodstockVersion
-  }
-}

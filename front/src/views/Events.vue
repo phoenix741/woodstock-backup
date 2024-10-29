@@ -28,14 +28,16 @@
 </template>
 
 <script setup lang="ts">
-import { VDateInput } from 'vuetify/labs/VDateInput';
-import { useEvents } from '@/utils/events';
 import Event from '@/components/event/Event.vue';
-import { computed, ref } from 'vue';
+import { ApplicationEventFragment } from '@/components/event/events.fragment';
 import { MergedApplicationEvent } from '@/components/event/events.model';
+import { useFragment } from '@/generated';
 import { EventStep } from '@/generated/graphql';
-import { useDisplay } from 'vuetify';
+import { useEvents } from '@/utils/events';
 import { addMonths } from 'date-fns';
+import { computed, ref } from 'vue';
+import { useDisplay } from 'vuetify';
+import { VDateInput } from 'vuetify/labs/VDateInput';
 
 const startDate = ref(addMonths(new Date(), -1));
 const endDate = ref(new Date());
@@ -45,7 +47,8 @@ const { mobile } = useDisplay();
 
 const mergedEvents = computed<Array<MergedApplicationEvent>>(() => {
   const mergedEvents =
-    events.value?.reduce((acc, { timestamp, step, ...event }) => {
+    events.value?.reduce((acc, eventFragment) => {
+      const { timestamp, step, ...event } = useFragment(ApplicationEventFragment, eventFragment);
       const e = acc[event.uuid] ?? { ...event };
       switch (step) {
         case EventStep.Start:

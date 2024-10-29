@@ -1,5 +1,0 @@
-mutation verifyChecksum {
-  verifyChecksum {
-    id
-  }
-}

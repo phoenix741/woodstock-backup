@@ -4,8 +4,11 @@
 </template>
 
 <script setup lang="ts">
-import { EventRefCountInformation } from '@/generated/graphql';
+import { FragmentType, useFragment } from '@/generated';
 import { toNumber } from '../hosts/hosts.utils';
+import { EventRefCountInformationFragment } from './events.fragment';
 
-defineProps<{ information: EventRefCountInformation }>();
+const props = defineProps<{ information: FragmentType<typeof EventRefCountInformationFragment> }>();
+
+const information = useFragment(EventRefCountInformationFragment, props.information)
 </script>

@@ -1,6 +1,14 @@
-import { EventsDocument } from '@/generated/graphql';
+import { graphql } from '@/generated/gql';
 import { useQuery } from '@vue/apollo-composable';
 import { computed, Ref } from 'vue';
+
+const allEventsDocument = graphql(/* GraphQL */ `
+  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {
+    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {
+      ...ApplicationEvent
+    }
+  }
+`);
 
 export function useEvents(startDate: Ref<Date>, endDate: Ref<Date>) {
   const startDateString = computed(() => startDate.value.toISOString().split('T')[0]);
@@ -11,7 +19,7 @@ export function useEvents(startDate: Ref<Date>, endDate: Ref<Date>) {
     lastEvent: endDateString.value,
   }));
 
-  const { result: data, loading: isFetching } = useQuery(EventsDocument, variables);
+  const { result: data, loading: isFetching } = useQuery(allEventsDocument, variables);
 
   const events = computed(() => data.value?.events);
 

@@ -4,9 +4,12 @@
 </template>
 
 <script setup lang="ts">
-import { EventPoolCleanedInformation } from '@/generated/graphql';
+import { FragmentType, useFragment } from '@/generated';
 import filesize from '@/utils/filesize';
 import { toNumber } from '../hosts/hosts.utils';
+import { EventPoolCleanedInformationFragment } from './events.fragment';
 
-defineProps<{ information: EventPoolCleanedInformation }>();
+const props = defineProps<{ information: FragmentType<typeof EventPoolCleanedInformationFragment> }>();
+
+const information = useFragment(EventPoolCleanedInformationFragment, props.information)
 </script>

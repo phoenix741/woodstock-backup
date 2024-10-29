@@ -1,9 +1,0 @@
-query QueueStatistics {
-  queueStats {
-    active
-    waiting
-    failed
-    delayed
-    completed
-  }
-}

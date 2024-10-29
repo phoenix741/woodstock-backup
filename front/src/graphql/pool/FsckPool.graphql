@@ -1,5 +1,0 @@
-mutation fsckPool($fix: Boolean!) {
-  checkAndFixPool(fix: $fix) {
-    id
-  }
-}

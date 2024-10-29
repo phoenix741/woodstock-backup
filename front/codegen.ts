@@ -20,6 +20,7 @@ const config: CodegenConfig = {
         useTypeImports: true,
         scalars: {
           BigInt: 'bigint',
+          DateTime: 'string',
         },
       },
     },

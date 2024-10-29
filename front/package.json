@@ -37,15 +37,15 @@
     "@graphql-codegen/fragment-matcher": "^5.0.2",
     "@parcel/watcher": "^2.4.1",
     "@thx/graphql-typescript-scalar-type-policies": "^2.0.0",
-    "@types/node": "^20.16.13",
+    "@types/node": "^20.17.2",
     "@types/webfontloader": "^1.6.38",
     "@vitejs/plugin-vue": "^5.1.4",
     "@vue/eslint-config-typescript": "^13.0.0",
     "eslint": "^8.56.0",
-    "eslint-plugin-vue": "^9.29.1",
+    "eslint-plugin-vue": "^9.30.0",
     "typescript": "^5.6.3",
-    "vite": "^5.4.9",
+    "vite": "^5.4.10",
     "vite-plugin-vuetify": "^2.0.4",
-    "vue-tsc": "^2.1.6"
+    "vue-tsc": "^2.1.8"
   }
 }
