@@ -41,6 +41,7 @@ pub struct Service {
     decoding_secret: DecodingKey,
     backup_timeout: u64,
     max_backup_seconds: u64,
+    disable_restauration: bool,
 }
 
 impl Service {
@@ -65,6 +66,7 @@ impl Service {
             decoding_secret: DecodingKey::from_secret(config.secret.as_bytes()),
             backup_timeout: config.backup_timeout,
             max_backup_seconds: config.max_backup_seconds,
+            disable_restauration: config.disable_restauration,
         }
     }
 
@@ -180,6 +182,10 @@ impl Service {
         debug!("The session id {} is valid", token_data.claims.session_id);
 
         Ok(token_data.claims.session_id)
+    }
+
+    pub fn is_restauration_disabled(&self) -> bool {
+        self.disable_restauration
     }
 
     #[must_use]

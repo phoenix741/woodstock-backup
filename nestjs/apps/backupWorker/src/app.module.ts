@@ -17,6 +17,7 @@ import { BackupsClientService } from './backups/backups-client.service.js';
 import { BackupClientProgress } from './backups/backup-client-progress.service.js';
 import { CacheModule } from '@nestjs/cache-manager';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
+import { RestoreService } from './tasks/restore.service.js';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.j
     HostConsumerUtilService,
     BackupTasksService,
     RemoveService,
+    RestoreService,
     {
       provide: ApplicationLogger,
       useFactory: (backupsService) => new ApplicationLogger('backup', backupsService),

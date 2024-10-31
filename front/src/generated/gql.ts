@@ -26,8 +26,9 @@ const documents = {
     "mutation removeBackup($hostname: String!, $number: Int!) {\n  removeBackup(hostname: $hostname, number: $number) {\n    id\n  }\n}": types.RemoveBackupDocument,
     "fragment FragmentFileDescription on FileDescription {\n  path\n  type\n  stats {\n    ownerId\n    groupId\n    mode\n    size\n    lastModified\n  }\n  symlink\n}": types.FragmentFileDescriptionFragmentDoc,
     "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}": types.SharesBrowseDocument,
-    "\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n": types.EventsDocument,
     "\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n": types.JobPoolResponseFragmentDoc,
+    "\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    ": types.RestoreBackupDocument,
+    "\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n": types.EventsDocument,
     "\n      mutation cleanupPool {\n        cleanupPool {\n          ...JobPoolResponse\n        }\n      }\n    ": types.CleanupPoolDocument,
     "\n      mutation fsckPool($fix: Boolean!) {\n        checkAndFixPool(fix: $fix) {\n          ...JobPoolResponse\n        }\n      }\n    ": types.FsckPoolDocument,
     "\n      mutation verifyChecksum {\n        verifyChecksum {\n          ...JobPoolResponse\n        }\n      }\n    ": types.VerifyChecksumDocument,
@@ -108,11 +109,15 @@ export function graphql(source: "query SharesBrowse($hostname: String!, $number:
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n"): (typeof documents)["\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n"];
+export function graphql(source: "\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n"): (typeof documents)["\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n"): (typeof documents)["\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n"];
+export function graphql(source: "\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    "): (typeof documents)["\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    "];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n"): (typeof documents)["\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

@@ -1,7 +1,8 @@
 <template>
   <v-timeline-item :dot-color="eventStatusColor" size="small">
     <template v-slot:opposite>
-      {{ toDateTime(event.startDate) }} {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
+      {{ startDate }}
+      {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
     </template>
     <v-card
       :prepend-icon="icon"
@@ -69,10 +70,7 @@
 <script setup lang="ts">
 import { toDateTime } from '@/components/hosts/hosts.utils';
 import { useFragment } from '@/generated';
-import {
-  EventStatus,
-  EventType,
-} from '@/generated/graphql';
+import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
 import { usePool } from '@/utils/pool';
 import { FormatDistanceFn, FormatDistanceToken, formatDuration, intervalToDuration } from 'date-fns';
@@ -81,7 +79,12 @@ import EventBackupInformationComponent from './EventBackupInformationComponent.v
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
 import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
 import EventRefCountInformationComponent from './EventRefCountInformationComponent.vue';
-import { EventBackupInformationFragment, EventPoolCleanedInformationFragment, EventPoolInformationFragment, EventRefCountInformationFragment } from './events.fragment';
+import {
+  EventBackupInformationFragment,
+  EventPoolCleanedInformationFragment,
+  EventPoolInformationFragment,
+  EventRefCountInformationFragment,
+} from './events.fragment';
 import { MergedApplicationEvent } from './events.model';
 
 const { fsckPool } = usePool();
@@ -146,7 +149,7 @@ const executionTime = computed(() => {
 });
 
 const startDate = computed(() => {
-  return toDateTime(props.event.startDate);
+  return props.event.startDate ? toDateTime(props.event.startDate) : 'unknown';
 });
 
 const eventStatusColor = computed(() => {

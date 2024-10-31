@@ -3661,6 +3661,7 @@ dependencies = [
  "hyper-util",
  "jsonwebtoken",
  "lazy_static",
+ "libc",
  "libm",
  "log",
  "lru",

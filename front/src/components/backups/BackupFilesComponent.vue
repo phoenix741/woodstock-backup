@@ -48,6 +48,12 @@
           <tr>
             <td colspan="2" class="text-right">
               <v-btn color="primary" :href="selectedPath" target="_blank">Download</v-btn>
+              <BackupRestore
+                :device-id="deviceId"
+                :backup-number="backupNumber"
+                :share-path="selected.sharePath"
+                :path="selected.path.join('/')"
+              ></BackupRestore>
             </td>
           </tr>
         </tfoot>
@@ -62,6 +68,7 @@ import { toDateTime } from '../hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { computed } from 'vue';
 import BackupFilesTreeComponent from '@/components/backups/BackupFilesTreeComponent.vue';
+import BackupRestore from '@/components/backups/dialog/BackupRestore.vue';
 import { TreeViewNode } from './backups.interface';
 
 const props = defineProps<{

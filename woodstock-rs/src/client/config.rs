@@ -40,6 +40,10 @@ pub struct ClientConfig {
     #[serde(default)]
     pub disable_mdns: bool,
 
+    /// If the restauration should be disabled, for security reason
+    #[serde(default)]
+    pub disable_restauration: bool,
+
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
     pub xattr: bool,
@@ -118,6 +122,7 @@ impl Default for ClientConfig {
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
+            disable_restauration: false,
             disable_mdns: false,
             xattr: false,
             acl: false,

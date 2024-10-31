@@ -96,7 +96,7 @@ fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifes
     let entry = index.get_entry(&manifest.path);
     match entry {
         Some(entry) => {
-            let manifest_stats = manifest.stats.clone();
+            let manifest_stats = manifest.stats;
             let manifest_stats = manifest_stats.unwrap_or_default();
 
             // The file is modified

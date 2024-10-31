@@ -50,6 +50,7 @@ async fn server_and_client_stub(
         acl: false,
         xattr: false,
         disable_mdns: true,
+        disable_restauration: false,
         backup_timeout: 1000,
         max_backup_seconds: 1000,
         auto_update: false,

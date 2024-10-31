@@ -1,5 +1,6 @@
 pub mod backup_client;
 pub mod backup_remove;
+pub mod backup_restore;
 pub mod client;
 pub mod grpc_client;
 pub mod pool_fsck;

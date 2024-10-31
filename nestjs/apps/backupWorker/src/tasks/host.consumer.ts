@@ -15,6 +15,7 @@ import { LaunchBackupError } from '../backups/backup.error.js';
 import { HostConsumerUtilService } from '../utils/host-consumer-util.service.js';
 import { BackupTasksService } from './backup-tasks.service.js';
 import { RemoveService } from './remove.service.js';
+import { RestoreService } from './restore.service.js';
 
 const maxBackupTask = parseInt(process.env.MAX_BACKUP_TASK || '') || 2;
 
@@ -40,6 +41,7 @@ export class HostConsumer extends WorkerHost {
     private removeService: RemoveService,
     private jobService: JobService,
     private backupTasksService: BackupTasksService,
+    private restoreService: RestoreService,
   ) {
     super();
   }
@@ -52,13 +54,16 @@ export class HostConsumer extends WorkerHost {
       case 'remove_backup':
         await this.remove(job);
         break;
+      case 'restore':
+        await this.restore(job);
+        break;
       default:
         throw new NotFoundException(`Unknown job name ${job.name}`);
     }
   }
 
   async launchBackup(job: Job<JobBackupData>): Promise<void> {
-    this.logger.log(`START: Launch the backup of the host ${job.data.host} - JOB ID = ${job.id}`);
+    this.logger.log(`START: Launch the restore of the host ${job.data.host} - JOB ID = ${job.id}`);
     const shouldBackupHost = await this.jobService.shouldBackupHost(job.data.host, job.id, job.data.force);
     const hostAvailable = await this.jobService.hostAvailable(job.data.host);
     if (!shouldBackupHost || !hostAvailable) {
@@ -83,7 +88,7 @@ export class HostConsumer extends WorkerHost {
           job.updateData(backupTask);
         }
 
-        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, async () => {
+        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, 'backup', async () => {
           this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
           if (!backupTask.ip && !backupTask.config?.isLocal) {
             backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
@@ -125,7 +130,73 @@ export class HostConsumer extends WorkerHost {
       } finally {
         await this.backupsService.invalidateBackup(job.data.host);
 
-        this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1);
+        this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1, 'backup');
+      }
+    });
+    this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
+  }
+
+  async restore(job: Job<JobBackupData>): Promise<void> {
+    this.logger.log(`START: Launch the restore of the host ${job.data.host} - JOB ID = ${job.id}`);
+    const hostAvailable = await this.jobService.hostAvailable(job.data.host);
+    if (!hostAvailable) {
+      this.logger.log(
+        `STOP: The restore can't be made ${job.data.host} (host available = ${hostAvailable}) - JOB ID = ${job.id}`,
+      );
+      await job.remove();
+      return;
+    }
+
+    await this.jobService.using(job, async (signal) => {
+      this.logger.debug(`Update the config - JOB ID = ${job.id}`);
+      const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
+
+      try {
+        const backupTask = job.data;
+
+        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, 'restore', async () => {
+          this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
+          if (!backupTask.ip) {
+            const ip = await this.pingService.pingFromConfig(backupTask.host, config);
+            if (!ip) {
+              throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
+            }
+            backupTask.ip = ip;
+
+            job.updateData(backupTask);
+          }
+
+          this.logger.debug(`Define the start date - JOB ID = ${job.id}`);
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
+
+          this.logger.debug(`Prepare the restore job - JOB ID = ${job.id}`);
+          const informations = await this.restoreService.prepareRestoreTask(job);
+
+          this.logger.debug(`Launch the restore job - JOB ID = ${job.id}`);
+          await this.restoreService.launchRestoreTask(job, informations, signal);
+
+          this.logger.verbose(
+            `PROGRESS: Last backup for job of ${job.data.host} with ${JSON.stringify(
+              informations.tasks.progression,
+            )} because of ${inspect(this.backupTasksService.serializeBackupTask(informations.tasks), {
+              showHidden: false,
+              depth: null,
+              colors: true,
+            })}  - JOB ID = ${job.id}`,
+          );
+
+          if (QUEUE_TASK_FAILED_STATE.includes(informations.tasks.state)) {
+            throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${informations.tasks.state}`);
+          }
+        });
+      } catch (err) {
+        this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
+        throw err;
+      } finally {
+        this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1, 'restore');
       }
     });
     this.logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
@@ -137,7 +208,7 @@ export class HostConsumer extends WorkerHost {
       try {
         const backupTask = job.data;
 
-        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, async () => {
+        return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, 'remove', async () => {
           if (!backupTask.startDate) {
             backupTask.startDate = Date.now();
             job.updateData(backupTask);
@@ -150,6 +221,7 @@ export class HostConsumer extends WorkerHost {
         this.logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
         throw err;
       } finally {
+        this.applicationLogger.closeLogger(job.data.host, job.data.number ?? -1, 'remove');
         this.logger.log(`[END] Removing backup ${job.data.number} of ${job.data.host} done`);
       }
     });

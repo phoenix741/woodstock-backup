@@ -17,9 +17,13 @@ fuse_unix = ["dep:lru", "dep:twox-hash", "dep:libc", "dep:fuser", "dep:rand"]
 name = "ws_console"
 path = "src/console.rs"
 
-[[bin]] # Bin to run the HelloWorld gRPC server
+[[bin]] 
 name = "ws_sync"
 path = "src/wssync.rs"
+
+[[bin]] 
+name = "ws_restore"
+path = "src/wsrestore.rs"
 
 [dependencies]
 async-stream = "^0.3"

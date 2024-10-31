@@ -131,8 +131,6 @@ function onSelect(node: unknown) {
     return;
   }
 
-  console.log('selected', node);
-
   emit('select', node[0]);
 }
 </script>

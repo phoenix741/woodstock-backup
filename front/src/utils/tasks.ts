@@ -33,6 +33,12 @@ const TASKS_GROUP_NAME_TO_DISPLAY: Record<string, (description?: string | null) 
   CLEAN_UNUSED_POOL_TASK: () => 'Remove all unused file from the pool',
   ADD_REFCNT_POOL_TASK: () => 'Add reference of the host in the pool',
 
+  // Restoration
+  RESTORE_TASK_NAME_AUTHENTICATE: () => 'Authentication',
+  RESTORE_TASK_NAME_PREPARE: () => 'Prepare restoration of the files',
+  RESTORE_TASK_NAME_RESTORE: () => 'Restore files',
+  RESTORE_TASK_NAME_CLOSE: () => 'Close the connection',
+
   // Fsck
   prepare: () => 'Prepare verification',
   refcnt_backup: (description) => `Count number of reference of the backup ${description}`,

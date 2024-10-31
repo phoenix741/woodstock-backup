@@ -1,11 +1,11 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { ClassSerializerInterceptor, NotFoundException, Res, UseInterceptors } from '@nestjs/common';
+import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, ID, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, FileDescription, JobBackupData, QueueName } from '@woodstock/shared';
+import { Backup, BackupsService, FileDescription, HostsService, JobBackupData, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service.js';
 import { JobResponse } from './backups.dto.js';
-import { BackupsService, HostsService } from '@woodstock/shared';
+import { RestoreInput } from './backups.input.js';
 
 export interface ExtendedBackup extends Backup {
   hostname: string;
@@ -98,6 +98,34 @@ export class BackupsResolver {
     const { id } = await this.hostsQueue.add('remove_backup', { host: hostname, number });
     if (!id) {
       throw new NotFoundException(`Can't find the host with the name ${hostname}`);
+    }
+
+    return {
+      id,
+    };
+  }
+
+  @Mutation(() => JobResponse)
+  async restoreBackup(@Args('input') input: RestoreInput): Promise<JobResponse> {
+    const host = await this.hostsService.getHost(input.hostname);
+
+    if (!host) {
+      throw new NotFoundException(`Can't find the host with the name ${input.hostname}`);
+    }
+
+    const backup = await this.backupsService.getBackup(input.hostname, input.number);
+    if (!backup) {
+      throw new NotFoundException(`Can't find the backup ${input.number} for the host ${input.hostname}`);
+    }
+
+    const { id } = await this.hostsQueue.add('restore', {
+      host: input.hostname,
+      number: input.number,
+      destinationDirectory: input.destinationDirectory,
+      files: input.files,
+    });
+    if (!id) {
+      throw new NotFoundException(`Can't create restoration job for the host with the name ${input.hostname}`);
     }
 
     return {

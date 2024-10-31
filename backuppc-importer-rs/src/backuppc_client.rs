@@ -22,7 +22,7 @@ use woodstock::{
     AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryState, EntryType,
     ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
     FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
-    FileManifestXAttr, RefreshCacheRequest, Share,
+    FileManifestXAttr, RefreshCacheRequest, RestoreFileReply, RestoreFileRequest, Share,
 };
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
@@ -303,7 +303,7 @@ impl Client for BackupPCClient {
     }
 
     fn synchronize_file_list(
-        &mut self,
+        &self,
         stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
     ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         let (tx, rx) = mpsc::channel(100);
@@ -467,6 +467,13 @@ impl Client for BackupPCClient {
                 };
             }
         })
+    }
+
+    fn restore_file(
+        &self,
+        _requests: impl Stream<Item = RestoreFileRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<RestoreFileReply>> + '_ {
+        futures::stream::empty()
     }
 
     async fn close(&self) -> Result<()> {

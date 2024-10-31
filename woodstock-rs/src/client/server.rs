@@ -1,22 +1,27 @@
 use futures::{pin_mut, Stream, TryStreamExt};
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
+use std::path::PathBuf;
 use std::{path::Path, pin::Pin, sync::Arc};
+use tokio::fs::{File, OpenOptions};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
 
+use crate::scanner::create_file_from_manifest;
+use crate::utils::path::path_to_vec;
 use crate::woodstock::{
     refresh_cache_request, woodstock_client_service_server::WoodstockClientService,
     AuthenticateReply, AuthenticateRequest, Empty as EmptyProto, EntryState, EntryType,
     ExecuteCommandReply, ExecuteCommandRequest, FileManifestJournalEntry,
 };
-use crate::FileManifest;
 use crate::{client::authentification::Service as AuthService, ChunkInformation};
 use crate::{client::config::ClientConfig, FileChunk};
 use crate::{client::exexcute_command::execute_command, scanner::CreateManifestOptions};
 use crate::{manifest::FileManifestLight, PingRequest};
 use crate::{manifest::IndexManifest, ChunkHashRequest};
+use crate::{restore_file_request, FileManifest, RestoreFileReply, RestoreFileRequest};
 use crate::{scanner::get_files_with_hash, ChunkHashReply};
 use crate::{
     scanner::{calculate_chunk_hash_future, read_chunk},
@@ -88,6 +93,187 @@ impl WoodstockClient {
             .map_err(|err| tonic::Status::permission_denied(err.to_string()))?;
 
         Ok(session_id)
+    }
+
+    async fn handle_restore_file(
+        mut stream: tonic::Streaming<RestoreFileRequest>,
+        tx: mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
+    ) -> Result<(), tonic::Status> {
+        let mut current_file = None;
+        let mut error_occurred = false;
+
+        while let Some(request) = stream.next().await {
+            let request =
+                request.map_err(|err| tonic::Status::invalid_argument(err.to_string()))?;
+
+            debug!("Content of current_file: {:?}", current_file);
+
+            match request.request {
+                Some(restore_file_request::Request::Manifest(file)) => {
+                    info!("Received manifest for file: {:?}", file.path());
+
+                    let option = Self::process_restore_manifest(&file, &tx).await?;
+                    debug!("Option: {:?}", option);
+
+                    let previous_path = if let Some((path, writer)) = option {
+                        current_file.replace((path, writer))
+                    } else {
+                        current_file.take()
+                    };
+
+                    if let Some((previous_path, mut writer)) = previous_path {
+                        let reply = RestoreFileReply {
+                            path: path_to_vec(&previous_path),
+                            restored: true,
+                            message: String::new(),
+                        };
+
+                        writer.flush().await.map_err(|err| {
+                            error!("Failed to flush file: {:?}", err);
+                            tonic::Status::internal("Failed to flush file")
+                        })?;
+
+                        tx.send(Ok(reply)).await.map_err(|err| {
+                            error!("Failed to send restore_file reply: {:?}", err);
+                            tonic::Status::internal("Failed to send restore_file reply")
+                        })?;
+                    }
+                }
+                Some(restore_file_request::Request::Chunk(chunk)) => {
+                    debug!("Receive chunk of length: {}", chunk.len());
+                    if !error_occurred {
+                        if let Some((current_path, current_file)) = &mut current_file {
+                            error_occurred = Self::process_restore_chunk(
+                                &chunk,
+                                current_file,
+                                &current_path,
+                                &tx,
+                            )
+                            .await?;
+                        } else {
+                            debug!("No file to write chunk to");
+                        }
+                    }
+                }
+                None => {
+                    error!("Unknown message in restore_file request");
+                    break;
+                }
+            }
+        }
+
+        if let Some((path, mut writer)) = current_file.take() {
+            writer.flush().await.map_err(|err| {
+                error!("Failed to flush file: {:?}", err);
+                tonic::Status::internal("Failed to flush file")
+            })?;
+
+            let reply = RestoreFileReply {
+                path: path_to_vec(&path),
+                restored: true,
+                message: String::new(),
+            };
+
+            writer.flush().await.map_err(|err| {
+                error!("Failed to flush file: {:?}", err);
+                tonic::Status::internal("Failed to flush file")
+            })?;
+
+            tx.send(Ok(reply)).await.map_err(|err| {
+                error!("Failed to send restore_file reply: {:?}", err);
+                tonic::Status::internal("Failed to send restore_file reply")
+            })?;
+        }
+
+        Ok(())
+    }
+
+    async fn process_restore_manifest(
+        file: &FileManifest,
+        tx: &mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
+    ) -> Result<Option<(PathBuf, tokio::io::BufWriter<File>)>, tonic::Status> {
+        let path = file.path();
+        match create_file_from_manifest(file) {
+            Ok(_) => {
+                if file.is_regular_file() {
+                    let file = OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(&path)
+                        .await;
+
+                    match file {
+                        Ok(file) => {
+                            let writer = tokio::io::BufWriter::new(file);
+
+                            return Ok(Some((path, writer)));
+                        }
+                        Err(err) => {
+                            Self::send_restore_error_reply(
+                                &path,
+                                format!("Failed to open file: {:?}", err),
+                                tx,
+                            )
+                            .await?;
+
+                            return Ok(None);
+                        }
+                    }
+                }
+
+                Ok(None)
+            }
+            Err(err) => {
+                error!("Failed to create file from manifest: {:?}", err);
+                Self::send_restore_error_reply(
+                    &file.path(),
+                    format!("Failed to create file from manifest: {:?}", err),
+                    tx,
+                )
+                .await?;
+
+                Ok(None)
+            }
+        }
+    }
+
+    async fn process_restore_chunk<P: AsRef<Path>>(
+        chunk: &[u8],
+        current_file: &mut tokio::io::BufWriter<File>,
+        current_path: P,
+        tx: &mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
+    ) -> Result<bool, tonic::Status> {
+        let result = if let Err(err) = current_file.write_all(chunk).await {
+            Self::send_restore_error_reply(
+                current_path,
+                format!("Failed to write chunk: {:?}", err),
+                tx,
+            )
+            .await?;
+
+            true
+        } else {
+            false
+        };
+
+        Ok(result)
+    }
+
+    async fn send_restore_error_reply<P: AsRef<Path>>(
+        path: P,
+        message: String,
+        tx: &mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
+    ) -> Result<(), tonic::Status> {
+        let reply = RestoreFileReply {
+            path: path_to_vec(path.as_ref()),
+            restored: false,
+            message,
+        };
+        tx.send(Ok(reply)).await.map_err(|err| {
+            error!("Failed to send restore_file reply: {:?}", err);
+            tonic::Status::internal("Failed to send restore_file reply")
+        })
     }
 }
 
@@ -199,6 +385,30 @@ impl WoodstockClientService for WoodstockClient {
                 }))
             }
         }
+    }
+
+    type RestoreFileStream = ReceiverStream<Result<RestoreFileReply, tonic::Status>>;
+
+    async fn restore_file(
+        &self,
+        request: tonic::Request<tonic::Streaming<RestoreFileRequest>>,
+    ) -> std::result::Result<tonic::Response<Self::RestoreFileStream>, tonic::Status> {
+        debug!("Start restoring file");
+
+        self.check_context(request.metadata()).await?;
+
+        {
+            let service = self.authentification_service.read().await;
+
+            if service.is_restauration_disabled() {
+                return Err(tonic::Status::permission_denied("Restauration is disabled"));
+            }
+        }
+
+        let (tx, rx) = mpsc::channel::<Result<RestoreFileReply, tonic::Status>>(100_000);
+        tokio::spawn(Self::handle_restore_file(request.into_inner(), tx));
+
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 
     type SynchronizeFileListStream =

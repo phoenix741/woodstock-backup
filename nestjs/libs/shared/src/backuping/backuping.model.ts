@@ -21,6 +21,11 @@ export enum BackupNameTask {
   SAVE_BACKUP_TASK = 'save-backup',
 }
 
+export class JobRestoreDataSelection {
+  share: string;
+  selection: string[];
+}
+
 export class JobBackupData {
   host!: string;
   config?: HostConfiguration;
@@ -32,6 +37,10 @@ export class JobBackupData {
   pathPrefix?: string;
 
   force?: boolean;
+
+  // Restoration
+  destinationDirectory?: string;
+  files?: JobRestoreDataSelection[];
 }
 
 export class BackupContext {
