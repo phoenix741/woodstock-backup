@@ -63,9 +63,11 @@ impl<T: PathManifest> IndexManifest<T> {
         }
     }
 
-    /// Returns an iterator over the index file entries.
+    /// Returns a sorted iterator over the index file entries.
     pub fn walk(&self) -> impl Iterator<Item = &IndexFileEntry<T>> {
-        self.files.values()
+        let mut entries: Vec<_> = self.files.values().collect();
+        entries.sort_by_key(|entry| entry.path());
+        entries.into_iter()
     }
 
     /// Returns the size of the index.
