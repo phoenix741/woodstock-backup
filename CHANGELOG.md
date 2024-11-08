@@ -1,3 +1,20 @@
+# [2.0.0-alpha.24](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.23...v2.0.0-alpha.24) (2024-11-08)
+
+
+### Bug Fixes
+
+* 🐛 auto update only on start ([4cab266](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4cab266bb8339eaebc15825d1586da2fa72a8069))
+* 🐛 compact will reorder journal (can take more memory) ([0f016a6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/0f016a64bd872a2d529b953596e826ff794e0911))
+* 🐛 fix mdns not working because blocked by windows firewall ([6860d3c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/6860d3cc0cac8c67e816fc4c2f3302c46a9fa915))
+* 💚 fix how graphql work on front due to codegen update ([af2c647](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/af2c647ae3112886008e1c07d798f0942629938f))
+* 🩹 fix agent version when use backuppc ([c50949e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c50949e726a12f004952d05679b42d01a70855ed))
+
+
+### Features
+
+* :sparkles: [#59](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/59) implemente browsing and downloading file from website directly ([1e36ce1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1e36ce13b2c7b684ee6c39439144f5aa44bcb7a4))
+* ✨ add restauration ([07022ec](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/07022ec5c8e9ffd23b038b7a09906eeaf1b3bafc))
+
 # [2.0.0-alpha.23](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.22...v2.0.0-alpha.23) (2024-10-18)
 
 
