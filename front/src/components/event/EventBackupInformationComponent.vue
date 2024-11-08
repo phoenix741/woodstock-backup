@@ -5,7 +5,10 @@
 </template>
 
 <script setup lang="ts">
-import { EventBackupInformation } from '@/generated/graphql';
+import { FragmentType, useFragment } from '@/generated';
+import { EventBackupInformationFragment } from './events.fragment';
 
-defineProps<{ information: EventBackupInformation }>();
+const props = defineProps<{ information: FragmentType<typeof EventBackupInformationFragment> }>();
+
+const information = useFragment(EventBackupInformationFragment, props.information)
 </script>

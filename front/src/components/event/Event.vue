@@ -1,7 +1,8 @@
 <template>
   <v-timeline-item :dot-color="eventStatusColor" size="small">
     <template v-slot:opposite>
-      {{ toDateTime(event.startDate) }} {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
+      {{ startDate }}
+      {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
     </template>
     <v-card
       :prepend-icon="icon"
@@ -68,23 +69,23 @@
 
 <script setup lang="ts">
 import { toDateTime } from '@/components/hosts/hosts.utils';
-import {
-  EventBackupInformation,
-  EventPoolCleanedInformation,
-  EventPoolInformation,
-  EventRefCountInformation,
-  EventStatus,
-  EventType,
-} from '@/generated/graphql';
-import { computed, ref } from 'vue';
-import { MergedApplicationEvent } from './events.model';
-import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
-import EventRefCountInformationComponent from './EventRefCountInformationComponent.vue';
-import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
-import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
+import { useFragment } from '@/generated';
+import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
-import { FormatDistanceFn, FormatDistanceToken, formatDuration, intervalToDuration } from 'date-fns';
 import { usePool } from '@/utils/pool';
+import { FormatDistanceFn, FormatDistanceToken, formatDuration, intervalToDuration } from 'date-fns';
+import { computed, ref } from 'vue';
+import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
+import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
+import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
+import EventRefCountInformationComponent from './EventRefCountInformationComponent.vue';
+import {
+  EventBackupInformationFragment,
+  EventPoolCleanedInformationFragment,
+  EventPoolInformationFragment,
+  EventRefCountInformationFragment,
+} from './events.fragment';
+import { MergedApplicationEvent } from './events.model';
 
 const { fsckPool } = usePool();
 
@@ -148,7 +149,7 @@ const executionTime = computed(() => {
 });
 
 const startDate = computed(() => {
-  return toDateTime(props.event.startDate);
+  return props.event.startDate ? toDateTime(props.event.startDate) : 'unknown';
 });
 
 const eventStatusColor = computed(() => {
@@ -201,11 +202,11 @@ const title = computed(() => {
 const subtitle = computed(() => {
   switch (props.event?.information?.__typename) {
     case 'EventBackupInformation': {
-      const backupInformation = props.event.information as EventBackupInformation;
+      const backupInformation = useFragment(EventBackupInformationFragment, props.event.information);
       return `${backupInformation?.hostname} - ${backupInformation?.number}`;
     }
     case 'EventPoolInformation': {
-      const poolInformation = props.event.information as EventPoolInformation;
+      const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
       const errorCount = poolInformation?.inNothing + poolInformation?.missing;
       const poolFixed = poolInformation?.fix;
       if (errorCount === 0) {
@@ -214,12 +215,12 @@ const subtitle = computed(() => {
       return `${errorCount} errors ${poolFixed ? 'fixed' : 'found'}`;
     }
     case 'EventPoolCleanedInformation': {
-      const poolCleanedInformation = props.event.information as EventPoolCleanedInformation;
+      const poolCleanedInformation = useFragment(EventPoolCleanedInformationFragment, props.event.information);
       const size = filesize(poolCleanedInformation?.size);
       return `${size} cleaned`;
     }
     case 'EventRefCountInformation': {
-      const refCountInformation = props.event.information as EventRefCountInformation;
+      const refCountInformation = useFragment(EventRefCountInformationFragment, props.event.information);
       const refcountFix = refCountInformation?.fix;
       if (refCountInformation.error === 0) {
         return 'No errors found';
@@ -234,11 +235,11 @@ const subtitle = computed(() => {
 const shoudFix = computed(() => {
   switch (props.event?.information?.__typename) {
     case 'EventPoolInformation': {
-      const poolInformation = props.event.information as EventPoolInformation;
+      const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
       return !poolInformation?.fix && poolInformation?.missing + poolInformation?.inNothing > 0;
     }
     case 'EventRefCountInformation': {
-      const refCountInformation = props.event.information as EventRefCountInformation;
+      const refCountInformation = useFragment(EventRefCountInformationFragment, props.event.information);
       return !refCountInformation?.fix && refCountInformation?.error > 0;
     }
     default:

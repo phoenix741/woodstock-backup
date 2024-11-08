@@ -177,6 +177,12 @@ impl FileManifest {
         self.file_mode() != FileManifestType::RegularFile
     }
 
+    #[must_use]
+    pub fn is_regular_file(&self) -> bool {
+        self.file_mode() == FileManifestType::RegularFile
+            || self.file_mode() == FileManifestType::Unknown
+    }
+
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
         let str = serde_yaml::to_string(&object)?;

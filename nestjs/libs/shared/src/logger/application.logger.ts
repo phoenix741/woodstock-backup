@@ -18,6 +18,7 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
 interface LogStorage {
   hostname?: string;
   backupNumber?: number;
+  operation?: string;
 }
 
 const logAsyncLocalStorage = new AsyncLocalStorage<LogStorage>();
@@ -73,8 +74,8 @@ export class ApplicationLogger implements LoggerService {
     });
   }
 
-  #getBackupLogger(hostname: string, backupNumber: number): Logger {
-    const key = `${hostname}-${backupNumber}`;
+  #getBackupLogger(hostname: string, backupNumber: number, operation: string): Logger {
+    const key = `${hostname}-${backupNumber}-${operation}`;
     if (this.#mapLogger.has(key)) {
       return this.#mapLogger.get(key)!;
     }
@@ -87,11 +88,11 @@ export class ApplicationLogger implements LoggerService {
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({
-          filename: join(destinationDirectory, 'error'),
+          filename: join(destinationDirectory, operation + '-error.log'),
           level: 'error',
         }),
         new transports.File({
-          filename: join(destinationDirectory, 'log'),
+          filename: join(destinationDirectory, operation + '.log'),
         }),
       ],
     });
@@ -105,9 +106,10 @@ export class ApplicationLogger implements LoggerService {
 
     const hostname = (message.hostname as string | undefined) ?? storage?.hostname;
     const backupNumber = (message.backupNumber as number | undefined) ?? storage?.backupNumber;
+    const operation = (message.operation as string | undefined) ?? storage?.operation;
 
-    if (hostname !== undefined && backupNumber !== undefined) {
-      return this.#getBackupLogger(hostname, backupNumber);
+    if (hostname !== undefined && backupNumber !== undefined && operation !== undefined) {
+      return this.#getBackupLogger(hostname, backupNumber, operation);
     }
 
     return this.#globalLogger;
@@ -116,11 +118,12 @@ export class ApplicationLogger implements LoggerService {
   useLogger<R, TArgs extends any[]>(
     hostname: string,
     backupNumber: number,
+    operation: string,
     callback: (...args: TArgs) => R,
     ...args: TArgs
   ): R {
     return logAsyncLocalStorage.run(
-      { hostname, backupNumber },
+      { hostname, backupNumber, operation },
       (...args) => {
         return callback(...args);
       },
@@ -128,8 +131,8 @@ export class ApplicationLogger implements LoggerService {
     );
   }
 
-  closeLogger(hostname: string, backupNumber: number): void {
-    const key = `${hostname}-${backupNumber}`;
+  closeLogger(hostname: string, backupNumber: number, operation: string): void {
+    const key = `${hostname}-${backupNumber}-${operation}`;
     if (this.#mapLogger.has(key)) {
       this.#mapLogger.get(key)!.close();
       this.#mapLogger.delete(key);

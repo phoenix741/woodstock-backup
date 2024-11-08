@@ -251,7 +251,30 @@ impl WoodstockView {
         Err(eyre!("File not found"))
     }
 
-    async fn list_file_from_dir(
+    pub async fn list_all_files(
+        &mut self,
+        hostname: &str,
+        backup_number: usize,
+        share: &str,
+        path: &PathBuf,
+    ) -> Result<Vec<FileManifest>> {
+        let entries = self
+            .get_manifest_from_cache(hostname, backup_number, share)
+            .await?;
+
+        let mut files = Vec::new();
+        for entry in entries {
+            let manifest_path = vec_to_path(&entry.path);
+
+            if manifest_path.starts_with(path) {
+                files.push(entry.clone());
+            }
+        }
+
+        Ok(files)
+    }
+
+    pub async fn list_file_from_dir(
         &mut self,
         hostname: &str,
         backup_number: usize,
@@ -270,7 +293,7 @@ impl WoodstockView {
             if manifest_path.starts_with(path) {
                 let rest_path = manifest_path.strip_prefix(path).unwrap_or(&manifest_path);
                 let mut components = rest_path.components();
-                let subpath = components.next();
+                let subpath: Option<std::path::Component<'_>> = components.next();
 
                 if let Some(subpath) = subpath {
                     let subpath = subpath.as_os_str().to_owned();

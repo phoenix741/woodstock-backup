@@ -24,7 +24,7 @@ impl BackupRemove {
             backups.get_backup_destination_directory(hostname, backup_number);
 
         info!(
-            "Initialize backup client for {hostname}/{backup_number} in {destination_directory:?}"
+            "Initialize backup remover for {hostname}/{backup_number} in {destination_directory:?}"
         );
 
         BackupRemove {

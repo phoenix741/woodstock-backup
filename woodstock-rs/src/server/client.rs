@@ -8,6 +8,8 @@ use crate::ExecuteCommandReply;
 use crate::FileChunk;
 use crate::FileManifestJournalEntry;
 use crate::RefreshCacheRequest;
+use crate::RestoreFileReply;
+use crate::RestoreFileRequest;
 use eyre::Result;
 
 #[tonic::async_trait]
@@ -19,9 +21,14 @@ pub trait Client {
     async fn execute_command(&mut self, command: &str) -> Result<ExecuteCommandReply>;
 
     fn synchronize_file_list(
-        &mut self,
+        &self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
     ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_;
+
+    fn restore_file(
+        &self,
+        requests: impl Stream<Item = RestoreFileRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<RestoreFileReply>> + '_;
 
     async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply>;
 

@@ -23,6 +23,48 @@
         "21",
         "/home/phoenix/tmp/test"
       ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "resolve-m-dns",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "resolve-m-dns",
+        "pc-m-ulrich"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "wsrestore",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_restore",
+        ]
+      },
+      "env": {
+        "BACKUP_PATH": "/var/lib/woodstock",
+        "RUST_LOG": "debug"
+      },
+      "args": [
+        "pc-ulrich",
+        "192.168.101.14:3657",
+        "23",
+        "/home",
+        "--destination-directory",
+        "/home/phoenix/tmp/test/",
+        "--filter",
+        "phoenix/Downloads/"
+      ]
     }
   ]
 }

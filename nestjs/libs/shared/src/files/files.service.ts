@@ -1,16 +1,35 @@
 import { Injectable } from '@nestjs/common';
-import { CoreBackupsService, CoreFilesService, JsFileManifest, JsFileManifestType } from '@woodstock/shared-rs';
+import {
+  CoreBackupsService,
+  CoreFilesService,
+  JsFileManifest,
+  JsFileManifestType,
+  ViewerService,
+} from '@woodstock/shared-rs';
 import { Archiver } from 'archiver';
 import { Stats } from 'fs';
-import { AsyncIterableX, AsyncSink, create } from 'ix/asynciterable';
-import { Readable } from 'stream';
+import { Readable } from 'node:stream';
+import { CallbackReadable } from './manifest.readable';
+import * as TTLCache from '@isaacs/ttlcache';
+
+const FILE_VIEW_MAX_ELEMENTS = process.env.FILE_VIEW_MAX_ELEMENTS ? parseInt(process.env.FILE_VIEW_MAX_ELEMENTS) : 10;
+const FILE_VIEW_TTL_CACHE = process.env.FILE_VIEW_TTL_CACHE ? parseInt(process.env.FILE_VIEW_TTL_CACHE) : 15 * 60_000;
 
 @Injectable()
 export class FilesService {
+  private cache = new TTLCache({ max: FILE_VIEW_MAX_ELEMENTS, ttl: FILE_VIEW_TTL_CACHE });
+
   constructor(
     private backupService: CoreBackupsService,
     private fileService: CoreFilesService,
   ) {}
+
+  #getViewer(hostname: string, backupNumber: number): ViewerService {
+    const key = `${hostname}-${backupNumber}`;
+    const viewer = this.cache.get<ViewerService>(key) ?? this.fileService.createViewer(hostname, backupNumber);
+    this.cache.set(key, viewer);
+    return viewer;
+  }
 
   /**
    * List all file in the backup directory of the hostname that represent a share path
@@ -21,24 +40,10 @@ export class FilesService {
     return this.backupService.getBackupSharePaths(hostname, backupNumber);
   }
 
-  searchFiles(
-    hostname: string,
-    backupNumber: number,
-    sharePath: string,
-    path?: Buffer,
-    recursive = false,
-  ): AsyncIterableX<JsFileManifest> {
-    const sink = new AsyncSink<JsFileManifest>();
-
-    this.fileService.list(hostname, backupNumber, sharePath, path ?? Buffer.from(''), recursive, (err, manifest) => {
-      if (manifest) {
-        sink.write(manifest);
-      } else {
-        sink.end();
-      }
-    });
-
-    return create(() => sink[Symbol.asyncIterator]());
+  async list(hostname: string, backupNumber: number, sharePath: string, path: Buffer): Promise<Array<JsFileManifest>> {
+    const view = this.#getViewer(hostname, backupNumber);
+    const files = await view.listDir(sharePath, path);
+    return files;
   }
 
   /**
@@ -46,21 +51,12 @@ export class FilesService {
    * @param manifest The file manifest
    */
   readFileStream(manifest: JsFileManifest): Readable {
-    const sink = new AsyncSink<Buffer>();
-
-    this.fileService.readManifest(manifest, (err, data) => {
-      if (data) {
-        sink.write(data);
-      } else {
-        sink.end();
-      }
-    });
-
-    return Readable.from(create(() => sink[Symbol.asyncIterator]()));
+    return new CallbackReadable(manifest, this.fileService);
   }
 
-  async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path?: Buffer) {
-    const manifests = this.searchFiles(hostname, backupNumber, sharePath, path, true);
+  async createArchive(archiver: Archiver, hostname: string, backupNumber: number, sharePath: string, path: Buffer) {
+    const view = this.#getViewer(hostname, backupNumber);
+    const manifests = await view.listDirRecursive(sharePath, path);
 
     for await (const manifest of manifests) {
       const isRegular = manifest.stats?.type === JsFileManifestType.RegularFile;
@@ -70,12 +66,12 @@ export class FilesService {
       if (isRegular) {
         archiver.append(this.readFileStream(manifest), {
           name: manifest.path.toString('utf-8'),
-          date: manifest.stats?.lastModified ? new Date(manifest.stats.lastModified) : undefined,
+          date: manifest.stats?.lastModified ? new Date(manifest.stats.lastModified * 1000) : undefined,
           mode: manifest.stats?.mode,
           stats: {
             size: manifest.stats?.size ? Number(manifest.stats?.size) : 0,
             mode: manifest.stats?.mode,
-            mtime: manifest.stats?.lastModified ? new Date(manifest.stats?.lastModified) : undefined,
+            mtime: manifest.stats?.lastModified ? new Date(manifest.stats?.lastModified * 1000) : undefined,
             isFile: () => isRegular,
             isDirectory: () => isDirectory,
             isSymbolicLink: () => isSymLink,
@@ -90,8 +86,8 @@ export class FilesService {
             uid: manifest.stats?.ownerId,
             gid: manifest.stats?.groupId,
             rdev: manifest.stats?.rdev ? Number(manifest.stats?.rdev) : 0,
-            atime: manifest.stats?.lastRead ? new Date(manifest.stats?.lastRead) : undefined,
-            ctime: manifest.stats?.created ? new Date(manifest.stats?.created) : undefined,
+            atime: manifest.stats?.lastRead ? new Date(manifest.stats?.lastRead * 1000) : undefined,
+            ctime: manifest.stats?.created ? new Date(manifest.stats?.created * 1000) : undefined,
 
             blksize: 0,
             blocks: 0,

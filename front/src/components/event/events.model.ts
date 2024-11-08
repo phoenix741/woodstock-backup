@@ -1,6 +1,6 @@
-import { ApplicationEvent } from '@/generated/graphql';
+import { ApplicationEventFragment } from '@/generated/graphql';
 
-export interface MergedApplicationEvent extends Omit<ApplicationEvent, 'timestamp' | 'step'> {
-  startDate: ApplicationEvent['timestamp'];
-  endDate: ApplicationEvent['timestamp'];
+export interface MergedApplicationEvent extends Omit<ApplicationEventFragment, 'timestamp' | 'step'> {
+  startDate: ApplicationEventFragment['timestamp'];
+  endDate: ApplicationEventFragment['timestamp'];
 }

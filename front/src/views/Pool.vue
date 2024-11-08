@@ -112,18 +112,19 @@
 </template>
 
 <script lang="ts" setup>
+import PoolUsageCompressedSizeChartsCard from '@/components/pool/PoolUsageCompressedSizeChartsCard.vue';
+import PoolUsageNbChunkChartsCard from '@/components/pool/PoolUsageNbChunkChartsCard.vue';
 import SpaceUsageCard from '@/components/pool/SpaceUsageCard.vue';
 import TextSizeCard from '@/components/pool/TextSizeCard.vue';
 import TaskCard from '@/components/tasks/TaskCard.vue';
+import { useFragment } from '@/generated';
+import { JobPoolResponseFragment } from '@/generated/graphql';
+import { JobPoolResponseFragmentNode, usePool } from '@/utils/pool';
 import { usePoolStats } from '@/utils/stats';
 import { useTasks } from '@/utils/tasks';
+import { GraphQLFormattedError } from 'graphql';
 import { ref } from 'vue';
-import { usePool } from '@/utils/pool';
 import LaunchRefcnt from './dialogs/LaunchRefcnt.vue';
-import { JobResponse } from '@/generated/graphql';
-import { GraphQLError } from 'graphql';
-import PoolUsageCompressedSizeChartsCard from '@/components/pool/PoolUsageCompressedSizeChartsCard.vue';
-import PoolUsageNbChunkChartsCard from '@/components/pool/PoolUsageNbChunkChartsCard.vue';
 
 const { result, isFetching } = usePoolStats();
 
@@ -134,26 +135,29 @@ const { tasks, isFetching: isTaskFetching } = useTasks(
 
 const { cleanupPool, fsckPool, verifyChecksum } = usePool();
 
-async function cleanupPoolCallback(): Promise<{ data?: JobResponse; errors?: readonly GraphQLError[] }> {
+async function cleanupPoolCallback(): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
   const { data, errors } = (await cleanupPool()) ?? {};
+  const response = useFragment(JobPoolResponseFragmentNode, data?.cleanupPool);
   return {
-    data: data?.cleanupPool,
+     response,
     errors,
   };
 }
 
-async function fsckPoolCallback(fix = false): Promise<{ data?: JobResponse; errors?: readonly GraphQLError[] }> {
+async function fsckPoolCallback(fix = false): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
   const { data, errors } = (await fsckPool({ fix })) ?? {};
+  const response = useFragment(JobPoolResponseFragmentNode, data?.checkAndFixPool);
   return {
-    data: data?.checkAndFixPool,
+    response,
     errors,
   };
 }
 
-async function verifyChecksumCallback(): Promise<{ data?: JobResponse; errors?: readonly GraphQLError[] }> {
+async function verifyChecksumCallback(): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
   const { data, errors } = (await verifyChecksum()) ?? {};
+  const response = useFragment(JobPoolResponseFragmentNode, data?.verifyChecksum);
   return {
-    data: data?.verifyChecksum,
+    response,
     errors,
   };
 }

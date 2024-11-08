@@ -71,6 +71,7 @@ export class TaskLocalContext {
   includes?: string[];
   excludes?: string[];
   sharePath?: string;
+  selection?: string[];
 }
 
 /**

@@ -39,6 +39,7 @@ pub struct ContextInput {
 }
 
 #[napi(js_name = "BackupContext")]
+#[derive(Clone)]
 pub struct JsBackupContext {
   context: Context,
 }

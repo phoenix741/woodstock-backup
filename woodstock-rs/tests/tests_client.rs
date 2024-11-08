@@ -34,6 +34,7 @@ async fn server_and_client_stub() -> (
         acl: false,
         xattr: false,
         disable_mdns: true,
+        disable_restauration: false,
         backup_timeout: 3600,
         max_backup_seconds: 3600,
         auto_update: false,

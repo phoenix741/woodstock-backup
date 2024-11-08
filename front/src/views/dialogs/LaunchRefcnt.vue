@@ -58,8 +58,8 @@
 </template>
 
 <script lang="ts" setup>
-import { JobResponse } from '@/generated/graphql';
-import { MutateFunction } from '@vue/apollo-composable';
+import { JobPoolResponseFragment } from '@/generated/graphql';
+import { GraphQLFormattedError } from 'graphql';
 import { ref } from 'vue';
 
 enum ProgressDialogState {
@@ -76,7 +76,7 @@ const props = defineProps<{
   description: string;
   withFix: boolean;
 
-  mutate: MutateFunction<JobResponse, any>;
+  mutate: (fix?: boolean) => Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }>;
 }>();
 
 const dialog = ref(false);
@@ -89,11 +89,11 @@ const fixErrors = ref(false);
 
 const launchJob = async () => {
   dialogState.value = ProgressDialogState.InProgress;
-  const variables = props.withFix ? fixErrors.value : {};
-  const { data, errors } = (await props.mutate(variables)) ?? {};
+  const param = props.withFix ? fixErrors.value : undefined;
+  const { response, errors } = (await props.mutate(param)) ?? {};
 
-  if (data?.id) {
-    jobId.value = data.id;
+  if (response?.id) {
+    jobId.value = response.id;
     dialogState.value = ProgressDialogState.Success;
   }
 

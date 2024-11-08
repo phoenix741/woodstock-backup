@@ -267,6 +267,21 @@ message PingRequest {
   string hostname = 1;
 }
 
+// Message for file restore requests
+message RestoreFileRequest {
+  oneof request {
+    FileManifest manifest = 1; // File metadata
+    bytes chunk = 2; // File data chunk
+  }
+}
+
+// Message for file restore replies
+message RestoreFileReply {
+  bytes path = 1;
+  bool restored = 2;
+  string message = 3;
+}
+
 service WoodstockClientService {
   // Tools
   rpc Ping(PingRequest) returns (Empty) {}
@@ -277,16 +292,19 @@ service WoodstockClientService {
   // 1. Execute a command directly on the client
   rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
 
-  // 2. Synchronize the file list for a share between the client and the server (can be made in parrallel for multiple shares)
+  // 2. Synchronize the file list for a share between the client and the server (can be made in parallel for multiple shares)
   rpc SynchronizeFileList(stream RefreshCacheRequest) returns (stream FileManifestJournalEntry) {}
 
   // 3. Ask for hash of the file before asking only modified hash of the file
   rpc GetChunkHash(ChunkHashRequest) returns (ChunkHashReply) {}
 
-  // 3. When the server receive a journal entry, the server will compare the chunk with the manifest
-  //    and ask all necessary chunk to the client.
+  // 3. When the server receives a journal entry, the server will compare the chunk with the manifest
+  //    and ask all necessary chunks from the client.
   rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
 
   // Free the client
   rpc CloseBackup(Empty) returns (Empty) {}
+
+  // 4. Restore files on the client
+  rpc RestoreFile(stream RestoreFileRequest) returns (stream RestoreFileReply) {}
 }

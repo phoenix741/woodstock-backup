@@ -1,22 +1,28 @@
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
+import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import {
   ApplicationConfigService,
   ApplicationLogger,
   BackupsService,
+  CacheConfigService,
   CertificateService,
   ConfigProviderModule,
   SharedModule,
   initializeLog,
 } from '@woodstock/shared';
+import { generateRsaKey } from '@woodstock/shared-rs';
 import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller.js';
 import { BackupsFilesService } from './backups/backups-files.service.js';
 import { BackupController } from './backups/backups.controller.js';
 import { BackupsResolver } from './backups/backups.resolver.js';
+import { EventsResolver } from './events/events.resolver.js';
+import { EventsService } from './events/events.service.js';
 import { HostController } from './hosts/hosts.controller.js';
 import { HostsResolver } from './hosts/hosts.resolver.js';
 import { PoolResolver } from './pool/pool.resolver.js';
@@ -27,18 +33,12 @@ import { QueueUtils } from './queue/queue.utils.js';
 import { RefcntQueueService } from './queue/refcnt-queue.service.js';
 import { ServeStaticService } from './server/serve-static.service.js';
 import { ServerController } from './server/server.controller.js';
+import { ServerResolver } from './server/server.resolver.js';
 import { ServerService } from './server/server.service.js';
 import { PrometheusController } from './stats/prometheus.controller.js';
 import { PrometheusService } from './stats/prometheus.service.js';
 import { StatsResolver } from './stats/stats.resolver.js';
 import { BigIntScalar } from './utils/bigint.scalar.js';
-import { generateRsaKey } from '@woodstock/shared-rs';
-import { ServerResolver } from './server/server.resolver.js';
-import { CacheModule } from '@nestjs/cache-manager';
-import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
-import { CacheConfigService } from '@woodstock/shared';
-import { EventsService } from './events/events.service.js';
-import { EventsResolver } from './events/events.resolver.js';
 
 @Module({
   imports: [

@@ -1,5 +1,5 @@
 import { HostsQuery } from '@/generated/graphql';
-import { formatDuration, intervalToDuration, format } from 'date-fns';
+import { format, formatDuration, intervalToDuration } from 'date-fns';
 import numeral from 'numeral';
 
 export function getState(host: HostsQuery['hosts'][0]) {
@@ -46,7 +46,7 @@ export function toMinutes(age: number) {
   return formatDuration(duration);
 }
 
-export function toDateTime(value: number) {
+export function toDateTime(value: string | number) {
   return format(value, 'MM/dd/yyyy HH:mm');
 }
 

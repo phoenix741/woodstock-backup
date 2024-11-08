@@ -1,6 +1,7 @@
 use dns_lookup::lookup_host;
 use eyre::Result;
-use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
+use log::{debug, info};
+use mdns_sd::{HostnameResolutionEvent, ServiceDaemon, ServiceEvent, ServiceInfo};
 use std::{
     collections::HashMap,
     net::{IpAddr, SocketAddr},
@@ -9,7 +10,7 @@ use std::{
 };
 use tokio::{net::TcpStream, sync::Mutex, time::timeout};
 
-use crate::config::MDNS_SERVICE_NAME;
+use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX, MDNS_TIMEOUT_MSEC};
 
 async fn is_reachable(ip: IpAddr, port: u16) -> bool {
     let addr = SocketAddr::new(ip, port);
@@ -76,6 +77,7 @@ pub struct SocketAddrInformation {
 #[derive(Clone)]
 pub struct SocketAddrResolver {
     host_map: Arc<Mutex<HashMap<String, SocketAddrInformation>>>,
+    mdns: ServiceDaemon,
 }
 
 impl SocketAddrResolver {
@@ -83,13 +85,14 @@ impl SocketAddrResolver {
     pub fn new() -> Result<Self> {
         Ok(Self {
             host_map: Arc::new(Mutex::new(HashMap::new())),
+            mdns: ServiceDaemon::new()?,
         })
     }
 
     async fn update_host(&self, info: &ServiceInfo) {
         // Hostname without .local. suffix
-        let hostname = info.get_hostname();
-        let hostname = hostname.trim_end_matches(".local.");
+        let hostname = info.get_fullname();
+        let hostname = hostname.trim_end_matches(MDNS_SUFFIX);
 
         let port = info.get_port();
 
@@ -120,29 +123,66 @@ impl SocketAddrResolver {
     }
 
     pub async fn listen(&self) -> Result<()> {
-        let mdns = ServiceDaemon::new()?;
-        let receiver = mdns.browse(MDNS_SERVICE_NAME)?;
+        let receiver = self.mdns.browse(MDNS_SERVICE_NAME)?;
 
         while let Ok(event) = receiver.recv() {
             match event {
+                ServiceEvent::SearchStarted(service_type) => {
+                    info!("Search started: {}", service_type);
+                }
+                ServiceEvent::SearchStopped(service_type) => {
+                    info!("Search stopped: {}", service_type);
+                }
+                ServiceEvent::ServiceFound(service_type, full_name) => {
+                    info!("Service found: {} {}", service_type, full_name);
+                }
                 ServiceEvent::ServiceResolved(info) => {
+                    info!("Service resolved: {:?}", info.get_fullname());
                     self.update_host(&info).await;
                 }
                 ServiceEvent::ServiceRemoved(service_type, full_name) => {
-                    let service_type = format!(".{}", service_type);
-                    let hostname = full_name.trim_end_matches(&service_type);
-                    self.update_online_status(hostname, false).await;
+                    info!("Service removed: {} {}", service_type, full_name);
+                    if service_type == MDNS_SERVICE_NAME {
+                        let hostname = full_name.trim_end_matches(MDNS_SUFFIX);
+                        self.update_online_status(hostname, false).await;
+                    }
                 }
-                _ => {}
             }
         }
 
         Ok(())
     }
 
+    async fn resolve_mdns(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
+        let mdns_recv = self.mdns.resolve_hostname(
+            &format!("{}{}", hostname, MDNS_SUFFIX),
+            Some(MDNS_TIMEOUT_MSEC),
+        );
+
+        if let Ok(recv) = mdns_recv {
+            let info = recv.recv_async().await;
+            if let Ok(HostnameResolutionEvent::AddressesFound(_, info)) = info {
+                let info = info.into_iter().collect::<Vec<_>>();
+                let addresses = is_reachables(info, default_port).await;
+
+                return Some(
+                    addresses
+                        .iter()
+                        .map(|ip| SocketAddr::new(*ip, default_port))
+                        .collect(),
+                );
+            }
+        }
+
+        None
+    }
+
     pub async fn resolve(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
         let host_map = self.host_map.lock().await;
+
+        debug!("Resolve hostname: {}", hostname);
         let addresses = if let Some(socket_addr_info) = host_map.get(hostname) {
+            debug!("Found hostname in cache: {}", hostname);
             let addresses =
                 is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
 
@@ -151,10 +191,19 @@ impl SocketAddrResolver {
                 .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
                 .collect()
         } else {
-            resolve_dns(hostname)
-                .iter()
-                .map(|ip| SocketAddr::new(*ip, default_port))
-                .collect()
+            debug!("Resolve hostname with mdns: {}", hostname);
+            let addresses = self.resolve_mdns(hostname, default_port).await;
+
+            if let Some(addresses) = addresses {
+                debug!("Found hostname with mdns: {}", hostname);
+                addresses
+            } else {
+                debug!("Resolve hostname with dns: {}", hostname);
+                resolve_dns(hostname)
+                    .iter()
+                    .map(|ip| SocketAddr::new(*ip, default_port))
+                    .collect()
+            }
         };
 
         Some(addresses)

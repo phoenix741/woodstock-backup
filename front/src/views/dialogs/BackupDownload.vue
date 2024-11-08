@@ -128,7 +128,6 @@ function getDefaultClient() {
 }
 
 function openDialog(value: ClientType) {
-  console.log('open', arguments);
   client.value = value;
   isDialogActive.value = true;
 }

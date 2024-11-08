@@ -16,7 +16,7 @@ use crate::config::DEFAULT_PORT;
 const DAYLY_UPDATE: u64 = 24 * 3600;
 
 /// Represents the configuration for the client.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientConfig {
     /// The hostname of the client. Defaults to the system's hostname.
     #[serde(default = "ClientConfig::default_hostname")]
@@ -39,6 +39,10 @@ pub struct ClientConfig {
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
     pub disable_mdns: bool,
+
+    /// If the restauration should be disabled, for security reason
+    #[serde(default)]
+    pub disable_restauration: bool,
 
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
@@ -118,6 +122,7 @@ impl Default for ClientConfig {
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
+            disable_restauration: false,
             disable_mdns: false,
             xattr: false,
             acl: false,

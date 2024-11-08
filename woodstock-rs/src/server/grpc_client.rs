@@ -214,7 +214,7 @@ impl Client for BackupGrpcClient {
     }
 
     fn synchronize_file_list(
-        &mut self,
+        &self,
         cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
     ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
         info!("Send cache refresh to {}", self.hostname);
@@ -288,6 +288,30 @@ impl Client for BackupGrpcClient {
             }
 
             info!("Completed receiving chunk from {}", self.hostname);
+        })
+    }
+
+    fn restore_file(
+        &self,
+        requests: impl Stream<Item = woodstock::RestoreFileRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<woodstock::RestoreFileReply>> + '_ {
+        info!("Restoring files on {}", self.hostname);
+
+        let client = self.client.clone();
+
+        try_stream!({
+            let mut client = client;
+
+            let request = self.create_request(requests)?;
+
+            let mut responses = client.restore_file(request).await?.into_inner();
+
+            while let Some(response) = responses.message().await? {
+                debug!("Received restore file reply from server");
+                yield response;
+            }
+
+            info!("Completed file restoration on {}", self.hostname);
         })
     }
 
