@@ -1,3 +1,10 @@
+# [2.0.0-alpha.25](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.24...v2.0.0-alpha.25) (2024-11-09)
+
+
+### Bug Fixes
+
+* 🐛 fix path bug ([815bc88](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/815bc88dd353f79bda3450479e32549461ded5f8))
+
 # [2.0.0-alpha.24](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.23...v2.0.0-alpha.24) (2024-11-08)
 
 
