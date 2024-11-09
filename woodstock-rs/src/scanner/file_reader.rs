@@ -172,6 +172,7 @@ fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box
     let mut chunk_read = 0;
 
     let file = vec_to_path(&request.filename);
+    println!("Calculating chunk hash for {}", &file.display());
     let file = std::fs::File::open(file)?;
     let mut reader = std::io::BufReader::new(file);
 

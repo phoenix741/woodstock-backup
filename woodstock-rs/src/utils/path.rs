@@ -1,10 +1,11 @@
 use globset::{GlobBuilder, GlobSetBuilder};
+use log::warn;
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     hash::Hash,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// Converts a vector of byte vectors to a vector of string slices.
@@ -69,8 +70,28 @@ pub fn vec_to_osstr(vec: &[u8]) -> OsString {
 /// A vector of bytes.
 ///
 #[must_use]
-pub fn path_to_vec(path: &Path) -> Vec<u8> {
-    osstr_to_vec(path.as_os_str())
+pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
+    let path = path.as_ref();
+    let components = path.components();
+    let mut buff = Vec::new();
+    for component in components {
+        match component {
+            Component::Normal(path) => {
+                buff.extend(osstr_to_vec(path));
+                buff.push(b'/');
+            }
+            Component::RootDir => {
+                buff.push(b'/');
+            }
+            _ => {
+                warn!("Unsupported path component: {:?}", component);
+            }
+        }
+    }
+    if buff.len() > 1 {
+        buff.pop();
+    }
+    buff
 }
 
 /// Converts a vector of bytes to a `PathBuf`.
@@ -85,7 +106,16 @@ pub fn path_to_vec(path: &Path) -> Vec<u8> {
 ///
 #[must_use]
 pub fn vec_to_path(vec: &[u8]) -> PathBuf {
-    PathBuf::from(vec_to_osstr(vec))
+    let components = vec.split(|&byte| byte == b'/' || byte == b'\\');
+    let components = components.map(vec_to_osstr).collect::<Vec<_>>();
+    let mut path_buf = PathBuf::new();
+    for component in components {
+        if component.is_empty() {
+            path_buf.push("/");
+        }
+        path_buf.push(component);
+    }
+    path_buf
 }
 
 /// Converts a list of string slices to a `GlobSet`.
@@ -154,4 +184,27 @@ pub fn unmangle(path: &str) -> String {
 pub fn unique<T: Eq + Hash + Clone>(iterable: impl IntoIterator<Item = T>) -> Vec<T> {
     let unique_elts: HashSet<T> = HashSet::from_iter(iterable);
     unique_elts.into_iter().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    // Test vec_to_path and path_to_vec
+    #[test]
+    fn test_path_conversion() {
+        let path = Path::new("/test/path/to/convert");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("/test/path/to/convert"));
+    }
+
+    // Test vec_to_path and path_to_vec
+    #[test]
+    fn test_path_conversion_windows() {
+        let path = Path::new("\\test\\path\\to\\convert");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("/test/path/to/convert"));
+    }
 }

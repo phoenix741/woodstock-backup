@@ -37,6 +37,7 @@ pub struct CreateManifestOptions {
     pub with_xattr: bool,
 }
 
+#[derive(Debug)]
 struct PathEntryWithError {
     pub path: PathBuf,
     pub state: EntryState,
@@ -50,6 +51,18 @@ impl PathEntryWithError {
             state: EntryState::Metadata,
             state_messages: Vec::new(),
         }
+    }
+}
+
+impl PartialEq for PathEntryWithError {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl PartialEq<PathBuf> for PathEntryWithError {
+    fn eq(&self, other: &PathBuf) -> bool {
+        self.path == *other
     }
 }
 
@@ -351,7 +364,9 @@ async fn one_level(
         }
     }
 
-    files.push(entry);
+    if entry != *EMPTY_PATH {
+        files.push(entry);
+    }
 
     files
 }
@@ -399,16 +414,11 @@ pub fn get_files<'a>(
     options: &'a CreateManifestOptions,
 ) -> impl Stream<Item = FileManifestJournalEntry> + 'a {
     stream!({
-        let files = get_files_recursive(share_path, &includes, &excludes);
+        let files = get_files_recursive(share_path, includes, excludes);
         pin_mut!(files);
 
-        loop {
-            match files.next().await {
-                Some(entry) => {
-                    yield create_manifest_from_file(share_path, entry, options);
-                }
-                None => break,
-            }
+        while let Some(entry) = files.next().await {
+            yield create_manifest_from_file(share_path, entry, options);
         }
     })
 }
@@ -441,8 +451,7 @@ mod tests {
             filenames.push(path);
         }
 
-        assert!(filenames.len() >= 3);
-        assert!(filenames.contains(&PathBuf::from("")));
+        assert!(filenames.len() >= 2);
         assert!(filenames.contains(&PathBuf::from("private_key.pem")));
         assert!(filenames.contains(&PathBuf::from("public_key.pem")));
     }
