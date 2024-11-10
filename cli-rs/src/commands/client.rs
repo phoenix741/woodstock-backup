@@ -9,10 +9,10 @@ use woodstock::{
     utils::path::{list_to_globset, vec_to_str},
 };
 
-pub async fn list_client_files(hostname: &str, share_path: &str, ctxt: &Context) -> Result<()> {
+pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Context) -> Result<()> {
     // Start by reading the configuration file
     let hosts = Hosts::new(ctxt);
-    let host = hosts.get_host(hostname).await?;
+    let host = hosts.read_host_file(config_path).await?;
 
     if let Some(operation) = host.operations.operation {
         let global_includes = operation.includes.unwrap_or_default();
