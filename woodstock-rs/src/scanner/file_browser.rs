@@ -455,4 +455,44 @@ mod tests {
         assert!(filenames.contains(&PathBuf::from("private_key.pem")));
         assert!(filenames.contains(&PathBuf::from("public_key.pem")));
     }
+
+    #[tokio::test]
+    async fn test_authorized_files() {
+        let includes = list_to_globset(&["/Jeux/*", "/rsyncd/*", "/Users/*"]).unwrap();
+        let excludes = list_to_globset(&[
+            "/Users/Public/Documents/Embarcadero/*",
+            "/Users/alexandre/.cache/*",
+            "/Users/alexandre/.mcreator/gradle/*",
+            "*$RECYCLE.BIN",
+            "*.vmdk",
+            "*.vdi",
+            "*.iso",
+            "*node_modules",
+        ])
+        .unwrap();
+
+        let ok_files = ["/Jeux/SC2000/Disk2/scenario._", "/rsyncd/doc/rsync.html"];
+        let ko_files = [
+            "/Windows/System32/drivers/etc/hosts",
+            "/Users/alexandre/.cache/kdeconnect/kdeconnectd/kdeconnectd.log",
+            "/Users/alexandre/.mcreator/gradle/wrapper/dists/gradle-6.8.3-all/b0k2r0v3t4v1x1/gradle-6.8.3/docs/javadoc/org/gradle/api",
+        ];
+
+        for file in &ok_files {
+            println!("Testing ok {}", file);
+            assert!(is_file_authorized(
+                &PathBuf::from(file),
+                &includes,
+                &excludes
+            ));
+        }
+        for file in &ko_files {
+            println!("Testing ko {}", file);
+            assert!(!is_file_authorized(
+                &PathBuf::from(file),
+                &includes,
+                &excludes
+            ));
+        }
+    }
 }
