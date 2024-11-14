@@ -18,6 +18,8 @@ The actual version is based on
 - [FAQ](/doc/faq/)
 - [Roadmap](/doc/roadmap/)
 - [Internal](/doc/internal/)
+  - [Pool](/doc/internal/pool.md)
+  - [Client Authentification](/doc/internal/client_auth.md)
 
 ## Contribution
 

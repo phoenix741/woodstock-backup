@@ -1,3 +1,5 @@
+const { mdEnhancePlugin } = require("vuepress-plugin-md-enhance");
+
 module.exports = {
   title: "Woodstock Backup",
   description: "Centralized Backup Software (based on BTRFS)",
@@ -28,8 +30,13 @@ module.exports = {
           "/doc/updatescheduler.md",
           "/doc/faq.md",
           "/doc/roadmap.md",
-          "/doc/internal.md",
         ],
+      },
+      {
+        title: "Internal Documentation",
+        path: "/doc/internal/",
+        sidebarDepth: 2,
+        children: ["/doc/internal/pool.md", "/doc/internal/client_auth.md"],
       },
       "/about/",
     ],
@@ -42,5 +49,8 @@ module.exports = {
         trackerUrl: "https://stats.shadoware.org/",
       },
     ],
+    mdEnhancePlugin({
+      plantuml: true,
+    }),
   ],
 };
