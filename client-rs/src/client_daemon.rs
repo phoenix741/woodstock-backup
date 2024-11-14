@@ -48,6 +48,9 @@ enum Commands {
     RemoveService,
 
     #[cfg(windows)]
+    RestartService,
+
+    #[cfg(windows)]
     RunService,
 
     #[cfg(windows)]
@@ -409,23 +412,38 @@ pub mod winserv {
         let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
         let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
+        println!("Opening service...");
+
         let service = service_manager.open_service(
             SERVICE_NAME,
-            ServiceAccess::CHANGE_CONFIG | ServiceAccess::STOP | ServiceAccess::START,
+            ServiceAccess::CHANGE_CONFIG
+                | ServiceAccess::STOP
+                | ServiceAccess::START
+                | ServiceAccess::QUERY_STATUS,
         )?;
 
-        service.stop()?;
+        if service.query_status()?.current_state == ServiceState::Running {
+            println!("Stopping service...");
 
-        let start = Instant::now();
-        let timeout = Duration::from_secs(5);
-        while start.elapsed() < timeout {
-            if service.query_status()?.current_state == ServiceState::Stopped {
-                break;
+            service.stop()?;
+
+            println!("Waiting for service to stop...");
+
+            let start = Instant::now();
+            let timeout = Duration::from_secs(5);
+            while start.elapsed() < timeout {
+                if service.query_status()?.current_state == ServiceState::Stopped {
+                    break;
+                }
+                sleep(Duration::from_secs(1));
             }
-            sleep(Duration::from_secs(1));
         }
 
+        println!("Starting service...");
+
         service.start(&Vec::<OsString>::new())?;
+
+        println!("Service restarted");
 
         Ok(())
     }
@@ -505,6 +523,11 @@ async fn main() -> Result<()> {
         Some(Commands::RemoveService) => {
             winfirewall::remove_firewall_rule()?;
             winserv::uninstall_service()?;
+        }
+
+        #[cfg(windows)]
+        Some(Commands::RestartService) => {
+            winserv::restart_service()?;
         }
 
         #[cfg(windows)]
