@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use eyre::{eyre, Result};
 use log::debug;
@@ -36,6 +36,12 @@ impl Hosts {
         }
 
         let path = self.get_host_configuration_file(hostname);
+        let host = self.read_host_file(path).await?;
+
+        Ok(host)
+    }
+
+    pub async fn read_host_file<P: AsRef<Path>>(&self, path: P) -> Result<HostConfiguration> {
         let content = read_to_string(path).await?;
         let host: HostConfiguration = serde_yaml::from_str(&content)?;
 

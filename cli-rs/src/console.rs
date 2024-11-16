@@ -123,8 +123,8 @@ enum Commands {
     ///
     /// This command can be used for debugging purpose
     ListDirectory {
-        /// The hostname to scan
-        hostname: String,
+        /// Config path
+        config_path: String,
 
         /// The share path to scan
         share_path: String,
@@ -239,9 +239,9 @@ async fn main() -> Result<()> {
                 .expect("Failed to compare file manifest");
         }
         Commands::ListDirectory {
-            hostname,
             share_path,
-        } => list_client_files(&hostname, &share_path, &context)
+            config_path,
+        } => list_client_files(&share_path, &config_path, &context)
             .await
             .expect("Failed to list files"),
         Commands::ResolveMDns { hostname } => {
