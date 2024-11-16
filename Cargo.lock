@@ -3592,7 +3592,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "woodstock-cli-rs"
-version = "2.0.0-alpha.25"
+version = "2.0.0-alpha.26"
 dependencies = [
  "async-stream",
  "clap",
@@ -3619,7 +3619,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-client-rs"
-version = "2.0.0-alpha.25"
+version = "2.0.0-alpha.26"
 dependencies = [
  "async-stream",
  "clap",
@@ -3641,7 +3641,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-rs"
-version = "2.0.0-alpha.25"
+version = "2.0.0-alpha.26"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -3695,7 +3695,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock_shared-rs"
-version = "2.0.0-alpha.25"
+version = "2.0.0-alpha.26"
 dependencies = [
  "chrono",
  "futures-util",
@@ -3710,7 +3710,7 @@ dependencies = [
 
 [[package]]
 name = "ws_backuppc_importer"
-version = "2.0.0-alpha.25"
+version = "2.0.0-alpha.26"
 dependencies = [
  "async-stream",
  "async-trait",

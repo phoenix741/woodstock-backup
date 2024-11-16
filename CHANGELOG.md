@@ -1,3 +1,11 @@
+# [2.0.0-alpha.26](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.25...v2.0.0-alpha.26) (2024-11-16)
+
+
+### Bug Fixes
+
+* 🐛 fix browsing ([09c1483](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/09c1483418694247d0d5944e5d29dca08bce8021))
+* repair denied access on starting service ([fea04a1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/fea04a14d7985ca39881b1479196046b2c802136))
+
 # [2.0.0-alpha.25](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.24...v2.0.0-alpha.25) (2024-11-09)
 
 
