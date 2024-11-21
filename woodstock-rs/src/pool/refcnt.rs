@@ -235,7 +235,7 @@ impl Refcnt {
         target: Option<PathBuf>,
         callback: &impl Fn(&Option<PoolUnused>),
     ) -> Result<()> {
-        debug!("Remove unused files");
+        debug!("Remove unused files in {:?}", self.unused_path);
         let unused = self.unused.values().cloned().collect::<Vec<PoolUnused>>();
         for pool_unused in unused {
             let wrapper = PoolChunkWrapper::new(pool_path, Some(&pool_unused.sha256));
@@ -276,11 +276,17 @@ impl Refcnt {
             && cnt.compressed_size != 0
             && refcnt.compressed_size != 0
         {
-            error!("Registered compressed size is different for {hash_str}");
+            error!(
+                "Registered compressed size is different for {hash_str} in {:?}",
+                self.refcnt_path
+            );
         }
 
         if cnt.size != refcnt.size && cnt.size != 0 && refcnt.size != 0 {
-            error!("Registered size is different for {hash_str}");
+            error!(
+                "Registered size is different for {hash_str} in {:?}",
+                self.refcnt_path
+            );
         }
 
         self.index.insert(
@@ -303,7 +309,7 @@ impl Refcnt {
     }
 
     pub async fn finish(&mut self, pool_path: &Path) -> Result<()> {
-        debug!("Read chunk informations");
+        debug!("Read chunk informations for {:?}", self.refcnt_path);
         // For each value check chunk informations
         for (sha256_pool_refcnt, pool_refcnt) in &mut self.index {
             if pool_refcnt.size == 0 || pool_refcnt.compressed_size == 0 {
@@ -323,7 +329,7 @@ impl Refcnt {
             }
         }
 
-        debug!("Calculate statistics");
+        debug!("Calculate statistics for {:?}", self.refcnt_path);
         // For each value in the index
         for pool_refcnt in self.index.values() {
             let sha256_pool_refcnt = &pool_refcnt.sha256;
@@ -367,7 +373,7 @@ impl Refcnt {
     }
 
     pub async fn save_refcnt(&self, date: &SystemTime) -> Result<()> {
-        debug!("Save refcnt");
+        debug!("Save refcnt in {:?}", self.refcnt_path);
         // Save the refcnt
         let source = stream::iter(self.index.values().cloned()).filter_map(|refcnt| async {
             if refcnt.ref_count > 0 {
@@ -384,7 +390,7 @@ impl Refcnt {
     }
 
     pub async fn save_unused(&self) -> Result<()> {
-        debug!("Save unused");
+        debug!("Save unused in {:?}", self.unused_path);
         // Save the unused
         let source = stream::iter(self.unused.values().cloned());
         save_file(&self.unused_path, source, true).await?;

@@ -5,6 +5,7 @@ use futures::StreamExt;
 
 use woodstock::{
     config::{Backups, Context},
+    pool::PoolChunkInformation,
     proto::ProtobufReader,
     Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
 };
@@ -16,6 +17,7 @@ pub enum ProtobufFormat {
     RefCount,
     Unused,
     Event,
+    ChunkInformation,
 }
 
 pub async fn read_protobuf(
@@ -144,6 +146,24 @@ pub async fn read_protobuf(
 
             while let Some(message) = messages.next().await {
                 let message = message?;
+
+                print!("{message}");
+            }
+        }
+        ProtobufFormat::ChunkInformation => {
+            let mut messages = ProtobufReader::<PoolChunkInformation>::new(path, false).await?;
+            let mut messages = messages.into_stream();
+
+            while let Some(message) = messages.next().await {
+                let message = message?;
+                // Filter the output by chunks
+                if let Some(filter_chunks) = filter_chunks {
+                    let filter_chunks = hex::decode(filter_chunks)?;
+
+                    if message.sha256 != filter_chunks {
+                        continue;
+                    }
+                }
 
                 print!("{message}");
             }

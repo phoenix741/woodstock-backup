@@ -1,5 +1,5 @@
 use async_compression::tokio::write::ZlibEncoder;
-use log::{debug, error};
+use log::{debug, error, warn};
 use sha2::digest::core_api::CoreWrapper;
 use sha3::Digest;
 use sha3::{Sha3_256, Sha3_256Core};
@@ -86,17 +86,31 @@ impl PoolChunkWriter {
         }
 
         let metadata = metadata(&self.tempfilename).await?;
-        let chunk_information = PoolChunkInformation {
-            size: u64::try_from(self.uncompressed_size)?,
-            compressed_size: metadata.len(),
-            sha256: file_hash.clone(),
-        };
 
         wrapper.set_hash(Some(&file_hash));
 
         if wrapper.exists() {
             debug!("Chunk {:?} already exists", vec_to_path(debug_filename));
+            let chunk_information = wrapper.chunk_information().await?;
+
+            // Warn if size is different
+            if chunk_information.size != u64::try_from(self.uncompressed_size)? {
+                warn!(
+                    "Chunk {:?} has not the right size length {}",
+                    vec_to_path(debug_filename),
+                    self.uncompressed_size
+                );
+            }
+
+            // Return information of existing chunk
+            Ok(chunk_information)
         } else {
+            let chunk_information = PoolChunkInformation {
+                size: u64::try_from(self.uncompressed_size)?,
+                compressed_size: metadata.len(),
+                sha256: file_hash.clone(),
+            };
+
             let chunk_path = wrapper.chunk_path();
             if let Some(path) = chunk_path.parent() {
                 create_dir_all(path).await?;
@@ -104,8 +118,8 @@ impl PoolChunkWriter {
 
             wrapper.write_chunk_information(&chunk_information).await?;
             rename(&self.tempfilename, chunk_path).await?;
+            Ok(chunk_information)
         }
-        Ok(chunk_information)
     }
 }
 
