@@ -109,18 +109,19 @@ This directory structure will be used to limit the number of locks on the chunk 
    ├── aa
    │    ├── aa
    │    │    ├── aa
-   │    │    │    ├── REFCNT
-   │    │    │    │     ├── sha256 cnt
-   │    │    │    │     ├── sha256 cnt
-   │    │    │    │     └── sha256 cnt
-   │    │    │    ├── LOCK
-   │    │    │    │     └── host backupNumber
    │    │    │    └── aaaaaacdefghih-sha256.zlib
+   │    │    │    └── aaaaaacdefghih-sha256.info
+   ├── unused
+   ├── statistics.yml
+   ├── REFCNT
+   ├── history.yml
+   ├── disk_history.yml
 ```
 
-In each leaf directory, we would have a `LOCK` file that would be used to lock the directory when the `REFCNT` is modified. The `REFCNT` is
-used to count the number of times the chunk is used in a backup. When the number of uses of the file is down to 0, this file can be deleted.
-This can be used to purge old files, from old backup.
+The `unused` file is used to list all the chunks that are not used in any backup. This file is used to purge the pool.
+The `REFCNT` file is used to count the number of times the chunk is used in a backup. A lock file is used to lock the
+pool when the `REFCNT` or `unused` file is modified. If the count of a sha256 in the `REFCNT` file is changed to 0, the
+chunk is moved to the `unused` file.
 
 The content of the chunk is stored directly in a file (that can be compressed).
 
@@ -132,7 +133,7 @@ The pool is used to store the content of the file. But it doesn't describe how t
 
 The goal of the backup manifest is to describe files in the backup.
 
-We will have one file by backup, each manifest file will be stored in the `hosts` directory (different for each host backedup).
+We will have one file by backup, each manifest file will be stored in the `hosts` directory (different for each host backuped).
 
 The manifest file will contain, for each backup, the list of files saved, and for each file:
 
@@ -146,30 +147,69 @@ we will use a standard format for binary storage. This standard is [protocol-buf
 Using a protocol-buffer simplifies the writing of different programs in different languages to write and read the protocol buffer.
 
 ```protobuf
+enum FileManifestType {
+    RegularFile = 0;
+    Symlink = 1;
+    Directory = 2;
+    BlockDevice = 3;
+    CharacterDevice = 4;
+    Fifo = 5;
+    Socket = 6;
+    Unknown = 99;
+}
+
+message FileManifestStat {
+  uint32 ownerId = 1;
+  uint32 groupId = 2;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
+  int64 lastRead = 5;
+  int64 lastModified = 6;
+  int64 created = 7;
+  uint32 mode = 8;
+  FileManifestType type = 9;
+
+  uint64 dev = 10;
+  uint64 rdev = 11;
+
+  uint64 ino = 12;
+  uint64 nlink = 13;
+}
+
+enum FileManifestAclQualifier {
+    UNDEFINED = 0;
+    USER_OBJ = 1;
+    GROUP_OBJ = 2;
+    OTHER = 3;
+    USER_ID = 4;
+    GROUP_ID = 5;
+    MASK = 6;
+}
+
+message FileManifestAcl {
+  FileManifestAclQualifier qualifier = 1;
+  uint32 id = 2;
+  uint32 perm = 3;
+}
+
+message FileManifestXAttr {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// File manifest used to store the content of a file
 message FileManifest {
-  message FileManifestStat {
-    int32 ownerId = 1;
-    int32 groupId = 2;
-    int64 size = 3;
-    int64 lastRead = 4;
-    int64 lastModified = 5;
-    int64 created = 6;
-    int32 mode = 7;
-  }
-
-  message FileManifestAcl {
-    string user = 1;
-    string group = 2;
-    int32 mask = 3;
-    int32 other = 4;
-  }
-
   bytes path = 1;
   FileManifestStat stats = 2;
-  map<string, bytes> xattr = 5;
-  repeated FileManifestAcl acl = 6;
-  repeated bytes chunks = 3;
-  bytes sha256 = 4;
+  bytes symlink = 3;
+
+  repeated FileManifestXAttr xattr = 4;
+  repeated FileManifestAcl acl = 5;
+
+  repeated bytes chunks = 6;
+  bytes hash = 8;
+
+  map<string, bytes> metadata = 7;
 }
 ```
 

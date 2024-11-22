@@ -20,57 +20,57 @@ export default createVuetify({
     themes: {
       light: {
         colors: {
-          background: '#f5f5f5',
-          'on-background': '#26293a',
+          background: '#FAF9F7',
+          'on-background': '#4E342E',
 
-          surface: '#ffffff',
-          'on-surface': '#26293a',
+          surface: '#FFFFFF',
+          'on-surface': '#6D4C41',
 
-          primary: '#7180e8',
-          'on-primary': '#26293a',
+          primary: '#6D4C41',
+          'on-primary': '#FFFFFF',
 
-          secondary: '#5ecce4',
-          'on-secondary': '#26293a',
+          secondary: '#FFC107',
+          'on-secondary': '#4E342E',
 
-          success: '#60c177',
-          'on-success': '#35444d',
+          success: '#2E7D32',
+          'on-success': '#FFFFFF',
 
-          warning: '#e79d55',
-          'on-warning': '#464049',
+          warning: '#F9A825',
+          'on-warning': '#4E342E',
 
-          error: '#d95e5a',
-          'on-error': '#464049',
+          error: '#C62828',
+          'on-error': '#FFFFFF',
 
-          info: '#5ecce4',
-          'on-info': '#35455a',
+          info: '#1976D2',
+          'on-info': '#FFFFFF',
         },
       },
       dark: {
         dark: true,
         colors: {
-          background: '#26293a',
-          'on-background': '#bbbfd5',
+          background: '#2E2A26',
+          'on-background': '#D7CCC8',
 
-          surface: '#303347',
-          'on-surface': '#bbbfd5',
+          surface: '#3E3936',
+          'on-surface': '#D7CCC8',
 
-          primary: '#7167e8',
-          'on-primary': '#e7e5fb',
+          primary: '#D7CCC8',
+          'on-primary': '#4E342E',
 
-          secondary: '#5ecce4',
-          'on-secondary': '#e7e5fb',
+          secondary: '#FFC107',
+          'on-secondary': '#3E3936',
 
-          success: '#60c177',
-          'on-success': '#35444d',
+          success: '#66BB6A',
+          'on-success': '#2E2A26',
 
-          warning: '#e79d55',
-          'on-warning': '#464049',
+          warning: '#FFEB3B',
+          'on-warning': '#2E2A26',
 
-          error: '#d95e5a',
-          'on-error': '#464049',
+          error: '#EF5350',
+          'on-error': '#2E2A26',
 
-          info: '#5ecce4',
-          'on-info': '#35455a',
+          info: '#BCAAA4',
+          'on-info': '#2E2A26',
         },
       },
     },

@@ -14,7 +14,6 @@ import { PoolService } from './backups/pool.service';
 import { ExecuteCommandService } from './commands/execute-command.service';
 import { PingService } from './commands/ping.service';
 import { ResolveService } from './commands/resolve.service';
-import { ToolsService } from './commands/tools.service';
 import { ApplicationConfigService, SchedulerConfigService } from './config';
 import { FilesService } from './files';
 import { BullConfigService, RegisteredQueue } from './queue';
@@ -44,7 +43,6 @@ const providers = [
   ResolveService,
   SchedulerConfigService,
   StatsInstantService,
-  ToolsService,
   YamlService,
 ];
 

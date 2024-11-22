@@ -1,6 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as shell from 'shelljs';
-import { CommandParameters, ToolsService } from './tools.service.js';
 
 export interface ExecuteCommandOption {
   returnCode?: boolean;
@@ -8,10 +7,6 @@ export interface ExecuteCommandOption {
 
 @Injectable()
 export class ExecuteCommandService {
-  private logger = new Logger(ExecuteCommandService.name);
-
-  constructor(private toolsService: ToolsService) {}
-
   async executeCommand(
     command: string,
     options: ExecuteCommandOption = {},
@@ -25,15 +20,5 @@ export class ExecuteCommandService {
         return reject(new Error(stderr || `Can't execute the command ${command}`));
       });
     });
-  }
-
-  async executeTool(
-    command: string,
-    params: CommandParameters,
-    options: ExecuteCommandOption = {},
-  ): Promise<{ code: number; stdout: string; stderr: string }> {
-    const commandString = await this.toolsService.getCommand(command, params);
-    this.logger.debug(`Execute command: ${commandString}`);
-    return await this.executeCommand(commandString, options);
   }
 }

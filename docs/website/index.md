@@ -1,18 +1,36 @@
 ---
 home: true
-actionText: Get Started →
-actionLink: /doc/
-features:
-  - title: Modern
-    details: Modern user interface based on Material Design
-  - title: Accessible storage
-    details: The storage can be easily readable for archiving on usb drive
-  - title: Btrfs Storage
-    details: The storage is based on Btrfs reduce the size of incremental backup
-footer: MIT Licensed | Copyright © 2020
----
+layout: home
+hero:
+  name: Woodstock backup
+  text: Centralized Backup Software
+  tagline: Protect your data
+  image:
+    src: /images/hosts.png
+    alt: VitePress
+  actions:
+    - theme: brand
+      text: Get Started →
+      link: /doc/
+    - theme: alt
+      text: View on Gitea
+      link: https://gogs.shadoware.org/ShadowareOrg/woodstock-backup
+    - theme: alt
+      text: View on Github
+      link: https://github.com/phoenix741/woodstock-backup
 
-# Woodstock backup
+features:
+  - icon: 🛠️
+    title: Modern
+    details: Modern user interface based on Material Design
+  - icon: 🛠️
+    title: Accessible storage
+    details: The storage can be easily readable for archiving on usb drive
+  - icon: 🛠️
+    title: Btrfs Storage
+    details: The storage is based on Btrfs reduce the size of incremental backup
+footer: MIT Licensed | Copyright © 2024
+---
 
 ## Last version
 

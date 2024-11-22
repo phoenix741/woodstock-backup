@@ -1,125 +1,355 @@
 # Installation
 
-## What are the prerequisites?
+## Overview
 
-**Woodstock backup** needs the following softwares to work :
+Woodstock Backup consists of two main components:
 
-- Redis: To manage the queue of backup
-- Btrfs: To manage the storage of backup (ideally the mount point should be dedicated to the backup storage)
-- NodeJS 10: To run the application
-- The transpiled application: without it, it can't work
+- A Rust-based agent installed on client machines
+- A Node.js server application deployed on a central host
 
-Theorically if the btrfs storage is shared, it's possible to run multiple instances of the same application on the same server.
+## Prerequisites
 
-## Install with docker
+- Sufficient storage space on the server for backups
+- For the server: Docker (recommended) or Node.js environment
+- For the agent: Rust runtime environment
 
--`Docker` needs redis to store bull queue.
+## Docker Installation (Recommended)
 
-- The backup storage should be a btrfs volume.
-- The docker image need `SYS_ADMIN` capability.
+### Standard Configuration (with mDNS)
+
+The following configuration enables mDNS discovery using privileged mode:
 
 ```yaml
-version: "2"
-
 services:
   woodstock:
-    image: phoenix741/woodstock-backup:1
-    ports:
-      - 3000:3000
-    links:
-      - redis
+    image: phoenix741/woodstock-backup:2
+    privileged: true
+    network_mode: host
     environment:
-      - REDIS_HOST=redis
+      - REDIS_HOST=172.55.0.2
       - REDIS_PORT=6379
-      - MAX_BACKUP_TASK=2
+      - LOG_LEVEL=warn
       - NODE_ENV=production
+      - BACKUP_PATH=/backups
+      - BACKUP_WORKER_INSTANCES=3
     volumes:
       - "backups_storage:/backups"
-    cap_add:
-      - SYS_ADMIN
+
   redis:
-    image: "bitnami/redis:5.0"
+    image: "bitnami/redis:7.2"
     environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
-    ports:
-      - "6379:6379"
+    networks:
+      woodstock:
+        ipv4_address: 172.55.0.2
     volumes:
       - "redis_data:/bitnami/redis/data"
 
+  prometheus:
+    image: bitnami/prometheus:2
+    volumes:
+      - prometheus_storage:/opt/bitnami/prometheus/data
+      - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
+    network_mode: "host"
+
+networks:
+  woodstock:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.55.0.0/16
+          gateway: 172.55.0.1
+
 volumes:
   redis_data:
+  prometheus_storage:
   backups_storage:
     driver: local
     driver_opts:
       type: none
-      device: /var/lib/woodstock/
+      device: /var/lib/woodstock
       o: bind
 ```
 
-## Install with a deb package
+### Alternative Configuration (without mDNS)
 
-To install woodstock-backup on a debian system, download the deb package.
+If you prefer not to use privileged mode, you can bind the server to port 3000:
 
-- The `/var/lib/woodstock` directory needs to be a btrfs volume.
-- Woodstock has a dependencie on redis to store bull queue.
+```yaml
+services:
+  woodstock:
+    image: phoenix741/woodstock-backup:2
+    ports:
+      - "3000:3000"
+    networks:
+      - woodstock
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=warn
+      - NODE_ENV=production
+      - BACKUP_PATH=/backups
+      - BACKUP_WORKER_INSTANCES=3
+    volumes:
+      - "backups_storage:/backups"
 
-```bash
-sudo dpkg -i woodstock-backup_1.0.0_all.deb
-sudo nano /etc/woodstock-backup/default
+  redis:
+    image: "bitnami/redis:7.2"
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    networks:
+      - woodstock
+    volumes:
+      - "redis_data:/bitnami/redis/data"
+
+  prometheus:
+    image: bitnami/prometheus:2
+    volumes:
+      - prometheus_storage:/opt/bitnami/prometheus/data
+      - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
+    ports:
+      - "9090:9090"
+
+networks:
+  woodstock:
+
+volumes:
+  redis_data:
+  prometheus_storage:
+  backups_storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: /var/lib/woodstock
+      o: bind
 ```
 
-You can edit environment variable necessary to launch woodstock.
+### Prometheus Integration
 
-## Install manually
+For monitoring, Prometheus can be configured to collect metrics from the server:
 
-First install the linux distribution of your choice that satisfy the previous criteria. On this distribution install redis, and nodejs.
-_It's important to secure the connection of redis to avoid everybody to connect to your redis instance._
-
-```bash
-apt install debian:10
-# The previous line is a joke ;)
-# but in the next, example will be based on debian.
-apt install redis nodejs
+```yaml
+scrape_configs:
+  - job_name: "woodstock-exporter"
+    static_configs:
+      - targets: ['localhost:3000']
 ```
 
-Ensure you have a mount point that use btrfs, ideally the mount point should be dedicated to the backup.
+## Manual Installation
 
-If you want the woodstock backup not be executed as root, you must add attribute **user_subvol_rm_allowed**.
-You can activate the compression of btrfs depending or not.
+### System Requirements
 
-```bash
-mkfs.btrfs /dev/sdXYY
-echo << EOF>> /etc/fstab
-/dev/sdXYY /var/lib/woodstock btrfs rw,noatime,compress=zstd:9,user_subvol_rm_allowed,noauto  0  0
-EOF
-```
-
-Clone and build the project
+Install the required system dependencies:
 
 ```bash
-git clone https://gogs.shadoware.org/ShadowareOrg/woodstock-backup.git woodstock-backup
-
-cd client
-npm i
-npm run build -- --prod
-
-cd ../server
-npm i
-npm run build
-
-cp ./config/woodstock-backup.service /etc/systemd/user/woodstock-backup.service
-# HERE: You should edit the file /etc/systemd/user/woodstock-backup.systemd to put
-# the environment variable with the value of your configuration
-sudo systemctl daemon-reload
-sudo systemctl enable woodstock-backup
-sudo systemctl start woodstock-backup
+apt install redis nodejs protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev
 ```
 
-The available environment variables are :
+### Build Steps
 
-- **STATIC_PATH**: should be the path of the file in the client directory (example: `/opt/woodstock/client/dist`)
-- **BACKUP_PATH**: should be the path of the storage (on a btrfs drive, example ̀`var/lib/woodstock/woodstock`
-- **REDIS_HOST**: the host where redis is installed
-- **REDIS_PORT**: the port of redis to connect
+1. Install Rust:
+
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    ```
+
+2. Build the Project:
+
+    ```bash
+    # Clone the project
+    git clone https://gogs.shadoware.org/ShadowareOrg/woodstock-backup.git woodstock-backup
+    
+    # Build the project
+    cargo build --release
+
+    # Install and build nodejs dependencies
+    npm ci
+    (cd shared-rs && npm run build)
+    (cd nestjs && npm run buildall)
+    (cd front && npm run build)
+    ```
+
+### Service Configuration (pm2)
+
+You can run the server using PM2.
+
+```bash
+# You can use pm2 and the file ecosystem.config.js to run the server
+pm2 startup
+```
+
+With the following `ecosystem.config.js` configuration
+
+```js
+module.exports = [
+  {
+    script: 'apps/api/main.js',
+    name: 'api',
+    cwd: '/app/nestjs',
+    exec_mode: 'cluster',
+    instances: parseInt(process.env.API_INSTANCES ?? '1'),
+  },
+  {
+    script: 'apps/backupWorker/main.js',
+    name: 'backupWorker',
+    cwd: '/app/nestjs',
+    instances: parseInt(process.env.BACKUP_WORKER_INSTANCES || '1'),
+    env: {
+      MAX_BACKUP_TASK: 1,
+    },
+  },
+  {
+    script: 'apps/refcntWorker/main.js',
+    name: 'refcntWorker',
+    cwd: '/app/nestjs',
+    instances: process.env.DISABLE_REFCNT === 'true' ? 0 : 1,
+  },
+  {
+    script: 'apps/scheduleWorker/main.js',
+    name: 'scheduleWorker',
+    cwd: '/app/nestjs',
+    instances: process.env.DISABLE_SCHEDULER === 'true' ? 0 : 1,
+  },
+];
+```
+
+### Service Configuration (systemd)
+
+As an alternative to PM2, you can use systemd to manage the services. Create the following service files:
+
+#### API Service
+
+```systemd
+# /etc/systemd/system/woodstock-api.service
+[Unit]
+Description=Woodstock API Service
+After=network.target redis.service woodstock-api.service
+
+[Service]
+Type=simple
+User=woodstock
+WorkingDirectory=/app/nestjs
+ExecStart=/usr/bin/node apps/backupWorker/main.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Backup Worker Service
+
+```systemd
+# /etc/systemd/system/woodstock-backup-worker.service
+[Unit]
+Description=Woodstock Backup Worker Service
+After=network.target redis.service woodstock-api.service
+
+[Service]
+Type=simple
+User=woodstock
+WorkingDirectory=/app/nestjs
+ExecStart=/usr/bin/node apps/backupWorker/main.js
+Restart=always
+Environment=NODE_ENV=production
+Environment=MAX_BACKUP_TASK=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Reference Count Worker Service
+
+```systemd
+# /etc/systemd/system/woodstock-refcnt-worker.service
+[Unit]
+Description=Woodstock Reference Count Worker Service
+After=network.target redis.service woodstock-api.service
+
+[Service]
+Type=simple
+User=woodstock
+WorkingDirectory=/app/nestjs
+ExecStart=/usr/bin/node apps/refcntWorker/main.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Schedule Worker Service
+
+```systemd
+# /etc/systemd/system/woodstock-schedule-worker.service
+[Unit]
+Description=Woodstock Schedule Worker Service
+After=network.target redis.service woodstock-api.service
+
+[Service]
+Type=simple
+User=woodstock
+WorkingDirectory=/app/nestjs
+ExecStart=/usr/bin/node apps/scheduleWorker/main.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Enable and start the services
+
+```bash
+systemctl enable woodstock-api.service
+systemctl enable woodstock-backup-worker.service
+systemctl enable woodstock-refcnt-worker.service
+systemctl enable woodstock-schedule-worker.service
+
+systemctl start woodstock-api.service
+systemctl start woodstock-backup-worker.service
+systemctl start woodstock-refcnt-worker.service
+systemctl start woodstock-schedule-worker.service
+```
+
+## Configuration Reference
+
+### Core Environment Variables
+
+| Environment Variable      | Default Value                            | Description                                                           |
+|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
+| STATIC_PATH               | -                                        | The path where the vuetify client will be served                      |
+| BACKUP_PATH               | `/var/lib/woodstock`                     | The path where the backup will be stored                              |
+| CERTIFICATES_PATH         | `/etc/woodstock/certs`                   | The path where the certificates will be stored                        |
+| CONFIG_PATH               | `/etc/woodstock/config`                  | The path where the configuration of devices will be stored            |
+| HOSTS_PATH                | `/etc/woodstock/hosts`                   | The path where the file list of each device will be stored            |
+| LOGS_PATH                 | `/var/log/woodstock/logs`                | The path where the logs will be stored                                |
+| POOL_PATH                 | `/var/lib/woodstock/pool`                | The path where the pool of backup will be stored                      |
+| JOBS_PATH                 | `/var/lib/woodstock/jobs`                | The path where logs of jobs will be stored                            |
+| REDIS_HOST                | -                                        | The host of redis to connect                                          |
+| REDIS_PORT                | -                                        | The port of redis to connect                                          |
+| CACHE_TTL                 | `24h`                                    | The time to live of the cache, where the config of devices are cached |
+| LOG_LEVEL                 | `info`                                   | The level of log to display                                           |
+| FILE_VIEW_MAX_ELEMENTS    | `10`                                     | The number of backups file list to store in the cache                 |
+| FILE_VIEW_TTL_CACHE       | `15min`                                  | The time to live of the cache of the file list                        |
+
+### Docker-Specific Environment Variables
+
+| Environment Variable      | Default Value                            | Description                                                           |
+|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
+| API_INSTANCES             | `1`                                      | The number of instance of the api to run                              |
+| BACKUP_WORKER_INSTANCES   | `1`                                      | The number of instance of the backup worker to run                    |
+| DISABLE_REFCNT            | `false`                                  | Disable the refcnt of the backup (to be run on another container)     |
+| DISABLE_SCHEDULER         | `false`                                  | Disable the scheduler of the backup (to be run on another container)  |
+| MAX_BACKUP_TASK           | `2`                                      | The number of backup task to run in parallel in each worker instance  |
+
+## Used ports
+
+| Port | Protocol | Description       | Required |
+|------|----------|-------------------|----------|
+| 3000 | TCP      | HTTP API          | Yes      |
+| 5353 | UDP      | mDNS Discovery    | No       |
+| 9090 | TCP      | Prometheus        | No       |
+| 6379 | TCP      | Redis             | Yes      |

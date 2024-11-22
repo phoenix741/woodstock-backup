@@ -65,7 +65,7 @@ message Event {
   EventStep step = 2;
   uint64 timestamp = 3;
   EventSource source = 4;
-  optional string user = 5;
+  string user = 5;
   repeated string errorMessages = 6; 
   EventStatus status = 7;
   

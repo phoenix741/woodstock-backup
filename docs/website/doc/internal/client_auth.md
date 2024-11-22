@@ -109,7 +109,6 @@ Sessions are valid for a predetermined time or until explicitly terminated.
 
 ## Diagram: Authentication Sequence
 
-```plantuml
 @startuml
 participant Client
 participant Server
@@ -134,4 +133,3 @@ Server -> Server: Process Request if Session is Valid
 
 Client -> Server: Session Termination (Expiration/Manual/Timeout)
 @enduml
-```

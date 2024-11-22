@@ -3,8 +3,7 @@
 You can update the default scheduler instead of the host scheduler.
 
 ```yaml
----
-wakeupSchedule: "0 * * * *"
+wakeupSchedule: "*/15 * * * *"
 nightlySchedule: "0 0 * * *"
 defaultSchedule:
   activated: True
@@ -21,11 +20,11 @@ defaultSchedule:
 
 Inside the file we have the following properties:
 
-| Field           | Default value | Description                                                           |
-| --------------- | ------------- | --------------------------------------------------------------------- |
-| wakeupSchedule  | 0 \* \* \* \* | Cron to wakeup the backup software and launch all backup if necessary |
-| nightlySchedule | 0 0 \* \* \*  | Cron to wakeup the backup software and launch statistics              |
-| defaultSchedule | See above     | The default backup scheduler                                          |
+| Field           | Default value  | Description                                                           |
+| --------------- | -------------  | --------------------------------------------------------------------- |
+| wakeupSchedule  | `*/15 * * * *` | Cron to wakeup the backup software and launch all backup if necessary |
+| nightlySchedule | `0 0 * * *`    | Cron to wakeup the backup software and launch statistics              |
+| defaultSchedule | See above      | The default backup scheduler                                          |
 
 ## The scheduler
 
@@ -35,4 +34,4 @@ Inside the field `scheduler`:
 | ------------ | -------------------------------------------------------------- | -------------------------------------------- |
 | activated    | true                                                           | Active / Desactive the automatic backup      |
 | backupPeriod | 8340                                                           | Period between two backup: 24H - 5 minutes   |
-| backupToKeep | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1 }` | Number of backups to keep (not used currently) |
+| backupToKeep | `{ hourly: 24, daily: 7, weekly: 4, monthly: 12, yearly: 1 }`  | Number of backups to keep (not used currently) |

@@ -61,7 +61,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
 
@@ -86,7 +86,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
                 EventStatus::GenericError
@@ -115,7 +115,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.in_nothing > 0 || information.missing > 0 {
                 EventStatus::GenericError
@@ -144,7 +144,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
                 EventStatus::GenericError
@@ -173,7 +173,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: EventStatus::Success as i32,
 

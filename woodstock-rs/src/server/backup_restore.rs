@@ -265,7 +265,7 @@ impl<Clt: Client> BackupRestore<Clt> {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
 
@@ -294,7 +294,7 @@ impl<Clt: Client> BackupRestore<Clt> {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: None,
+            user: "".to_string(),
             error_messages: Vec::new(),
             status: status as i32,
 
