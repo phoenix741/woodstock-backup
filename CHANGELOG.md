@@ -1,3 +1,19 @@
+# [2.0.0-alpha.27](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.26...v2.0.0-alpha.27) (2024-11-24)
+
+
+### Bug Fixes
+
+* reuse chunk information when the chunk is already present ([70f9394](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/70f939415e1e2d2f8cda103eee2b47a268f129c3))
+
+
+### Features
+
+* add a docker image for the client side ([d35b985](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d35b985be223dc521c25f3603bc76cc8df7b285c))
+* add a endpoint to clear the cache ([58df2cb](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/58df2cbfea62a4bc121f3c32d2ae3f37d417f7ff))
+* migrate from vuepress to vitepress ([8080f28](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8080f283422a76bef788b977c613d93e38d83e5b))
+* start creating documentation for client authentification ([28977e1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/28977e1417e5cfc5596180b7353a43824f1cd6bc))
+* update dev container ([e4163d6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e4163d6ed8359740ee3ef475940e38897d20d64d))
+
 # [2.0.0-alpha.26](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.25...v2.0.0-alpha.26) (2024-11-16)
 
 
