@@ -11,7 +11,7 @@ the documentation will explain how the software is working internally for develo
 
 - [Installation](/doc/installation)
 - [Configuration](/doc/configuration)
-- [Update the scheduler](/doc/updatescheduler)
+- [Update the scheduler](/doc/scheduler)
 - [FAQ](/doc/faq)
 - [Roadmap](/doc/roadmap)
 - [Internal](/doc/internal/)

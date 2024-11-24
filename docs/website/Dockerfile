@@ -1,6 +1,6 @@
 #
 # -------- Build --------
-FROM node:16 as build
+FROM node:22 AS build
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src
@@ -13,7 +13,7 @@ RUN npm run build
 
 #
 # -------- Dist -----------
-FROM nginx:stable-alpine as production-stage
-COPY --from=build /src/.vuepress/dist/ /usr/share/nginx/html
+FROM nginx:stable-alpine AS production-stage
+COPY --from=build /src/.vitepress/dist/ /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
