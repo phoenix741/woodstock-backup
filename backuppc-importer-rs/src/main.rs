@@ -44,7 +44,7 @@ struct BackupDefinition {
     pub size: u64,
 }
 
-async fn list_woodstock_backups(ctxt: &Context) -> Vec<BackupDefinition> {
+async fn list_woodstock_backups(ctxt: &Context, excludes: &[&str]) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
     let hosts_config = Hosts::new(ctxt);
@@ -52,6 +52,10 @@ async fn list_woodstock_backups(ctxt: &Context) -> Vec<BackupDefinition> {
 
     let hosts = hosts_config.list_hosts().await.unwrap_or_default();
     for host in hosts {
+        if excludes.iter().any(|exclude| host.contains(exclude)) {
+            continue;
+        }
+
         let backups = backups_config.get_backups(&host).await;
         for backup in backups {
             result.push(BackupDefinition {
@@ -66,18 +70,22 @@ async fn list_woodstock_backups(ctxt: &Context) -> Vec<BackupDefinition> {
     result
 }
 
-fn list_backuppc_backups(pool_path: &str) -> Vec<BackupDefinition> {
+fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
     let hosts_config = BackupPCHosts::new(pool_path);
 
     let hosts = hosts_config.list_hosts().unwrap_or_default();
     for host in hosts {
+        let hostname = vec_to_osstr(&host).to_string_lossy().to_string();
+        if excludes.iter().any(|exclude| hostname.contains(exclude)) {
+            continue;
+        }
+
         let backups = hosts_config.list_backups(&host).unwrap_or_default();
         for backup in backups {
-            let host = vec_to_osstr(&host);
             result.push(BackupDefinition {
-                hostname: host.to_string_lossy().to_string(),
+                hostname: hostname.clone(),
                 backup_number: backup.num as usize,
                 start_time: backup.start_time,
                 size: backup.size,
@@ -247,6 +255,9 @@ struct Cli {
     /// Dry run
     #[clap(short, long)]
     dry_run: bool,
+
+    #[clap(long)]
+    excludes: Option<Vec<String>>,
 }
 
 #[tokio::main]
@@ -312,7 +323,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.woodstock_pool
     ))?;
 
-    let mut woodstock_backups = list_woodstock_backups(&context).await;
+    let excludes: Vec<&str> = args
+        .excludes
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .map(AsRef::as_ref)
+        .collect();
+
+    let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
 
     for woodstock in &woodstock_backups {
@@ -322,7 +341,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool);
+    let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool, &excludes);
     backuppc_backups.sort_by_key(|backup| backup.start_time);
 
     for backuppc in &backuppc_backups {
@@ -413,10 +432,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if !args.only_one {
         // List backups in woodstock that is not in backuppc
-        let mut woodstock_backups = list_woodstock_backups(&context).await;
+        let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
         woodstock_backups.sort_by_key(|backup| backup.start_time);
 
-        let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool);
+        let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool, &excludes);
         backuppc_backups.sort_by_key(|backup| backup.start_time);
 
         // Remove from backuppc_backups the backups that are already in woodstock_backups
