@@ -2,6 +2,7 @@
 # -------- Base Rust -----------
 ARG RUST_VERSION=1-alpine
 ARG NODE_VERSION=20-alpine
+ARG DEBIAN_VERSION=latest
 ARG FEATURES=all
 
 FROM rust:$RUST_VERSION AS build-chef
@@ -82,6 +83,22 @@ COPY nestjs/ /src/nestjs/
 RUN npm run buildall
 
 #
+# -------- Build back -------
+FROM ${DEBIAN_VERSION} AS client
+
+RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
+  apk add --no-cache acl; \
+  else \
+  apt-get update && apt-get install -y libacl1  libfuse2 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
+  fi
+
+COPY --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
+
+VOLUME [ "/etc/woodstock" ]
+
+CMD [ "/app/cli/ws_client_daemon" ]
+
+#
 # -------- Dist -----------
 FROM node:$NODE_VERSION AS dist
 
@@ -106,7 +123,6 @@ COPY --from=build-sharedrs /src/shared-rs/shared-rs.* /app/shared-rs/
 COPY --from=prod-dependencies /src/nestjs/node_modules /app/nestjs/node_modules
 COPY --from=prod-dependencies /src/node_modules /app/node_modules
 COPY --from=build-back /src/nestjs/package*.json /app/nestjs/
-COPY --from=build-back /src/nestjs/config/ /app/nestjs/config/
 COPY --from=build-back /src/nestjs/dist/ /app/nestjs/
 COPY --from=build-back /src/nestjs/ecosystem.config.js /app/nestjs/
 COPY --from=build-front /src/front/dist /app/nestjs/front/

@@ -36,6 +36,14 @@
                 item.agentVersion || 'unknown'
               }}</v-chip>
             </template>
+            <template v-slot:bottom>
+              <div class="d-flex">
+                <div class="flex-1-0 text-left"></div>
+                <div class="text-right pa-2">
+                  <v-btn class="ml-1" color="primary" variant="text" @click="clearCache()">Clear cache</v-btn>
+                </div>
+              </div>
+            </template>
           </v-data-table>
         </v-sheet>
       </v-col>
@@ -60,7 +68,7 @@ import { HostAvailibilityState } from '@/generated/graphql';
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
 const router = useRouter();
-const { devices, isDeviceFetching, devicesByState } = useDevices();
+const { devices, isDeviceFetching, devicesByState, clearCache } = useDevices();
 const { devicesBySize, isStatsFetching } = useDiskUsageStats();
 
 function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknown> }) {

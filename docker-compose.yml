@@ -13,6 +13,7 @@ services:
       args:
         - RUST_VERSION=1
         - NODE_VERSION=20-slim
+        - DEBIAN_VERSION=debian:12-slim
     image: phoenix741/woodstock-backup:develop
     ports:
       - 3000:3000
@@ -26,6 +27,23 @@ services:
       - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
+
+  woodstock_client:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1
+        - NODE_VERSION=20-slim
+        - DEBIAN_VERSION=debian:12-slim
+      target: client
+    image: phoenix741/woodstock-backup-client:develop
+    ports:
+      - 3657:3657
+    environment:
+      - LOG_LEVEL=debug
+    volumes:
+      - "client_storage:/etc/woodstock"
 
   # woodstock_client:
   #   image: phoenix741/woodstock-backup:develop
@@ -53,9 +71,8 @@ services:
 
 volumes:
   redis_data:
-    driver: local
   prometheus_storage:
-    driver: local
+  client_storage:
   backups_storage:
     driver: local
     driver_opts:

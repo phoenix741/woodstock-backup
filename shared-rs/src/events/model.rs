@@ -162,7 +162,7 @@ pub struct JsEvent {
   pub step: JsEventStep,
   pub timestamp: BigInt,
   pub source: JsEventSource,
-  pub user: Option<String>,
+  pub user: String,
   pub error_messages: Vec<String>,
   pub status: JsEventStatus,
   #[napi(

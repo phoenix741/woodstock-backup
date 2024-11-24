@@ -85,6 +85,10 @@ export class BackupsService {
     if (backupNumber) {
       await this.cacheManager.del(`backup-${hostname}-${backupNumber}`);
     }
+    await this.invalidateBackups(hostname);
+  }
+
+  async invalidateBackups(hostname: string): Promise<void> {
     await this.cacheManager.del(`backups-${hostname}`);
   }
 }

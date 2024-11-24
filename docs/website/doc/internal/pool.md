@@ -1,6 +1,6 @@
 # Internal
 
-The backup is stored on the server. The backups are stored in two directories: 
+The backup is stored on the server. The backups are stored in two directories:
 
 - `hosts`: Contains the manifest of the backups
 - `pool`: Contains the pool of chunks used for deduplication
@@ -11,18 +11,19 @@ The pool is used to store the content of the file for deduplication. The goal of
 between multiple backups of the same host, files that have been moved, and the same file accross different hosts.
 
 To limit used space of file that can change accross multiple backups, we split the file into multiple chunks. If a part of the file
-changed, only the chunk of this part will be re-uploaded. 
+changed, only the chunk of this part will be re-uploaded.
 
-### Size of chunk 
+### Size of chunk
 
 The size of the chunk should be chosen depending on the repartition of the size accross all files.
 
 If the size of the chunk is too small, we will have too many chunks and the space taken by the the pool will be greater than the
 real size.
 
-If the size of the chunk is too big, we need to retransfer the whole chunk if a part of the file changed. 
+If the size of the chunk is too big, we need to retransfer the whole chunk if a part of the file changed.
 
 Files that can be changed over time and should be deduplicated will be:
+
 - image disk of virtual machine,
 - file log (that will be appended automatically).
 
@@ -68,7 +69,7 @@ And this is the result.
 With a chunk of 4Mo, we have 99% of a file that wouldn't be split into chunks. We can found in this file: text, picture, and all small
 files. All of these files will be unique most of the time.
 
-In the first version, the size couldn't be changed, but in a future version the size of the chunk should be customizable (for different 
+In the first version, the size couldn't be changed, but in a future version the size of the chunk should be customizable (for different
 possibilities).
 
 ### Hash table
@@ -81,10 +82,10 @@ exists on the pool.
 
 In case of pool check, we can easily verify the coherence between the SHA-256 and the content of the file.
 
-The risk of using a SHA-256 key is collision. If two chunks have the same SHA-256, the backup will fail silently (the problem will be the 
+The risk of using a SHA-256 key is collision. If two chunks have the same SHA-256, the backup will fail silently (the problem will be the
 restauration of the files). After reading some documentation SHA-256 key shouldn't be a big problem. The risk of collision is small.
 
-In the first version, we keep only the SHA-256 key. In a future version, we can use a sequence id appended to it to identify multiple collisions. 
+In the first version, we keep only the SHA-256 key. In a future version, we can use a sequence id appended to it to identify multiple collisions.
 In this case, we need to read the file and the backup will be slower.
 
 In a sample of 3 500 000 of files, I don't have collision on an existing MD5.
@@ -92,9 +93,9 @@ In a sample of 3 500 000 of files, I don't have collision on an existing MD5.
 ### Structure of the pool
 
 The pool will use the file system as a hashtable. The pool must be stored on a filesytem where the number of files has no limit. A SHA-256 can
-have approximately `1.15 x 10^77` different possible chunks. 
+have approximately `1.15 x 10^77` different possible chunks.
 
-Even if the pool is split in different directories, the number of files will still be too high. 
+Even if the pool is split in different directories, the number of files will still be too high.
 
 Old filesystems like FAT32, EXT2 can't be used (even if it depends on file really backedup).
 
@@ -103,24 +104,24 @@ Filesystems that should work are: EXT4, Btrfs, XFS, NTFS, ...
 The pool will be split in a directory structure of three levels. The first three levels are composed of the 3 first bytes of the SHA-256.
 This directory structure will be used to limit the number of locks on the chunk and refcnt file.
 
-
 ```bash
  pool
    ├── aa
    │    ├── aa
    │    │    ├── aa
-   │    │    │    ├── REFCNT
-   │    │    │    │     ├── sha256 cnt
-   │    │    │    │     ├── sha256 cnt
-   │    │    │    │     └── sha256 cnt
-   │    │    │    ├── LOCK
-   │    │    │    │     └── host backupNumber
    │    │    │    └── aaaaaacdefghih-sha256.zlib
+   │    │    │    └── aaaaaacdefghih-sha256.info
+   ├── unused
+   ├── statistics.yml
+   ├── REFCNT
+   ├── history.yml
+   ├── disk_history.yml
 ```
 
-In each leaf directory, we would have a `LOCK` file that would be used to lock the directory when the `REFCNT` is modified. The `REFCNT` is
-used to count the number of times the chunk is used in a backup. When the number of uses of the file is down to 0, this file can be deleted. 
-This can be used to purge old files, from old backup.
+The `unused` file is used to list all the chunks that are not used in any backup. This file is used to purge the pool.
+The `REFCNT` file is used to count the number of times the chunk is used in a backup. A lock file is used to lock the
+pool when the `REFCNT` or `unused` file is modified. If the count of a sha256 in the `REFCNT` file is changed to 0, the
+chunk is moved to the `unused` file.
 
 The content of the chunk is stored directly in a file (that can be compressed).
 
@@ -130,11 +131,12 @@ Currently, only zlib compression is supported.
 
 The pool is used to store the content of the file. But it doesn't describe how to restore the backup.
 
-The goal of the backup manifest is to describe files in the backup. 
+The goal of the backup manifest is to describe files in the backup.
 
-We will have one file by backup, each manifest file will be stored in the `hosts` directory (different for each host backedup). 
+We will have one file by backup, each manifest file will be stored in the `hosts` directory (different for each host backuped).
 
 The manifest file will contain, for each backup, the list of files saved, and for each file:
+
 - metadata associated with the file (owner, size, acl, ...),
 - list of hash of chunks of the file,
 - a sha256 of the file.
@@ -145,30 +147,69 @@ we will use a standard format for binary storage. This standard is [protocol-buf
 Using a protocol-buffer simplifies the writing of different programs in different languages to write and read the protocol buffer.
 
 ```protobuf
+enum FileManifestType {
+    RegularFile = 0;
+    Symlink = 1;
+    Directory = 2;
+    BlockDevice = 3;
+    CharacterDevice = 4;
+    Fifo = 5;
+    Socket = 6;
+    Unknown = 99;
+}
+
+message FileManifestStat {
+  uint32 ownerId = 1;
+  uint32 groupId = 2;
+  uint64 size = 3;
+  uint64 compressedSize = 4;
+  int64 lastRead = 5;
+  int64 lastModified = 6;
+  int64 created = 7;
+  uint32 mode = 8;
+  FileManifestType type = 9;
+
+  uint64 dev = 10;
+  uint64 rdev = 11;
+
+  uint64 ino = 12;
+  uint64 nlink = 13;
+}
+
+enum FileManifestAclQualifier {
+    UNDEFINED = 0;
+    USER_OBJ = 1;
+    GROUP_OBJ = 2;
+    OTHER = 3;
+    USER_ID = 4;
+    GROUP_ID = 5;
+    MASK = 6;
+}
+
+message FileManifestAcl {
+  FileManifestAclQualifier qualifier = 1;
+  uint32 id = 2;
+  uint32 perm = 3;
+}
+
+message FileManifestXAttr {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// File manifest used to store the content of a file
 message FileManifest {
-  message FileManifestStat {
-    int32 ownerId = 1;
-    int32 groupId = 2;
-    int64 size = 3;
-    int64 lastRead = 4;
-    int64 lastModified = 5;
-    int64 created = 6;
-    int32 mode = 7;
-  }
-
-  message FileManifestAcl {
-    string user = 1;
-    string group = 2;
-    int32 mask = 3;
-    int32 other = 4;
-  }
-
   bytes path = 1;
   FileManifestStat stats = 2;
-  map<string, bytes> xattr = 5;
-  repeated FileManifestAcl acl = 6;
-  repeated bytes chunks = 3;
-  bytes sha256 = 4;
+  bytes symlink = 3;
+
+  repeated FileManifestXAttr xattr = 4;
+  repeated FileManifestAcl acl = 5;
+
+  repeated bytes chunks = 6;
+  bytes hash = 8;
+
+  map<string, bytes> metadata = 7;
 }
 ```
 
@@ -179,4 +220,3 @@ int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int3
 int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest
 (etc)
 ```
-

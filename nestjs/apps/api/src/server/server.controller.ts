@@ -1,11 +1,10 @@
-import { Controller, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
+import { Controller, Delete, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
+import { ApplicationConfigService } from '@woodstock/shared';
 import { Response } from 'express';
 import { join } from 'path';
 import { getLog, tailLog } from '../utils/log-utils.service.js';
-import { ServerChecks } from './server.dto.js';
 import { ServerService } from './server.service.js';
-import { ApplicationConfigService } from '@woodstock/shared';
 
 @Controller('server')
 export class ServerController {
@@ -14,13 +13,12 @@ export class ServerController {
     public serverService: ServerService,
   ) {}
 
-  @Get('status')
+  @Delete('cache')
   @ApiOkResponse({
-    description: 'Get the status of the server',
-    type: ServerChecks,
+    description: 'Clear the cache of the server',
   })
-  async getStatus(): Promise<ServerChecks> {
-    return this.serverService.check();
+  clearCache(): void {
+    this.serverService.clearCache();
   }
 
   @Get('log/application.log')
