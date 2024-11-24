@@ -11,8 +11,19 @@ import 'winston-daily-rotate-file';
 
 const { combine, timestamp, printf, colorize } = format;
 
+function padString(value: string | undefined) {
+  if (value === undefined) {
+    return '';
+  }
+  // If value is not string
+  if (typeof value !== 'string') {
+    value = JSON.stringify(value);
+  }
+  return value.padEnd(25, ' ');
+}
+
 const applicationFormat = printf((info: logform.TransformableInfo) => {
-  return `${info.timestamp} [${(info.hostname ?? 'global').padEnd(25, ' ')}][${(info.context ?? '').padEnd(25, ' ')}] ${info.level}: ${info.message} ${info.trace ?? ''}`;
+  return `${info.timestamp} [${padString((info.hostname as string) ?? 'global')}][${padString(info.context as string)}] ${info.level}: ${info.message} ${info.trace ?? ''}`;
 });
 
 interface LogStorage {
