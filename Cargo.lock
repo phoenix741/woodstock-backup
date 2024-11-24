@@ -3695,7 +3695,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock_shared-rs"
-version = "2.0.0-alpha.27"
+version = "2.0.0-alpha.28"
 dependencies = [
  "chrono",
  "futures-util",
@@ -3710,7 +3710,7 @@ dependencies = [
 
 [[package]]
 name = "ws_backuppc_importer"
-version = "2.0.0-alpha.27"
+version = "2.0.0-alpha.28"
 dependencies = [
  "async-stream",
  "async-trait",

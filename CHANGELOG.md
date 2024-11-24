@@ -1,3 +1,10 @@
+# [2.0.0-alpha.28](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.27...v2.0.0-alpha.28) (2024-11-24)
+
+
+### Features
+
+* ✨ excludes host from migration ([36b3e29](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/36b3e298616bbb65dca4ff0a5651918f5c311f2e))
+
 # [2.0.0-alpha.27](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.26...v2.0.0-alpha.27) (2024-11-24)
 
 
