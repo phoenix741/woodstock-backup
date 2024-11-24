@@ -29,7 +29,7 @@
           "package-lock.json",
           "nestjs/package.json",
           "front/package.json",
-          "website/package.json",
+          "docs/website/package.json",
           "shared-rs/package.json",
           "shared-rs/npm/linux-x64-gnu/package.json",
           "shared-rs/npm/linux-x64-musl/package.json",

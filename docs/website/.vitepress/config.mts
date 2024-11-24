@@ -19,6 +19,10 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "About", link: "/about/" },
       { text: "Documentation", link: "/doc/" },
+      {
+        text: "Download",
+        link: "https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases",
+      },
     ],
 
     sidebar: {
@@ -51,6 +55,10 @@ export default defineConfig({
       {
         icon: "github",
         link: "https://github.com/phoenix741/woodstock-backup",
+      },
+      {
+        icon: "gitea",
+        link: "https://gogs.shadoware.org/ShadowareOrg/woodstock-backup",
       },
     ],
   },
