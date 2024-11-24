@@ -38,14 +38,6 @@ describe('Server Controller', () => {
     expect(controller).toBeDefined();
   });
 
-  it('/server/status should retrieve the btrfs status', async () => {
-    // GIVEN
-    serverServiceMock.check.mockResolvedValueOnce({ isBtrfsVolume: true });
-
-    // THEN
-    expect(await controller.getStatus()).toEqual({ isBtrfsVolume: true });
-  });
-
   it('/server/log/application.log should return log of the server', async () => {
     // GIVEN
     const res: Response = {

@@ -1,7 +1,8 @@
 import { HostCountByState } from '@/components/hosts/hosts.interface';
 import { getState } from '@/components/hosts/hosts.utils';
+import { graphql } from '@/generated';
 import { HostsDocument } from '@/generated/graphql';
-import { useQuery } from '@vue/apollo-composable';
+import { useMutation, useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
 export function useDevices() {
@@ -21,9 +22,22 @@ export function useDevices() {
     }));
   });
 
+  const { mutate } = useMutation(
+    graphql(/* GraphQL */ `
+      mutation clearCache {
+        clearCache {
+          void
+        }
+      }
+    `),
+  );
+
+  const clearCache = () => mutate({});
+
   return {
     devices,
     isDeviceFetching,
     devicesByState,
+    clearCache,
   };
 }

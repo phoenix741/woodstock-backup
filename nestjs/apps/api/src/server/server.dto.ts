@@ -8,3 +8,8 @@ export class ServerInformations {
   uptime!: number;
   woodstockVersion?: string;
 }
+
+@ObjectType()
+export class ClearCacheResponse {
+  void?: number;
+}

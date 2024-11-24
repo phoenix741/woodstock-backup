@@ -28,6 +28,7 @@ const documents = {
     "query SharesBrowse($hostname: String!, $number: Int!) {\n  backup(hostname: $hostname, number: $number) {\n    id\n    shares {\n      ...FragmentFileDescription\n    }\n  }\n}": types.SharesBrowseDocument,
     "\n  fragment JobPoolResponse on JobResponse {\n    id\n  }\n": types.JobPoolResponseFragmentDoc,
     "\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    ": types.RestoreBackupDocument,
+    "\n      mutation clearCache {\n        clearCache {\n          void\n        }\n      }\n    ": types.ClearCacheDocument,
     "\n  query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {\n    events(firstEvent: $firstEvent, lastEvent: $lastEvent) {\n      ...ApplicationEvent\n    }\n  }\n": types.EventsDocument,
     "\n      mutation cleanupPool {\n        cleanupPool {\n          ...JobPoolResponse\n        }\n      }\n    ": types.CleanupPoolDocument,
     "\n      mutation fsckPool($fix: Boolean!) {\n        checkAndFixPool(fix: $fix) {\n          ...JobPoolResponse\n        }\n      }\n    ": types.FsckPoolDocument,
@@ -114,6 +115,10 @@ export function graphql(source: "\n  fragment JobPoolResponse on JobResponse {\n
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    "): (typeof documents)["\n      mutation restoreBackup($input: RestoreInput!) {\n        restoreBackup(input: $input) {\n          ...JobPoolResponse\n        }\n      }\n    "];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "\n      mutation clearCache {\n        clearCache {\n          void\n        }\n      }\n    "): (typeof documents)["\n      mutation clearCache {\n        clearCache {\n          void\n        }\n      }\n    "];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

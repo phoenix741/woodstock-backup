@@ -1,4 +1,4 @@
-import { Controller, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
+import { Controller, Delete, Get, ParseBoolPipe, Query, Res } from '@nestjs/common';
 import { ApiOkResponse } from '@nestjs/swagger';
 import { ApplicationConfigService } from '@woodstock/shared';
 import { Response } from 'express';
@@ -12,6 +12,14 @@ export class ServerController {
     public applicationConfig: ApplicationConfigService,
     public serverService: ServerService,
   ) {}
+
+  @Delete('cache')
+  @ApiOkResponse({
+    description: 'Clear the cache of the server',
+  })
+  clearCache(): void {
+    this.serverService.clearCache();
+  }
 
   @Get('log/application.log')
   @ApiOkResponse({

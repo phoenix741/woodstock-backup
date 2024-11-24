@@ -31,4 +31,11 @@ export class HostsService {
     await this.cacheManager.del(`host-${hostname}`);
     await this.cacheManager.del('hosts');
   }
+
+  async invalidateHosts(): Promise<void> {
+    for (const host of await this.getHosts()) {
+      await this.cacheManager.del(`host-${host}`);
+    }
+    await this.cacheManager.del('hosts');
+  }
 }
