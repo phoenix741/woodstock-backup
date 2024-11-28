@@ -493,8 +493,8 @@ impl WoodstockClientService for WoodstockClient {
 
                 while let Some(file) = files.next().await {
                     let result = tx.send(Ok(file)).await;
-                    if result.is_err() {
-                        error!("Failed to send file manifest journal entry");
+                    if let Err(err) = result {
+                        error!("Failed to send file manifest journal entry: {err}");
                         break;
                     }
                 }

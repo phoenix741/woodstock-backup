@@ -5,7 +5,7 @@ use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     hash::Hash,
-    path::{Component, Path, PathBuf},
+    path::{Component, Path, PathBuf, MAIN_SEPARATOR_STR},
 };
 
 /// Converts a vector of byte vectors to a vector of string slices.
@@ -83,6 +83,10 @@ pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
             Component::RootDir => {
                 buff.push(b'/');
             }
+            Component::Prefix(prefix) => {
+                buff.extend(osstr_to_vec(prefix.as_os_str()));
+                buff.push(b'/');
+            }
             _ => {
                 warn!("Unsupported path component: {:?}", component);
             }
@@ -111,7 +115,7 @@ pub fn vec_to_path(vec: &[u8]) -> PathBuf {
     let mut path_buf = PathBuf::new();
     for component in components {
         if component.is_empty() {
-            path_buf.push("/");
+            path_buf.push(MAIN_SEPARATOR_STR);
         }
         path_buf.push(component);
     }
@@ -201,10 +205,17 @@ mod tests {
 
     // Test vec_to_path and path_to_vec
     #[test]
+    #[cfg(windows)]
     fn test_path_conversion_windows() {
         let path = Path::new("\\test\\path\\to\\convert");
         let vec = super::path_to_vec(path);
         let new_path = super::vec_to_path(&vec);
-        assert_eq!(new_path, Path::new("/test/path/to/convert"));
+        println!("{:?}", new_path);
+        assert_eq!(new_path, Path::new("\\test\\\\path\\to\\convert"));
+
+        let path = Path::new("C:\\test\\path\\to\\convert");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("C:\\test\\path\\to\\convert"));
     }
 }

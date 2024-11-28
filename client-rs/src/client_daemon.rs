@@ -10,7 +10,7 @@
 #[cfg(windows)]
 pub mod winfw;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
@@ -74,15 +74,20 @@ async fn start_client(
     let config = read_config(config_yml).expect("Failed to read config");
 
     if config.auto_update {
-        let _ = spawn_blocking(|| {
-            if let Err(err) = update(true) {
+        let config_path_update = config_path.clone();
+        let config_path = config_path.clone();
+        let _ = spawn_blocking(move || {
+            if let Err(err) = update(config_path, true) {
                 error!("Failed to update: {}", err);
             }
         })
         .await;
 
         // Démarrer la tâche de mise à jour hebdomadaire
-        tokio::spawn(schedule_weekly_updates(config.update_delay));
+        tokio::spawn(schedule_weekly_updates(
+            config_path_update,
+            config.update_delay,
+        ));
     }
 
     let root_ca = config_path.join("rootCA.pem");
@@ -276,21 +281,11 @@ pub mod winserv {
                     ServiceControl::Stop => {
                         if let Ok(mut signal_tx) = signal_tx.lock() {
                             if let Some(signal_tx) = signal_tx.take() {
+                                info!("Stop signal received");
                                 signal_tx.send(()).unwrap();
                             }
                         }
-                        ServiceControlHandlerResult::NoError
-                    }
 
-                    // treat the UserEvent as a stop request
-                    ServiceControl::UserEvent(code) => {
-                        if code.to_raw() == 130 {
-                            if let Ok(mut signal_tx) = signal_tx.lock() {
-                                if let Some(signal_tx) = signal_tx.take() {
-                                    signal_tx.send(()).unwrap();
-                                }
-                            }
-                        }
                         ServiceControlHandlerResult::NoError
                     }
 
@@ -413,6 +408,7 @@ pub mod winserv {
         let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
         println!("Opening service...");
+        info!("Opening service...");
 
         let service = service_manager.open_service(
             SERVICE_NAME,
@@ -424,10 +420,12 @@ pub mod winserv {
 
         if service.query_status()?.current_state == ServiceState::Running {
             println!("Stopping service...");
+            info!("Stopping service...");
 
             service.stop()?;
 
             println!("Waiting for service to stop...");
+            info!("Waiting for service to stop...");
 
             let start = Instant::now();
             let timeout = Duration::from_secs(5);
@@ -440,17 +438,20 @@ pub mod winserv {
         }
 
         println!("Starting service...");
+        info!("Starting service...");
 
         service.start(&Vec::<OsString>::new())?;
 
         println!("Service restarted");
+        info!("Service restarted");
 
         Ok(())
     }
 }
 
-fn update(automatic: bool) -> Result<()> {
+fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
     println!("Checking for updates...");
+    info!("Checking for updates...");
 
     let result = self_update::backends::gitea::Update::configure()
         .with_host("https://gogs.shadoware.org")
@@ -465,27 +466,46 @@ fn update(automatic: bool) -> Result<()> {
         .update()?;
 
     match result {
-        self_update::Status::UpToDate(_) => println!("Already up-to-date"),
+        self_update::Status::UpToDate(_) => {
+            println!("Already up-to-date");
+            info!("Already up-to-date");
+        }
         self_update::Status::Updated(version) => {
             #[cfg(windows)]
             {
-                // Restart the service
-                winserv::restart_service()?;
+                use std::os::windows::process::CommandExt;
+                use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
+
+                let config_path = _config_path.as_ref().to_str().unwrap().to_string();
+                let _ = std::thread::spawn(move || {
+                    let result = std::process::Command::new(std::env::current_exe().unwrap())
+                        .args(["--config-dir", &config_path, "restart-service"])
+                        .creation_flags(DETACHED_PROCESS)
+                        .spawn();
+                    if let Err(err) = result {
+                        println!("Failed to restart service: {}", err);
+                        info!("Failed to restart service: {}", err);
+                    } else {
+                        println!("Service restarted");
+                        info!("Service restarted");
+                    }
+                });
             }
 
-            println!("Updated to {}", version)
+            println!("Updated to {}", version);
+            info!("Updated to {}", version);
         }
     }
 
     Ok(())
 }
 
-async fn schedule_weekly_updates(update_delay: u64) {
+async fn schedule_weekly_updates<P: AsRef<Path>>(config_path: P, update_delay: u64) {
     let duration = Duration::from_secs(update_delay);
     let mut interval = interval_at(Instant::now() + duration, duration);
     loop {
         interval.tick().await;
-        if let Err(err) = update(true) {
+        if let Err(err) = update(config_path.as_ref(), true) {
             println!("Failed to update: {}", err);
         }
     }
@@ -504,7 +524,7 @@ async fn main() -> Result<()> {
 
     let log_path = config
         .log_directory
-        .unwrap_or(config_path)
+        .unwrap_or_else(|| config_path.clone())
         .join("client.log");
 
     simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");
@@ -546,8 +566,8 @@ async fn main() -> Result<()> {
         }
 
         Some(Commands::SelfUpdate) => {
-            let _ = spawn_blocking(|| {
-                let result = update(false);
+            let _ = spawn_blocking(move || {
+                let result = update(config_path, false);
                 if let Err(err) = result {
                     println!("Failed to update: {}", err);
                 }
@@ -563,6 +583,8 @@ async fn main() -> Result<()> {
             tokio::spawn(async move {
                 tokio::signal::ctrl_c().await.unwrap();
                 signal_tx.send(()).unwrap();
+
+                info!("Ctrl-C received, shutting down");
             });
 
             start_client(args.config_dir, signal_rx).await?;
