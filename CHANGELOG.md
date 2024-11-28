@@ -1,3 +1,10 @@
+# [2.0.0-alpha.29](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.28...v2.0.0-alpha.29) (2024-11-28)
+
+
+### Bug Fixes
+
+* ✨ fix client update on windows and path ([7fb0f73](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7fb0f7346e3ece5bcc35f9c13467c2941ef1fcca))
+
 # [2.0.0-alpha.28](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.27...v2.0.0-alpha.28) (2024-11-24)
 
 
