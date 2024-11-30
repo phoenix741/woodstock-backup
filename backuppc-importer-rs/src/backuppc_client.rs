@@ -18,7 +18,7 @@ use woodstock::{
     manifest::IndexManifest,
     refresh_cache_request,
     server::client::Client,
-    utils::path::{osstr_to_vec, path_to_vec, vec_to_path},
+    utils::path::{osstr_to_vec, path_to_vec, str_to_vec, vec_to_path},
     AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryState, EntryType,
     ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
     FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
@@ -333,6 +333,11 @@ impl Client for BackupPCClient {
         let hostname = self.hostname.as_bytes();
         let view = self.view.clone();
 
+        let share_path = str_to_vec(&request.share_path);
+        let share_path = share_path
+            .split(|&c| c == b'/')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
         let filename = request
             .filename
             .split(|&c| c == b'/')
@@ -340,6 +345,7 @@ impl Client for BackupPCClient {
             .collect::<Vec<_>>();
 
         let mut path = vec![hostname, number];
+        path.extend(share_path);
         path.extend(filename);
         debug!("Calculate chunk for file {:?}", &path);
 
