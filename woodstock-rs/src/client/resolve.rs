@@ -1,6 +1,6 @@
 use eyre::Result;
 use log::{error, info};
-use mdns_sd::{ServiceDaemon, ServiceInfo};
+use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
 
@@ -94,6 +94,17 @@ impl MdnsClient {
         let mdns = ServiceDaemon::new()?;
         let my_service = create_service_info(&self.config)?;
 
+        // Start by checking all interfaces that match network
+        if let Some(network) = &self.config.mdns_interfaces {
+            if !network.is_empty() {
+                let interfaces = self.list_interfaces(&self.config)?;
+                mdns.disable_interface(IfKind::All)?;
+                for interface in interfaces {
+                    mdns.enable_interface(interface)?;
+                }
+            }
+        }
+
         // Register with the daemon, which publishes the service.
         mdns.register(my_service)?;
 
@@ -130,5 +141,15 @@ impl MdnsClient {
         }
 
         self.stop().await;
+    }
+
+    fn list_interfaces(&self, config: &ClientConfig) -> Result<Vec<IfKind>> {
+        Ok(config
+            .mdns_interfaces
+            .clone()
+            .unwrap_or_default()
+            .iter()
+            .map(|s| IfKind::Name(s.clone()))
+            .collect())
     }
 }

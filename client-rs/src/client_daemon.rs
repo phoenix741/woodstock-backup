@@ -575,9 +575,6 @@ async fn main() -> Result<()> {
             .await;
         }
         None => {
-            #[cfg(windows)]
-            winfirewall::add_firewall_rule(&config.bind)?;
-
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
             tokio::spawn(async move {

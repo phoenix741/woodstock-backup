@@ -40,6 +40,9 @@ pub struct ClientConfig {
     #[serde(default)]
     pub disable_mdns: bool,
 
+    #[serde(default)]
+    pub mdns_interfaces: Option<Vec<String>>,
+
     /// If the restauration should be disabled, for security reason
     #[serde(default)]
     pub disable_restauration: bool,
@@ -124,6 +127,7 @@ impl Default for ClientConfig {
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
             disable_restauration: false,
             disable_mdns: false,
+            mdns_interfaces: None,
             xattr: false,
             acl: false,
             auto_update: ClientConfig::default_automatic_update(),
