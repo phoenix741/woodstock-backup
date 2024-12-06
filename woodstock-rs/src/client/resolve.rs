@@ -15,22 +15,24 @@ use std::time::Duration;
 const CHECK_INTERVAL: u64 = 10;
 const MAX_INTERVAL: u64 = CHECK_INTERVAL * 6;
 
-fn create_service_info(config: &ClientConfig) -> ServiceInfo {
-    let addr: std::net::SocketAddr = config.bind.parse().expect("Failed to parse bind address");
+fn create_service_info(config: &ClientConfig) -> Result<ServiceInfo> {
+    let addr: std::net::SocketAddr = config.bind.parse()?;
     let port = addr.port();
 
     let properties = [("version", ClientConfig::version())];
 
-    ServiceInfo::new(
+    let service_info = ServiceInfo::new(
         MDNS_SERVICE_NAME,
         &config.hostname,
         &format!("{}{}", &config.hostname, MDNS_SUFFIX),
         "",
         port,
         &properties[..],
-    )
-    .expect("Failed to create service info for mDNS")
-    .enable_addr_auto()
+    )?;
+
+    let service_info = service_info.enable_addr_auto();
+
+    Ok(service_info)
 }
 
 #[derive(Clone)]
@@ -89,12 +91,11 @@ impl MdnsClient {
     }
 
     pub async fn start(&self) -> Result<()> {
-        let mdns = ServiceDaemon::new().expect("Failed to create daemon");
-        let my_service = create_service_info(&self.config);
+        let mdns = ServiceDaemon::new()?;
+        let my_service = create_service_info(&self.config)?;
 
         // Register with the daemon, which publishes the service.
-        mdns.register(my_service)
-            .expect("Failed to register our service");
+        mdns.register(my_service)?;
 
         info!("Service mDNS enregistré et disponible.");
 

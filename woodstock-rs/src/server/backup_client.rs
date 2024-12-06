@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    path::Path,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -18,11 +17,9 @@ use crate::{
     file_chunk::{self, Field},
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
-    refresh_cache_request,
-    utils::path::path_to_vec,
-    ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource, EventStatus,
-    ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest,
-    Share,
+    refresh_cache_request, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
+    EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
+    RefreshCacheRequest, Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
@@ -412,6 +409,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
     async fn get_chunks<Fut, F>(
         &self,
+        share_path: &str,
         file_manifest: &mut FileManifest,
         filename: &[u8],
         callback: &F,
@@ -424,6 +422,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let reply = self
             .client
             .get_chunk_hash(ChunkHashRequest {
+                share_path: share_path.to_string(),
                 filename: filename.to_vec(),
             })
             .await?;
@@ -479,13 +478,13 @@ impl<Clt: Client> BackupClient<Clt> {
             return Ok(());
         }
 
-        let filename = Path::new(share_path).join(file_manifest.path());
-        let filename = path_to_vec(filename.as_path());
+        let filename = file_manifest.path.clone();
 
         let (mut chunks, missing_chunks) = if is_add {
             (BTreeMap::new(), Vec::new())
         } else {
-            self.get_chunks(file_manifest, &filename, callback).await?
+            self.get_chunks(share_path, file_manifest, &filename, callback)
+                .await?
         };
 
         if chunks.is_empty() || !missing_chunks.is_empty() {
@@ -493,6 +492,7 @@ impl<Clt: Client> BackupClient<Clt> {
                 file_manifest,
                 &mut chunks,
                 ChunkInformation {
+                    share_path: share_path.to_string(),
                     filename,
                     chunks_id: missing_chunks
                         .iter()

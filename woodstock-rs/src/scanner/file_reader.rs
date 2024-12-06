@@ -132,7 +132,8 @@ fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifes
 pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHashReply {
     let request = request.clone();
     let manifest = tokio::task::spawn_blocking(move || {
-        let path = vec_to_path(&request.filename);
+        let path = Path::new(&request.share_path);
+        let path = path.join(vec_to_path(&request.filename));
         debug!("Calculating chunk hash for {}", &path.display());
 
         let manifest = caculate_chunk_hash(&request);
@@ -229,7 +230,8 @@ fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box
 pub fn read_chunk(
     chunk: &ChunkInformation,
 ) -> impl Stream<Item = Result<FileChunk, std::io::Error>> {
-    let path = vec_to_path(&chunk.filename);
+    let path = Path::new(&chunk.share_path);
+    let path = path.join(vec_to_path(&chunk.filename));
     let mut chunks = chunk.chunks_id.clone();
     chunks.sort_unstable();
 

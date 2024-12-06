@@ -44,6 +44,12 @@ pub fn osstr_to_vec(path: &OsStr) -> Vec<u8> {
     path.as_encoded_bytes().to_vec()
 }
 
+/// Converts a string to a vector of bytes.
+#[must_use]
+pub fn str_to_vec(path: &str) -> Vec<u8> {
+    path.as_bytes().to_vec()
+}
+
 /// Converts a vector of bytes to a `PathBuf`.
 ///
 /// # Arguments
@@ -85,7 +91,6 @@ pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
             }
             Component::Prefix(prefix) => {
                 buff.extend(osstr_to_vec(prefix.as_os_str()));
-                buff.push(b'/');
             }
             _ => {
                 warn!("Unsupported path component: {:?}", component);
@@ -110,16 +115,19 @@ pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
 ///
 #[must_use]
 pub fn vec_to_path(vec: &[u8]) -> PathBuf {
-    let components = vec.split(|&byte| byte == b'/' || byte == b'\\');
-    let components = components.map(vec_to_osstr).collect::<Vec<_>>();
-    let mut path_buf = PathBuf::new();
-    for component in components {
-        if component.is_empty() {
-            path_buf.push(MAIN_SEPARATOR_STR);
-        }
-        path_buf.push(component);
-    }
-    path_buf
+    // Create a new string, replace all b'/' and b'\\' with MAIN_SEPARTOR
+    let vec = vec
+        .iter()
+        .map(|&byte| {
+            if byte == b'/' || byte == b'\\' {
+                MAIN_SEPARATOR_STR.as_bytes()[0]
+            } else {
+                byte
+            }
+        })
+        .collect::<Vec<u8>>();
+    let osstr = vec_to_osstr(&vec);
+    PathBuf::from(osstr)
 }
 
 /// Converts a list of string slices to a `GlobSet`.
@@ -217,5 +225,15 @@ mod tests {
         let vec = super::path_to_vec(path);
         let new_path = super::vec_to_path(&vec);
         assert_eq!(new_path, Path::new("C:\\test\\path\\to\\convert"));
+
+        let path = Path::new("C:/Tools/a/b/c");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("C:\\Tools\\a\\b\\c"));
+
+        let vec = vec![67, 58, 92, 84, 111, 111, 108, 115, 47, 97, 47, 98, 47, 99];
+        let new_path = super::vec_to_path(&vec);
+        println!("{:?}", new_path);
+        assert_eq!(new_path, Path::new("C:\\Tools\\a\\b\\c"));
     }
 }

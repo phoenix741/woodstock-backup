@@ -302,8 +302,9 @@ async fn test_client_get_chunk_hash() {
                 continue;
             }
 
-            let path = current_path.join(file.path());
+            let path = file.path();
             let chunk_request = ChunkHashRequest {
+                share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
             };
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
@@ -367,8 +368,9 @@ async fn test_client_get_chunk() {
                 continue;
             }
 
-            let path = current_path.join(file.path());
+            let path = file.path();
             let chunk_request = ChunkInformation {
+                share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
                 chunks_id: Vec::new(),
             };

@@ -203,7 +203,8 @@ message RefreshCacheRequest {
 }
 
 message ChunkHashRequest {
-  bytes filename = 1;
+  string sharePath = 1;
+  bytes filename = 2;
 }
 
 message ChunkHashReply {
@@ -212,9 +213,10 @@ message ChunkHashReply {
 }
 
 message ChunkInformation {
-  bytes filename = 1;
+  string sharePath = 1;
+  bytes filename = 2;
   // If empty the whole file is requested
-  repeated uint64 chunksId = 2;
+  repeated uint64 chunksId = 3;
 }
 
 message FileChunkData {
