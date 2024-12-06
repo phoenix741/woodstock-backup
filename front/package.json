@@ -1,6 +1,6 @@
 {
   "name": "front2",
-  "version": "2.0.0-alpha.29",
+  "version": "2.0.0-alpha.30",
   "private": true,
   "scripts": {
     "dev": "vite",

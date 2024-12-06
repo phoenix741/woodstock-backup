@@ -1,3 +1,11 @@
+# [2.0.0-alpha.30](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.29...v2.0.0-alpha.30) (2024-12-06)
+
+
+### Bug Fixes
+
+* 🐛 fix bug file not found on windows ([7ee154d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7ee154da5c6bc1df8b318f37b07849eedf68822a))
+* 🐛 fix expect on mdns server ([63e61b4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/63e61b4ea5a477ac6b1abb240c45a67e1729c6c0))
+
 # [2.0.0-alpha.29](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.28...v2.0.0-alpha.29) (2024-11-28)
 
 
