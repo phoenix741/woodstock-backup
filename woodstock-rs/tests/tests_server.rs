@@ -10,7 +10,10 @@ use tokio::{
 use tonic::transport::{Endpoint, Server, Uri};
 use tower::service_fn;
 use woodstock::{
-    client::{config::ClientConfig, server::WoodstockClient},
+    client::{
+        config::{ClientConfig, ResolutionMode},
+        server::WoodstockClient,
+    },
     config::{ConfigurationPath, Context, OptionalConfigurationPath},
     server::{backup_client::BackupClient, grpc_client::BackupGrpcClient},
     woodstock_client_service_client::WoodstockClientServiceClient,
@@ -49,8 +52,9 @@ async fn server_and_client_stub(
         secret: "secret".to_string(),
         acl: false,
         xattr: false,
-        disable_mdns: true,
+        resolution_mode: ResolutionMode::default(),
         mdns_interfaces: None,
+        server: None,
         disable_restauration: false,
         backup_timeout: 1000,
         max_backup_seconds: 1000,

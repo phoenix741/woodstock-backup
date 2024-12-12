@@ -21,7 +21,7 @@ use tokio::io::AsyncBufRead;
 impl FileManifest {
     pub fn from_host(host: &str) -> Self {
         Self {
-            path: path_to_vec(&PathBuf::from(host)),
+            path: path_to_vec(PathBuf::from(host)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
                 r#type: FileManifestType::Directory as i32,
@@ -33,7 +33,7 @@ impl FileManifest {
 
     pub fn from_backup(backup: &Backup) -> Self {
         Self {
-            path: path_to_vec(&PathBuf::from(format!("{}", backup.number))),
+            path: path_to_vec(PathBuf::from(format!("{}", backup.number))),
             stats: Some(FileManifestStat {
                 mode: 0o755,
                 r#type: FileManifestType::Directory as i32,
@@ -52,7 +52,7 @@ impl FileManifest {
 
     pub fn from_share(share: &str) -> Self {
         Self {
-            path: path_to_vec(&PathBuf::from(share)),
+            path: path_to_vec(PathBuf::from(share)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
                 r#type: FileManifestType::Directory as i32,
@@ -64,7 +64,7 @@ impl FileManifest {
 
     pub fn from_file(file: &OsStr) -> Self {
         Self {
-            path: path_to_vec(&PathBuf::from(file)),
+            path: path_to_vec(PathBuf::from(file)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
                 r#type: FileManifestType::Directory as i32,

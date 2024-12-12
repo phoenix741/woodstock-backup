@@ -23,8 +23,8 @@ use tokio::time::{interval_at, Instant};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
-use woodstock::client::config::{get_config_path, read_config};
-use woodstock::client::resolve::MdnsClient;
+use woodstock::client::config::{get_config_path, read_config, ResolutionMode};
+use woodstock::client::resolve::{DirectResolveClient, MdnsResolveClient, ResolveClient};
 use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
@@ -120,12 +120,23 @@ async fn start_client(
                 .accept_compressed(CompressionEncoding::Gzip),
         );
 
-    let mut daemon = None;
-    if config.disable_mdns {
-        info!("mDNS is disabled");
-    } else {
-        info!("mDNS is enabled");
-        daemon = Some(MdnsClient::new(config.clone()).await?);
+    let mut daemon: Option<Box<dyn ResolveClient>> = None;
+    match config.resolution_mode {
+        ResolutionMode::Mdns => {
+            info!("mDNS is enabled");
+            daemon = Some(Box::new(MdnsResolveClient::new(config.clone()).await?));
+        }
+        ResolutionMode::Direct => {
+            if config.server.is_none() {
+                error!("Direct resolution requires a server address");
+                return Err(eyre::eyre!("Direct resolution requires a server address"));
+            }
+            daemon = Some(Box::new(DirectResolveClient::new(config.clone()).await?));
+            info!("Direct resolution is enabled");
+        }
+        ResolutionMode::None => {
+            info!("mDNS is disabled");
+        }
     }
 
     server

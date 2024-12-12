@@ -12,7 +12,10 @@ use tonic::{
 };
 use tower::service_fn;
 use woodstock::{
-    client::{config::ClientConfig, server::WoodstockClient},
+    client::{
+        config::{ClientConfig, ResolutionMode},
+        server::WoodstockClient,
+    },
     file_chunk, refresh_cache_request,
     utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient,
@@ -33,8 +36,9 @@ async fn server_and_client_stub() -> (
         secret: "secret".to_string(),
         acl: false,
         xattr: false,
-        disable_mdns: true,
+        resolution_mode: ResolutionMode::default(),
         mdns_interfaces: None,
+        server: None,
         disable_restauration: false,
         backup_timeout: 3600,
         max_backup_seconds: 3600,

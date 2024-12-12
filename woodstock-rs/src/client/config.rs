@@ -1,7 +1,7 @@
 use dirs::config_dir;
 use log::{debug, info};
 use rand::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::default::Default;
 use std::env;
 use std::fs::File;
@@ -15,8 +15,16 @@ use crate::config::DEFAULT_PORT;
 
 const DAYLY_UPDATE: u64 = 24 * 3600;
 
+#[derive(Clone, Debug, Deserialize, Default)]
+pub enum ResolutionMode {
+    Mdns,
+    #[default]
+    Direct,
+    None,
+}
+
 /// Represents the configuration for the client.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct ClientConfig {
     /// The hostname of the client. Defaults to the system's hostname.
     #[serde(default = "ClientConfig::default_hostname")]
@@ -36,12 +44,14 @@ pub struct ClientConfig {
     #[serde(default = "ClientConfig::default_max_backup_seconds")]
     pub max_backup_seconds: u64,
 
-    /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
-    pub disable_mdns: bool,
+    pub resolution_mode: ResolutionMode,
 
     #[serde(default)]
     pub mdns_interfaces: Option<Vec<String>>,
+
+    #[serde(default)]
+    pub server: Option<String>,
 
     /// If the restauration should be disabled, for security reason
     #[serde(default)]
@@ -125,9 +135,10 @@ impl Default for ClientConfig {
             secret: ClientConfig::default_secret(),
             backup_timeout: ClientConfig::default_backup_timeout(),
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
+            resolution_mode: ResolutionMode::default(),
             disable_restauration: false,
-            disable_mdns: false,
             mdns_interfaces: None,
+            server: None,
             xattr: false,
             acl: false,
             auto_update: ClientConfig::default_automatic_update(),

@@ -4,9 +4,10 @@ use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
 
+use crate::client::config::ClientConfig;
 use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX};
 
-use super::config::ClientConfig;
+use super::ResolveClient;
 
 use std::sync::Arc;
 use std::thread;
@@ -36,13 +37,13 @@ fn create_service_info(config: &ClientConfig) -> Result<ServiceInfo> {
 }
 
 #[derive(Clone)]
-pub struct MdnsClient {
+pub struct MdnsResolveClient {
     daemon: Arc<Mutex<Option<ServiceDaemon>>>,
     observer: Arc<Mutex<Option<tokio::task::AbortHandle>>>,
     config: ClientConfig,
 }
 
-impl MdnsClient {
+impl MdnsResolveClient {
     pub async fn new(config: ClientConfig) -> Result<Self> {
         let daemon = Self {
             daemon: Arc::new(Mutex::new(None)),
@@ -90,7 +91,20 @@ impl MdnsClient {
         handler.abort_handle()
     }
 
-    pub async fn start(&self) -> Result<()> {
+    fn list_interfaces(&self, config: &ClientConfig) -> Result<Vec<IfKind>> {
+        Ok(config
+            .mdns_interfaces
+            .clone()
+            .unwrap_or_default()
+            .iter()
+            .map(|s| IfKind::Name(s.clone()))
+            .collect())
+    }
+}
+
+#[tonic::async_trait]
+impl ResolveClient for MdnsResolveClient {
+    async fn start(&self) -> Result<()> {
         let mdns = ServiceDaemon::new()?;
         let my_service = create_service_info(&self.config)?;
 
@@ -115,7 +129,7 @@ impl MdnsClient {
         Ok(())
     }
 
-    pub async fn stop(&self) {
+    async fn stop(&self) {
         if let Some(daemon) = self.daemon.lock().await.take() {
             match daemon.unregister(&self.full_name()) {
                 Ok(receiver) => match receiver.recv() {
@@ -135,21 +149,11 @@ impl MdnsClient {
         }
     }
 
-    pub async fn shutdown(&self) {
+    async fn shutdown(&self) {
         if let Some(observer) = self.observer.lock().await.take() {
             observer.abort();
         }
 
         self.stop().await;
-    }
-
-    fn list_interfaces(&self, config: &ClientConfig) -> Result<Vec<IfKind>> {
-        Ok(config
-            .mdns_interfaces
-            .clone()
-            .unwrap_or_default()
-            .iter()
-            .map(|s| IfKind::Name(s.clone()))
-            .collect())
     }
 }
