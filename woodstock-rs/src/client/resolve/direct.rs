@@ -2,8 +2,8 @@ use std::{sync::Arc, thread, time::Duration};
 
 use eyre::Result;
 use if_addrs::IfAddr;
-use log::error;
-use reqwest::Client;
+use log::{debug, error};
+use reqwest::{Certificate, Client, Identity};
 use serde::Serialize;
 use serde_json::json;
 use tokio::{sync::Mutex, task::AbortHandle};
@@ -11,19 +11,19 @@ use tokio::{sync::Mutex, task::AbortHandle};
 use super::ResolveClient;
 use crate::client::config::ClientConfig;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct Ipv4Addr {
     addr: String,
     netmask: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct Ipv6Addr {
     addr: String,
     netmask: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct InterfaceInfo {
     name: String,
     ipv4: Option<Ipv4Addr>,
@@ -32,21 +32,26 @@ struct InterfaceInfo {
 
 #[derive(Clone)]
 pub struct DirectResolveClient {
-    client: Client,
     uri: String,
     config: ClientConfig,
     port: u16,
     refresher: Arc<Mutex<Option<tokio::task::AbortHandle>>>,
+    root_ca: Certificate,
+    identity: Identity,
 }
 
 const REFRESH_INTERVAL: u64 = 60;
 
 impl DirectResolveClient {
-    pub async fn new(config: ClientConfig) -> Result<Self> {
+    pub async fn new(
+        config: ClientConfig,
+        identity: Identity,
+        root_ca: Certificate,
+    ) -> Result<Self> {
         let config_clone = config.clone();
-        let client = Client::new();
+
         let uri = format!(
-            "https://{}/api/hosts/{}/client",
+            "{}/api/hosts/{}/client",
             config.server.unwrap_or_default(),
             config.hostname
         );
@@ -55,21 +60,36 @@ impl DirectResolveClient {
         let port = addr.port();
 
         let daemon = Self {
-            client,
             uri,
             port,
             config: config_clone,
             refresher: Arc::new(Mutex::new(None)),
+            root_ca,
+            identity,
         };
+        daemon.start().await?;
 
         Ok(daemon)
     }
 
+    fn create_client(&self) -> Result<Client> {
+        let root_ca = self.root_ca.clone();
+        let client = Client::builder()
+            // .danger_accept_invalid_certs(true)
+            .danger_accept_invalid_hostnames(true)
+            .use_rustls_tls()
+            .add_root_certificate(root_ca)
+            .identity(self.identity.clone())
+            .build()?;
+
+        Ok(client)
+    }
+
     async fn refresh(&self) -> Result<()> {
+        let client = self.create_client()?;
         let interfaces = self.list_interfaces(&self.config)?;
 
-        let response = self
-            .client
+        let response = client
             .post(&self.uri)
             .json(&json!({
                 "addresses": interfaces,
@@ -133,10 +153,11 @@ impl DirectResolveClient {
         let self_clone = self.clone();
         let handler = tokio::spawn(async move {
             loop {
-                thread::sleep(Duration::from_secs(REFRESH_INTERVAL));
+                debug!("Refreshing direct service");
                 if let Err(err) = self_clone.refresh().await {
-                    error!("Failed to refresh direct service: {}", err);
+                    error!("Failed to refresh direct service: {:?}", err);
                 }
+                thread::sleep(Duration::from_secs(REFRESH_INTERVAL));
             }
         });
 

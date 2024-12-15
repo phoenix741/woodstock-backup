@@ -134,6 +134,73 @@ export class CertificateService {
     };
   }
 
+  #createHttpsCertificate(
+    hostname: string,
+    rootCA: { privateKey: PKI.PrivateKey; certificate: PKI.Certificate },
+  ): { privateKey: string; publicKey: string } {
+    // generate a keypair and create an X.509v3 certificate
+    const keys = pki.rsa.generateKeyPair(2048);
+    const cert = pki.createCertificate();
+
+    cert.publicKey = keys.publicKey;
+    cert.privateKey = keys.privateKey;
+    cert.serialNumber = '01' + randomBytes(19).toString('hex');
+    cert.validity.notBefore = new Date();
+    cert.validity.notAfter = new Date();
+    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
+    const attrs = [
+      {
+        name: 'commonName',
+        value: hostname,
+      },
+      ...CERTIFICATE_ATTRS,
+    ];
+    cert.setSubject(attrs);
+
+    cert.setIssuer(rootCA.certificate.subject.attributes);
+
+    cert.setExtensions([
+      {
+        name: 'basicConstraints',
+        cA: false,
+      },
+      {
+        name: 'keyUsage',
+        digitalSignature: true,
+        keyEncipherment: true,
+      },
+      {
+        name: 'extKeyUsage',
+        serverAuth: true,
+      },
+      {
+        name: 'subjectAltName',
+        altNames: [
+          {
+            type: 2, // 2 is DNS type
+            value: hostname,
+          },
+        ],
+      },
+      {
+        name: 'authorityKeyIdentifier',
+        // authorityCertIssuer: true,
+        // serialNumber: rootCA.certificate.serialNumber,
+        keyIdentifier: rootCA.certificate.generateSubjectKeyIdentifier().getBytes(),
+      },
+    ]);
+    cert.sign(rootCA.privateKey, md.sha256.create());
+
+    // convert a Forge certificate to PEM
+    const pem = pki.certificateToPem(cert);
+    const pemPrivateKey = pki.privateKeyToPem(keys.privateKey);
+
+    return {
+      publicKey: pem,
+      privateKey: pemPrivateKey,
+    };
+  }
+
   /**
    * Generate a private key (rootCA.key) and a X.509 root certificate (rootCA.pem) using node-forge
    * The certificate will have a validity of 10 years.
@@ -150,6 +217,29 @@ export class CertificateService {
       await mkdir(this.config.certificatePath, { recursive: true });
       await writeFile(rootCAPem, keys.publicKey, 'utf-8');
       await writeFile(rootCAKey, keys.privateKey, 'utf-8');
+    }
+  }
+
+  async generateHttpsCertificate(): Promise<void> {
+    const rootCAPem = join(this.config.certificatePath, 'rootCA.pem');
+    const rootCAKey = join(this.config.certificatePath, 'rootCA.key');
+
+    const httpsPem = join(this.config.certificatePath, 'https.pem');
+    const httpsKey = join(this.config.certificatePath, 'https.key');
+
+    if (!(await isExists(httpsPem)) || !(await isExists(httpsKey))) {
+      this.#logger.log('Generating the https certificate...');
+
+      const rootCA = {
+        privateKey: pki.privateKeyFromPem(await readFile(rootCAKey, 'utf-8')),
+        certificate: pki.certificateFromPem(await readFile(rootCAPem, 'utf-8')),
+      };
+      // Generate an HTTPS certificate (not key certificate)
+      const keys = this.#createHttpsCertificate(this.config.clientApiHostname, rootCA);
+
+      await mkdir(this.config.certificatePath, { recursive: true });
+      await writeFile(httpsPem, keys.publicKey, 'utf-8');
+      await writeFile(httpsKey, keys.privateKey, 'utf-8');
     }
   }
 
@@ -215,10 +305,33 @@ export class CertificateService {
     }
   }
 
+  async #generateHostHttpsCertificate(host: string): Promise<void> {
+    const rootCAPem = join(this.config.certificatePath, 'rootCA.pem');
+    const rootCAKey = join(this.config.certificatePath, 'rootCA.key');
+
+    const hostKey = join(this.config.certificatePath, host + '_https.key');
+    const hostCert = join(this.config.certificatePath, host + '_https.pem');
+
+    if (!(await isExists(hostKey)) || !(await isExists(hostCert))) {
+      this.#logger.log(`Generating https host ${host} certificate...`);
+
+      const rootCA = {
+        privateKey: pki.privateKeyFromPem(await readFile(rootCAKey, 'utf-8')),
+        certificate: pki.certificateFromPem(await readFile(rootCAPem, 'utf-8')),
+      };
+
+      const keys = this.#createCertificate(host, false, rootCA);
+
+      await writeFile(hostCert, keys.publicKey, 'utf-8');
+      await writeFile(hostKey, keys.privateKey, 'utf-8');
+    }
+  }
+
   async generateHostCertificate(host: string): Promise<void> {
     await this.#generateHostServerCertificate(host);
 
     await this.#generateClientAuthorityCertificate(host);
     await this.#generateHostClientCertificate(host);
+    await this.#generateHostHttpsCertificate(host);
   }
 }

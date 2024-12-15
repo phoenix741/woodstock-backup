@@ -1,5 +1,8 @@
+#[cfg(feature = "mdns")]
 mod mdns;
+#[cfg(feature = "mdns")]
 pub use mdns::MdnsResolveClient;
+
 mod direct;
 pub use direct::DirectResolveClient;
 

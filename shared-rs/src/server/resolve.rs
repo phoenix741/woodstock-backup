@@ -1,5 +1,10 @@
 use napi::{Error, Result};
-use woodstock::{config::DEFAULT_PORT, server::resolve::SocketAddrResolver};
+use woodstock::{
+  config::{Context, DEFAULT_PORT},
+  server::resolve::SocketAddrResolver,
+};
+
+use crate::config::context::JsBackupContext;
 
 use super::AbortHandle;
 
@@ -40,8 +45,10 @@ pub struct CoreClientResolver {
 #[napi]
 impl CoreClientResolver {
   #[napi(constructor)]
-  pub fn new() -> Result<Self> {
-    let resolver = SocketAddrResolver::new()
+  pub fn new(ctxt: &JsBackupContext) -> Result<Self> {
+    let context: Context = ctxt.into();
+
+    let resolver = SocketAddrResolver::new(&context)
       .map_err(|_| Error::from_reason("Can't create socket address resolver".to_string()))?;
 
     Ok(Self { resolver })
@@ -59,20 +66,29 @@ impl CoreClientResolver {
   }
 
   #[napi]
-  pub async fn resolve(&self, hostname: String, default_port: Option<u16>) -> Option<Vec<String>> {
+  pub async fn resolve(&self, hostname: String, default_port: Option<u16>) -> Result<Vec<String>> {
     let default_port = default_port.unwrap_or(DEFAULT_PORT);
     let resolver = self.resolver.clone();
 
-    resolver
+    let addresses = resolver
       .resolve(&hostname, default_port)
       .await
-      .map(|addresses| addresses.iter().map(|addr| addr.to_string()).collect())
+      .map(|addresses| {
+        addresses
+          .iter()
+          .map(|addr| addr.to_string())
+          .collect::<Vec<_>>()
+      })
+      .map_err(|_| Error::from_reason(format!("Can't resolve {hostname}").to_string()))?;
+
+    Ok(addresses)
   }
 
   #[napi]
-  pub async fn register_service(&self, information: JsSocketAddrInformation) {
+  pub async fn register_service(&self, information: JsSocketAddrInformation) -> Result<()> {
     let resolver = self.resolver.clone();
     let information = woodstock::server::resolve::SocketAddrInformation {
+      refresh_date: chrono::Utc::now().timestamp(),
       hostname: information.hostname,
       port: information.port,
       version: information.version,
@@ -82,22 +98,39 @@ impl CoreClientResolver {
         .map(|addr| addr.parse().unwrap())
         .collect(),
       is_online: information.is_online,
+      source: woodstock::server::resolve::SocketAddrInformationSource::DIRECT,
     };
 
-    resolver.register_service(information).await;
+    resolver
+      .register_service(&information)
+      .await
+      .map_err(|_| Error::from_reason("Can't register service".to_string()))?;
+
+    Ok(())
   }
 
   #[napi]
-  pub async fn get_informations(&self, hostname: String) -> Option<JsSocketAddrInformation> {
+  pub async fn get_informations(
+    &self,
+    hostname: String,
+  ) -> Result<Option<JsSocketAddrInformation>> {
     let resolver = self.resolver.clone();
-    let informations = resolver.get_informations(&hostname).await;
+    let informations = resolver
+      .get_informations(&hostname)
+      .await
+      .map_err(|err| Error::from_reason(err.to_string()))?;
 
-    informations.map(|info| info.into())
+    Ok(informations.map(|info| info.into()))
   }
 
   #[napi]
-  pub async fn update_online_status(&self, hostname: String, is_online: bool) {
+  pub async fn update_online_status(&self, hostname: String, is_online: bool) -> Result<()> {
     let resolver = self.resolver.clone();
-    resolver.update_online_status(&hostname, is_online).await;
+    resolver
+      .update_online_status(&hostname, is_online)
+      .await
+      .map_err(|err| Error::from_reason(err.to_string()))?;
+
+    Ok(())
   }
 }

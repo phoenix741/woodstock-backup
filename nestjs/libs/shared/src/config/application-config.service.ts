@@ -102,6 +102,14 @@ export class ApplicationConfigService {
     return this.configService.get<string>('LOG_LEVEL', 'info');
   }
 
+  get clientApiHostname(): string {
+    return this.configService.get<string>('CLIENT_API_HOSTNAME', 'localhost');
+  }
+
+  get clientApiPort(): number {
+    return parseInt(this.configService.get<string>('CLIENT_API_PORT_HOSTNAME', '8443'));
+  }
+
   toJSON(): Pick<
     this,
     | 'backupPath'
@@ -113,6 +121,8 @@ export class ApplicationConfigService {
     | 'hostPath'
     | 'logPath'
     | 'poolPath'
+    | 'clientApiHostname'
+    | 'clientApiPort'
   > {
     return pick(
       this,
@@ -125,6 +135,8 @@ export class ApplicationConfigService {
       'hostPath',
       'logPath',
       'poolPath',
+      'clientApiHostname',
+      'clientApiPort',
     );
   }
 }

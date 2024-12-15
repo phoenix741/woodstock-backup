@@ -5,6 +5,7 @@ use jsonwebtoken::{
 use log::{debug, warn};
 use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding},
+    rand_core::OsRng,
     RsaPrivateKey, RsaPublicKey,
 };
 use serde::{Deserialize, Serialize};
@@ -59,8 +60,7 @@ pub fn generate_rsa_key(certificate_path: &Path) -> Result<()> {
         debug!("RSA key pair already exists");
         return Ok(());
     }
-
-    let mut rng = rand::thread_rng();
+    let mut rng = OsRng;
     let bits = 2048;
     let private_key = RsaPrivateKey::new(&mut rng, bits)?;
     let public_key = RsaPublicKey::from(&private_key);

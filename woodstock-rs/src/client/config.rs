@@ -17,6 +17,7 @@ const DAYLY_UPDATE: u64 = 24 * 3600;
 
 #[derive(Clone, Debug, Deserialize, Default)]
 pub enum ResolutionMode {
+    #[cfg(feature = "mdns")]
     Mdns,
     #[default]
     Direct,
@@ -94,7 +95,7 @@ impl ClientConfig {
 
     /// Generates a random 64-byte hexadecimal string as the default secret key for the client.
     fn default_secret() -> String {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut bytes = [0u8; 64];
         rng.fill_bytes(&mut bytes);
         hex::encode(bytes)

@@ -1,4 +1,5 @@
 import {
+  Body,
   ClassSerializerInterceptor,
   Controller,
   Get,
@@ -7,13 +8,14 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Post,
   Query,
   Res,
   UnsupportedMediaTypeException,
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiHeader, ApiOkResponse, ApiProduces, ApiQuery } from '@nestjs/swagger';
-import { ApplicationConfigService, findNearestPackageJson, YamlService } from '@woodstock/shared';
+import { ApplicationConfigService, findNearestPackageJson, ResolveService, YamlService } from '@woodstock/shared';
 import { HostConfiguration } from '@woodstock/shared';
 import { CertificateService } from '@woodstock/shared';
 import * as archiver from 'archiver';
@@ -62,17 +64,22 @@ export class HostController {
     );
   }
 
+  async #getCheckedHost(name: string): Promise<HostConfiguration> {
+    try {
+      return await this.hostsService.getHost(name);
+    } catch (e) {
+      this.#logger.error(`Error while getting host ${name}`, e);
+      throw new NotFoundException(`Can't find the host with name ${name}`);
+    }
+  }
+
   @Get(':name')
   @ApiOkResponse({
     description: 'Return the configuration of an host',
     type: HostConfiguration,
   })
-  async get(@Param('name') name: string): Promise<HostConfiguration> {
-    const host = await this.hostsService.getHost(name);
-    if (!host) {
-      throw new NotFoundException(`Can't find the host with name ${name}`);
-    }
-    return host;
+  get(@Param('name') name: string): Promise<HostConfiguration> {
+    return this.#getCheckedHost(name);
   }
 
   async #findVersion(): Promise<string> {
@@ -115,7 +122,7 @@ export class HostController {
 
   @Get(':name/client')
   @ApiHeader({ name: 'content-type', required: false })
-  @ApiProduces('application/zip', 'application/x-binary', 'text/plain')
+  @ApiProduces('application/zip', 'application/x-tar', 'text/plain')
   @ApiQuery({ name: 'client', enum: ClientType, required: false })
   async downloadClient(
     @Param('name') name: string,
@@ -123,6 +130,8 @@ export class HostController {
     @Headers('content-type') type?: string,
     @Query('client') clientType: ClientType = ClientType.None,
   ): Promise<void> {
+    const host = await this.#getCheckedHost(name);
+
     let archive: archiver.Archiver;
     switch (type || 'application/zip') {
       case 'application/zip':
@@ -141,15 +150,23 @@ export class HostController {
     // Générer les fichiers pour le host
     await this.certificateService.generateHostCertificate(name);
 
-    const host = await this.hostsService.getHost(name);
-
     archive.file(join(this.config.certificatePath, 'rootCA.pem'), { name: 'rootCA.pem' });
     archive.file(join(this.config.certificatePath, `public_key.pem`), { name: `public_key.pem` });
     archive.file(join(this.config.certificatePath, `${name}_server.pem`), { name: `${name}_server.pem` });
     archive.file(join(this.config.certificatePath, `${name}_server.key`), { name: `${name}_server.key` });
-    archive.append(await this.yamlService.writeBuffer({ hostname: name, password: host.password }), {
-      name: `config.yaml`,
-    });
+    archive.file(join(this.config.certificatePath, `${name}_https.pem`), { name: `${name}_https.pem` });
+    archive.file(join(this.config.certificatePath, `${name}_https.key`), { name: `${name}_https.key` });
+    archive.append(
+      await this.yamlService.writeBuffer({
+        hostname: name,
+        password: host.password,
+        resolution_mode: 'Direct',
+        server: `https://${this.config.clientApiHostname}:${this.config.clientApiPort}`,
+      }),
+      {
+        name: `config.yaml`,
+      },
+    );
     if (clientType !== ClientType.None) {
       const name = CLIENT_DAEMON_FILENAME(clientType === ClientType.Windows);
 

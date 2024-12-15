@@ -7,6 +7,13 @@ module.exports = [
     instances: parseInt(process.env.API_INSTANCES ?? '1'),
   },
   {
+    script: 'apps/clientApi/main.js',
+    name: 'clientApi',
+    cwd: '/app/nestjs',
+    exec_mode: 'cluster',
+    instances: parseInt(process.env.API_INSTANCES ?? '1'),
+  },
+  {
     script: 'apps/backupWorker/main.js',
     name: 'backupWorker',
     cwd: '/app/nestjs',

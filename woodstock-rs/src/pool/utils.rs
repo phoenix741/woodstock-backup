@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use rand::Rng;
+use rand::distr::{Alphanumeric, Distribution};
 
-#[must_use] pub fn calculate_chunk_path(pool_path: &Path, chunk: &str) -> PathBuf {
+#[must_use]
+pub fn calculate_chunk_path(pool_path: &Path, chunk: &str) -> PathBuf {
     let part1 = &chunk[0..2];
     let part2 = &chunk[2..4];
     let part3 = &chunk[4..6];
@@ -16,8 +17,9 @@ use rand::Rng;
 
 pub fn get_temp_chunk_path(pool_path: &Path) -> PathBuf {
     // Generate a string of 30 characters with random characters (base 36)
-    let temporary_filename = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
+    let mut rng = rand::rng();
+    let temporary_filename = Alphanumeric
+        .sample_iter(&mut rng)
         .take(30)
         .map(char::from)
         .collect::<String>();

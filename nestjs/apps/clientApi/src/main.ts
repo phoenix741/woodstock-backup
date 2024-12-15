@@ -3,12 +3,19 @@ import 'source-map-support/register';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ApplicationLogger } from '@woodstock/shared';
+import { ApplicationConfigService, ApplicationLogger } from '@woodstock/shared';
+import * as express from 'express';
+import * as https from 'https';
 
 import { AppModule } from './app.module.js';
+import { readFile } from 'node:fs/promises';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import { join } from 'node:path';
+import { ServerOptions } from 'node:https';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const server = express();
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { bufferLogs: true });
   app.useLogger(app.get(ApplicationLogger));
   app.flushLogs();
 
@@ -24,7 +31,7 @@ async function bootstrap() {
   );
 
   const options = new DocumentBuilder()
-    .setTitle('Woodstock Backup Management API')
+    .setTitle('Woodstock Backup Client API')
     .setDescription('Description of the API of woodstock backup')
     .setVersion('1.0')
     .build();
@@ -34,6 +41,15 @@ async function bootstrap() {
   // Wait for the application to be ready
   await app.init();
 
-  await app.listen(3000);
+  const config = app.get(ApplicationConfigService);
+  const httpsOptions: ServerOptions = {
+    requestCert: true,
+    rejectUnauthorized: false,
+
+    ca: await readFile(join(config.certificatePath, 'rootCA.pem')),
+    key: await readFile(join(config.certificatePath, 'https.key')),
+    cert: await readFile(join(config.certificatePath, 'https.pem')),
+  };
+  await https.createServer(httpsOptions, server).listen(config.clientApiPort);
 }
 bootstrap();

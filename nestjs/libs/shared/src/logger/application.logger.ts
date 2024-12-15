@@ -47,7 +47,7 @@ export class ApplicationLogger implements LoggerService {
   }
 
   #createGlobalLogger(worker: string): Logger {
-    const logPath = join(process.env.BACKUP_PATH || '', 'log');
+    const logPath = join(process.env.BACKUP_PATH || '', 'logs');
     mkdirSync(logPath, { recursive: true });
 
     const options = {

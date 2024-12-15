@@ -26,6 +26,10 @@ fn create_context() -> Context {
         source: woodstock::EventSource::Cli,
         username: None,
         config: woodstock::config::Configuration {
+            redis: woodstock::config::RedisConfiguration {
+                host: "localhost".to_string(),
+                port: 6379,
+            },
             path: ConfigurationPath::new(
                 PathBuf::from("./data/server"),
                 OptionalConfigurationPath {

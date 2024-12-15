@@ -493,7 +493,7 @@ impl Filesystem for WoodstockFileSystem {
         });
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
+    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let inner = Arc::clone(&self.inner);
 
         tokio::spawn(async move {
