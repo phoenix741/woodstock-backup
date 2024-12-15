@@ -126,11 +126,11 @@ jobs:
             binary_name: binaries-linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            features: --no-default-features --features "client,pool,server,fuse_unix"
+            features: --no-default-features --features "fuse_unix"
             binary_name: binaries-linux-lite
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            features: --no-default-features --features "client,pool,server"
+            features: --features all
             binary_name: binaries-windows
         # Disabled musl target for (depending of libm, libc,...)
         # - os: ubuntu-latest

@@ -24,9 +24,7 @@ napi-derive = "^2.16"
 tokio = "^1.40"
 uuid = { version = "^1.10", features = ["v4"] }
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
-woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
-  "server",
-] }
+woodstock-rs = { path = "../woodstock-rs" }
 
 [build-dependencies]
 napi-build = "^2.1"

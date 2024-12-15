@@ -70,10 +70,34 @@ impl CoreClientResolver {
   }
 
   #[napi]
+  pub async fn register_service(&self, information: JsSocketAddrInformation) {
+    let resolver = self.resolver.clone();
+    let information = woodstock::server::resolve::SocketAddrInformation {
+      hostname: information.hostname,
+      port: information.port,
+      version: information.version,
+      addresses: information
+        .addresses
+        .iter()
+        .map(|addr| addr.parse().unwrap())
+        .collect(),
+      is_online: information.is_online,
+    };
+
+    resolver.register_service(information).await;
+  }
+
+  #[napi]
   pub async fn get_informations(&self, hostname: String) -> Option<JsSocketAddrInformation> {
     let resolver = self.resolver.clone();
     let informations = resolver.get_informations(&hostname).await;
 
     informations.map(|info| info.into())
+  }
+
+  #[napi]
+  pub async fn update_online_status(&self, hostname: String, is_online: bool) {
+    let resolver = self.resolver.clone();
+    resolver.update_online_status(&hostname, is_online).await;
   }
 }

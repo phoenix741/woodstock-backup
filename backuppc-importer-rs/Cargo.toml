@@ -27,6 +27,4 @@ lru = "^0.12"
 sha3 = "^0.10"
 tokio = "^1.40"
 tokio-stream = "^0.1"
-woodstock-rs = { path = "../woodstock-rs", default-features = false, features = [
-  "server",
-] }
+woodstock-rs = { path = "../woodstock-rs" }

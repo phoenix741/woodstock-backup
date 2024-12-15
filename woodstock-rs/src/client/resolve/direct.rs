@@ -35,6 +35,7 @@ pub struct DirectResolveClient {
     client: Client,
     uri: String,
     config: ClientConfig,
+    port: u16,
     refresher: Arc<Mutex<Option<tokio::task::AbortHandle>>>,
 }
 
@@ -49,9 +50,14 @@ impl DirectResolveClient {
             config.server.unwrap_or_default(),
             config.hostname
         );
+
+        let addr: std::net::SocketAddr = config.bind.parse()?;
+        let port = addr.port();
+
         let daemon = Self {
             client,
             uri,
+            port,
             config: config_clone,
             refresher: Arc::new(Mutex::new(None)),
         };
@@ -67,6 +73,7 @@ impl DirectResolveClient {
             .post(&self.uri)
             .json(&json!({
                 "addresses": interfaces,
+                "port": self.port,
                 "version": ClientConfig::version(),
             }))
             .send()

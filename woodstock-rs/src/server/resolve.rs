@@ -89,6 +89,57 @@ impl SocketAddrResolver {
         })
     }
 
+    pub async fn register_service(&self, information: SocketAddrInformation) {
+        let mut host_map = self.host_map.lock().await;
+        host_map.insert(information.hostname.clone(), information);
+    }
+
+    pub async fn get_informations(&self, hostname: &str) -> Option<SocketAddrInformation> {
+        let host_map = self.host_map.lock().await;
+        host_map.get(hostname).cloned()
+    }
+
+    pub async fn update_online_status(&self, hostname: &str, is_online: bool) {
+        let mut host_map = self.host_map.lock().await;
+        if let Some(socket_addr_info) = host_map.get_mut(hostname) {
+            socket_addr_info.is_online = is_online;
+        }
+    }
+
+    pub async fn resolve(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
+        let host_map = self.host_map.lock().await;
+
+        debug!("Resolve hostname: {}", hostname);
+        let addresses = if let Some(socket_addr_info) = host_map.get(hostname) {
+            debug!("Found hostname in cache: {}", hostname);
+            let addresses =
+                is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
+
+            addresses
+                .iter()
+                .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
+                .collect()
+        } else {
+            debug!("Resolve hostname with mdns: {}", hostname);
+            let addresses = self.resolve_mdns(hostname, default_port).await;
+
+            if let Some(addresses) = addresses {
+                debug!("Found hostname with mdns: {}", hostname);
+                addresses
+            } else {
+                debug!("Resolve hostname with dns: {}", hostname);
+                resolve_dns(hostname)
+                    .iter()
+                    .map(|ip| SocketAddr::new(*ip, default_port))
+                    .collect()
+            }
+        };
+
+        Some(addresses)
+    }
+
+    // MDNS part
+
     async fn update_host(&self, info: &ServiceInfo) {
         // Hostname without .local. suffix
         let hostname = info.get_fullname();
@@ -111,15 +162,7 @@ impl SocketAddrResolver {
             is_online: true,
         };
 
-        let mut host_map = self.host_map.lock().await;
-        host_map.insert(hostname.to_string(), socket_addr_info);
-    }
-
-    async fn update_online_status(&self, hostname: &str, is_online: bool) {
-        let mut host_map = self.host_map.lock().await;
-        if let Some(socket_addr_info) = host_map.get_mut(hostname) {
-            socket_addr_info.is_online = is_online;
-        }
+        self.register_service(socket_addr_info).await;
     }
 
     pub async fn listen(&self) -> Result<()> {
@@ -175,42 +218,5 @@ impl SocketAddrResolver {
         }
 
         None
-    }
-
-    pub async fn resolve(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
-        let host_map = self.host_map.lock().await;
-
-        debug!("Resolve hostname: {}", hostname);
-        let addresses = if let Some(socket_addr_info) = host_map.get(hostname) {
-            debug!("Found hostname in cache: {}", hostname);
-            let addresses =
-                is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
-
-            addresses
-                .iter()
-                .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
-                .collect()
-        } else {
-            debug!("Resolve hostname with mdns: {}", hostname);
-            let addresses = self.resolve_mdns(hostname, default_port).await;
-
-            if let Some(addresses) = addresses {
-                debug!("Found hostname with mdns: {}", hostname);
-                addresses
-            } else {
-                debug!("Resolve hostname with dns: {}", hostname);
-                resolve_dns(hostname)
-                    .iter()
-                    .map(|ip| SocketAddr::new(*ip, default_port))
-                    .collect()
-            }
-        };
-
-        Some(addresses)
-    }
-
-    pub async fn get_informations(&self, hostname: &str) -> Option<SocketAddrInformation> {
-        let host_map = self.host_map.lock().await;
-        host_map.get(hostname).cloned()
     }
 }

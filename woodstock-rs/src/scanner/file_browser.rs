@@ -1,12 +1,3 @@
-use eyre::Result;
-#[cfg(unix)]
-use nix::libc::{S_IFBLK, S_IFCHR, S_IFDIR, S_IFIFO, S_IFLNK, S_IFMT, S_IFREG, S_IFSOCK};
-
-#[cfg(windows)]
-const FILE_ATTRIBUTE_DIRECTORY: u32 = 16u32;
-#[cfg(windows)]
-const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 1024u32;
-
 use async_stream::stream;
 use futures::pin_mut;
 use futures::stream::StreamExt;
@@ -16,16 +7,15 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[cfg(unix)]
-use std::os::unix::fs::MetadataExt;
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
-
 use crate::utils::path::path_to_vec;
-use crate::woodstock::{FileManifest, FileManifestStat, FileManifestType};
-use crate::{EntryState, EntryType, FileManifestAcl, FileManifestJournalEntry, FileManifestXAttr};
+use crate::woodstock::FileManifest;
+use crate::{EntryState, EntryType, FileManifestJournalEntry};
 
 use lazy_static::lazy_static;
+
+use super::metadata::acl::read_acl;
+use super::metadata::create_stats_from_metadata;
+use super::metadata::xattr::read_xattr;
 
 lazy_static! {
     static ref EMPTY_PATH: PathBuf = PathBuf::from("");
@@ -88,133 +78,6 @@ fn is_file_authorized(file: &Path, includes: &GlobSet, excludes: &GlobSet) -> bo
     }
 
     true
-}
-
-#[cfg(unix)]
-fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat {
-    FileManifestStat {
-        owner_id: metadata.uid(),
-        group_id: metadata.gid(),
-        size: metadata.size(),
-        compressed_size: 0,
-        last_read: metadata.atime(),
-        last_modified: metadata.mtime(),
-        created: metadata.ctime(),
-        mode: metadata.mode(),
-        dev: metadata.dev(),
-        rdev: metadata.rdev(),
-        ino: metadata.ino(),
-        nlink: metadata.nlink(),
-        r#type: match metadata.mode() & S_IFMT {
-            S_IFREG => FileManifestType::RegularFile,
-            S_IFLNK => FileManifestType::Symlink,
-            S_IFDIR => FileManifestType::Directory,
-            S_IFBLK => FileManifestType::BlockDevice,
-            S_IFCHR => FileManifestType::CharacterDevice,
-            S_IFIFO => FileManifestType::Fifo,
-            S_IFSOCK => FileManifestType::Socket,
-            _ => FileManifestType::Unknown,
-        } as i32,
-    }
-}
-
-#[cfg(windows)]
-fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat {
-    FileManifestStat {
-        owner_id: 0,
-        group_id: 0,
-        size: metadata.file_size(),
-        compressed_size: 0,
-        last_read: metadata.last_access_time() as i64,
-        last_modified: metadata.last_write_time() as i64,
-        created: metadata.creation_time() as i64,
-        mode: metadata.file_attributes(),
-        dev: 0,
-        rdev: 0,
-        ino: 0,
-        nlink: 0,
-        r#type: if (metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY)
-            == FILE_ATTRIBUTE_DIRECTORY
-        {
-            FileManifestType::Directory.into()
-        } else if (metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT)
-            == FILE_ATTRIBUTE_REPARSE_POINT
-        {
-            FileManifestType::Symlink.into()
-        } else {
-            FileManifestType::RegularFile.into()
-        },
-    }
-}
-
-fn read_xattr(file: &Path) -> Result<Vec<FileManifestXAttr>> {
-    #[cfg(all(unix, feature = "xattr"))]
-    {
-        let attrs = xattr::list(file).map(|attrs| {
-            attrs
-                .filter_map(|attr| {
-                    xattr::get(file, &attr).ok()?.map(|value| {
-                        let key = attr.as_encoded_bytes().to_vec();
-                        FileManifestXAttr { key, value }
-                    })
-                })
-                .collect()
-        })?;
-
-        Ok(attrs)
-    }
-    #[cfg(not(all(unix, feature = "xattr")))]
-    {
-        let _file = file;
-        Ok(Vec::new())
-    }
-}
-
-fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
-    #[cfg(all(unix, feature = "acl"))]
-    {
-        use crate::FileManifestAclQualifier;
-        use posix_acl::{PosixACL, Qualifier};
-
-        let acls: PosixACL = PosixACL::read_acl(file)?;
-        let acls = acls.entries();
-
-        let acl = acls
-            .iter()
-            .map(|entry| {
-                let mut id = 0;
-                let qualifier = match entry.qual {
-                    Qualifier::Undefined => FileManifestAclQualifier::Undefined,
-                    Qualifier::UserObj => FileManifestAclQualifier::UserObj,
-                    Qualifier::User(user) => {
-                        id = user;
-                        FileManifestAclQualifier::UserId
-                    }
-                    Qualifier::GroupObj => FileManifestAclQualifier::GroupObj,
-                    Qualifier::Group(group) => {
-                        id = group;
-                        FileManifestAclQualifier::GroupId
-                    }
-                    Qualifier::Mask => FileManifestAclQualifier::Mask,
-                    Qualifier::Other => FileManifestAclQualifier::Other,
-                };
-
-                FileManifestAcl {
-                    qualifier: qualifier as i32,
-                    id,
-                    perm: entry.perm,
-                }
-            })
-            .collect();
-
-        Ok(acl)
-    }
-
-    #[cfg(not(all(unix, feature = "acl")))]
-    {
-        let _file = file;
-        Ok(Vec::new())
-    }
 }
 
 /// Creates a `FileManifest` from a file.
