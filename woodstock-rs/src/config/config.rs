@@ -17,7 +17,6 @@ pub struct ConfigurationPath {
 
     pub config_path_hosts: PathBuf,
     pub config_path_scheduler: PathBuf,
-    pub config_path_tools: PathBuf,
 }
 
 pub struct OptionalConfigurationPath {
@@ -71,7 +70,6 @@ impl ConfigurationPath {
 
         let config_path_hosts = config_path.join("hosts.yml");
         let config_path_scheduler = config_path.join("scheduler.yml");
-        let config_path_tools = config_path.join("tools.yml");
 
         Self {
             backup_path,
@@ -85,7 +83,6 @@ impl ConfigurationPath {
 
             config_path_hosts,
             config_path_scheduler,
-            config_path_tools,
         }
     }
 }
