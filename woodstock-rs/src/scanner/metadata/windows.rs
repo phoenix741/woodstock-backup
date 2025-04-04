@@ -37,7 +37,7 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
     }
 }
 
-fn mknode(_file_manifest: &FileManifest) -> Result<()> {
+pub fn mknode(_file_manifest: &FileManifest) -> Result<()> {
     Ok(())
 }
 

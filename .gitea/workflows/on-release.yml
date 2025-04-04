@@ -122,15 +122,15 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            features: --features all
+            features: --features default
             binary_name: binaries-linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            features: --no-default-features --features "fuse_unix"
+            features: --no-default-features --features "fuse_unix,mdns"
             binary_name: binaries-linux-lite
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            features: --features all
+            features: --features default
             binary_name: binaries-windows
         # Disabled musl target for (depending of libm, libc,...)
         # - os: ubuntu-latest
@@ -329,7 +329,7 @@ jobs:
         include:
           - rust_version: 1
             node_version: 20-slim
-            features: --features all
+            features: --features default
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
