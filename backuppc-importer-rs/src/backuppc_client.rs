@@ -388,12 +388,18 @@ impl Client for BackupPCClient {
         try_stream!({
             let backup_number = &number.to_string().into_bytes();
 
+            let share_path = str_to_vec(&request.share_path);
+            let share_path = share_path
+                .split(|&c| c == b'/')
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>();
             let filename = request
                 .filename
                 .split(|&c| c == b'/')
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>();
             let mut path = vec![hostname, backup_number];
+            path.extend(share_path);
             path.extend(filename);
 
             let mut view = view.lock().await;

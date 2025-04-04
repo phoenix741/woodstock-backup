@@ -8,10 +8,10 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use woodstock::{config::Context, server::resolve::SocketAddrResolver};
 
-pub async fn resolve_mdns(_ctxt: &Context, hostname: &str) -> Result<()> {
+pub async fn resolve_mdns(ctxt: &Context, hostname: &str) -> Result<()> {
     let term = Term::stdout();
 
-    let resolver = Arc::new(SocketAddrResolver::new()?);
+    let resolver = Arc::new(SocketAddrResolver::new(ctxt)?);
 
     let token = CancellationToken::new();
     let cloned_token = token.clone();
@@ -30,7 +30,7 @@ pub async fn resolve_mdns(_ctxt: &Context, hostname: &str) -> Result<()> {
 
     loop {
         info!("Search for hostname: {hostname}");
-        if let Some(information) = resolver.get_informations(hostname).await {
+        if let Some(information) = resolver.get_informations(hostname).await? {
             term.write_line(&format!("Hostname: {}", information.hostname))?;
             term.write_line(&format!(
                 "Addresses: {}",

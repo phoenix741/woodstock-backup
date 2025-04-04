@@ -17,7 +17,6 @@ pub struct ConfigurationPath {
 
     pub config_path_hosts: PathBuf,
     pub config_path_scheduler: PathBuf,
-    pub config_path_tools: PathBuf,
 }
 
 pub struct OptionalConfigurationPath {
@@ -71,7 +70,6 @@ impl ConfigurationPath {
 
         let config_path_hosts = config_path.join("hosts.yml");
         let config_path_scheduler = config_path.join("scheduler.yml");
-        let config_path_tools = config_path.join("tools.yml");
 
         Self {
             backup_path,
@@ -85,7 +83,6 @@ impl ConfigurationPath {
 
             config_path_hosts,
             config_path_scheduler,
-            config_path_tools,
         }
     }
 }
@@ -103,7 +100,36 @@ impl Default for ConfigurationPath {
 
 #[derive(Clone, Debug)]
 
+pub struct RedisConfiguration {
+    pub host: String,
+    pub port: u16,
+}
+
+impl RedisConfiguration {
+    #[must_use]
+    pub fn new(host: String, port: u16) -> Self {
+        Self { host, port }
+    }
+}
+
+impl Default for RedisConfiguration {
+    fn default() -> Self {
+        RedisConfiguration {
+            host: env::var("REDIS_HOST")
+                .ok()
+                .unwrap_or_else(|| "localhost".to_string()),
+            port: env::var("REDIS_PORT")
+                .ok()
+                .map(|p| p.parse().unwrap())
+                .unwrap_or(6379),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+
 pub struct Configuration {
+    pub redis: RedisConfiguration,
     pub path: ConfigurationPath,
     pub log_level: Level,
     pub cache_size: usize,
@@ -111,8 +137,14 @@ pub struct Configuration {
 
 impl Configuration {
     #[must_use]
-    pub fn new(backup_path: PathBuf, log_level: Level, cache_size: usize) -> Self {
+    pub fn new(
+        backup_path: PathBuf,
+        log_level: Level,
+        cache_size: usize,
+        redis: RedisConfiguration,
+    ) -> Self {
         Self {
+            redis,
             path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
             log_level,
             cache_size,
@@ -145,7 +177,10 @@ impl Default for Configuration {
             Err(_) => 10,
         };
 
+        let redis = RedisConfiguration::default();
+
         Self {
+            redis,
             path,
             log_level,
             cache_size,
@@ -177,13 +212,14 @@ impl Context {
     #[must_use]
     pub fn new(
         backup_path: PathBuf,
+        redis: RedisConfiguration,
         log_level: Level,
         source: EventSource,
         username: Option<&str>,
         cache_size: usize,
     ) -> Self {
         Self {
-            config: Configuration::new(backup_path, log_level, cache_size),
+            config: Configuration::new(backup_path, log_level, cache_size, redis),
             source,
             username: username.map(|s| s.to_string()),
         }

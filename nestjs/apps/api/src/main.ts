@@ -8,9 +8,7 @@ import { ApplicationLogger } from '@woodstock/shared';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    bufferLogs: true,
-  });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(ApplicationLogger));
   app.flushLogs();
 
@@ -26,12 +24,15 @@ async function bootstrap() {
   );
 
   const options = new DocumentBuilder()
-    .setTitle('Woodstock Backup')
+    .setTitle('Woodstock Backup Management API')
     .setDescription('Description of the API of woodstock backup')
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, options);
   SwaggerModule.setup('api', app, document);
+
+  // Wait for the application to be ready
+  await app.init();
 
   await app.listen(3000);
 }

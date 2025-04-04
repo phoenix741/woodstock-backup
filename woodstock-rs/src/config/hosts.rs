@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use eyre::{eyre, Result};
-use log::debug;
+use log::{debug, warn};
 use tokio::fs::read_to_string;
 
 use super::{Context, HostConfiguration};
@@ -23,8 +23,19 @@ impl Hosts {
     pub async fn list_hosts(&self) -> Result<Vec<String>> {
         debug!("Reading hosts from {:?}", self.config_path_hosts);
 
-        let hosts = read_to_string(&self.config_path_hosts).await?;
-        let hosts: Vec<String> = serde_yaml::from_str(&hosts)?;
+        let hosts = read_to_string(&self.config_path_hosts).await;
+        let hosts = match hosts {
+            Ok(hosts) => {
+                debug!("Hosts file content: {hosts}");
+                let hosts: Vec<String> = serde_yaml::from_str(&hosts)?;
+                hosts
+            }
+            Err(e) => {
+                warn!("Error reading hosts file: {e}");
+                vec![]
+            }
+        };
+
         Ok(hosts)
     }
 

@@ -36,18 +36,6 @@
         "pc-ulrich.eden.lan",
         "192.168.101.14"
       ]
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Client",
-      "cargo": {
-        "args": [
-          "build",
-          "--bin",
-          "client"
-        ]
-      }
     }
   ]
 }

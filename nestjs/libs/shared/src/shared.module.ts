@@ -79,7 +79,8 @@ const providers = [
     },
     {
       provide: CoreClientResolver,
-      useFactory: () => new CoreClientResolver(),
+      useFactory: (config: ApplicationConfigService) => new CoreClientResolver(config.context),
+      inject: [ApplicationConfigService],
     },
   ],
   exports: [...providers, RegisteredQueue],

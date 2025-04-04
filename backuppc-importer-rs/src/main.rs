@@ -25,6 +25,7 @@ use log::debug;
 use log::error;
 use log::info;
 use woodstock::client::config::ClientConfig;
+use woodstock::config::RedisConfiguration;
 use woodstock::config::{Backups, Context, Hosts};
 use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
@@ -269,6 +270,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let context = Context::new(
         PathBuf::from(args.woodstock_pool.clone()),
+        RedisConfiguration::default(),
         log::Level::Info,
         woodstock::EventSource::Import,
         None,

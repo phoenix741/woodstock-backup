@@ -23,10 +23,14 @@ use tokio::time::{interval_at, Instant};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
-use woodstock::client::config::{get_config_path, read_config};
-use woodstock::client::resolve::MdnsClient;
+use woodstock::client::config::{get_config_path, read_config, ResolutionMode};
+
+use woodstock::client::resolve::{DirectResolveClient, ResolveClient};
 use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
+
+#[cfg(feature = "mdns")]
+use woodstock::client::resolve::MdnsResolveClient;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -93,16 +97,28 @@ async fn start_client(
     let root_ca = config_path.join("rootCA.pem");
     let private_key = config_path.join(format!("{}_server.key", config.hostname));
     let public_key = config_path.join(format!("{}_server.pem", config.hostname));
+    let private_https_key = config_path.join(format!("{}_https.key", config.hostname));
+    let public_https_key = config_path.join(format!("{}_https.pem", config.hostname));
 
     let root_ca = std::fs::read_to_string(root_ca).expect("Failed to read rootCA.pem");
     let public_key = std::fs::read_to_string(public_key).expect("Failed to public key");
     let private_key = std::fs::read_to_string(private_key).expect("Failed to private key");
+    let public_https_key =
+        std::fs::read_to_string(&public_https_key).expect("Failed to read public https key");
+    let private_https_key =
+        std::fs::read_to_string(&private_https_key).expect("Failed to read private https key");
 
     let addr = config.bind.parse()?;
     let woodstock_client = WoodstockClient::new(std::path::Path::new(&config_path), &config);
 
     let identity = Identity::from_pem(public_key, private_key);
-    let client_ca_root = tonic::transport::Certificate::from_pem(root_ca);
+    let client_ca_root = tonic::transport::Certificate::from_pem(&root_ca);
+
+    // Concat private_https_key, \n and public_https_key
+    let https_pem = format!("{}\n{}", private_https_key, public_https_key);
+    let https_identity =
+        reqwest::Identity::from_pem(https_pem.as_bytes()).expect("Can't read https identity");
+    let root_ca = reqwest::Certificate::from_pem(root_ca.as_bytes())?;
 
     let server = Server::builder()
         // TODO: Mutualisation with grpc_client
@@ -120,12 +136,26 @@ async fn start_client(
                 .accept_compressed(CompressionEncoding::Gzip),
         );
 
-    let mut daemon = None;
-    if config.disable_mdns {
-        info!("mDNS is disabled");
-    } else {
-        info!("mDNS is enabled");
-        daemon = Some(MdnsClient::new(config.clone()).await?);
+    let mut daemon: Option<Box<dyn ResolveClient>> = None;
+    match config.resolution_mode {
+        #[cfg(feature = "mdns")]
+        ResolutionMode::Mdns => {
+            info!("mDNS is enabled");
+            daemon = Some(Box::new(MdnsResolveClient::new(config.clone()).await?));
+        }
+        ResolutionMode::Direct => {
+            if config.server.is_none() {
+                error!("Direct resolution requires a server address");
+                return Err(eyre::eyre!("Direct resolution requires a server address"));
+            }
+            daemon = Some(Box::new(
+                DirectResolveClient::new(config.clone(), https_identity, root_ca).await?,
+            ));
+            info!("Direct resolution is enabled");
+        }
+        ResolutionMode::None => {
+            info!("mDNS is disabled");
+        }
     }
 
     server
@@ -575,9 +605,6 @@ async fn main() -> Result<()> {
             .await;
         }
         None => {
-            #[cfg(windows)]
-            winfirewall::add_firewall_rule(&config.bind)?;
-
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
             tokio::spawn(async move {

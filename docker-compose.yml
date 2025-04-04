@@ -53,7 +53,7 @@ services:
   #     - NODE_ENV=development
 
   redis:
-    image: "bitnami/redis:7.2"
+    image: "bitnami/redis:7.4"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL

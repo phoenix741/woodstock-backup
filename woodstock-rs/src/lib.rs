@@ -1,16 +1,11 @@
 #![recursion_limit = "512"]
 
-#[cfg(feature = "client")]
 pub mod client;
-#[cfg(feature = "client")]
 pub mod scanner;
 
-#[cfg(feature = "pool")]
 pub mod pool;
-#[cfg(feature = "pool")]
 pub mod view;
 
-#[cfg(feature = "server")]
 pub mod server;
 
 pub mod config;

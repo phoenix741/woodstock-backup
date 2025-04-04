@@ -35,6 +35,10 @@ export class ResolveService implements OnModuleInit, OnApplicationShutdown {
     return (await this.resolver.resolve(hostname, config?.port)) ?? [];
   }
 
+  registerInformation(informations: JsSocketAddrInformation) {
+    return this.resolver.registerService(informations);
+  }
+
   getInformations(hostname: string): Promise<JsSocketAddrInformation | null> {
     return this.resolver.getInformations(hostname);
   }

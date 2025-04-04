@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use log::Level;
-use woodstock::config::{Configuration, ConfigurationPath, Context, OptionalConfigurationPath};
+use woodstock::config::{
+  Configuration, ConfigurationPath, Context, OptionalConfigurationPath, RedisConfiguration,
+};
 
 #[napi]
 pub enum LogLevel {
@@ -36,6 +38,8 @@ pub struct ContextInput {
   pub events_path: Option<String>,
   pub log_level: Option<String>,
   pub cache_size: Option<u32>,
+  pub redis_host: Option<String>,
+  pub redis_port: Option<u16>,
 }
 
 #[napi(js_name = "BackupContext")]
@@ -75,6 +79,12 @@ pub fn generate_context(context: ContextInput) -> JsBackupContext {
             jobs_path: context.jobs_path.map(|p| PathBuf::from(&p)),
             events_path: context.events_path.map(|p| PathBuf::from(&p)),
           },
+        ),
+        redis: RedisConfiguration::new(
+          context
+            .redis_host
+            .unwrap_or_else(|| "localhost".to_string()),
+          context.redis_port.unwrap_or(6379),
         ),
         log_level: match context
           .log_level

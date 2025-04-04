@@ -30,6 +30,15 @@
         "tsConfigPath": "apps/api/tsconfig.app.json"
       }
     },
+    "clientApi": {
+      "type": "application",
+      "root": "apps/clientApi",
+      "entryFile": "main",
+      "sourceRoot": "apps/clientApi/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/clientApi/tsconfig.app.json"
+      }
+    },
     "backupWorker": {
       "type": "application",
       "root": "apps/backupWorker",
