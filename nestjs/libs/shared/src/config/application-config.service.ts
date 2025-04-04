@@ -107,7 +107,7 @@ export class ApplicationConfigService {
   }
 
   get clientApiPort(): number {
-    return parseInt(this.configService.get<string>('CLIENT_API_PORT_HOSTNAME', '8443'));
+    return parseInt(this.configService.get<string>('CLIENT_API_PORT', '8443'));
   }
 
   toJSON(): Pick<

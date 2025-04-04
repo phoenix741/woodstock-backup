@@ -31,6 +31,21 @@ const CERTIFICATE_ATTRS = [
   },
 ];
 
+/**
+ * Function to check if a string is an IP address (IPv4 or IPv6)
+ * @param hostname the hostname or IP to check
+ * @return true if the hostname is an IP address
+ */
+export function isIp(hostname: string): boolean {
+  const ipv4Regex =
+    /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+  const ipv6Regex =
+    /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)))$/;
+
+  return ipv4Regex.test(hostname) || ipv6Regex.test(hostname);
+}
+
 @Injectable()
 export class CertificateService {
   #logger = new Logger(CertificateService.name);
@@ -64,6 +79,20 @@ export class CertificateService {
     cert.setSubject(attrs);
 
     if (rootCA) {
+      const subjectAltName = isIp(host)
+        ? [
+            {
+              type: 7, // 7 is IP type
+              ip: host,
+            },
+          ]
+        : [
+            {
+              type: 2, // 2 is DNS type
+              value: host,
+            },
+          ];
+
       cert.setIssuer(rootCA.certificate.subject.attributes);
       const extKeyUsage = server
         ? [
@@ -78,12 +107,7 @@ export class CertificateService {
             },
             {
               name: 'subjectAltName',
-              altNames: [
-                {
-                  type: 2, // 2 is DNS type
-                  value: host,
-                },
-              ],
+              altNames: subjectAltName,
             },
           ]
         : [
@@ -159,6 +183,20 @@ export class CertificateService {
 
     cert.setIssuer(rootCA.certificate.subject.attributes);
 
+    const subjectAltName = isIp(hostname)
+      ? [
+          {
+            type: 7, // 7 is IP type
+            ip: hostname,
+          },
+        ]
+      : [
+          {
+            type: 2, // 2 is DNS type
+            value: hostname,
+          },
+        ];
+
     cert.setExtensions([
       {
         name: 'basicConstraints',
@@ -175,12 +213,7 @@ export class CertificateService {
       },
       {
         name: 'subjectAltName',
-        altNames: [
-          {
-            type: 2, // 2 is DNS type
-            value: hostname,
-          },
-        ],
+        altNames: subjectAltName,
       },
       {
         name: 'authorityKeyIdentifier',
