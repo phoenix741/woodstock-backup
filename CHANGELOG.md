@@ -1,3 +1,16 @@
+# [2.0.0-alpha.31](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.30...v2.0.0-alpha.31) (2025-04-04)
+
+
+### Bug Fixes
+
+* 🐛 try to fix mdns on a windows 11 laptop (with hyper-v, docker, multiple vpn, ...) ([c7ad571](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c7ad5712fbd16e949d48500677c3ae7591dc0170))
+
+
+### Features
+
+* direct connection ([5c7437b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5c7437ba5aca03a5c474f7c5972a8549cf0b04d3))
+* implement direct DNS resolution by calling the API on the server ([7d84160](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7d841605e7be72e8ea5eeff4406d44470a4bfd02))
+
 # [2.0.0-alpha.30](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.29...v2.0.0-alpha.30) (2024-12-06)
 
 
