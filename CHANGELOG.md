@@ -1,3 +1,10 @@
+# [2.0.0-alpha.32](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.31...v2.0.0-alpha.32) (2025-04-04)
+
+
+### Bug Fixes
+
+* fix wrong certificate hostname and environment variable ([6a26fd1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/6a26fd1ab9bf3a0d3657297297972503d9b405d9))
+
 # [2.0.0-alpha.31](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.30...v2.0.0-alpha.31) (2025-04-04)
 
 
