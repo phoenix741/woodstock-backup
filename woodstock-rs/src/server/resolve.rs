@@ -5,7 +5,7 @@ use mdns_sd::{HostnameResolutionEvent, ServiceDaemon, ServiceEvent, ServiceInfo}
 
 use dns_lookup::lookup_host;
 use eyre::Result;
-use log::debug;
+use log::{debug, info};
 use redis::{
     from_redis_value, AsyncCommands, FromRedisValue, RedisError, RedisResult, ToRedisArgs, Value,
 };
@@ -139,6 +139,7 @@ impl SocketAddrResolver {
             "redis://{}:{}",
             context.config.redis.host, context.config.redis.port
         );
+        info!("Connect to Redis URL for DNS resolution: {}", redis_url);
 
         let client = redis::Client::open(redis_url).unwrap();
         Ok(Self {

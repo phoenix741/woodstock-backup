@@ -21,6 +21,8 @@ export class ApplicationConfigService {
       poolPath: this.poolPath,
       jobsPath: this.jobPath,
       logLevel: this.logLevel,
+      redisHost: this.redis.host,
+      redisPort: this.redis.port,
     });
   }
 
@@ -90,7 +92,7 @@ export class ApplicationConfigService {
   get redis(): RedisOptions {
     return {
       host: this.configService.get<string>('REDIS_HOST', 'localhost'),
-      port: this.configService.get<number>('REDIS_PORT', 6379),
+      port: parseInt(this.configService.get<string>('REDIS_PORT', '6379')),
     };
   }
 
