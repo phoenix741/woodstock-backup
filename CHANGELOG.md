@@ -1,3 +1,10 @@
+# [2.0.0-alpha.33](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.32...v2.0.0-alpha.33) (2025-04-05)
+
+
+### Bug Fixes
+
+* **shared:** :ambulance: fix access to redis for direct resolution ([91451af](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/91451af33267aadd0f404b0d5591149b921f26c1))
+
 # [2.0.0-alpha.32](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.31...v2.0.0-alpha.32) (2025-04-04)
 
 
