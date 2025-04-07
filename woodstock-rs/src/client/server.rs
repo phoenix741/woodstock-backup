@@ -1,6 +1,7 @@
 use futures::{pin_mut, Stream, TryStreamExt};
 use log::{debug, error, info, trace};
 use std::path::PathBuf;
+use std::time::SystemTime;
 use std::{path::Path, pin::Pin, sync::Arc};
 use tokio::fs::{File, OpenOptions};
 use tokio::io::AsyncWriteExt;
@@ -507,6 +508,10 @@ impl WoodstockClientService for WoodstockClient {
                     continue;
                 }
 
+                let xfer_start = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
                 let entry = FileManifestJournalEntry {
                     r#type: EntryType::Remove as i32,
                     manifest: Some(FileManifest {
@@ -516,6 +521,11 @@ impl WoodstockClientService for WoodstockClient {
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
+
+                    xfer_start,
+                    xfer_calculation: 0,
+                    xfer_duration: 0,
+                    xfer_check: 0,
                 };
                 let result = tx.send(Ok(entry)).await;
                 if result.is_err() {

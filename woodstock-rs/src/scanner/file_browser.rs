@@ -162,6 +162,11 @@ fn create_manifest_from_file(
 
         state: state as i32,
         state_messages,
+
+        xfer_start: 0,
+        xfer_calculation: 0,
+        xfer_duration: 0,
+        xfer_check: 0,
     }
 }
 

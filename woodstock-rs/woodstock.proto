@@ -187,6 +187,11 @@ message FileManifestJournalEntry {
 
   EntryState state = 3;
   repeated string stateMessages = 4;
+
+  uint64 xferStart = 5;
+  uint64 xferCalculation = 6;
+  uint64 xferDuration = 7;
+  uint64 xferCheck = 8;
 }
 
 message Share {

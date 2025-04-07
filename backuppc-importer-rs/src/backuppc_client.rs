@@ -245,6 +245,11 @@ impl BackupPCClient {
 
                         state: EntryState::Metadata as i32,
                         state_messages: Vec::new(),
+
+                        xfer_start: 0,
+                        xfer_calculation: 0,
+                        xfer_duration: 0,
+                        xfer_check: 0,
                     });
                 }
 
@@ -254,6 +259,11 @@ impl BackupPCClient {
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
+
+                    xfer_start: 0,
+                    xfer_calculation: 0,
+                    xfer_duration: 0,
+                    xfer_check: 0,
                 })
             }
         });
@@ -280,6 +290,11 @@ impl BackupPCClient {
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
+
+                    xfer_start: 0,
+                    xfer_calculation: 0,
+                    xfer_duration: 0,
+                    xfer_check: 0,
                 };
             }
         });

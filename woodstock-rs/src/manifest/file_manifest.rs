@@ -217,14 +217,14 @@ impl FileManifest {
         };
 
         let str = format!(
-            "{}{} {:>8} {:>8} {:>10} {}{}",
+            "{}{} {:>8} {:>8} {:>12} {}{}",
             file_mode,
             mode,
             owner,
             group,
             size,
             path.display(),
-            symlink
+            symlink,
         );
 
         str
@@ -289,6 +289,17 @@ impl FileManifestJournalEntry {
             .map(|f| f.to_log())
             .unwrap_or_default();
 
+        let timestamp = if self.xfer_start > 0 {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(
+                i64::try_from(self.xfer_start).unwrap_or_default(),
+                0,
+            )
+            .map(|dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string())
+            .unwrap_or_else(|| "invalid timestamp".to_string())
+        } else {
+            "".to_string()
+        };
+
         let type_str = match self.r#type() {
             EntryType::Add => "create",
             EntryType::Modify => "change",
@@ -309,7 +320,34 @@ impl FileManifestJournalEntry {
             String::new()
         };
 
-        format!("{type_str} {state:>22} {manifest_str} {state_messages}")
+        let xfer_calculation = if self.xfer_calculation > 0 {
+            format!("calc {}s", self.xfer_calculation)
+        } else {
+            "".to_string()
+        };
+        let xfer_duration = if self.xfer_duration > 0 {
+            format!("xfer {}s", self.xfer_duration)
+        } else {
+            "".to_string()
+        };
+        let xfer_check = if self.xfer_check > 0 {
+            format!("chk {}s", self.xfer_check)
+        } else {
+            "".to_string()
+        };
+        let timings = if !xfer_calculation.is_empty()
+            || !xfer_duration.is_empty()
+            || !xfer_check.is_empty()
+        {
+            format!(
+                "(timings: {} {} {})",
+                xfer_calculation, xfer_duration, xfer_check
+            )
+        } else {
+            String::new()
+        };
+
+        format!("{timestamp} {type_str} {state:>22} {manifest_str} {state_messages} {timings}")
     }
 }
 

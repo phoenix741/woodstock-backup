@@ -31,7 +31,7 @@ export class ResolveService implements OnModuleInit, OnApplicationShutdown {
         .map((address) => `${address}:${config.port}`);
     }
 
-    this.#logger.debug(`Resolving addresses from mdns for ${hostname}`);
+    this.#logger.debug(`Resolving addresses from direct/mdns for ${hostname}`);
     return (await this.resolver.resolve(hostname, config?.port)) ?? [];
   }
 

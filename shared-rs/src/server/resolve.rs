@@ -79,7 +79,7 @@ impl CoreClientResolver {
           .map(|addr| addr.to_string())
           .collect::<Vec<_>>()
       })
-      .map_err(|_| Error::from_reason(format!("Can't resolve {hostname}").to_string()))?;
+      .map_err(|e| Error::from_reason(format!("Can't resolve {hostname}: {e}").to_string()))?;
 
     Ok(addresses)
   }
