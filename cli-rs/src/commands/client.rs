@@ -5,8 +5,9 @@ use futures::{pin_mut, StreamExt};
 
 use woodstock::{
     config::{Context, Hosts},
-    scanner::{get_files, CreateManifestOptions},
+    scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
+    ChunkHashRequest,
 };
 
 pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Context) -> Result<()> {
@@ -60,5 +61,16 @@ pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Conte
         }
     }
 
+    Ok(())
+}
+
+pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P) -> Result<()> {
+    let information = ChunkHashRequest {
+        share_path: String::from(""),
+        filename: filename.as_ref().as_bytes().to_vec(),
+    };
+    let result = calculate_chunk_hash_future(&information).await;
+    println!("Number of chunks: {}", result.chunks.len());
+    println!("File hash: {:?}", hex::encode(result.hash));
     Ok(())
 }

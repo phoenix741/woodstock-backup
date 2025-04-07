@@ -4,7 +4,7 @@ use futures::pin_mut;
 use futures::Stream;
 use futures::StreamExt;
 use globset::GlobSet;
-use log::{debug, error};
+use log::{debug, error, info};
 use sha3::{Digest, Sha3_256};
 use std::cmp::min;
 use std::{error::Error, io::Read, path::Path};
@@ -173,7 +173,7 @@ fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box
     let mut chunk_read = 0;
 
     let file = vec_to_path(&request.filename);
-    println!("Calculating chunk hash for {}", &file.display());
+    info!("Calculating chunk hash for {}", &file.display());
     let file = std::fs::File::open(file)?;
     let mut reader = std::io::BufReader::new(file);
 

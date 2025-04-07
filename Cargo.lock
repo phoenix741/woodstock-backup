@@ -1288,9 +1288,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.27.3"
+version = "0.27.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08afdbb5c31130e3034af566421053ab03787c640246a446327f550d11bcb333"
+checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
 dependencies = [
  "futures-util",
  "http",
@@ -2429,9 +2429,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.29.2"
+version = "0.29.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b110459d6e323b7cda23980c46c77157601199c9da6241552b284cd565a7a133"
+checksum = "1bc42f3a12fd4408ce64d8efef67048a924e543bd35c6591c0447fda9054695f"
 dependencies = [
  "arc-swap",
  "bytes",

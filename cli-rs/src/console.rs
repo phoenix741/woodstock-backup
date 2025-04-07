@@ -28,6 +28,7 @@ use crate::commands::pool::{
 };
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
+use commands::client::read_chunk_from_file;
 use woodstock::config::Context;
 use woodstock::pool::{add_refcnt_to_pool, remove_refcnt_to_pool};
 
@@ -122,6 +123,8 @@ enum Commands {
     /// will be take in the `CONFIG_DIRECTORY` (like on server)
     ///
     /// This command can be used for debugging purpose
+    ///
+    /// For DEBUG purpose only
     ListDirectory {
         /// Config path
         config_path: String,
@@ -130,7 +133,19 @@ enum Commands {
         share_path: String,
     },
 
-    ResolveMDns {
+    /// Read the file and return the list of hash of the file
+    /// For DEBUG purpose only
+    ReadFileChunk {
+        /// The path to the file to read
+        file_name: String,
+    },
+
+    /// Resolve the hostname using the cache.
+    ///
+    /// Work only on a redis on the localhost
+    ///
+    /// For DEBUG purpose only
+    ResolveHost {
         /// The hostname to resolve
         hostname: String,
     },
@@ -244,7 +259,10 @@ async fn main() -> Result<()> {
         } => list_client_files(&share_path, &config_path, &context)
             .await
             .expect("Failed to list files"),
-        Commands::ResolveMDns { hostname } => {
+        Commands::ReadFileChunk { file_name } => read_chunk_from_file(&file_name)
+            .await
+            .expect("Failed to read chunk from file"),
+        Commands::ResolveHost { hostname } => {
             resolve_mdns(&context, &hostname)
                 .await
                 .expect("Failed to resolve mDNS");
