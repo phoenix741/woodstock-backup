@@ -3,7 +3,7 @@ use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::error;
 use prost::Message;
-use sha2::Digest;
+use sha3::Digest;
 use sha3::Sha3_256;
 use std::path::{Path, PathBuf};
 use tokio::{

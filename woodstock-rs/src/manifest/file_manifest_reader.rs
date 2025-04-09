@@ -9,8 +9,7 @@ use eyre::Result;
 use futures::{pin_mut, stream::unfold};
 
 use log::warn;
-use sha2::Digest;
-use sha3::Sha3_256;
+use sha3::{Digest, Sha3_256};
 use tokio::{
     fs::File,
     io::{AsyncBufRead, AsyncReadExt, BufReader},

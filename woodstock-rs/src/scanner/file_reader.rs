@@ -5,9 +5,11 @@ use futures::Stream;
 use futures::StreamExt;
 use globset::GlobSet;
 use log::{debug, error, info};
+use rayon::prelude::*;
 use sha3::{Digest, Sha3_256};
 use std::cmp::min;
-use std::{error::Error, io::Read, path::Path};
+use std::time::Instant;
+use std::{error::Error, path::Path};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
@@ -18,6 +20,7 @@ use crate::config::CHUNK_SIZE;
 use crate::config::CHUNK_SIZE_U64;
 use crate::manifest::IndexManifest;
 use crate::manifest::PathManifest;
+use crate::scanner::chunk_reader::IterChunks;
 use crate::utils::path::vec_to_path;
 use crate::woodstock::ChunkInformation;
 use crate::woodstock::FileChunk;
@@ -167,50 +170,45 @@ pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHas
 /// The updated `FileManifest` with chunk hash information.
 ///
 fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box<dyn Error>> {
-    let mut file_hasher = Sha3_256::new();
-    let mut chunk_hasher = Sha3_256::new();
-    let mut chunks = Vec::<Vec<u8>>::new();
-    let mut chunk_read = 0;
-
     let file = vec_to_path(&request.filename);
     info!("Calculating chunk hash for {}", &file.display());
-    let file = std::fs::File::open(file)?;
-    let mut reader = std::io::BufReader::new(file);
 
-    // Read small chunk
-    let mut buffer = vec![0; BUFFER_SIZE];
-
-    loop {
-        let read = reader.read(&mut buffer)?;
-        if read == 0 {
-            break;
+    // Première passe: calculer le hash du fichier entier
+    let time = Instant::now();
+    let mut file_hasher = Sha3_256::new();
+    {
+        let file = std::fs::File::open(&file)?;
+        let reader = std::io::BufReader::new(file);
+        for chunk in reader.iter_chunks(CHUNK_SIZE).flatten() {
+            file_hasher.update(&chunk);
         }
-
-        chunk_read += read;
-
-        if chunk_read >= CHUNK_SIZE {
-            let overflow = chunk_read - CHUNK_SIZE;
-            chunk_hasher.update(&buffer[..(read - (overflow))]);
-
-            let chunk_hash = chunk_hasher.finalize();
-            chunks.push(chunk_hash.to_vec());
-
-            chunk_hasher = Sha3_256::new();
-            chunk_read = overflow;
-            if overflow > 0 {
-                chunk_hasher.update(&buffer[(read - overflow)..read]);
-            }
-        } else {
-            chunk_hasher.update(&buffer[..read]);
-        }
-
-        file_hasher.update(&buffer[..read]);
     }
-
-    let chunk_hash = chunk_hasher.finalize();
-    chunks.push(chunk_hash.to_vec());
-
     let hash = file_hasher.finalize().to_vec();
+    info!(
+        "Create (finish) hash of file in {}",
+        time.elapsed().as_secs()
+    );
+
+    // Seconde passe: calculer hash des chunks
+    let time = Instant::now();
+    let file = std::fs::File::open(file)?;
+    let reader = std::io::BufReader::new(file);
+    let chunk_iterator = reader.iter_chunks(CHUNK_SIZE);
+
+    let chunks = chunk_iterator
+        .par_bridge()
+        .filter_map(|chunk| {
+            if let Ok(chunk) = chunk {
+                let mut chunk_hasher = Sha3_256::new();
+                chunk_hasher.update(&chunk);
+                let chunk_hash = chunk_hasher.finalize();
+                Some(chunk_hash.to_vec())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    info!("Create hash of chunks in {}", time.elapsed().as_secs());
 
     Ok(ChunkHashReply { chunks, hash })
 }

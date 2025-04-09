@@ -1,6 +1,6 @@
 use async_compression::tokio::write::ZlibEncoder;
 use log::{debug, error, warn};
-use sha2::digest::core_api::CoreWrapper;
+use sha3::digest::core_api::CoreWrapper;
 use sha3::Digest;
 use sha3::{Sha3_256, Sha3_256Core};
 use std::path::{Path, PathBuf};

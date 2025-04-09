@@ -49,6 +49,7 @@ mdns-sd = { version = "^0.13", optional = true }
 percent-encoding = "^2.3"
 prost = "^0.13"
 rand = "^0.9"
+rayon = "1.10.0"
 redis = { version = "0.29.2", features = ["aio", "tokio-comp"]}
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls"] }
 rsa = "^0.9"
@@ -58,7 +59,7 @@ serde_path_serializer = "^1.0"
 serde_with = { version = "^3.9", features = ["hex", "base64"] }
 serde_yaml = "^0.9"
 sha2 = "^0.10"
-sha3 = "^0.10"
+sha3 = { version = "^0.10", features = ["asm"] }
 shlex = { version = "^1.3" }
 stream-cancel = "^0.8"
 tempfile = "^3"
