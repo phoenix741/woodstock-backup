@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
-    config::{Backup, Backups, Context, SHA256_EMPTYSTRING},
+    config::{Backup, Backups, Configuration, Context, SHA256_EMPTYSTRING},
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
@@ -39,7 +39,7 @@ pub struct BackupClient<Clt: Client> {
     refcnt: Arc<Mutex<Refcnt>>,
 
     source: EventSource,
-    context: Context,
+    config: Configuration,
     algorithm: ChunkAlgorithm,
 }
 
@@ -48,7 +48,7 @@ impl<Clt: Client> BackupClient<Clt> {
         // At first backup set the used algorithm
         let _ = ctxt.config.fix_algorithm();
 
-        let backups = Backups::new(ctxt);
+        let backups = Backups::new(&ctxt.config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -69,7 +69,7 @@ impl<Clt: Client> BackupClient<Clt> {
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
             source: ctxt.source,
-            context: ctxt.clone(),
+            config: ctxt.config.clone(),
             algorithm: ctxt.config.chunk_algorithm,
             fake_date: None,
         }
@@ -179,7 +179,7 @@ impl<Clt: Client> BackupClient<Clt> {
     }
 
     pub async fn init_backup_directory(&self, shares: &[&str]) -> Result<()> {
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let previous_backup = backups
             .get_previous_backup(&self.hostname, self.current_backup_id)
             .await
@@ -207,7 +207,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         // Register the event
         create_event_backup_start(
-            &self.context.config.path.events_path,
+            &self.config.path.events_path,
             &self.uuid,
             self.source,
             &self.hostname,
@@ -239,7 +239,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
 
         let share_refresh_stream = share.clone();
@@ -347,7 +347,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let filename = chunk_information.filename.clone();
         let full = chunk_information.chunks_id.is_empty();
 
-        let pool_path = &self.context.config.path.pool_path;
+        let pool_path = &self.config.path.pool_path;
         let readable = self.client.get_chunk(chunk_information);
         pin_mut!(readable);
 
@@ -433,7 +433,7 @@ impl<Clt: Client> BackupClient<Clt> {
         F: Fn(PoolChunkInformation) -> Fut,
         Fut: Future<Output = ()>,
     {
-        let pool_path = &self.context.config.path.pool_path;
+        let pool_path = &self.config.path.pool_path;
         let reply = self
             .client
             .get_chunk_hash(ChunkHashRequest {
@@ -586,7 +586,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let start_time = std::time::Instant::now();
         if self.check_file_consistency {
             let hash = file_manifest
-                .calculate_hash(&self.context.config.path.pool_path, &self.algorithm)
+                .calculate_hash(&self.config.path.pool_path, &self.algorithm)
                 .await?;
             if file_manifest.hash.ne(&hash) {
                 error!(
@@ -614,7 +614,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let mut error_count = 0;
         let mut abort: Option<eyre::Report> = None;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         let progress_max = self
@@ -797,7 +797,7 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn compact(&self, share_path: &str) -> Result<()> {
         info!("Compact share {:?}", share_path);
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         manifest
@@ -836,10 +836,10 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn count_references(&self) -> Result<()> {
         info!("Count references");
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
 
         let mut refcnt = self.refcnt.lock().await;
-        refcnt.finish(&self.context.config.path.pool_path).await?;
+        refcnt.finish(&self.config.path.pool_path).await?;
         refcnt.save_refcnt(&self.get_fake_date()).await?;
 
         let host_refcnt_file = backups.get_host_path(&self.hostname);
@@ -848,7 +848,7 @@ impl<Clt: Client> BackupClient<Clt> {
             &refcnt,
             &crate::pool::RefcntApplySens::Increase,
             &self.get_fake_date(),
-            &self.context,
+            &self.config,
         )
         .await?;
 
@@ -860,7 +860,7 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn save_backup(&self, is_finish: bool, is_complete: bool) -> Result<()> {
         info!("Save backup (complete = {is_complete})");
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let backup = self.to_backup(is_finish, is_complete).await;
 
         backups
@@ -875,7 +875,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
             // Register the event
             create_event_backup_end(
-                &self.context.config.path.events_path,
+                &self.config.path.events_path,
                 &self.uuid,
                 self.source,
                 &self.hostname,

@@ -10,7 +10,7 @@ use std::{
 
 use futures::{pin_mut, StreamExt};
 use woodstock::{
-    config::{Backups, Context, Hosts, BUFFER_SIZE},
+    config::{Backups, Configuration, Hosts, BUFFER_SIZE},
     pool::PoolChunkWrapper,
 };
 
@@ -42,13 +42,13 @@ pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn search_chunk(ctxt: &Context, chunk: &str) -> Result<(), Box<dyn Error>> {
+pub async fn search_chunk(config: &Configuration, chunk: &str) -> Result<(), Box<dyn Error>> {
     let term = Term::stdout();
 
     let chunk = hex::decode(chunk)?;
 
-    let hosts_config = Hosts::new(ctxt);
-    let backups_config = Backups::new(ctxt);
+    let hosts_config = Hosts::new(config);
+    let backups_config = Backups::new(config);
 
     let hosts = hosts_config.list_hosts().await.unwrap_or_default();
     for host in hosts {

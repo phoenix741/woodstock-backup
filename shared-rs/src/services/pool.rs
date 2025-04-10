@@ -4,13 +4,13 @@ use napi::{
   Error, JsFunction, Result,
 };
 use woodstock::{
-  config::Context,
+  config::Configuration,
   pool::{add_refcnt_to_pool, remove_refcnt_to_pool, FsckCount, FsckUnusedCount},
   server::pool_fsck::{FsckProgression, PoolFsck, PoolProgression},
   EventPoolCleanedInformation, EventPoolInformation, EventRefCountInformation,
 };
 
-use crate::{config::context::JsBackupContext, server::AbortHandle};
+use crate::{events::JsEventSource, server::AbortHandle};
 
 #[napi(object)]
 pub struct JsPoolProgression {
@@ -160,7 +160,7 @@ impl From<FsckUnusedCount> for JsFsckUnusedCount {
 
 #[napi(js_name = "CorePoolService")]
 pub struct JsPoolService {
-  context: Context,
+  config: Configuration,
   fsck: PoolFsck,
 }
 
@@ -168,12 +168,12 @@ pub struct JsPoolService {
 impl JsPoolService {
   #[napi(constructor)]
   #[must_use]
-  pub fn new(context: &JsBackupContext) -> Self {
-    let context: Context = context.into();
+  pub fn new() -> Self {
+    let config = Configuration::default();
 
     Self {
-      context: context.clone(),
-      fsck: PoolFsck::new(&context),
+      fsck: PoolFsck::new(&config),
+      config,
     }
   }
 
@@ -182,7 +182,7 @@ impl JsPoolService {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
 
-    add_refcnt_to_pool(&self.context, &hostname, backup_number)
+    add_refcnt_to_pool(&self.config, &hostname, backup_number)
       .await
       .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
 
@@ -194,7 +194,7 @@ impl JsPoolService {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
 
-    remove_refcnt_to_pool(&self.context, &hostname, backup_number)
+    remove_refcnt_to_pool(&self.config, &hostname, backup_number)
       .await
       .map_err(|_| Error::from_reason("Failed to remove refcnt of host".to_string()))?;
 
@@ -217,6 +217,7 @@ impl JsPoolService {
   pub fn remove_unused(
     &self,
     target: Option<String>,
+    source: JsEventSource,
     #[napi(ts_arg_type = "(result: CleanedUnusedMessage) => void")] callback: JsFunction,
   ) -> Result<AbortHandle> {
     let tsfn: ThreadsafeFunction<CleanedUnusedMessage, ErrorStrategy::Fatal> =
@@ -227,7 +228,7 @@ impl JsPoolService {
 
     let handle = tokio::spawn(async move {
       let result = fsck
-        .clean_unused_pool(target, &|unused| {
+        .clean_unused_pool(target, source.into(), &|unused| {
           tsfn.call(
             CleanedUnusedMessage {
               progress: Some(unused.clone().into()),
@@ -283,6 +284,7 @@ impl JsPoolService {
   #[napi]
   pub fn verify_chunk(
     &self,
+    source: JsEventSource,
     #[napi(ts_arg_type = "(result: FsckProgressMessage) => void")] callback: JsFunction,
   ) -> Result<AbortHandle> {
     let tsfn: ThreadsafeFunction<FsckProgressMessage, ErrorStrategy::Fatal> =
@@ -291,7 +293,7 @@ impl JsPoolService {
     let fsck = self.fsck.clone();
     let handle = tokio::spawn(async move {
       let result = fsck
-        .verify_chunk(&|progression| {
+        .verify_chunk(source.into(), &|progression| {
           tsfn.call(
             FsckProgressMessage {
               progress: Some(progression.clone().into()),
@@ -347,6 +349,7 @@ impl JsPoolService {
   pub fn verify_refcnt(
     &self,
     dry_run: bool,
+    source: JsEventSource,
     #[napi(ts_arg_type = "(result: FsckProgressMessage) => void")] callback: JsFunction,
   ) -> Result<AbortHandle> {
     let tsfn: ThreadsafeFunction<FsckProgressMessage, ErrorStrategy::Fatal> =
@@ -355,7 +358,7 @@ impl JsPoolService {
     let fsck = self.fsck.clone();
     let handle = tokio::spawn(async move {
       let result = fsck
-        .verify_refcnt(dry_run, &|progression| {
+        .verify_refcnt(dry_run, source.into(), &|progression| {
           tsfn.call(
             FsckProgressMessage {
               progress: Some(progression.clone().into()),
@@ -411,6 +414,7 @@ impl JsPoolService {
   pub fn verify_unused(
     &self,
     dry_run: bool,
+    source: JsEventSource,
     #[napi(ts_arg_type = "(result: FsckUnusedMessage) => void")] callback: JsFunction,
   ) -> Result<AbortHandle> {
     let tsfn: ThreadsafeFunction<FsckUnusedMessage, ErrorStrategy::Fatal> =
@@ -419,7 +423,7 @@ impl JsPoolService {
     let fsck = self.fsck.clone();
     let handle = tokio::spawn(async move {
       let result = fsck
-        .verify_unused(dry_run, &|progression| {
+        .verify_unused(dry_run, source.into(), &|progression| {
           tsfn.call(
             FsckUnusedMessage {
               progress: Some(progression.clone().into()),

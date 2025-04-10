@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use uuid::Uuid;
 
 use crate::{
-    config::{Backups, Context, Hosts},
+    config::{Backups, Configuration, Hosts},
     events::append_events,
     pool::{
         check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
@@ -37,19 +37,21 @@ pub struct PoolProgression {
 
 #[derive(Clone)]
 pub struct PoolFsck {
-    source: EventSource,
-    context: Context,
+    config: Configuration,
 }
 
 impl PoolFsck {
-    pub fn new(ctxt: &Context) -> Self {
+    pub fn new(config: &Configuration) -> Self {
         PoolFsck {
-            source: ctxt.source,
-            context: ctxt.clone(),
+            config: config.clone(),
         }
     }
 
-    async fn create_event_start(&self, event_type: EventType) -> Result<Vec<u8>> {
+    async fn create_event_start(
+        &self,
+        event_type: EventType,
+        source: EventSource,
+    ) -> Result<Vec<u8>> {
         let id = Uuid::new_v4();
         let id = id.as_bytes();
 
@@ -60,7 +62,7 @@ impl PoolFsck {
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
-            source: self.source as i32,
+            source: source as i32,
             user: "".to_string(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
@@ -68,7 +70,7 @@ impl PoolFsck {
             information: None,
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(id.to_vec())
     }
@@ -77,6 +79,7 @@ impl PoolFsck {
         &self,
         id: &[u8],
         information: EventRefCountInformation,
+        source: EventSource,
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
@@ -85,7 +88,7 @@ impl PoolFsck {
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
-            source: self.source as i32,
+            source: source as i32,
             user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
@@ -97,7 +100,7 @@ impl PoolFsck {
             information: Some(Information::Refcnt(information)),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -106,6 +109,7 @@ impl PoolFsck {
         &self,
         id: &[u8],
         information: EventPoolInformation,
+        source: EventSource,
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
@@ -114,7 +118,7 @@ impl PoolFsck {
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
-            source: self.source as i32,
+            source: source as i32,
             user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.in_nothing > 0 || information.missing > 0 {
@@ -126,7 +130,7 @@ impl PoolFsck {
             information: Some(Information::Pool(information)),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -135,6 +139,7 @@ impl PoolFsck {
         &self,
         id: &[u8],
         information: EventRefCountInformation,
+        source: EventSource,
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
@@ -143,7 +148,7 @@ impl PoolFsck {
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
-            source: self.source as i32,
+            source: source as i32,
             user: "".to_string(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
@@ -155,7 +160,7 @@ impl PoolFsck {
             information: Some(Information::Refcnt(information)),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -163,6 +168,7 @@ impl PoolFsck {
     async fn create_event_cleaned_end(
         &self,
         id: &[u8],
+        source: EventSource,
         information: EventPoolCleanedInformation,
     ) -> Result<()> {
         let event = Event {
@@ -172,7 +178,7 @@ impl PoolFsck {
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
-            source: self.source as i32,
+            source: source as i32,
             user: "".to_string(),
             error_messages: Vec::new(),
             status: EventStatus::Success as i32,
@@ -180,7 +186,7 @@ impl PoolFsck {
             information: Some(Information::PoolCleaned(information)),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -189,8 +195,8 @@ impl PoolFsck {
         let mut count = 1;
 
         // Calculate max
-        let hosts = Hosts::new(&self.context);
-        let backups = Backups::new(&self.context);
+        let hosts = Hosts::new(&self.config);
+        let backups = Backups::new(&self.config);
 
         for host in hosts.list_hosts().await? {
             let backups = backups.get_backups(&host).await;
@@ -203,15 +209,18 @@ impl PoolFsck {
     pub async fn verify_refcnt(
         &self,
         dry_run: bool,
+        source: EventSource,
         callback: &impl Fn(&FsckProgression),
     ) -> Result<EventRefCountInformation> {
-        let id = self.create_event_start(EventType::RefcntChecked).await?;
+        let id = self
+            .create_event_start(EventType::RefcntChecked, source)
+            .await?;
 
-        let path = &self.context.config.path.pool_path;
+        let path = &self.config.path.pool_path;
         let _lock = PoolLock::new(path).lock().await?;
 
-        let hosts = Hosts::new(&self.context);
-        let backups = Backups::new(&self.context);
+        let hosts = Hosts::new(&self.config);
+        let backups = Backups::new(&self.config);
 
         let mut error_count = 0;
         let mut total_count = 0;
@@ -223,7 +232,7 @@ impl PoolFsck {
             for backup in backups {
                 debug!("Checking backup {}/{}", host, backup.number);
                 let result =
-                    check_backup_integrity(&host, backup.number, dry_run, &self.context).await?;
+                    check_backup_integrity(&host, backup.number, dry_run, &self.config).await?;
 
                 error_count += result.error_count;
                 total_count += result.total_count;
@@ -237,7 +246,7 @@ impl PoolFsck {
             }
 
             debug!("Checking host {}", host);
-            let result = check_host_integrity(&host, dry_run, &self.context).await?;
+            let result = check_host_integrity(&host, dry_run, &self.config).await?;
 
             error_count += result.error_count;
             total_count += result.total_count;
@@ -252,7 +261,7 @@ impl PoolFsck {
         }
 
         debug!("Checking pool");
-        let result = check_pool_integrity(dry_run, &self.context).await?;
+        let result = check_pool_integrity(dry_run, &self.config).await?;
 
         error_count += result.error_count;
         total_count += result.total_count;
@@ -271,13 +280,14 @@ impl PoolFsck {
             count: total_count as u64,
             error: error_count as u64,
         };
-        self.create_event_refcnt_end(&id, information).await?;
+        self.create_event_refcnt_end(&id, information, source)
+            .await?;
 
         Ok(information)
     }
 
     pub async fn verify_unused_max(&self) -> Result<usize> {
-        let mut pool_refcnt = Refcnt::new(&self.context.config.path.pool_path);
+        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
         pool_refcnt.load_refcnt(false).await;
         pool_refcnt.load_unused().await;
 
@@ -289,13 +299,14 @@ impl PoolFsck {
     pub async fn verify_unused(
         &self,
         dry_run: bool,
+        source: EventSource,
         callback: &impl Fn(&PoolProgression),
     ) -> Result<EventPoolInformation> {
-        let id = self.create_event_start(EventType::PoolChecked).await?;
-
-        let _lock = PoolLock::new(&self.context.config.path.pool_path)
-            .lock()
+        let id = self
+            .create_event_start(EventType::PoolChecked, source)
             .await?;
+
+        let _lock = PoolLock::new(&self.config.path.pool_path).lock().await?;
 
         let count = AtomicUsize::new(0);
 
@@ -311,7 +322,7 @@ impl PoolFsck {
                     compressed_file_size: 0,
                 });
             },
-            &self.context,
+            &self.config,
         )
         .await?;
 
@@ -324,13 +335,13 @@ impl PoolFsck {
             missing: result.missing as u64,
         };
 
-        self.create_event_pool_end(&id, information).await?;
+        self.create_event_pool_end(&id, information, source).await?;
 
         Ok(information)
     }
 
     pub async fn verify_chunk_max(&self) -> Result<Vec<Vec<u8>>> {
-        let mut pool_refcnt = Refcnt::new(&self.context.config.path.pool_path);
+        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
         pool_refcnt.load_refcnt(false).await;
         pool_refcnt.load_unused().await;
 
@@ -349,23 +360,24 @@ impl PoolFsck {
 
     pub async fn verify_chunk(
         &self,
+        source: EventSource,
         callback: &impl Fn(&FsckProgression),
     ) -> Result<EventRefCountInformation> {
-        let id = self.create_event_start(EventType::ChecksumChecked).await?;
-
-        let _lock = PoolLock::new(&self.context.config.path.pool_path)
-            .lock()
+        let id = self
+            .create_event_start(EventType::ChecksumChecked, source)
             .await?;
+
+        let _lock = PoolLock::new(&self.config.path.pool_path).lock().await?;
 
         let chunks = self.verify_chunk_max().await?;
         let mut error_count = 0;
         let mut total_count = 0;
 
         for refcnt in chunks {
-            let wrapper = PoolChunkWrapper::new(&self.context.config.path.pool_path, Some(&refcnt));
+            let wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(&refcnt));
 
             let is_valid = wrapper
-                .check_chunk_information(&self.context.config.chunk_algorithm)
+                .check_chunk_information(&self.config.chunk_algorithm)
                 .await?;
             if !is_valid {
                 error_count += 1;
@@ -387,13 +399,14 @@ impl PoolFsck {
             count: total_count as u64,
             error: error_count as u64,
         };
-        self.create_event_chunk_end(&id, informations).await?;
+        self.create_event_chunk_end(&id, informations, source)
+            .await?;
 
         Ok(informations)
     }
 
     pub async fn clean_unused_max(&self) -> Result<usize> {
-        let mut refcnt = Refcnt::new(&self.context.config.path.pool_path);
+        let mut refcnt = Refcnt::new(&self.config.path.pool_path);
         refcnt.load_unused().await;
 
         Ok(refcnt.list_unused().count())
@@ -402,15 +415,16 @@ impl PoolFsck {
     pub async fn clean_unused_pool(
         &self,
         target: Option<PathBuf>,
+        source: EventSource,
         callback: &impl Fn(&PoolProgression),
     ) -> Result<EventPoolCleanedInformation> {
-        let id = self.create_event_start(EventType::PoolCleaned).await?;
-
-        let _lock = PoolLock::new(&self.context.config.path.pool_path)
-            .lock()
+        let id = self
+            .create_event_start(EventType::PoolCleaned, source)
             .await?;
 
-        let mut refcnt = Refcnt::new(&self.context.config.path.pool_path);
+        let _lock = PoolLock::new(&self.config.path.pool_path).lock().await?;
+
+        let mut refcnt = Refcnt::new(&self.config.path.pool_path);
         refcnt.load_unused().await;
 
         let count = AtomicUsize::new(0);
@@ -419,7 +433,7 @@ impl PoolFsck {
         let total = refcnt.list_unused().count();
 
         refcnt
-            .remove_unused_files(&self.context.config.path.pool_path, target, &|unused| {
+            .remove_unused_files(&self.config.path.pool_path, target, &|unused| {
                 let compressed_size = unused
                     .clone()
                     .map(|f| f.compressed_size)
@@ -443,7 +457,8 @@ impl PoolFsck {
             count: total as u64,
             size: total_compressed_size.load(Ordering::SeqCst),
         };
-        self.create_event_cleaned_end(&id, informations).await?;
+        self.create_event_cleaned_end(&id, source, informations)
+            .await?;
 
         Ok(informations)
     }

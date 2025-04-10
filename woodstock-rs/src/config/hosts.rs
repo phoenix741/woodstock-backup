@@ -4,7 +4,7 @@ use eyre::{eyre, Result};
 use log::{debug, warn};
 use tokio::fs::read_to_string;
 
-use super::{Context, HostConfiguration};
+use super::{Configuration, HostConfiguration};
 
 pub struct Hosts {
     config_path_hosts: PathBuf,
@@ -13,10 +13,10 @@ pub struct Hosts {
 
 impl Hosts {
     #[must_use]
-    pub fn new(ctxt: &Context) -> Self {
+    pub fn new(config: &Configuration) -> Self {
         Self {
-            config_path_hosts: ctxt.config.path.config_path_hosts.clone(),
-            config_path: ctxt.config.path.config_path.clone(),
+            config_path_hosts: config.path.config_path_hosts.clone(),
+            config_path: config.path.config_path.clone(),
         }
     }
 

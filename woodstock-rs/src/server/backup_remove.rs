@@ -3,7 +3,7 @@ use log::info;
 use std::time::SystemTime;
 
 use crate::{
-    config::{Backups, Context},
+    config::{Backups, Configuration, Context},
     events::create_event_backup_remove,
     pool::{Refcnt, RefcntApplySens},
     EventSource,
@@ -14,12 +14,12 @@ pub struct BackupRemove {
     current_backup_id: usize,
 
     source: EventSource,
-    context: Context,
+    config: Configuration,
 }
 
 impl BackupRemove {
     pub fn new(hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(ctxt);
+        let backups = Backups::new(&ctxt.config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -31,12 +31,12 @@ impl BackupRemove {
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
             source: ctxt.source,
-            context: ctxt.clone(),
+            config: ctxt.config.clone(),
         }
     }
 
     pub async fn remove_refcnt_of_host(&self) -> Result<()> {
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let from_directory =
             backups.get_backup_destination_directory(&self.hostname, self.current_backup_id);
 
@@ -50,7 +50,7 @@ impl BackupRemove {
             &backup_refcnt,
             &RefcntApplySens::Decrease,
             &SystemTime::now(),
-            &self.context,
+            &self.config,
         )
         .await?;
 
@@ -58,7 +58,7 @@ impl BackupRemove {
     }
 
     pub async fn remove_backup(&self) -> Result<()> {
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         backups
             .remove_backup(&self.hostname, self.current_backup_id)
             .await?;
@@ -69,7 +69,7 @@ impl BackupRemove {
         let shares = shares.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
 
         create_event_backup_remove(
-            &self.context.config.path.events_path,
+            &self.config.path.events_path,
             self.source,
             &self.hostname,
             self.current_backup_id,

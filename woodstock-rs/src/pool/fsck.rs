@@ -6,7 +6,7 @@ use futures::{pin_mut, StreamExt};
 use log::{error, info};
 
 use crate::{
-    config::{Backups, Context},
+    config::{Backups, Configuration},
     pool::PoolChunkWrapper,
     PoolUnused,
 };
@@ -57,12 +57,13 @@ pub async fn check_backup_integrity(
     hostname: &str,
     backup_number: usize,
     dry_run: bool,
-    ctxt: &Context,
+    config: &Configuration,
 ) -> Result<FsckCount> {
-    let backups = Backups::new(ctxt);
+    let backups = Backups::new(config);
     let destination_backup = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let new_refcnt = Refcnt::new_backup_refcnt_from_manifest(hostname, backup_number, ctxt).await?;
+    let new_refcnt =
+        Refcnt::new_backup_refcnt_from_manifest(hostname, backup_number, config).await?;
     let mut original_refcnt = Refcnt::new(&destination_backup);
     original_refcnt.load_refcnt(false).await;
 
@@ -72,7 +73,7 @@ pub async fn check_backup_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}/{backup_number}");
-        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.finish(&config.path.pool_path).await?;
         new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
@@ -85,12 +86,12 @@ pub async fn check_backup_integrity(
 pub async fn check_host_integrity(
     hostname: &str,
     dry_run: bool,
-    ctxt: &Context,
+    config: &Configuration,
 ) -> Result<FsckCount> {
-    let backups = Backups::new(ctxt);
+    let backups = Backups::new(config);
     let destination_directory = backups.get_host_path(hostname);
 
-    let new_refcnt = Refcnt::new_host_refcnt_from_backups(hostname, ctxt).await?;
+    let new_refcnt = Refcnt::new_host_refcnt_from_backups(hostname, config).await?;
 
     let mut original_refcnt = Refcnt::new(&destination_directory);
     original_refcnt.load_refcnt(false).await;
@@ -101,7 +102,7 @@ pub async fn check_host_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}");
-        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.finish(&config.path.pool_path).await?;
         new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
@@ -111,11 +112,11 @@ pub async fn check_host_integrity(
     })
 }
 
-pub async fn check_pool_integrity(dry_run: bool, ctxt: &Context) -> Result<FsckCount> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
+pub async fn check_pool_integrity(dry_run: bool, config: &Configuration) -> Result<FsckCount> {
+    let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
-    let new_refcnt = Refcnt::new_pool_refcnt_from_host(ctxt).await?;
+    let new_refcnt = Refcnt::new_pool_refcnt_from_host(config).await?;
 
     let error_count = check_integrity(&pool_refcnt, &new_refcnt);
 
@@ -123,7 +124,7 @@ pub async fn check_pool_integrity(dry_run: bool, ctxt: &Context) -> Result<FsckC
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for pool");
-        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.finish(&config.path.pool_path).await?;
         new_refcnt.save_refcnt(&SystemTime::now()).await?;
     }
 
@@ -136,9 +137,9 @@ pub async fn check_pool_integrity(dry_run: bool, ctxt: &Context) -> Result<FsckC
 pub async fn check_unused(
     dry_run: bool,
     cb: &impl Fn(usize),
-    ctxt: &Context,
+    config: &Configuration,
 ) -> Result<FsckUnusedCount> {
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
+    let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
     pool_refcnt.load_unused().await;
 
@@ -148,7 +149,7 @@ pub async fn check_unused(
     let mut missing = 0;
 
     // FIXME: Remove walkdir and use unfold like get_files_recursive
-    let entries = WalkDir::new(&ctxt.config.path.pool_path)
+    let entries = WalkDir::new(&config.path.pool_path)
         .filter(|f| async move {
             let path = f.path();
 
@@ -169,7 +170,7 @@ pub async fn check_unused(
     pin_mut!(entries);
 
     while let Some(hash) = entries.next().await {
-        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&hash));
+        let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&hash));
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
 
         if pool_refcnt.get_unused(&hash).is_some() {
@@ -199,7 +200,7 @@ pub async fn check_unused(
     }
 
     for refcnt in pool_refcnt.list_refcnt() {
-        let wrapper = PoolChunkWrapper::new(&ctxt.config.path.pool_path, Some(&refcnt.sha256));
+        let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&refcnt.sha256));
         if !wrapper.exists() {
             missing += 1;
             error!("{} is missing", hex::encode(&refcnt.sha256));

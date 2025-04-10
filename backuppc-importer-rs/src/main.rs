@@ -25,6 +25,7 @@ use log::debug;
 use log::error;
 use log::info;
 use woodstock::client::config::ClientConfig;
+use woodstock::config::Configuration;
 use woodstock::config::{Backups, Context, Hosts};
 use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
@@ -44,11 +45,14 @@ struct BackupDefinition {
     pub size: u64,
 }
 
-async fn list_woodstock_backups(ctxt: &Context, excludes: &[&str]) -> Vec<BackupDefinition> {
+async fn list_woodstock_backups(
+    config: &Configuration,
+    excludes: &[&str],
+) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
-    let hosts_config = Hosts::new(ctxt);
-    let backups_config = Backups::new(ctxt);
+    let hosts_config = Hosts::new(config);
+    let backups_config = Backups::new(config);
 
     let hosts = hosts_config.list_hosts().await.unwrap_or_default();
     for host in hosts {
@@ -97,7 +101,7 @@ fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefini
 }
 
 pub async fn add_refcnt_to_pool(
-    ctxt: &Context,
+    config: &Configuration,
     from_directory: &Path,
     date: &SystemTime,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -107,11 +111,11 @@ pub async fn add_refcnt_to_pool(
 
     info!("Apply refcnt to pool");
     Refcnt::apply_all_from(
-        &ctxt.config.path.pool_path,
+        &config.path.pool_path,
         &backup_refcnt,
         &RefcntApplySens::Increase,
         date,
-        ctxt,
+        config,
     )
     .await?;
 
@@ -126,7 +130,7 @@ async fn launch_backup(
     backup: &BackupDefinition,
     backup_bar: &mut ProgressBar,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let backups_configuration = Backups::new(context);
+    let backups_configuration = Backups::new(&context.config);
     let backuppc_configuration = BackupPCHosts::new(backuppc_pool);
     let search = Search::new(backuppc_pool);
     let mut view = BackupPC::new(
@@ -239,7 +243,12 @@ async fn launch_backup(
 
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();
-    add_refcnt_to_pool(context, &destination_directory, &client.get_fake_date()).await?;
+    add_refcnt_to_pool(
+        &context.config,
+        &destination_directory,
+        &client.get_fake_date(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -335,7 +344,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(AsRef::as_ref)
         .collect();
 
-    let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
+    let mut woodstock_backups = list_woodstock_backups(&context.config, &excludes).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
 
     for woodstock in &woodstock_backups {
@@ -436,7 +445,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if !args.only_one {
         // List backups in woodstock that is not in backuppc
-        let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
+        let mut woodstock_backups = list_woodstock_backups(&context.config, &excludes).await;
         woodstock_backups.sort_by_key(|backup| backup.start_time);
 
         let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool, &excludes);
@@ -480,7 +489,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !args.dry_run {
                 let remover = BackupRemove::new(&backup.hostname, backup.backup_number, &context);
 
-                remove_refcnt_to_pool(&context, &backup.hostname, backup.backup_number).await?;
+                remove_refcnt_to_pool(&context.config, &backup.hostname, backup.backup_number)
+                    .await?;
 
                 remover.remove_refcnt_of_host().await?;
 

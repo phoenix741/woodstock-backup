@@ -199,7 +199,7 @@ async fn main() -> Result<()> {
             backup_number,
             share_path,
         } => {
-            read_log(&context, &hostname, backup_number, &share_path)
+            read_log(&context.config, &hostname, backup_number, &share_path)
                 .await
                 .expect("Failed to read log");
         }
@@ -208,7 +208,7 @@ async fn main() -> Result<()> {
             read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");
         }
         Commands::SearchChunk { chunk } => {
-            search_chunk(&context, &chunk)
+            search_chunk(&context.config, &chunk)
                 .await
                 .expect("Failed to search chunk");
         }
@@ -216,7 +216,7 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            add_refcnt_to_pool(&context, &hostname, backup_number)
+            add_refcnt_to_pool(&context.config, &hostname, backup_number)
                 .await
                 .expect("Failed to add refcnt to pool");
         }
@@ -224,28 +224,28 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            remove_refcnt_to_pool(&context, &hostname, backup_number)
+            remove_refcnt_to_pool(&context.config, &hostname, backup_number)
                 .await
                 .expect("Failed to remove refcnt to pool");
         }
         Commands::CleanUnused { target } => {
-            clean_unused_pool(&context, target)
+            clean_unused_pool(&context.config, context.source, target)
                 .await
                 .expect("Clean unused failed");
         }
-        Commands::CheckCompression {} => check_compression(&context)
+        Commands::CheckCompression {} => check_compression(&context.config)
             .await
             .expect("Failed to check compression"),
-        Commands::VerifyChunk {} => verify_chunk(&context)
+        Commands::VerifyChunk {} => verify_chunk(&context.config, context.source)
             .await
             .expect("Can't verify integrity"),
         Commands::VerifyRefcnt { dry_run } => {
-            verify_refcnt(&context, dry_run)
+            verify_refcnt(&context.config, context.source, dry_run)
                 .await
                 .expect("Can't verify refcnt");
         }
         Commands::VerifyUnused { dry_run } => {
-            verify_unused(&context, dry_run)
+            verify_unused(&context.config, context.source, dry_run)
                 .await
                 .expect("Can't verify unused");
         }
@@ -260,7 +260,7 @@ async fn main() -> Result<()> {
         Commands::ListDirectory {
             share_path,
             config_path,
-        } => list_client_files(&share_path, &config_path, &context)
+        } => list_client_files(&share_path, &config_path, &context.config)
             .await
             .expect("Failed to list files"),
         Commands::ReadFileChunk {
@@ -275,7 +275,7 @@ async fn main() -> Result<()> {
         .await
         .expect("Failed to read chunk from file"),
         Commands::ResolveHost { hostname } => {
-            resolve_mdns(&context, &hostname)
+            resolve_mdns(&context.config, &hostname)
                 .await
                 .expect("Failed to resolve mDNS");
         }
@@ -288,7 +288,7 @@ async fn main() -> Result<()> {
             mount_point,
         } => {
             mount(
-                &context,
+                &context.config,
                 &MountOption {
                     hostname,
                     backup_number,

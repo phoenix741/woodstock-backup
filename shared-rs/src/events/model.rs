@@ -64,6 +64,17 @@ impl From<EventSource> for JsEventSource {
   }
 }
 
+impl From<JsEventSource> for EventSource {
+  fn from(event_source: JsEventSource) -> Self {
+    match event_source {
+      JsEventSource::User => EventSource::User,
+      JsEventSource::Woodstock => EventSource::Woodstock,
+      JsEventSource::Import => EventSource::Import,
+      JsEventSource::Cli => EventSource::Cli,
+    }
+  }
+}
+
 #[napi]
 pub enum JsEventStatus {
   None,

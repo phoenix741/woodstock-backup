@@ -127,7 +127,7 @@ export class EventsService {
 
   async #listEvents(startDate: string, endDate: string): Promise<JsEvent[]> {
     return new Promise((resolve, reject) => {
-      listEvents(startDate, endDate, this.applicationConfig.context, (err, events) => {
+      listEvents(startDate, endDate, (err, events) => {
         if (err) {
           reject(err);
         } else {

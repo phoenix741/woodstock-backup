@@ -1,7 +1,7 @@
 use napi::{Error, Result};
-use woodstock::config::{Context, Hosts};
+use woodstock::config::{Configuration, Hosts};
 
-use crate::{config::context::JsBackupContext, models::JsHostConfiguration};
+use crate::models::JsHostConfiguration;
 
 #[napi(js_name = "CoreHostsService")]
 pub struct JsHostsService {
@@ -12,11 +12,11 @@ pub struct JsHostsService {
 impl JsHostsService {
   #[napi(constructor)]
   #[must_use]
-  pub fn new(context: &JsBackupContext) -> Self {
-    let context: Context = context.into();
+  pub fn new() -> Self {
+    let config = Configuration::default();
 
     Self {
-      hosts: Hosts::new(&context),
+      hosts: Hosts::new(&config),
     }
   }
 

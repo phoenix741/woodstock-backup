@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::client::Client;
 use crate::{
-    config::{Backups, Context, BUFFER_SIZE},
+    config::{Backups, Configuration, Context, BUFFER_SIZE},
     event::Information,
     events::append_events,
     restore_file_request,
@@ -33,14 +33,14 @@ pub struct BackupRestore<Clt: Client> {
     progression: Arc<Mutex<BackupProgression>>,
 
     source: EventSource,
-    context: Context,
+    config: Configuration,
 
     pool_path: PathBuf,
 }
 
 impl<Clt: Client> BackupRestore<Clt> {
     pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(ctxt);
+        let backups = Backups::new(&ctxt.config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -58,7 +58,7 @@ impl<Clt: Client> BackupRestore<Clt> {
             progress_max: HashMap::new(),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             source: ctxt.source,
-            context: ctxt.clone(),
+            config: ctxt.config.clone(),
             pool_path: ctxt.config.path.pool_path.clone(),
         }
     }
@@ -83,7 +83,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, share);
 
         let selection = selection
@@ -128,7 +128,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, share);
 
         let destination_directory = destination_directory.as_ref().to_path_buf();
@@ -276,7 +276,7 @@ impl<Clt: Client> BackupRestore<Clt> {
             })),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -305,7 +305,7 @@ impl<Clt: Client> BackupRestore<Clt> {
             })),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }

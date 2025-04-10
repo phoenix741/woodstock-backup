@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::{net::TcpStream, time::timeout};
 
-use crate::config::{Context, REDIS_WOODSTOCK_KEY_DNS};
+use crate::config::{Configuration, REDIS_WOODSTOCK_KEY_DNS};
 
 const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
 
@@ -134,11 +134,8 @@ pub struct SocketAddrResolver {
 
 impl SocketAddrResolver {
     /// Create a new `SocketAddrResolver` instance.
-    pub fn new(context: &Context) -> Result<Self> {
-        let redis_url = format!(
-            "redis://{}:{}",
-            context.config.redis.host, context.config.redis.port
-        );
+    pub fn new(config: &Configuration) -> Result<Self> {
+        let redis_url = format!("redis://{}:{}", config.redis.host, config.redis.port);
         info!("Connect to Redis URL for DNS resolution: {}", redis_url);
 
         let client = redis::Client::open(redis_url).unwrap();

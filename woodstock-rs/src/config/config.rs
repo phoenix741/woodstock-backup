@@ -151,6 +151,14 @@ pub struct Configuration {
 
 impl Configuration {
     #[must_use]
+    pub fn from_backup_path(backup_path: PathBuf) -> Self {
+        Self {
+            path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
+            ..Default::default()
+        }
+    }
+
+    #[must_use]
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }

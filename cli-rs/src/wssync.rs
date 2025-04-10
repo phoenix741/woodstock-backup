@@ -37,9 +37,9 @@ async fn main() -> Result<()> {
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&context);
+    let hosts = Hosts::new(&context.config);
     let host_configuration = hosts.get_host(&args.hostname).await?;
-    let backups = Backups::new(&context);
+    let backups = Backups::new(&context.config);
 
     let backup_number = match args.backup_number {
         Some(backup_number) => backup_number,

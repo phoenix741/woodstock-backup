@@ -7,12 +7,12 @@ use napi::{
   Error, JsFunction, Result,
 };
 use woodstock::{
-  config::{Backups, Context},
+  config::{Backups, Configuration},
   proto::ProtobufReader,
   FileManifestJournalEntry,
 };
 
-use crate::{config::context::JsBackupContext, models::JsBackup, server::AbortHandle};
+use crate::{models::JsBackup, server::AbortHandle};
 
 #[napi(object)]
 pub struct JsBaskupsLog {
@@ -30,11 +30,11 @@ pub struct JsBackupsService {
 impl JsBackupsService {
   #[napi(constructor)]
   #[must_use]
-  pub fn new(context: &JsBackupContext) -> Self {
-    let context: Context = context.into();
+  pub fn new() -> Self {
+    let config = Configuration::default();
 
     Self {
-      backups: Backups::new(&context),
+      backups: Backups::new(&config),
     }
   }
 

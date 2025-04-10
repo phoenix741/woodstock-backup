@@ -4,15 +4,19 @@ use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    config::{Context, Hosts},
+    config::{Configuration, Hosts},
     scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
     ChunkAlgorithm, ChunkHashRequest,
 };
 
-pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Context) -> Result<()> {
+pub async fn list_client_files(
+    share_path: &str,
+    config_path: &str,
+    config: &Configuration,
+) -> Result<()> {
     // Start by reading the configuration file
-    let hosts = Hosts::new(ctxt);
+    let hosts = Hosts::new(config);
     let host = hosts.read_host_file(config_path).await?;
 
     if let Some(operation) = host.operations.operation {

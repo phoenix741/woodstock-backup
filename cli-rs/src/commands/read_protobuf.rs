@@ -4,7 +4,7 @@ use clap::ValueEnum;
 use futures::StreamExt;
 
 use woodstock::{
-    config::{Backups, Context},
+    config::{Backups, Configuration},
     pool::PoolChunkInformation,
     proto::ProtobufReader,
     Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
@@ -174,12 +174,12 @@ pub async fn read_protobuf(
 }
 
 pub async fn read_log(
-    ctxt: &Context,
+    config: &Configuration,
     hostname: &str,
     backup_number: usize,
     share_path: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let backups_services = Backups::new(ctxt);
+    let backups_services = Backups::new(config);
     let manifest = backups_services.get_manifest(hostname, backup_number, share_path);
     let log_path = manifest.log_path;
 

@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&context);
+    let hosts = Hosts::new(&context.config);
     let host_configuration = hosts.get_host(&args.hostname).await?;
 
     let backup_number = args.backup_number;

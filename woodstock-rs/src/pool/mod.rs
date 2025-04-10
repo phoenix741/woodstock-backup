@@ -14,7 +14,7 @@ pub use refcnt::*;
 pub use utils::*;
 
 use crate::{
-    config::{Backups, Context},
+    config::{Backups, Configuration},
     utils::lock::PoolLock,
 };
 
@@ -23,16 +23,16 @@ use log::{debug, info};
 use std::time::SystemTime;
 
 pub async fn add_refcnt_to_pool(
-    ctxt: &Context,
+    config: &Configuration,
     hostname: &str,
     backup_number: usize,
 ) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+    let _lock = PoolLock::new(&config.path.pool_path).lock().await?;
 
-    let backups = Backups::new(ctxt);
+    let backups = Backups::new(config);
     let from_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let pool_directory = &ctxt.config.path.pool_path;
+    let pool_directory = &config.path.pool_path;
 
     info!("Add refcnt to pool for {}", from_directory.display());
     let mut backup_refcnt = Refcnt::new(&from_directory);
@@ -44,7 +44,7 @@ pub async fn add_refcnt_to_pool(
         &backup_refcnt,
         &RefcntApplySens::Increase,
         &SystemTime::now(),
-        ctxt,
+        config,
     )
     .await?;
     info!("Refcnt applied to pool");
@@ -53,16 +53,16 @@ pub async fn add_refcnt_to_pool(
 }
 
 pub async fn remove_refcnt_to_pool(
-    ctxt: &Context,
+    config: &Configuration,
     hostname: &str,
     backup_number: usize,
 ) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+    let _lock = PoolLock::new(&config.path.pool_path).lock().await?;
 
-    let backups = Backups::new(ctxt);
+    let backups = Backups::new(config);
     let from_directory = backups.get_backup_destination_directory(hostname, backup_number);
 
-    let pool_directory = &ctxt.config.path.pool_path;
+    let pool_directory = &config.path.pool_path;
 
     info!("Remove refcnt to pool for {}", from_directory.display());
     let mut backup_refcnt = Refcnt::new(&from_directory);
@@ -74,7 +74,7 @@ pub async fn remove_refcnt_to_pool(
         &backup_refcnt,
         &RefcntApplySens::Decrease,
         &SystemTime::now(),
-        ctxt,
+        config,
     )
     .await?;
     info!("Refcnt removed from pool");

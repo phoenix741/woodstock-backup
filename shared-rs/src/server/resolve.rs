@@ -1,10 +1,8 @@
 use napi::{Error, Result};
 use woodstock::{
-  config::{Context, DEFAULT_PORT},
+  config::{Configuration, DEFAULT_PORT},
   server::resolve::SocketAddrResolver,
 };
-
-use crate::config::context::JsBackupContext;
 
 use super::AbortHandle;
 
@@ -45,10 +43,10 @@ pub struct CoreClientResolver {
 #[napi]
 impl CoreClientResolver {
   #[napi(constructor)]
-  pub fn new(ctxt: &JsBackupContext) -> Result<Self> {
-    let context: Context = ctxt.into();
+  pub fn new() -> Result<Self> {
+    let config = Configuration::default();
 
-    let resolver = SocketAddrResolver::new(&context)
+    let resolver = SocketAddrResolver::new(&config)
       .map_err(|_| Error::from_reason("Can't create socket address resolver".to_string()))?;
 
     Ok(Self { resolver })

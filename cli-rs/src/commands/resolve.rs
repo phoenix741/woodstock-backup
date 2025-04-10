@@ -6,12 +6,12 @@ use log::info;
 use tokio::select;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use woodstock::{config::Context, server::resolve::SocketAddrResolver};
+use woodstock::{config::Configuration, server::resolve::SocketAddrResolver};
 
-pub async fn resolve_mdns(ctxt: &Context, hostname: &str) -> Result<()> {
+pub async fn resolve_mdns(config: &Configuration, hostname: &str) -> Result<()> {
     let term = Term::stdout();
 
-    let resolver = Arc::new(SocketAddrResolver::new(ctxt)?);
+    let resolver = Arc::new(SocketAddrResolver::new(config)?);
 
     let token = CancellationToken::new();
     let cloned_token = token.clone();

@@ -1,5 +1,5 @@
 use crate::{
-    config::{Backup, Backups, Context, Hosts},
+    config::{Backup, Backups, Configuration, Hosts},
     utils::path::{osstr_to_vec, vec_to_path},
     FileManifestStat, FileManifestType,
 };
@@ -138,12 +138,12 @@ pub struct WoodstockView {
 }
 
 impl WoodstockView {
-    pub fn new(ctxt: &Context) -> Self {
+    pub fn new(config: &Configuration) -> Self {
         Self {
-            hosts: Hosts::new(ctxt),
-            backups: Backups::new(ctxt),
-            pool_path: ctxt.config.path.pool_path.clone(),
-            cache: LruCache::new(NonZeroUsize::new(ctxt.config.cache_size).unwrap()),
+            hosts: Hosts::new(config),
+            backups: Backups::new(config),
+            pool_path: config.path.pool_path.clone(),
+            cache: LruCache::new(NonZeroUsize::new(config.cache_size).unwrap()),
         }
     }
 
