@@ -59,6 +59,7 @@ async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
     reachable_ips
 }
 
+#[must_use]
 pub fn resolve_dns(hostname: &str) -> Vec<IpAddr> {
     lookup_host(hostname).ok().unwrap_or_default()
 }
@@ -121,10 +122,10 @@ impl ToRedisArgs for SocketAddrInformation {
 /// - mDNS (multicast DNS) to resolve the hostname to a `SocketAddr`.
 /// - DNS (Domain Name System) to resolve the hostname to a `SocketAddr`.
 ///
-/// The resolver will use the mdns_sd to listen for mDNS responses in continue, and will provide
+/// The resolver will use the `mdns_sd` to listen for mDNS responses in continue, and will provide
 /// a method to get the resolved `SocketAddr` if available.
 ///
-/// If not available, the resolver will use the tokio::net::lookup_host to resolve the hostname
+/// If not available, the resolver will use the `tokio::net::lookup_host` to resolve the hostname
 #[derive(Clone)]
 pub struct SocketAddrResolver {
     #[cfg(feature = "mdns")]
@@ -274,10 +275,10 @@ impl SocketAddrResolver {
 
         let version = info
             .get_property("version")
-            .map(|version| version.val_str())
+            .map(mdns_sd::TxtProperty::val_str)
             .unwrap_or_default()
             .to_string();
-        let addresses = info.get_addresses().iter().cloned().collect::<Vec<_>>();
+        let addresses = info.get_addresses().iter().copied().collect::<Vec<_>>();
 
         let socket_addr_info = SocketAddrInformation {
             refresh_date: chrono::Utc::now().timestamp(),
@@ -293,10 +294,9 @@ impl SocketAddrResolver {
     }
 
     async fn resolve_mdns(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
-        let mdns_recv = self.mdns.resolve_hostname(
-            &format!("{}{}", hostname, MDNS_SUFFIX),
-            Some(MDNS_TIMEOUT_MSEC),
-        );
+        let mdns_recv = self
+            .mdns
+            .resolve_hostname(&format!("{hostname}{MDNS_SUFFIX}"), Some(MDNS_TIMEOUT_MSEC));
 
         if let Ok(recv) = mdns_recv {
             let info = recv.recv_async().await;

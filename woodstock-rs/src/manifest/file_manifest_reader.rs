@@ -36,7 +36,7 @@ struct FileManifestReaderState {
 impl FileManifestReaderState {
     pub fn new(pool_path: &Path, manifest: &FileManifest) -> Self {
         Self {
-            file_path: manifest.path().to_path_buf(),
+            file_path: manifest.path().clone(),
             chunks: manifest.chunks.clone(),
 
             pool_path: pool_path.to_path_buf(),

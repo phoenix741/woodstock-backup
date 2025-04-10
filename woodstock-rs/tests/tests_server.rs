@@ -14,7 +14,7 @@ use woodstock::{
         config::{ClientConfig, ResolutionMode},
         server::WoodstockClient,
     },
-    config::{ConfigurationPath, Context, OptionalConfigurationPath},
+    config::{Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
     server::{backup_client::BackupClient, grpc_client::BackupGrpcClient},
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
@@ -25,28 +25,32 @@ fn create_context() -> Context {
     Context {
         source: woodstock::EventSource::Cli,
         username: None,
-        config: woodstock::config::Configuration {
-            redis: woodstock::config::RedisConfiguration {
-                host: "localhost".to_string(),
-                port: 6379,
-            },
-            path: ConfigurationPath::new(
-                PathBuf::from("./data/server"),
-                OptionalConfigurationPath {
-                    certificates_path: Some(PathBuf::from("./data")),
-                    config_path: Some(PathBuf::from("./data")),
-                    ..Default::default()
-                },
-            ),
-            log_level: log::Level::Warn,
-            cache_size: 1,
-            chunk_algorithm: ChunkAlgorithm::Sha3256,
+    }
+}
+
+fn create_config() -> Configuration {
+    Configuration {
+        redis: woodstock::config::RedisConfiguration {
+            host: "localhost".to_string(),
+            port: 6379,
         },
+        path: ConfigurationPath::new(
+            PathBuf::from("./data/server"),
+            OptionalConfigurationPath {
+                certificates_path: Some(PathBuf::from("./data")),
+                config_path: Some(PathBuf::from("./data")),
+                ..Default::default()
+            },
+        ),
+        log_level: log::Level::Warn,
+        cache_size: 1,
+        chunk_algorithm: ChunkAlgorithm::Sha3256,
     }
 }
 
 async fn server_and_client_stub(
     context: &Context,
+    app_config: &Configuration,
 ) -> (impl Future<Output = ()>, BackupClient<BackupGrpcClient>) {
     let config_path = std::path::Path::new("./data");
 
@@ -105,7 +109,7 @@ async fn server_and_client_stub(
 
     let client = WoodstockClientServiceClient::new(channel);
     let client = BackupGrpcClient::with_client("localhost", "127.0.0.1", client, config_path);
-    let client = BackupClient::new(client, "localhost", 0, context);
+    let client = BackupClient::new(client, "localhost", 0, context, app_config);
 
     (serve_future, client)
 }
@@ -142,7 +146,8 @@ async fn test_server_backup() {
     let share_path = current_path.to_str().unwrap().to_string();
 
     let context = create_context();
-    let (serve_future, mut client) = server_and_client_stub(&context).await;
+    let config = create_config();
+    let (serve_future, mut client) = server_and_client_stub(&context, &config).await;
 
     tokio::spawn(async move {
         serve_future.await;

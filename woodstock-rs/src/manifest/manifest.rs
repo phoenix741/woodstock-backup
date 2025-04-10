@@ -118,6 +118,22 @@ impl Manifest {
         })
     }
 
+    pub fn read_log_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + '_ {
+        stream!({
+            let manifests =
+                ProtobufReader::<FileManifestJournalEntry>::new(&self.log_path, true).await;
+            if let Ok(mut manifests) = manifests {
+                let mut manifests = manifests.into_stream();
+
+                while let Some(manifest) = manifests.next().await {
+                    if let Ok(manifest) = manifest {
+                        yield manifest;
+                    }
+                }
+            }
+        })
+    }
+
     pub async fn save_filelist_entries(
         &self,
         source: impl Stream<Item = FileManifestJournalEntry>,

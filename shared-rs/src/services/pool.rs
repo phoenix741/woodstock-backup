@@ -4,7 +4,7 @@ use napi::{
   Error, JsFunction, Result,
 };
 use woodstock::{
-  config::Configuration,
+  config::{Configuration, GlobalConfiguration},
   pool::{add_refcnt_to_pool, remove_refcnt_to_pool, FsckCount, FsckUnusedCount},
   server::pool_fsck::{FsckProgression, PoolFsck, PoolProgression},
   EventPoolCleanedInformation, EventPoolInformation, EventRefCountInformation,
@@ -169,11 +169,9 @@ impl JsPoolService {
   #[napi(constructor)]
   #[must_use]
   pub fn new() -> Self {
-    let config = Configuration::default();
-
     Self {
-      fsck: PoolFsck::new(&config),
-      config,
+      fsck: PoolFsck::new(&GlobalConfiguration),
+      config: GlobalConfiguration.clone(),
     }
   }
 

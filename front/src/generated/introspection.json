@@ -2,6 +2,7 @@
   "possibleTypes": {
     "EventInformation": [
       "EventBackupInformation",
+      "EventHashConversionInformation",
       "EventPoolCleanedInformation",
       "EventPoolInformation",
       "EventRefCountInformation"

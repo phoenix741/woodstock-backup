@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ApplicationConfigService, BackupsService } from '@woodstock/shared';
+import { BackupsService } from '@woodstock/shared';
 import {
+  generateContext,
   JsBackupProgression,
   WoodstockBackupClient,
   WoodstockBackupCommandReply,
@@ -10,13 +11,12 @@ import { Observable } from 'rxjs';
 
 @Injectable()
 export class BackupsClientService {
-  constructor(
-    private backupsService: BackupsService,
-    private applicationConfig: ApplicationConfigService,
-  ) {}
+  constructor(private backupsService: BackupsService) {}
 
   createClient(hostname: string, ip: string, backupNumber: number): Promise<WoodstockBackupClient> {
-    const context = this.applicationConfig.context;
+    const context = generateContext({
+      username: undefined,
+    });
     return WoodstockBackupClient.createClient(hostname, ip, backupNumber, context);
   }
 

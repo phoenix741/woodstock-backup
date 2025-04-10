@@ -232,7 +232,7 @@ impl WoodstockFileSystemInner {
         match self.list_files(ino, &path).await {
             Ok(files) => Ok(files),
             Err(err) => {
-                eprintln!("Error listing files of {:?}: {}", path, err);
+                eprintln!("Error listing files of {path:?}: {err}");
                 Err(err)
             }
         }
@@ -370,7 +370,7 @@ impl WoodstockFileSystemInner {
         match self.view.read_file(&path).await {
             Ok(reader) => Ok(reader),
             Err(err) => {
-                eprintln!("Can't open the file {:?}: {}", path, err);
+                eprintln!("Can't open the file {path:?}: {err}");
                 Err(err)
             }
         }
@@ -391,7 +391,7 @@ impl WoodstockFileSystemInner {
         match self.view.get_attribute(&self.prefix_path.join(path)).await {
             Ok(manifest) => Ok(manifest.symlink.clone()),
             Err(err) => {
-                eprintln!("Can't read the link {:?}: {}", path, err);
+                eprintln!("Can't read the link {path:?}: {err}");
                 Err(err)
             }
         }

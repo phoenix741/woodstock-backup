@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { grpcPing } from '@woodstock/shared-rs';
-import { ApplicationConfigService } from '../config/application-config.service.js';
 import { InformationToResolve } from './resolve.model.js';
 import { ResolveService } from './resolve.service.js';
 
@@ -8,10 +7,7 @@ import { ResolveService } from './resolve.service.js';
 export class PingService {
   private logger = new Logger(PingService.name);
 
-  constructor(
-    private config: ApplicationConfigService,
-    private resolveService: ResolveService,
-  ) {}
+  constructor(private resolveService: ResolveService) {}
 
   async pingFromConfig(hostname: string, config?: InformationToResolve): Promise<string | undefined> {
     try {
@@ -34,7 +30,7 @@ export class PingService {
 
   async ping(ip: string, hostname: string): Promise<boolean> {
     try {
-      return await grpcPing(ip, hostname, this.config.context);
+      return await grpcPing(ip, hostname);
     } catch (err) {
       return false;
     }

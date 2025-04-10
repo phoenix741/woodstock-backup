@@ -12,6 +12,7 @@ enum EventType {
   PoolChecked = 4;
   ChecksumChecked = 5;
   PoolCleaned = 6;
+  HashConversion = 7;
 }
 
 enum EventStep {
@@ -59,6 +60,11 @@ message EventPoolCleanedInformation {
   uint64 count = 2;
 }
 
+message HashConversionInformation {
+  uint64 count = 1;
+  ChunkAlgorithm algorithm = 2;
+}
+
 message Event {
   bytes id = 12;
   EventType type = 1;
@@ -74,6 +80,7 @@ message Event {
     EventRefCountInformation refcnt = 9;
     EventPoolCleanedInformation poolCleaned = 10;
     EventPoolInformation pool = 11;
+    HashConversionInformation hashConversion = 13;
   }
 }
 

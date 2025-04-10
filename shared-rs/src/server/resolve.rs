@@ -1,6 +1,6 @@
 use napi::{Error, Result};
 use woodstock::{
-  config::{Configuration, DEFAULT_PORT},
+  config::{GlobalConfiguration, DEFAULT_PORT},
   server::resolve::SocketAddrResolver,
 };
 
@@ -44,9 +44,7 @@ pub struct CoreClientResolver {
 impl CoreClientResolver {
   #[napi(constructor)]
   pub fn new() -> Result<Self> {
-    let config = Configuration::default();
-
-    let resolver = SocketAddrResolver::new(&config)
+    let resolver = SocketAddrResolver::new(&GlobalConfiguration)
       .map_err(|_| Error::from_reason("Can't create socket address resolver".to_string()))?;
 
     Ok(Self { resolver })

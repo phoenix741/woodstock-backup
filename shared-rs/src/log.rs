@@ -4,10 +4,9 @@ use log::{Level, Metadata, Record};
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction};
 use napi::{Error, JsFunction, Result};
 use tokio::task_local;
-use woodstock::config::Context;
+use woodstock::config::GlobalConfiguration;
 
 use crate::config::configuration::JsLogLevel;
-use crate::config::context::JsBackupContext;
 
 pub struct LogBackupContext {
   pub hostname: String,
@@ -81,11 +80,9 @@ impl log::Log for JavascriptLog {
 
 #[napi]
 pub fn init_log(
-  context: &JsBackupContext,
   #[napi(ts_arg_type = "(result: JsBackupLogMessage) => void")] callback: JsFunction,
 ) -> Result<()> {
-  let context: Context = context.into();
-  let log_level: LevelFilter = context.config.log_level.to_level_filter();
+  let log_level: LevelFilter = GlobalConfiguration.log_level.to_level_filter();
   let tsfn = callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
   log::set_boxed_logger(Box::new(JavascriptLog::new(tsfn)))

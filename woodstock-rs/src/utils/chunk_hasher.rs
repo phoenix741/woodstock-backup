@@ -7,6 +7,7 @@ pub trait ChunkHasher {
     fn finalize(&mut self) -> Vec<u8>;
 }
 
+#[must_use]
 pub fn create_chunk_hasher(algorithm: &ChunkAlgorithm) -> Box<dyn ChunkHasher + Send + Sync> {
     match algorithm {
         ChunkAlgorithm::Blake3 => Box::new(Blake3ChunkHasher::new()),
@@ -23,6 +24,7 @@ pub struct Blake3ChunkHasher {
 }
 
 impl Blake3ChunkHasher {
+    #[must_use]
     pub fn new() -> Self {
         Blake3ChunkHasher {
             hasher: Some(blake3::Hasher::new()),
@@ -59,6 +61,7 @@ pub struct Sha3ChunkHasher {
 }
 
 impl Sha3ChunkHasher {
+    #[must_use]
     pub fn new() -> Self {
         use sha3::{Digest, Sha3_256};
 
@@ -102,6 +105,7 @@ pub struct Sha2ChunkHasher {
 }
 
 impl Sha2ChunkHasher {
+    #[must_use]
     pub fn new() -> Self {
         use sha2::{Digest, Sha256};
 

@@ -91,14 +91,14 @@ impl MdnsResolveClient {
         handler.abort_handle()
     }
 
-    fn list_interfaces(&self, config: &ClientConfig) -> Result<Vec<IfKind>> {
-        Ok(config
+    fn list_interfaces(&self, config: &ClientConfig) -> Vec<IfKind> {
+        config
             .mdns_interfaces
             .clone()
             .unwrap_or_default()
             .iter()
             .map(|s| IfKind::Name(s.clone()))
-            .collect())
+            .collect()
     }
 }
 
@@ -111,7 +111,7 @@ impl ResolveClient for MdnsResolveClient {
         // Start by checking all interfaces that match network
         if let Some(network) = &self.config.mdns_interfaces {
             if !network.is_empty() {
-                let interfaces = self.list_interfaces(&self.config)?;
+                let interfaces = self.list_interfaces(&self.config);
                 mdns.disable_interface(IfKind::All)?;
                 for interface in interfaces {
                     mdns.enable_interface(interface)?;

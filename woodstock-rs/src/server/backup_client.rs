@@ -44,11 +44,17 @@ pub struct BackupClient<Clt: Client> {
 }
 
 impl<Clt: Client> BackupClient<Clt> {
-    pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
+    pub fn new(
+        client: Clt,
+        hostname: &str,
+        backup_number: usize,
+        ctxt: &Context,
+        config: &Configuration,
+    ) -> Self {
         // At first backup set the used algorithm
-        let _ = ctxt.config.fix_algorithm();
+        let _ = config.fix_algorithm();
 
-        let backups = Backups::new(&ctxt.config);
+        let backups = Backups::new(config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -69,8 +75,8 @@ impl<Clt: Client> BackupClient<Clt> {
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
             source: ctxt.source,
-            config: ctxt.config.clone(),
-            algorithm: ctxt.config.chunk_algorithm,
+            config: config.clone(),
+            algorithm: config.chunk_algorithm,
             fake_date: None,
         }
     }
@@ -704,7 +710,7 @@ impl<Clt: Client> BackupClient<Clt> {
                             file_manifest_journal_entry.state = EntryState::Error as i32;
                             file_manifest_journal_entry
                                 .state_messages
-                                .push(format!("{:#}", e));
+                                .push(format!("{e:#}"));
                         }
                     };
                 }
@@ -871,7 +877,10 @@ impl<Clt: Client> BackupClient<Clt> {
             let shares = backups
                 .get_backup_share_paths(&self.hostname, self.current_backup_id)
                 .await;
-            let shares = shares.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+            let shares = shares
+                .iter()
+                .map(std::string::String::as_str)
+                .collect::<Vec<&str>>();
 
             // Register the event
             create_event_backup_end(

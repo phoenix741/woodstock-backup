@@ -116,9 +116,7 @@ impl DirectResolveClient {
             .iter()
             .filter(|iface| {
                 let name = &iface.name;
-                config_mdns_interfaces
-                    .map(|f| f.iter().any(|iface_name| iface_name == name))
-                    .unwrap_or(true)
+                config_mdns_interfaces.is_none_or(|f| f.iter().any(|iface_name| iface_name == name))
             })
             .map(|iface| {
                 let ipv4 = if let IfAddr::V4(addr) = &iface.addr {

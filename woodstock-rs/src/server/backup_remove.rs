@@ -18,8 +18,14 @@ pub struct BackupRemove {
 }
 
 impl BackupRemove {
-    pub fn new(hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(&ctxt.config);
+    #[must_use]
+    pub fn new(
+        hostname: &str,
+        backup_number: usize,
+        ctxt: &Context,
+        config: &Configuration,
+    ) -> Self {
+        let backups = Backups::new(config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -31,7 +37,7 @@ impl BackupRemove {
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
             source: ctxt.source,
-            config: ctxt.config.clone(),
+            config: config.clone(),
         }
     }
 
@@ -66,7 +72,10 @@ impl BackupRemove {
         let shares = backups
             .get_backup_share_paths(&self.hostname, self.current_backup_id)
             .await;
-        let shares = shares.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+        let shares = shares
+            .iter()
+            .map(std::string::String::as_str)
+            .collect::<Vec<&str>>();
 
         create_event_backup_remove(
             &self.config.path.events_path,

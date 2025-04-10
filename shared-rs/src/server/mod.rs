@@ -15,7 +15,7 @@ use napi::{
 };
 use tokio::sync::Mutex;
 use woodstock::{
-  config::Context,
+  config::{Context, GlobalConfiguration},
   server::{
     backup_client::BackupClient, grpc_client::BackupGrpcClient, progression::BackupProgression,
   },
@@ -180,13 +180,19 @@ impl WoodstockBackupClient {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
 
-    let grpc_client = BackupGrpcClient::new(&hostname, &ip, &context)
+    let grpc_client = BackupGrpcClient::new(&hostname, &ip, &GlobalConfiguration)
       .await
       .map_err(|_| {
         Error::from_reason(format!("Can't create connection to {hostname} ({ip})").to_string())
       })?;
 
-    let client = BackupClient::new(grpc_client, &hostname, backup_number, &context);
+    let client = BackupClient::new(
+      grpc_client,
+      &hostname,
+      backup_number,
+      &context,
+      &GlobalConfiguration,
+    );
 
     Ok(Self {
       client: Arc::new(Mutex::new(client)),

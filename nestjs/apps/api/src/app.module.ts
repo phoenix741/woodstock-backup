@@ -114,11 +114,11 @@ export class AppModule implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap() {
-    await initializeLog(this.config.context);
+    await initializeLog();
 
     await this.serverService.initialize();
     await this.certificateService.generateCertificate();
 
-    generateRsaKey(this.config.context);
+    generateRsaKey();
   }
 }

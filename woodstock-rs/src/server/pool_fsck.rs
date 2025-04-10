@@ -41,6 +41,7 @@ pub struct PoolFsck {
 }
 
 impl PoolFsck {
+    #[must_use]
     pub fn new(config: &Configuration) -> Self {
         PoolFsck {
             config: config.clone(),
@@ -63,7 +64,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
 
@@ -89,7 +90,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
                 EventStatus::GenericError
@@ -119,7 +120,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: if information.in_nothing > 0 || information.missing > 0 {
                 EventStatus::GenericError
@@ -149,7 +150,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: if information.error > 0 {
                 EventStatus::GenericError
@@ -179,7 +180,7 @@ impl PoolFsck {
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: EventStatus::Success as i32,
 

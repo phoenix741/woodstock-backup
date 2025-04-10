@@ -10,6 +10,7 @@ import {
   JsEventStatus,
   JsEventStep,
   JsEventType,
+  JsHashConversionInformation,
   listEvents,
 } from '@woodstock/shared-rs';
 import {
@@ -22,6 +23,7 @@ import {
   EventStatus,
   EventStep,
   EventType,
+  EventHashConversionInformation,
 } from './events.dto';
 
 const rustEventTypeToEventTypeMap: Record<JsEventType, EventType> = {
@@ -32,6 +34,7 @@ const rustEventTypeToEventTypeMap: Record<JsEventType, EventType> = {
   [JsEventType.PoolChecked]: EventType.PoolChecked,
   [JsEventType.ChecksumChecked]: EventType.ChecksumChecked,
   [JsEventType.PoolCleaned]: EventType.PoolCleaned,
+  [JsEventType.HashConversion]: EventType.HashConversion,
 };
 
 const rustEventStepToEventStepMap: Record<JsEventStep, EventStep> = {
@@ -55,21 +58,47 @@ const rustEventStatusToEventStatusMap: Record<JsEventStatus, EventStatus> = {
 };
 
 function isJsEventBackupInformation(
-  i: JsEventBackupInformation | JsEventRefCountInformation | JsEventPoolInformation | JsEventPoolCleanedInformation,
+  i:
+    | JsEventBackupInformation
+    | JsEventRefCountInformation
+    | JsEventPoolInformation
+    | JsEventPoolCleanedInformation
+    | JsHashConversionInformation,
 ): i is JsEventBackupInformation {
   return (i as JsEventBackupInformation).hostname !== undefined;
 }
 
 function isJsEventRefCountInformation(
-  i: JsEventBackupInformation | JsEventRefCountInformation | JsEventPoolInformation | JsEventPoolCleanedInformation,
+  i:
+    | JsEventBackupInformation
+    | JsEventRefCountInformation
+    | JsEventPoolInformation
+    | JsEventPoolCleanedInformation
+    | JsHashConversionInformation,
 ): i is JsEventRefCountInformation {
   return (i as JsEventRefCountInformation).fix !== undefined && (i as JsEventRefCountInformation).count !== undefined;
 }
 
 function isJsEventPoolInformation(
-  i: JsEventBackupInformation | JsEventRefCountInformation | JsEventPoolInformation | JsEventPoolCleanedInformation,
+  i:
+    | JsEventBackupInformation
+    | JsEventRefCountInformation
+    | JsEventPoolInformation
+    | JsEventPoolCleanedInformation
+    | JsHashConversionInformation,
 ): i is JsEventPoolInformation {
   return (i as JsEventPoolInformation).fix !== undefined && (i as JsEventPoolInformation).inRefcnt !== undefined;
+}
+
+function isJsHashConversionInformation(
+  i:
+    | JsEventBackupInformation
+    | JsEventRefCountInformation
+    | JsEventPoolInformation
+    | JsEventPoolCleanedInformation
+    | JsHashConversionInformation,
+): i is JsHashConversionInformation {
+  return (i as JsHashConversionInformation).algorithm !== undefined;
 }
 
 function fromInformation(
@@ -77,8 +106,14 @@ function fromInformation(
     | JsEventBackupInformation
     | JsEventRefCountInformation
     | JsEventPoolInformation
-    | JsEventPoolCleanedInformation,
-): EventBackupInformation | EventRefCountInformation | EventPoolInformation | EventPoolCleanedInformation {
+    | JsEventPoolCleanedInformation
+    | JsHashConversionInformation,
+):
+  | EventBackupInformation
+  | EventRefCountInformation
+  | EventPoolInformation
+  | EventPoolCleanedInformation
+  | EventHashConversionInformation {
   if (isJsEventBackupInformation(information)) {
     return new EventBackupInformation({
       hostname: information.hostname,
@@ -100,6 +135,12 @@ function fromInformation(
       inRefcnt: Number(information.inRefcnt),
       inNothing: Number(information.inNothing),
       missing: Number(information.missing),
+    });
+  }
+  if (isJsHashConversionInformation(information)) {
+    return new EventHashConversionInformation({
+      algorithm: information.algorithm.toString(),
+      count: Number(information.count),
     });
   }
   return new EventPoolCleanedInformation({

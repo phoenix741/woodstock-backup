@@ -1,6 +1,6 @@
 use log::Level;
 use woodstock::{
-  config::{Configuration, ConfigurationPath, RedisConfiguration},
+  config::{Configuration, ConfigurationPath, GlobalConfiguration, RedisConfiguration},
   ChunkAlgorithm,
 };
 
@@ -76,7 +76,7 @@ impl From<Level> for JsLogLevel {
   }
 }
 
-#[napi]
+#[napi(string_enum)]
 pub enum JsChunkAlgorithm {
   Sha3_256,
   Sha2_256,
@@ -119,5 +119,5 @@ impl From<Configuration> for JsConfiguration {
 #[napi]
 #[must_use]
 pub fn get_configuration() -> JsConfiguration {
-  Configuration::default().into()
+  GlobalConfiguration.clone().into()
 }

@@ -11,7 +11,7 @@ use napi::{
 };
 use tokio::{io::AsyncReadExt, sync::Mutex};
 use woodstock::{
-  config::{Configuration, BUFFER_SIZE},
+  config::{GlobalConfiguration, BUFFER_SIZE},
   utils::path::vec_to_path,
   view::WoodstockView,
   FileManifest,
@@ -31,11 +31,10 @@ impl JsViewerService {
   #[must_use]
   #[napi(constructor)]
   pub fn new(hostname: String, backup_number: u32) -> Self {
-    let config = Configuration::default();
     let backup_number = usize::try_from(backup_number).expect("Backup number is too large");
 
     Self {
-      view: Arc::new(Mutex::new(WoodstockView::new(&config))),
+      view: Arc::new(Mutex::new(WoodstockView::new(&GlobalConfiguration))),
       hostname,
       backup_number,
     }
@@ -92,8 +91,7 @@ impl JsFilesService {
   #[napi(constructor)]
   #[must_use]
   pub fn new() -> Self {
-    let config = Configuration::default();
-    let pool_path = config.path.pool_path.clone();
+    let pool_path = GlobalConfiguration.path.pool_path.clone();
 
     Self { pool_path }
   }

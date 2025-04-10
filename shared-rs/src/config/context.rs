@@ -1,4 +1,4 @@
-use woodstock::config::{Configuration, Context};
+use woodstock::config::Context;
 
 #[napi(object)]
 pub struct ContextInput {
@@ -30,7 +30,6 @@ pub fn generate_context(context: ContextInput) -> JsBackupContext {
     context: Context {
       source: woodstock::EventSource::Woodstock,
       username: context.username,
-      config: Configuration::default(),
     },
   }
 }

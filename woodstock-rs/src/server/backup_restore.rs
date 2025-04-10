@@ -39,8 +39,14 @@ pub struct BackupRestore<Clt: Client> {
 }
 
 impl<Clt: Client> BackupRestore<Clt> {
-    pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(&ctxt.config);
+    pub fn new(
+        client: Clt,
+        hostname: &str,
+        backup_number: usize,
+        ctxt: &Context,
+        config: &Configuration,
+    ) -> Self {
+        let backups = Backups::new(config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -58,8 +64,8 @@ impl<Clt: Client> BackupRestore<Clt> {
             progress_max: HashMap::new(),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             source: ctxt.source,
-            config: ctxt.config.clone(),
-            pool_path: ctxt.config.path.pool_path.clone(),
+            config: config.clone(),
+            pool_path: config.path.pool_path.clone(),
         }
     }
 
@@ -258,21 +264,21 @@ impl<Clt: Client> BackupRestore<Clt> {
 
     pub async fn create_event_restore_start(&self, shares: &[&str]) -> Result<()> {
         let event = Event {
-            id: self.uuid.to_vec(),
+            id: self.uuid.clone(),
             r#type: EventType::Restore as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
                 number: self.current_backup_id as u64,
-                share_path: shares.iter().map(|s| s.to_string()).collect(),
+                share_path: shares.iter().map(|s| (*s).to_string()).collect(),
             })),
         };
 
@@ -287,21 +293,21 @@ impl<Clt: Client> BackupRestore<Clt> {
         status: EventStatus,
     ) -> Result<()> {
         let event = Event {
-            id: self.uuid.to_vec(),
+            id: self.uuid.clone(),
             r#type: EventType::Restore as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: status as i32,
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
                 number: self.current_backup_id as u64,
-                share_path: shares.iter().map(|s| s.to_string()).collect(),
+                share_path: shares.iter().map(|s| (*s).to_string()).collect(),
             })),
         };
 

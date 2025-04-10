@@ -1,10 +1,10 @@
 use super::{client::Client, grpc_client::BackupGrpcClient};
-use crate::config::Context;
+use crate::config::Configuration;
 use eyre::Result;
 use log::{debug, error};
 
-pub async fn ping(ip: String, hostname: String, context: &Context) -> Result<bool> {
-    let grpc_client = BackupGrpcClient::new(&hostname, &ip, context).await;
+pub async fn ping(ip: String, hostname: String, config: &Configuration) -> Result<bool> {
+    let grpc_client = BackupGrpcClient::new(&hostname, &ip, config).await;
     match grpc_client {
         Ok(grpc_client) => {
             let ping = grpc_client.ping().await;

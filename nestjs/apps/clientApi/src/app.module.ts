@@ -3,18 +3,17 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import {
-  ApplicationConfigService,
   ApplicationLogger,
   BackupsService,
   CacheConfigService,
   CertificateService,
   ConfigProviderModule,
   SharedModule,
-  initializeLog,
+  initializeLog
 } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
-import { HostController } from './hosts/hosts.controller.js';
 import { ClientCertificateStrategy } from './auth/client-strategy.service.js';
+import { HostController } from './hosts/hosts.controller.js';
 
 @Module({
   imports: [
@@ -44,13 +43,10 @@ import { ClientCertificateStrategy } from './auth/client-strategy.service.js';
   ],
 })
 export class AppModule implements OnApplicationBootstrap {
-  constructor(
-    private readonly config: ApplicationConfigService,
-    private readonly certificateService: CertificateService,
-  ) {}
+  constructor(private readonly certificateService: CertificateService) {}
 
   async onApplicationBootstrap() {
-    await initializeLog(this.config.context);
+    await initializeLog();
 
     await this.certificateService.generateHttpsCertificate();
   }

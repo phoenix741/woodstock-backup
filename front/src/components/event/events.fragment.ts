@@ -23,6 +23,9 @@ export const ApplicationEventFragment = graphql(/* GraphQL */ `
       ... on EventPoolCleanedInformation {
         ...EventPoolCleanedInformation
       }
+      ... on EventHashConversionInformation {
+        ...EventHashConversionInformation
+      }
     }
   }
 `);
@@ -57,5 +60,12 @@ export const EventPoolCleanedInformationFragment = graphql(/* GraphQL */ `
   fragment EventPoolCleanedInformation on EventPoolCleanedInformation {
     size
     count
+  }
+`);
+
+export const EventHashConversionInformationFragment = graphql(/* GraphQL */ `
+  fragment EventHashConversionInformation on EventHashConversionInformation {
+    count
+    algorithm
   }
 `);

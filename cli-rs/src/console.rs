@@ -13,6 +13,7 @@ mod commands;
 mod filesystem;
 
 use clap::{Parser, Subcommand};
+use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
 use commands::read_protobuf::read_log;
@@ -30,7 +31,7 @@ use crate::commands::pool::{
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
 use commands::client::read_chunk_from_file;
-use woodstock::config::Context;
+use woodstock::config::{Context, GlobalConfiguration};
 use woodstock::pool::{add_refcnt_to_pool, remove_refcnt_to_pool};
 
 #[derive(Parser)]
@@ -154,6 +155,15 @@ enum Commands {
         hostname: String,
     },
 
+    /// Convert hash from a repository to another hash
+    ConvertHashRepo {
+        /// The path of the backup
+        backup_path: String,
+
+        /// The hash to convert
+        hash: String,
+    },
+
     #[cfg(all(unix, feature = "fuse_unix"))]
     Mount {
         /// The hostname to mount
@@ -199,16 +209,16 @@ async fn main() -> Result<()> {
             backup_number,
             share_path,
         } => {
-            read_log(&context.config, &hostname, backup_number, &share_path)
+            read_log(&GlobalConfiguration, &hostname, backup_number, &share_path)
                 .await
                 .expect("Failed to read log");
         }
 
         Commands::GetChunk { chunk } => {
-            read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");
+            read_chunk(&GlobalConfiguration.path.pool_path, &chunk).expect("Failed to read chunk");
         }
         Commands::SearchChunk { chunk } => {
-            search_chunk(&context.config, &chunk)
+            search_chunk(&GlobalConfiguration, &chunk)
                 .await
                 .expect("Failed to search chunk");
         }
@@ -216,7 +226,7 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            add_refcnt_to_pool(&context.config, &hostname, backup_number)
+            add_refcnt_to_pool(&GlobalConfiguration, &hostname, backup_number)
                 .await
                 .expect("Failed to add refcnt to pool");
         }
@@ -224,28 +234,28 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            remove_refcnt_to_pool(&context.config, &hostname, backup_number)
+            remove_refcnt_to_pool(&GlobalConfiguration, &hostname, backup_number)
                 .await
                 .expect("Failed to remove refcnt to pool");
         }
         Commands::CleanUnused { target } => {
-            clean_unused_pool(&context.config, context.source, target)
+            clean_unused_pool(&GlobalConfiguration, context.source, target)
                 .await
                 .expect("Clean unused failed");
         }
-        Commands::CheckCompression {} => check_compression(&context.config)
+        Commands::CheckCompression {} => check_compression(&GlobalConfiguration)
             .await
             .expect("Failed to check compression"),
-        Commands::VerifyChunk {} => verify_chunk(&context.config, context.source)
+        Commands::VerifyChunk {} => verify_chunk(&GlobalConfiguration, context.source)
             .await
             .expect("Can't verify integrity"),
         Commands::VerifyRefcnt { dry_run } => {
-            verify_refcnt(&context.config, context.source, dry_run)
+            verify_refcnt(&GlobalConfiguration, context.source, dry_run)
                 .await
                 .expect("Can't verify refcnt");
         }
         Commands::VerifyUnused { dry_run } => {
-            verify_unused(&context.config, context.source, dry_run)
+            verify_unused(&GlobalConfiguration, context.source, dry_run)
                 .await
                 .expect("Can't verify unused");
         }
@@ -260,7 +270,7 @@ async fn main() -> Result<()> {
         Commands::ListDirectory {
             share_path,
             config_path,
-        } => list_client_files(&share_path, &config_path, &context.config)
+        } => list_client_files(&share_path, &config_path, &GlobalConfiguration)
             .await
             .expect("Failed to list files"),
         Commands::ReadFileChunk {
@@ -275,11 +285,15 @@ async fn main() -> Result<()> {
         .await
         .expect("Failed to read chunk from file"),
         Commands::ResolveHost { hostname } => {
-            resolve_mdns(&context.config, &hostname)
+            resolve_mdns(&GlobalConfiguration, &hostname)
                 .await
                 .expect("Failed to resolve mDNS");
         }
-
+        Commands::ConvertHashRepo { backup_path, hash } => {
+            convert_hash_repo(&backup_path, &hash)
+                .await
+                .expect("Failed to convert hash repository");
+        }
         #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {
             hostname,
@@ -288,7 +302,7 @@ async fn main() -> Result<()> {
             mount_point,
         } => {
             mount(
-                &context.config,
+                &GlobalConfiguration,
                 &MountOption {
                     hostname,
                     backup_number,

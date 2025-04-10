@@ -1,4 +1,5 @@
 pub mod client;
+pub mod convertion;
 pub mod file_manifest;
 pub mod pool;
 pub mod read_chunk;

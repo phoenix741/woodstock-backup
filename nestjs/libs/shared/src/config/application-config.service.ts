@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getConfiguration, JsConfiguration } from '@woodstock/shared-rs';
 import type { RedisOptions } from 'ioredis';
@@ -6,13 +6,17 @@ import { join } from 'path';
 
 @Injectable()
 export class ApplicationConfigService {
+  #logger = new Logger(ApplicationConfigService.name);
   #configuration: JsConfiguration;
 
   constructor(private configService: ConfigService) {
     this.#configuration = getConfiguration();
+    this.#logger.log(`Load backup directory ${this.#configuration.path.backupPath}`);
+    this.#logger.log(`Version of Woodstock ${this.#configuration.version}`);
+    this.#logger.log(`Hash algorithm format ${this.#configuration.chunkAlgorithm}`);
   }
 
-  get context(): JsConfiguration {
+  get configuration(): JsConfiguration {
     return this.#configuration;
   }
 

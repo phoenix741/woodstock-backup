@@ -115,7 +115,7 @@ async fn start_client(
     let client_ca_root = tonic::transport::Certificate::from_pem(&root_ca);
 
     // Concat private_https_key, \n and public_https_key
-    let https_pem = format!("{}\n{}", private_https_key, public_https_key);
+    let https_pem = format!("{private_https_key}\n{public_https_key}");
     let https_identity =
         reqwest::Identity::from_pem(https_pem.as_bytes()).expect("Can't read https identity");
     let root_ca = reqwest::Certificate::from_pem(root_ca.as_bytes())?;
@@ -522,7 +522,7 @@ fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
                 });
             }
 
-            println!("Updated to {}", version);
+            println!("Updated to {version}");
             info!("Updated to {}", version);
         }
     }
@@ -536,7 +536,7 @@ async fn schedule_weekly_updates<P: AsRef<Path>>(config_path: P, update_delay: u
     loop {
         interval.tick().await;
         if let Err(err) = update(config_path.as_ref(), true) {
-            println!("Failed to update: {}", err);
+            println!("Failed to update: {err}");
         }
     }
 }
@@ -599,7 +599,7 @@ async fn main() -> Result<()> {
             let _ = spawn_blocking(move || {
                 let result = update(config_path, false);
                 if let Err(err) = result {
-                    println!("Failed to update: {}", err);
+                    println!("Failed to update: {err}");
                 }
             })
             .await;

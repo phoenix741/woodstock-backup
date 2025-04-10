@@ -70,7 +70,7 @@ pub async fn list_client_files(
 
 pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P, algorithm: &str) -> Result<()> {
     let information = ChunkHashRequest {
-        share_path: String::from(""),
+        share_path: String::new(),
         filename: filename.as_ref().as_bytes().to_vec(),
         algorithm: ChunkAlgorithm::from_str_name(algorithm)
             .ok_or_else(|| eyre::eyre!("Invalid algorithm name"))? as i32,

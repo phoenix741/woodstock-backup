@@ -49,11 +49,11 @@ struct Claims {
 ///
 /// * `std::io::Error` - If the keys can't be generated
 ///
-pub fn generate_rsa_key(certificate_path: &Path) -> Result<()> {
+pub fn generate_rsa_key<P: AsRef<Path>>(certificate_path: P) -> Result<()> {
     debug!("Generate a new RSA key pair");
 
-    let public_key_path = certificate_path.join("public_key.pem");
-    let private_key_path = certificate_path.join("private_key.pem");
+    let public_key_path = certificate_path.as_ref().join("public_key.pem");
+    let private_key_path = certificate_path.as_ref().join("private_key.pem");
 
     // If public of private file not exists, create them
     if public_key_path.exists() && private_key_path.exists() {

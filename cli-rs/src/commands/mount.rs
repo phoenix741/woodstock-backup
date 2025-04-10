@@ -23,12 +23,12 @@ pub async fn mount(config: &Configuration, options: &MountOption) -> Result<()> 
         .flatten()
         .collect::<Vec<String>>()
         .join("/");
-    let path = format!("/{}", path);
+    let path = format!("/{path}");
 
     // Mount path
     println!("Mounting path: {}", options.mount_point);
     if !path.is_empty() {
-        println!("Prefix Path: {}", path);
+        println!("Prefix Path: {path}");
     }
 
     let path = PathBuf::from(&path);

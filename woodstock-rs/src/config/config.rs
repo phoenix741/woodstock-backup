@@ -1,5 +1,6 @@
 use eyre::Result;
-use log::{warn, Level};
+use lazy_static::lazy_static;
+use log::{info, warn, Level};
 use std::{
     env,
     path::{Path, PathBuf},
@@ -87,14 +88,12 @@ impl ConfigurationPath {
             config_path,
             hosts_path,
             logs_path,
-            events_path,
             pool_path,
             jobs_path,
-
+            events_path,
             config_path_hosts,
             config_path_scheduler,
             config_path_statistics,
-
             config_path_pool_algorithm,
         }
     }
@@ -133,8 +132,7 @@ impl Default for RedisConfiguration {
                 .unwrap_or_else(|| "localhost".to_string()),
             port: env::var("REDIS_PORT")
                 .ok()
-                .map(|p| p.parse().unwrap())
-                .unwrap_or(6379),
+                .map_or(6379, |p| p.parse().unwrap()),
         }
     }
 }
@@ -165,6 +163,7 @@ impl Configuration {
 
     fn read_algorithm<P: AsRef<Path>>(pool_path: P) -> Result<ChunkAlgorithm> {
         let algorithm = std::fs::read_to_string(pool_path)?;
+        let algorithm = algorithm.trim();
         let algorithm = ChunkAlgorithm::from_str_name(&algorithm)
             .ok_or_else(|| eyre::eyre!("Invalid chunk algorithm: {}", algorithm))?;
 
@@ -178,6 +177,15 @@ impl Configuration {
         }
 
         std::fs::create_dir_all(&self.path.pool_path)?;
+        std::fs::write(
+            &self.path.config_path_pool_algorithm,
+            self.chunk_algorithm.as_str_name(),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn overwrite_algorithm(&self) -> Result<()> {
         std::fs::write(
             &self.path.config_path_pool_algorithm,
             self.chunk_algorithm.as_str_name(),
@@ -228,6 +236,12 @@ impl Default for Configuration {
             warn!("Chunk algorithm in file is different from the one in environment variable");
         }
 
+        info!(
+            "Using chunk algorithm: {} (wanted: {})",
+            chunk_algorithm.as_str_name(),
+            wanted_chunk_algorithm.as_str_name()
+        );
+
         Self {
             redis,
             path,
@@ -238,12 +252,15 @@ impl Default for Configuration {
     }
 }
 
+lazy_static! {
+    pub static ref GlobalConfiguration: Configuration = Configuration::default();
+}
+
 ///
 /// The goal of the `Context` struct is to hold the configuration of the application.
 /// and pass the values to the functions that need them.
 #[derive(Clone, Debug)]
 pub struct Context {
-    pub config: Configuration,
     pub source: EventSource,
     pub username: Option<String>,
 }
@@ -251,27 +268,8 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Self {
-            config: Configuration::default(),
             source: EventSource::Cli,
             username: None,
-        }
-    }
-}
-
-impl Context {
-    #[must_use]
-    pub fn from_backup_path(
-        backup_path: PathBuf,
-        source: EventSource,
-        username: Option<&str>,
-    ) -> Self {
-        Self {
-            config: Configuration {
-                path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
-                ..Default::default()
-            },
-            source,
-            username: username.map(|s| s.to_string()),
         }
     }
 }

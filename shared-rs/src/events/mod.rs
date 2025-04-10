@@ -6,7 +6,7 @@ use napi::{
   threadsafe_function::{ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction},
   Error, JsFunction, Result,
 };
-use woodstock::{config::Configuration, events::read_events, Event};
+use woodstock::{config::GlobalConfiguration, events::read_events, Event};
 
 #[napi]
 pub fn list_events(
@@ -26,8 +26,8 @@ pub fn list_events(
     })?;
 
   // Get the path events
-  let configuration = Configuration::default();
-  let events = configuration.path.events_path;
+  let configuration = &GlobalConfiguration;
+  let events = &configuration.path.events_path;
 
   // String (format YYYY-MM-DD) to chrono date
   let start_date = chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")

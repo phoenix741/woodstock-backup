@@ -8,6 +8,7 @@ export enum EventType {
   PoolChecked,
   ChecksumChecked,
   PoolCleaned,
+  HashConversion,
 }
 
 export enum EventStep {
@@ -75,10 +76,26 @@ export class EventPoolCleanedInformation {
   }
 }
 
+@ObjectType()
+export class EventHashConversionInformation {
+  count: number;
+  algorithm: string;
+
+  constructor(e: EventHashConversionInformation) {
+    Object.assign(this, e);
+  }
+}
+
 export const EventInformation = createUnionType({
   name: 'EventInformation',
   types: () =>
-    [EventBackupInformation, EventRefCountInformation, EventPoolInformation, EventPoolCleanedInformation] as const,
+    [
+      EventBackupInformation,
+      EventRefCountInformation,
+      EventPoolInformation,
+      EventPoolCleanedInformation,
+      EventHashConversionInformation,
+    ] as const,
 });
 
 @ObjectType()

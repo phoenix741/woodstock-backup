@@ -19,7 +19,7 @@ pub async fn resolve_mdns(config: &Configuration, hostname: &str) -> Result<()> 
     let listener = resolver.clone();
     let handle = tokio::spawn(async move {
         select! {
-          _ = cloned_token.cancelled() => {
+          () = cloned_token.cancelled() => {
             5
           }
           _ = listener.listen() => {
@@ -37,7 +37,7 @@ pub async fn resolve_mdns(config: &Configuration, hostname: &str) -> Result<()> 
                 information
                     .addresses
                     .iter()
-                    .map(|addr| addr.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", "),
             ))?;

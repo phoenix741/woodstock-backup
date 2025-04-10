@@ -195,7 +195,7 @@ impl WoodstockClient {
     ) -> Result<Option<(PathBuf, tokio::io::BufWriter<File>)>, tonic::Status> {
         let path = file.path();
         match create_file_from_manifest(file) {
-            Ok(_) => {
+            Ok(()) => {
                 if file.is_regular_file() {
                     let file = OpenOptions::new()
                         .write(true)
@@ -213,7 +213,7 @@ impl WoodstockClient {
                         Err(err) => {
                             Self::send_restore_error_reply(
                                 &path,
-                                format!("Failed to open file: {:?}", err),
+                                format!("Failed to open file: {err:?}"),
                                 tx,
                             )
                             .await?;
@@ -229,7 +229,7 @@ impl WoodstockClient {
                 error!("Failed to create file from manifest: {:?}", err);
                 Self::send_restore_error_reply(
                     &file.path(),
-                    format!("Failed to create file from manifest: {:?}", err),
+                    format!("Failed to create file from manifest: {err:?}"),
                     tx,
                 )
                 .await?;
@@ -248,7 +248,7 @@ impl WoodstockClient {
         let result = if let Err(err) = current_file.write_all(chunk).await {
             Self::send_restore_error_reply(
                 current_path,
-                format!("Failed to write chunk: {:?}", err),
+                format!("Failed to write chunk: {err:?}"),
                 tx,
             )
             .await?;

@@ -40,11 +40,11 @@ pub struct Refcnt {
 // FIXME: Add lock (or add it on nodejs part ?)
 impl Refcnt {
     #[must_use]
-    pub fn new(path: &Path) -> Self {
+    pub fn new<P: AsRef<Path>>(path: P) -> Self {
         Self {
-            path: path.to_path_buf(),
-            refcnt_path: path.join("REFCNT"),
-            unused_path: path.join("unused"),
+            path: path.as_ref().to_path_buf(),
+            refcnt_path: path.as_ref().join("REFCNT"),
+            unused_path: path.as_ref().join("unused"),
             index: HashMap::new(),
             unused: HashMap::new(),
             statistics: PoolStatistics::default(),
@@ -61,7 +61,7 @@ impl Refcnt {
 
     #[must_use]
     pub fn size(&self) -> usize {
-        self.index.len()
+        self.index.len() + self.unused.len()
     }
 
     #[must_use]

@@ -102,7 +102,7 @@ impl BackupPCClient {
             hostname: hostname.to_string(),
             number,
             view: Arc::new(Mutex::new(view)),
-            chunk_algorithm: chunk_algorithm.clone(),
+            chunk_algorithm: *chunk_algorithm,
         }
     }
 
@@ -448,7 +448,7 @@ impl Client for BackupPCClient {
                     debug!("Chunk change from {chunk_id} to {current_chunk}");
                     if send_chunk {
                         debug!("Send footer for chunk {path:?}:{chunk_id}");
-                        let chunk_hash = chunk_hasher.finalize().to_vec();
+                        let chunk_hash = chunk_hasher.finalize().clone();
                         yield FileChunk {
                             field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
                         };

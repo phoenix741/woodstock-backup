@@ -1,5 +1,5 @@
 use napi::{Error, Result};
-use woodstock::config::{Configuration, Hosts};
+use woodstock::config::{GlobalConfiguration, Hosts};
 
 use crate::models::JsHostConfiguration;
 
@@ -13,10 +13,8 @@ impl JsHostsService {
   #[napi(constructor)]
   #[must_use]
   pub fn new() -> Self {
-    let config = Configuration::default();
-
     Self {
-      hosts: Hosts::new(&config),
+      hosts: Hosts::new(&GlobalConfiguration),
     }
   }
 
