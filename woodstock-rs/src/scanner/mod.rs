@@ -1,4 +1,3 @@
-mod chunk_reader;
 mod file_browser;
 mod file_reader;
 mod file_writer;

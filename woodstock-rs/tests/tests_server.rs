@@ -18,7 +18,7 @@ use woodstock::{
     server::{backup_client::BackupClient, grpc_client::BackupGrpcClient},
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
-    Share,
+    ChunkAlgorithm, Share,
 };
 
 fn create_context() -> Context {
@@ -40,6 +40,7 @@ fn create_context() -> Context {
             ),
             log_level: log::Level::Warn,
             cache_size: 1,
+            chunk_algorithm: ChunkAlgorithm::Sha3256,
         },
     }
 }

@@ -79,6 +79,12 @@ message Event {
 
 // Pool Protocol
 
+enum ChunkAlgorithm {
+    Blake3 = 0;
+    Sha3_256 = 1;
+    Sha2_256 = 2;
+}
+
 message PoolUnused {
   bytes sha256 = 1;
   uint64 size = 3;
@@ -210,6 +216,7 @@ message RefreshCacheRequest {
 message ChunkHashRequest {
   string sharePath = 1;
   bytes filename = 2;
+  ChunkAlgorithm algorithm = 3;
 }
 
 message ChunkHashReply {

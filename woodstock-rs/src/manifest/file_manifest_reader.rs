@@ -9,7 +9,6 @@ use eyre::Result;
 use futures::{pin_mut, stream::unfold};
 
 use log::warn;
-use sha3::{Digest, Sha3_256};
 use tokio::{
     fs::File,
     io::{AsyncBufRead, AsyncReadExt, BufReader},
@@ -19,7 +18,8 @@ use tokio_util::io::StreamReader;
 use crate::{
     config::{BUFFER_SIZE, CHUNK_SIZE},
     pool::PoolChunkWrapper,
-    FileManifest,
+    utils::chunk_hasher::create_chunk_hasher,
+    ChunkAlgorithm, FileManifest,
 };
 
 struct FileManifestReaderState {
@@ -131,8 +131,12 @@ impl FileManifest {
         StreamReader::new(stream)
     }
 
-    pub async fn calculate_hash(&mut self, pool_path: &Path) -> Result<Vec<u8>> {
-        let mut hasher = Sha3_256::new();
+    pub async fn calculate_hash(
+        &mut self,
+        pool_path: &Path,
+        chunk_algorithm: &ChunkAlgorithm,
+    ) -> Result<Vec<u8>> {
+        let mut hasher = create_chunk_hasher(chunk_algorithm);
         let reader = self.open_from_pool(pool_path);
         pin_mut!(reader);
 
@@ -146,6 +150,6 @@ impl FileManifest {
             hasher.update(&buf[..size]);
         }
 
-        Ok(hasher.finalize().to_vec())
+        Ok(hasher.finalize())
     }
 }

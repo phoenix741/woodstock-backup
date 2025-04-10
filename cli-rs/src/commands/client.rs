@@ -7,7 +7,7 @@ use woodstock::{
     config::{Context, Hosts},
     scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
-    ChunkHashRequest,
+    ChunkAlgorithm, ChunkHashRequest,
 };
 
 pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Context) -> Result<()> {
@@ -64,10 +64,12 @@ pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Conte
     Ok(())
 }
 
-pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P) -> Result<()> {
+pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P, algorithm: &str) -> Result<()> {
     let information = ChunkHashRequest {
         share_path: String::from(""),
         filename: filename.as_ref().as_bytes().to_vec(),
+        algorithm: ChunkAlgorithm::from_str_name(algorithm)
+            .ok_or_else(|| eyre::eyre!("Invalid algorithm name"))? as i32,
     };
     let result = calculate_chunk_hash_future(&information).await;
     println!("Number of chunks: {}", result.chunks.len());

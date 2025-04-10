@@ -17,9 +17,9 @@ use crate::{
     file_chunk::{self, Field},
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
-    refresh_cache_request, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
-    EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
-    RefreshCacheRequest, Share,
+    refresh_cache_request, ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState,
+    EntryType, EventSource, EventStatus, ExecuteCommandReply, FileManifest,
+    FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest, Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
@@ -40,10 +40,14 @@ pub struct BackupClient<Clt: Client> {
 
     source: EventSource,
     context: Context,
+    algorithm: ChunkAlgorithm,
 }
 
 impl<Clt: Client> BackupClient<Clt> {
     pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
+        // At first backup set the used algorithm
+        let _ = ctxt.config.fix_algorithm();
+
         let backups = Backups::new(ctxt);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
@@ -66,6 +70,7 @@ impl<Clt: Client> BackupClient<Clt> {
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
             source: ctxt.source,
             context: ctxt.clone(),
+            algorithm: ctxt.config.chunk_algorithm,
             fake_date: None,
         }
     }
@@ -358,7 +363,7 @@ impl<Clt: Client> BackupClient<Clt> {
                     debug!("Download chunk {}", current_chunk_id);
 
                     let wrapper = PoolChunkWrapper::new(pool_path, None);
-                    let writer = wrapper.writer().await?;
+                    let writer = wrapper.writer(&self.algorithm).await?;
 
                     current_chunk = Some((wrapper, writer));
                 }
@@ -434,6 +439,7 @@ impl<Clt: Client> BackupClient<Clt> {
             .get_chunk_hash(ChunkHashRequest {
                 share_path: share_path.to_string(),
                 filename: filename.to_vec(),
+                algorithm: self.algorithm as i32,
             })
             .await?;
 
@@ -580,7 +586,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let start_time = std::time::Instant::now();
         if self.check_file_consistency {
             let hash = file_manifest
-                .calculate_hash(&self.context.config.path.pool_path)
+                .calculate_hash(&self.context.config.path.pool_path, &self.algorithm)
                 .await?;
             if file_manifest.hash.ne(&hash) {
                 error!(

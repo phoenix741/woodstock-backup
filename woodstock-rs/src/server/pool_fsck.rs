@@ -364,7 +364,9 @@ impl PoolFsck {
         for refcnt in chunks {
             let wrapper = PoolChunkWrapper::new(&self.context.config.path.pool_path, Some(&refcnt));
 
-            let is_valid = wrapper.check_chunk_information().await?;
+            let is_valid = wrapper
+                .check_chunk_information(&self.context.config.chunk_algorithm)
+                .await?;
             if !is_valid {
                 error_count += 1;
             }

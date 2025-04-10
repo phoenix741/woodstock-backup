@@ -403,10 +403,6 @@ impl Refcnt {
 mod tests {
     use std::{collections::BTreeSet, fs::remove_dir_all};
 
-    use log::Level;
-
-    use crate::config::RedisConfiguration;
-
     use super::*;
 
     const SHA3_256_1: [u8; 1] = [0x1];
@@ -509,14 +505,7 @@ mod tests {
         let _clean_up = CleanUp;
 
         let path = PathBuf::from("./data");
-        let context = crate::config::Context::new(
-            path,
-            RedisConfiguration::default(),
-            Level::Debug,
-            crate::EventSource::Cli,
-            None,
-            1,
-        );
+        let context = Context::from_backup_path(path, crate::EventSource::Cli, None);
         let refcnt1 = create_refcnt(vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
         let refcnt2 = create_refcnt(vec![
             &SHA3_256_1,

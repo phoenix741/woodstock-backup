@@ -21,6 +21,7 @@ use eyre::Result;
 
 #[cfg(all(unix, feature = "fuse_unix"))]
 use commands::mount::{mount, MountOption};
+use woodstock::ChunkAlgorithm;
 
 use crate::commands::client::list_client_files;
 use crate::commands::pool::{
@@ -138,6 +139,9 @@ enum Commands {
     ReadFileChunk {
         /// The path to the file to read
         file_name: String,
+
+        /// The algorithm to use
+        algorithm: Option<String>,
     },
 
     /// Resolve the hostname using the cache.
@@ -259,9 +263,17 @@ async fn main() -> Result<()> {
         } => list_client_files(&share_path, &config_path, &context)
             .await
             .expect("Failed to list files"),
-        Commands::ReadFileChunk { file_name } => read_chunk_from_file(&file_name)
-            .await
-            .expect("Failed to read chunk from file"),
+        Commands::ReadFileChunk {
+            file_name,
+            algorithm,
+        } => read_chunk_from_file(
+            &file_name,
+            algorithm
+                .as_deref()
+                .unwrap_or(ChunkAlgorithm::Blake3.as_str_name()),
+        )
+        .await
+        .expect("Failed to read chunk from file"),
         Commands::ResolveHost { hostname } => {
             resolve_mdns(&context, &hostname)
                 .await

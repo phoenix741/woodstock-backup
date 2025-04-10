@@ -25,7 +25,6 @@ use log::debug;
 use log::error;
 use log::info;
 use woodstock::client::config::ClientConfig;
-use woodstock::config::RedisConfiguration;
 use woodstock::config::{Backups, Context, Hosts};
 use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
@@ -139,7 +138,12 @@ async fn launch_backup(
     let hostname = osstr_to_vec(&OsString::from(&backup.hostname));
     let backuppc_shares = view.list_shares(&hostname, u32::try_from(backup.backup_number)?)?;
 
-    let backuppc_client = BackupPCClient::new(view, &backup.hostname, backup.backup_number);
+    let backuppc_client = BackupPCClient::new(
+        view,
+        &backup.hostname,
+        backup.backup_number,
+        &context.config.chunk_algorithm,
+    );
 
     let backup_number = match backups_configuration
         .get_last_backup(&backup.hostname)
@@ -268,14 +272,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
     let term = Term::stdout();
 
-    let context = Context::new(
+    let context = Context::from_backup_path(
         PathBuf::from(args.woodstock_pool.clone()),
-        RedisConfiguration::default(),
-        log::Level::Info,
         woodstock::EventSource::Import,
         None,
-        1,
     );
+    context.config.fix_algorithm()?;
 
     // Write version
     term.write_line(&format!(

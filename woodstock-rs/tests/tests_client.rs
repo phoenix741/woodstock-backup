@@ -15,13 +15,7 @@ use woodstock::{
     client::{
         config::{ClientConfig, ResolutionMode},
         server::WoodstockClient,
-    },
-    file_chunk, refresh_cache_request,
-    utils::encryption::create_authentification_token,
-    woodstock_client_service_client::WoodstockClientServiceClient,
-    woodstock_client_service_server::WoodstockClientServiceServer,
-    AuthenticateRequest, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
-    RefreshCacheRequest, Share,
+    }, file_chunk, refresh_cache_request, utils::encryption::create_authentification_token, woodstock_client_service_client::WoodstockClientServiceClient, woodstock_client_service_server::WoodstockClientServiceServer, AuthenticateRequest, ChunkAlgorithm, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest, RefreshCacheRequest, Share
 };
 
 async fn server_and_client_stub() -> (
@@ -311,6 +305,7 @@ async fn test_client_get_chunk_hash() {
             let chunk_request = ChunkHashRequest {
                 share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
+                algorithm: ChunkAlgorithm::Sha3256 as i32,
             };
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
 

@@ -6,7 +6,8 @@ use napi::{Error, JsFunction, Result};
 use tokio::task_local;
 use woodstock::config::Context;
 
-use crate::config::context::{JsBackupContext, LogLevel};
+use crate::config::configuration::JsLogLevel;
+use crate::config::context::JsBackupContext;
 
 pub struct LogBackupContext {
   pub hostname: String,
@@ -19,7 +20,7 @@ task_local! {
 
 #[napi(object)]
 pub struct JsBackupLog {
-  pub level: LogLevel,
+  pub level: JsLogLevel,
   pub context: String,
   pub message: String,
 

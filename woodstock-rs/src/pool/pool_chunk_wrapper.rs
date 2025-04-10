@@ -3,8 +3,6 @@ use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::error;
 use prost::Message;
-use sha3::Digest;
-use sha3::Sha3_256;
 use std::path::{Path, PathBuf};
 use tokio::{
     fs::{copy, remove_file, rename, File},
@@ -12,6 +10,8 @@ use tokio::{
 };
 
 use crate::config::BUFFER_SIZE;
+use crate::utils::chunk_hasher::create_chunk_hasher;
+use crate::ChunkAlgorithm;
 
 use super::{
     calculate_chunk_path, get_temp_chunk_path, pool_chunk_information::PoolChunkInformation,
@@ -114,11 +114,11 @@ impl PoolChunkWrapper {
         Ok(chunk_information)
     }
 
-    pub async fn check_chunk_information(&self) -> Result<bool> {
+    pub async fn check_chunk_information(&self, chunk_algorith: &ChunkAlgorithm) -> Result<bool> {
         let file = File::open(self.chunk_path()).await?;
         let file = tokio::io::BufReader::new(file);
         let mut file = ZlibDecoder::new(file);
-        let mut hasher = Sha3_256::new();
+        let mut hasher = create_chunk_hasher(chunk_algorith);
 
         let mut buffer = vec![0u8; BUFFER_SIZE];
         loop {
@@ -144,17 +144,18 @@ impl PoolChunkWrapper {
         Ok(true)
     }
 
-    pub async fn writer(&self) -> Result<PoolChunkWriter> {
+    pub async fn writer(&self, chunk_algorithm: &ChunkAlgorithm) -> Result<PoolChunkWriter> {
         let pool_path = self.pool_path.clone();
-        PoolChunkWriter::new(&pool_path).await
+        PoolChunkWriter::new(&pool_path, chunk_algorithm).await
     }
 
     pub async fn write(
         &mut self,
         data: impl Stream<Item = Result<Vec<u8>>>,
         debug_filename: &[u8],
+        chunk_algorithm: &ChunkAlgorithm,
     ) -> Result<PoolChunkInformation> {
-        let mut writer = self.writer().await?;
+        let mut writer = self.writer(chunk_algorithm).await?;
 
         pin_mut!(data);
 

@@ -22,7 +22,7 @@ use woodstock::{
 };
 
 use crate::{
-  config::context::{JsBackupContext, LogLevel},
+  config::{configuration::JsLogLevel, context::JsBackupContext},
   log::{LogBackupContext, LOG_CONTEXT},
 };
 
@@ -98,7 +98,7 @@ pub struct JsBackupProgressionMessage {
 
 #[napi(object)]
 pub struct JsLogEntry {
-  pub level: Option<LogLevel>,
+  pub level: Option<JsLogLevel>,
   pub context: Option<String>,
   pub line: Option<String>,
 }
