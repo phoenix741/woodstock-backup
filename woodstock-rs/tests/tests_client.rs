@@ -196,7 +196,7 @@ async fn test_client_execute_command() {
 
         // Assert result is error
         let result_stdout = if cfg!(unix) {
-            "Cargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+            "Cargo.toml\nbenches\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
         } else {
             ".gitignore\n.vscode\nCargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
         };
@@ -311,7 +311,7 @@ async fn test_client_get_chunk_hash() {
             let chunk_request = ChunkHashRequest {
                 share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
-                algorithm: ChunkAlgorithm::Sha3256 as i32,
+                algorithm: ChunkAlgorithm::Blake3 as i32,
             };
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
 

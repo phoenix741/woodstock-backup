@@ -11,6 +11,18 @@ resolver = "2"
 [profile.dev.package.flate2]
 opt-level = 3
 
+[profile.dev.package.async-compression]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.dev.package.sha3]
+opt-level = 3
+
+[profile.dev.package.blake3]
+opt-level = 3
+
 [profile.release]
 lto = true
 codegen-units = 1

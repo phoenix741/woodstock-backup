@@ -1,6 +1,6 @@
 use async_stream::stream;
 use async_stream::try_stream;
-use blake3::Hasher; // Remplacer SHA3-256 par BLAKE3
+use blake3::Hasher;
 use futures::pin_mut;
 use futures::Stream;
 use futures::StreamExt;
@@ -250,7 +250,7 @@ pub fn read_chunk(
         let mut reader = BufReader::new(file);
         let mut buffer = vec![0; BUFFER_SIZE];
 
-        let mut file_hasher = Hasher::new(); // Remplacer SHA3-256 par BLAKE3
+        let mut file_hasher = Hasher::new();
 
         for chunk in &chunks {
             let position = chunk * CHUNK_SIZE_U64;
@@ -264,7 +264,7 @@ pub fn read_chunk(
                 })),
             };
 
-            let mut chunk_hasher = Hasher::new(); // Remplacer SHA3-256 par BLAKE3
+            let mut chunk_hasher = Hasher::new();
 
             loop {
                 if remaining == 0 {
@@ -289,14 +289,14 @@ pub fn read_chunk(
                 };
             }
 
-            let chunk_hash = chunk_hasher.finalize().as_bytes().to_vec(); // Remplacer SHA3-256 par BLAKE3
+            let chunk_hash = chunk_hasher.finalize().as_bytes().to_vec();
 
             yield FileChunk {
                 field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
             };
         }
 
-        let hash = file_hasher.finalize().as_bytes().to_vec(); // Remplacer SHA3-256 par BLAKE3
+        let hash = file_hasher.finalize().as_bytes().to_vec();
 
         if usize::try_from(chunk_count).unwrap_or_default() == chunks.len() {
             yield FileChunk {

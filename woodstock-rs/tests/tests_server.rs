@@ -44,7 +44,7 @@ fn create_config() -> Configuration {
         ),
         log_level: log::Level::Warn,
         cache_size: 1,
-        chunk_algorithm: ChunkAlgorithm::Sha3256,
+        chunk_algorithm: ChunkAlgorithm::Blake3,
     }
 }
 
