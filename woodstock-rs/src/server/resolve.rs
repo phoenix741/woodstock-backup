@@ -192,7 +192,7 @@ impl SocketAddrResolver {
     pub async fn resolve(&self, hostname: &str, default_port: u16) -> Result<Vec<SocketAddr>> {
         debug!("Resolve hostname: {}", hostname);
         let addresses = if let Some(socket_addr_info) = self.get_informations(hostname).await? {
-            debug!("Found hostname in cache: {}", hostname);
+            info!("Found hostname in cache: {}", hostname);
             let addresses =
                 is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
 
@@ -203,16 +203,16 @@ impl SocketAddrResolver {
         } else {
             #[cfg(feature = "mdns")]
             {
-                debug!("Resolve hostname with mdns: {}", hostname);
+                info!("Resolve hostname with mdns: {}", hostname);
                 let addresses = self.resolve_mdns(hostname, default_port).await;
 
                 if let Some(addresses) = addresses {
-                    debug!("Found hostname with mdns: {}", hostname);
+                    info!("Found hostname with mdns: {}", hostname);
                     return Ok(addresses);
                 }
             }
 
-            debug!("Resolve hostname with dns: {}", hostname);
+            info!("Resolve hostname with dns: {}", hostname);
             resolve_dns(hostname)
                 .iter()
                 .map(|ip| SocketAddr::new(*ip, default_port))

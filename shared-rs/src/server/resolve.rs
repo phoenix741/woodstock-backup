@@ -1,3 +1,4 @@
+use log::info;
 use napi::{Error, Result};
 use woodstock::{
   config::{GlobalConfiguration, DEFAULT_PORT},
@@ -66,10 +67,13 @@ impl CoreClientResolver {
     let default_port = default_port.unwrap_or(DEFAULT_PORT);
     let resolver = self.resolver.clone();
 
+    info!("Try resolving {hostname} with default port {default_port}");
+
     let addresses = resolver
       .resolve(&hostname, default_port)
       .await
       .map(|addresses| {
+        info!("Resolved {hostname} to {addresses:?}");
         addresses
           .iter()
           .map(|addr| addr.to_string())
