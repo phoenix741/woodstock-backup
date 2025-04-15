@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::client::Client;
 use crate::{
-    config::{Backups, Context, BUFFER_SIZE},
+    config::{Backups, Configuration, Context, BUFFER_SIZE},
     event::Information,
     events::append_events,
     restore_file_request,
@@ -33,14 +33,20 @@ pub struct BackupRestore<Clt: Client> {
     progression: Arc<Mutex<BackupProgression>>,
 
     source: EventSource,
-    context: Context,
+    config: Configuration,
 
     pool_path: PathBuf,
 }
 
 impl<Clt: Client> BackupRestore<Clt> {
-    pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(ctxt);
+    pub fn new(
+        client: Clt,
+        hostname: &str,
+        backup_number: usize,
+        ctxt: &Context,
+        config: &Configuration,
+    ) -> Self {
+        let backups = Backups::new(config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -58,8 +64,8 @@ impl<Clt: Client> BackupRestore<Clt> {
             progress_max: HashMap::new(),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             source: ctxt.source,
-            context: ctxt.clone(),
-            pool_path: ctxt.config.path.pool_path.clone(),
+            config: config.clone(),
+            pool_path: config.path.pool_path.clone(),
         }
     }
 
@@ -83,7 +89,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, share);
 
         let selection = selection
@@ -128,7 +134,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, share);
 
         let destination_directory = destination_directory.as_ref().to_path_buf();
@@ -258,25 +264,25 @@ impl<Clt: Client> BackupRestore<Clt> {
 
     pub async fn create_event_restore_start(&self, shares: &[&str]) -> Result<()> {
         let event = Event {
-            id: self.uuid.to_vec(),
+            id: self.uuid.clone(),
             r#type: EventType::Restore as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: EventStatus::None as i32,
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
                 number: self.current_backup_id as u64,
-                share_path: shares.iter().map(|s| s.to_string()).collect(),
+                share_path: shares.iter().map(|s| (*s).to_string()).collect(),
             })),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -287,25 +293,25 @@ impl<Clt: Client> BackupRestore<Clt> {
         status: EventStatus,
     ) -> Result<()> {
         let event = Event {
-            id: self.uuid.to_vec(),
+            id: self.uuid.clone(),
             r#type: EventType::Restore as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs(),
             source: self.source as i32,
-            user: "".to_string(),
+            user: String::new(),
             error_messages: Vec::new(),
             status: status as i32,
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
                 number: self.current_backup_id as u64,
-                share_path: shares.iter().map(|s| s.to_string()).collect(),
+                share_path: shares.iter().map(|s| (*s).to_string()).collect(),
             })),
         };
 
-        append_events(&self.context.config.path.events_path, &[&event]).await?;
+        append_events(&self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }

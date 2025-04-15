@@ -9,6 +9,7 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use log::error;
 use woodstock::config::Context;
+use woodstock::config::GlobalConfiguration;
 use woodstock::config::Hosts;
 use woodstock::server::backup_restore::BackupRestore;
 use woodstock::server::grpc_client::BackupGrpcClient;
@@ -47,7 +48,7 @@ async fn main() -> Result<()> {
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&context);
+    let hosts = Hosts::new(&GlobalConfiguration);
     let host_configuration = hosts.get_host(&args.hostname).await?;
 
     let backup_number = args.backup_number;
@@ -55,26 +56,27 @@ async fn main() -> Result<()> {
     let default_path = PathBuf::from("/");
     let destination_directory = args
         .destination_directory
-        .map(PathBuf::from)
-        .unwrap_or(default_path);
-    let list = args
-        .filter
-        .as_ref()
-        .map(|list| {
-            list.iter()
-                .map(|filter| Path::new(filter.as_str()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or(Vec::new());
+        .map_or(default_path, PathBuf::from);
+    let list = args.filter.as_ref().map_or(Vec::new(), |list| {
+        list.iter()
+            .map(|filter| Path::new(filter.as_str()))
+            .collect::<Vec<_>>()
+    });
 
     term.write_line(&format!(
         "Restoring {} (ips = {:?})",
         &args.hostname, host_configuration.addresses,
     ))?;
 
-    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &context).await?;
+    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &GlobalConfiguration).await?;
 
-    let mut client = BackupRestore::new(grpc_client, &args.hostname, backup_number, &context);
+    let mut client = BackupRestore::new(
+        grpc_client,
+        &args.hostname,
+        backup_number,
+        &context,
+        &GlobalConfiguration,
+    );
 
     term.write_line(&format!("[1/4] {}Prepare restauration", Emoji("⚙️ ", "")))?;
 

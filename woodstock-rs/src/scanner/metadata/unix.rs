@@ -52,7 +52,7 @@ pub fn mknode(file_manifest: &FileManifest) -> Result<()> {
 
     let dev = file_manifest.stats.map(|s| s.dev).unwrap_or_default() as dev_t;
     let mode = file_manifest.mode() as mode_t | mode_filter;
-    let result = unsafe { mknod(path.as_os_str().as_bytes().as_ptr() as *const i8, mode, dev) };
+    let result = unsafe { mknod(path.as_os_str().as_bytes().as_ptr().cast::<i8>(), mode, dev) };
     if result != 0 {
         return Err(std::io::Error::last_os_error().into());
     }

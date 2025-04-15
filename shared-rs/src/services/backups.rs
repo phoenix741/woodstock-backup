@@ -1,4 +1,4 @@
-use futures_util::StreamExt;
+use futures_util::{pin_mut, StreamExt};
 use napi::{
   threadsafe_function::{
     ErrorStrategy::{self},
@@ -6,13 +6,9 @@ use napi::{
   },
   Error, JsFunction, Result,
 };
-use woodstock::{
-  config::{Backups, Context},
-  proto::ProtobufReader,
-  FileManifestJournalEntry,
-};
+use woodstock::config::{Backups, GlobalConfiguration};
 
-use crate::{config::context::JsBackupContext, models::JsBackup, server::AbortHandle};
+use crate::{models::JsBackup, server::AbortHandle};
 
 #[napi(object)]
 pub struct JsBaskupsLog {
@@ -28,13 +24,11 @@ pub struct JsBackupsService {
 
 #[napi]
 impl JsBackupsService {
-  #[napi(constructor)]
   #[must_use]
-  pub fn new(context: &JsBackupContext) -> Self {
-    let context: Context = context.into();
-
+  #[napi(constructor)]
+  pub fn new() -> Self {
     Self {
-      backups: Backups::new(&context),
+      backups: Backups::new(&GlobalConfiguration),
     }
   }
 
@@ -74,36 +68,12 @@ impl JsBackupsService {
     let manifest = self
       .backups
       .get_manifest(&hostname, backup_number as usize, &share_path);
-    let log_path = manifest.log_path;
 
     let handle = tokio::spawn(async move {
-      let Ok(mut messages) = ProtobufReader::<FileManifestJournalEntry>::new(&log_path, true).await
-      else {
-        tsfn.call(
-          JsBaskupsLog {
-            progress: None,
-            error: Some(format!("Could not read {}", log_path.display()).to_string()),
-            complete: true,
-          },
-          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-        );
-        return;
-      };
-
-      let mut messages = messages.into_stream();
+      let messages = manifest.read_log_entries();
+      pin_mut!(messages);
 
       while let Some(message) = messages.next().await {
-        let Ok(message) = message else {
-          tsfn.call(
-            JsBaskupsLog {
-              progress: None,
-              error: Some(format!("Could not message from {}", log_path.display()).to_string()),
-              complete: true,
-            },
-            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-          );
-          break;
-        };
         let log_line = message.to_log();
 
         tsfn.call(

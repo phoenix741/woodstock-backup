@@ -1,12 +1,12 @@
 import { Logger } from '@nestjs/common';
-import { BackupContext, LogLevel, initLog } from '@woodstock/shared-rs';
+import { JsLogLevel, initLog } from '@woodstock/shared-rs';
 
-export function initializeLog(context: BackupContext) {
+export function initializeLog() {
   const logger = new Logger('SharedLogged');
-  initLog(context, (msg) => {
+  initLog((msg) => {
     if (msg.progress) {
       switch (msg.progress.level) {
-        case LogLevel.Debug:
+        case JsLogLevel.Debug:
           logger.debug(
             {
               message: msg.progress.message,
@@ -16,7 +16,7 @@ export function initializeLog(context: BackupContext) {
             msg.progress.context,
           );
           break;
-        case LogLevel.Trace:
+        case JsLogLevel.Trace:
           logger.verbose(
             {
               message: msg.progress.message,
@@ -26,7 +26,7 @@ export function initializeLog(context: BackupContext) {
             msg.progress.context,
           );
           break;
-        case LogLevel.Info:
+        case JsLogLevel.Info:
           logger.log(
             {
               message: msg.progress.message,
@@ -36,7 +36,7 @@ export function initializeLog(context: BackupContext) {
             msg.progress.context,
           );
           break;
-        case LogLevel.Warn:
+        case JsLogLevel.Warn:
           logger.warn(
             {
               message: msg.progress.message,
@@ -46,7 +46,7 @@ export function initializeLog(context: BackupContext) {
             msg.progress.context,
           );
           break;
-        case LogLevel.Error:
+        case JsLogLevel.Error:
           logger.error(
             {
               message: msg.progress.message,

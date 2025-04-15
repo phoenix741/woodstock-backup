@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CorePoolService, JsFsckProgression, JsPoolProgression } from '@woodstock/shared-rs';
+import { CorePoolService, JsEventSource, JsFsckProgression, JsPoolProgression } from '@woodstock/shared-rs';
 import { defer, Observable, switchMap } from 'rxjs';
 import { LockService } from './lock.service';
 
@@ -33,7 +33,7 @@ export class PoolService {
     const removeUnused = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<JsPoolProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.removeUnused(target, (result) => {
+        const abortHandle = this.poolService.removeUnused(target, JsEventSource.Woodstock, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
@@ -66,7 +66,7 @@ export class PoolService {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<JsFsckProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.verifyChunk((result) => {
+        const abortHandle = this.poolService.verifyChunk(JsEventSource.Woodstock, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
@@ -99,7 +99,7 @@ export class PoolService {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<JsFsckProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.verifyRefcnt(dryRun, (result) => {
+        const abortHandle = this.poolService.verifyRefcnt(dryRun, JsEventSource.Woodstock, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }
@@ -132,7 +132,7 @@ export class PoolService {
     const verifyChunk = this.lockService.using([POOL_RESOURCE_LOCK], REFCNT_LOCK_TIMEOUT, async (abort) => {
       return new Observable<JsPoolProgression>((observer) => {
         let abortMethod: () => void = () => {};
-        const abortHandle = this.poolService.verifyUnused(dryRun, (result) => {
+        const abortHandle = this.poolService.verifyUnused(dryRun, JsEventSource.Woodstock, (result) => {
           if (result.progress) {
             observer.next(result.progress);
           }

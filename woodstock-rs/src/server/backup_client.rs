@@ -12,14 +12,14 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{
-    config::{Backup, Backups, Context, SHA256_EMPTYSTRING},
+    config::{Backup, Backups, Configuration, Context, SHA256_EMPTYSTRING},
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
     pool::{PoolChunkInformation, PoolChunkWrapper, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
-    refresh_cache_request, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
-    EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
-    RefreshCacheRequest, Share,
+    refresh_cache_request, ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState,
+    EntryType, EventSource, EventStatus, ExecuteCommandReply, FileManifest,
+    FileManifestJournalEntry, PoolRefCount, RefreshCacheRequest, Share,
 };
 
 use super::{client::Client, progression::BackupProgression};
@@ -27,6 +27,7 @@ use super::{client::Client, progression::BackupProgression};
 pub struct BackupClient<Clt: Client> {
     uuid: Vec<u8>,
     client: Clt,
+    check_file_consistency: bool,
 
     hostname: String,
     current_backup_id: usize,
@@ -38,12 +39,22 @@ pub struct BackupClient<Clt: Client> {
     refcnt: Arc<Mutex<Refcnt>>,
 
     source: EventSource,
-    context: Context,
+    config: Configuration,
+    algorithm: ChunkAlgorithm,
 }
 
 impl<Clt: Client> BackupClient<Clt> {
-    pub fn new(client: Clt, hostname: &str, backup_number: usize, ctxt: &Context) -> Self {
-        let backups = Backups::new(ctxt);
+    pub fn new(
+        client: Clt,
+        hostname: &str,
+        backup_number: usize,
+        ctxt: &Context,
+        config: &Configuration,
+    ) -> Self {
+        // At first backup set the used algorithm
+        let _ = config.fix_algorithm();
+
+        let backups = Backups::new(config);
         let destination_directory =
             backups.get_backup_destination_directory(hostname, backup_number);
 
@@ -56,6 +67,7 @@ impl<Clt: Client> BackupClient<Clt> {
         BackupClient {
             uuid,
             client,
+            check_file_consistency: false,
             hostname: hostname.to_string(),
             current_backup_id: backup_number,
             agent_version: None,
@@ -63,9 +75,18 @@ impl<Clt: Client> BackupClient<Clt> {
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
             source: ctxt.source,
-            context: ctxt.clone(),
+            config: config.clone(),
+            algorithm: config.chunk_algorithm,
             fake_date: None,
         }
+    }
+
+    pub fn enable_file_consistency_check(&mut self) {
+        self.check_file_consistency = true;
+    }
+
+    pub fn disable_file_consistency_check(&mut self) {
+        self.check_file_consistency = false;
     }
 
     pub fn set_agent_version(&mut self, agent_version: String) {
@@ -164,7 +185,7 @@ impl<Clt: Client> BackupClient<Clt> {
     }
 
     pub async fn init_backup_directory(&self, shares: &[&str]) -> Result<()> {
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let previous_backup = backups
             .get_previous_backup(&self.hostname, self.current_backup_id)
             .await
@@ -192,7 +213,7 @@ impl<Clt: Client> BackupClient<Clt> {
 
         // Register the event
         create_event_backup_start(
-            &self.context.config.path.events_path,
+            &self.config.path.events_path,
             &self.uuid,
             self.source,
             &self.hostname,
@@ -224,7 +245,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let hostname = self.hostname.clone();
         let current_backup_id = self.current_backup_id;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
 
         let share_refresh_stream = share.clone();
@@ -332,7 +353,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let filename = chunk_information.filename.clone();
         let full = chunk_information.chunks_id.is_empty();
 
-        let pool_path = &self.context.config.path.pool_path;
+        let pool_path = &self.config.path.pool_path;
         let readable = self.client.get_chunk(chunk_information);
         pin_mut!(readable);
 
@@ -348,7 +369,7 @@ impl<Clt: Client> BackupClient<Clt> {
                     debug!("Download chunk {}", current_chunk_id);
 
                     let wrapper = PoolChunkWrapper::new(pool_path, None);
-                    let writer = wrapper.writer().await?;
+                    let writer = wrapper.writer(&self.algorithm).await?;
 
                     current_chunk = Some((wrapper, writer));
                 }
@@ -418,12 +439,13 @@ impl<Clt: Client> BackupClient<Clt> {
         F: Fn(PoolChunkInformation) -> Fut,
         Fut: Future<Output = ()>,
     {
-        let pool_path = &self.context.config.path.pool_path;
+        let pool_path = &self.config.path.pool_path;
         let reply = self
             .client
             .get_chunk_hash(ChunkHashRequest {
                 share_path: share_path.to_string(),
                 filename: filename.to_vec(),
+                algorithm: self.algorithm as i32,
             })
             .await?;
 
@@ -461,7 +483,7 @@ impl<Clt: Client> BackupClient<Clt> {
         file_manifest: &mut FileManifest,
         is_add: bool,
         callback: &F,
-    ) -> Result<()>
+    ) -> Result<(u64, u64, u64)>
     where
         F: Fn(PoolChunkInformation) -> Fut,
         Fut: Future<Output = ()>,
@@ -475,18 +497,21 @@ impl<Clt: Client> BackupClient<Clt> {
         if chunk_count == 0 {
             file_manifest.chunks = vec![];
             file_manifest.hash = SHA256_EMPTYSTRING.to_vec();
-            return Ok(());
+            return Ok((0, 0, 0));
         }
 
         let filename = file_manifest.path.clone();
 
+        let start_time = std::time::Instant::now();
         let (mut chunks, missing_chunks) = if is_add {
             (BTreeMap::new(), Vec::new())
         } else {
             self.get_chunks(share_path, file_manifest, &filename, callback)
                 .await?
         };
+        let xfer_calculation = start_time.elapsed();
 
+        let start_time = std::time::Instant::now();
         if chunks.is_empty() || !missing_chunks.is_empty() {
             self.download_zone(
                 file_manifest,
@@ -503,6 +528,7 @@ impl<Clt: Client> BackupClient<Clt> {
             )
             .await?;
         }
+        let xfer_duration = start_time.elapsed();
 
         let missing_chunks = self.get_missing_chunks(&chunks, chunk_count);
         if !missing_chunks.is_empty() {
@@ -563,12 +589,10 @@ impl<Clt: Client> BackupClient<Clt> {
         stats.size = size;
         file_manifest.chunks = chunks_hash;
 
-        // TODO: Add optional coherence check (in another thread ?)
-        // TODO: Add if
-        // if coherence_check {
-        {
+        let start_time = std::time::Instant::now();
+        if self.check_file_consistency {
             let hash = file_manifest
-                .calculate_hash(&self.context.config.path.pool_path)
+                .calculate_hash(&self.config.path.pool_path, &self.algorithm)
                 .await?;
             if file_manifest.hash.ne(&hash) {
                 error!(
@@ -577,9 +601,13 @@ impl<Clt: Client> BackupClient<Clt> {
                 );
             }
         }
-        //}
+        let xfer_check = start_time.elapsed();
 
-        Ok(())
+        Ok((
+            xfer_calculation.as_secs(),
+            xfer_duration.as_secs(),
+            xfer_check.as_secs(),
+        ))
     }
 
     pub async fn create_backup(
@@ -592,7 +620,7 @@ impl<Clt: Client> BackupClient<Clt> {
         let mut error_count = 0;
         let mut abort: Option<eyre::Report> = None;
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         let progress_max = self
@@ -627,6 +655,11 @@ impl<Clt: Client> BackupClient<Clt> {
                     // TODO: Parrallellise to download CHUNK_SIZE manifest max at the same time
                     let progression = Arc::clone(&progression);
 
+                    // timestamp of the start of the transfer
+                    let xfer_start = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
                     let file_manifest = self
                         .download_manifest_chunk(share_path, file_manifest, is_add, &move |chunk| {
                             let progression = Arc::clone(&progression);
@@ -640,7 +673,7 @@ impl<Clt: Client> BackupClient<Clt> {
                         .await;
 
                     match file_manifest {
-                        Ok(()) => {
+                        Ok((xfer_calculation, xfer_duration, xfer_check)) => {
                             file_manifest_journal_entry.state = match file_manifest_journal_entry
                                 .state()
                             {
@@ -649,6 +682,11 @@ impl<Clt: Client> BackupClient<Clt> {
                                 _ => file_manifest_journal_entry.state(),
                             }
                                 as i32;
+
+                            file_manifest_journal_entry.xfer_start = xfer_start;
+                            file_manifest_journal_entry.xfer_calculation = xfer_calculation;
+                            file_manifest_journal_entry.xfer_duration = xfer_duration;
+                            file_manifest_journal_entry.xfer_check = xfer_check;
                         }
                         Err(e) => {
                             error!("Can't download chunk for {:?}: {}", path, e);
@@ -672,7 +710,7 @@ impl<Clt: Client> BackupClient<Clt> {
                             file_manifest_journal_entry.state = EntryState::Error as i32;
                             file_manifest_journal_entry
                                 .state_messages
-                                .push(format!("{:#}", e));
+                                .push(format!("{e:#}"));
                         }
                     };
                 }
@@ -765,7 +803,7 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn compact(&self, share_path: &str) -> Result<()> {
         info!("Compact share {:?}", share_path);
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         manifest
@@ -804,10 +842,10 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn count_references(&self) -> Result<()> {
         info!("Count references");
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
 
         let mut refcnt = self.refcnt.lock().await;
-        refcnt.finish(&self.context.config.path.pool_path).await?;
+        refcnt.finish(&self.config.path.pool_path).await?;
         refcnt.save_refcnt(&self.get_fake_date()).await?;
 
         let host_refcnt_file = backups.get_host_path(&self.hostname);
@@ -816,7 +854,7 @@ impl<Clt: Client> BackupClient<Clt> {
             &refcnt,
             &crate::pool::RefcntApplySens::Increase,
             &self.get_fake_date(),
-            &self.context,
+            &self.config,
         )
         .await?;
 
@@ -828,7 +866,7 @@ impl<Clt: Client> BackupClient<Clt> {
     pub async fn save_backup(&self, is_finish: bool, is_complete: bool) -> Result<()> {
         info!("Save backup (complete = {is_complete})");
 
-        let backups = Backups::new(&self.context);
+        let backups = Backups::new(&self.config);
         let backup = self.to_backup(is_finish, is_complete).await;
 
         backups
@@ -839,11 +877,14 @@ impl<Clt: Client> BackupClient<Clt> {
             let shares = backups
                 .get_backup_share_paths(&self.hostname, self.current_backup_id)
                 .await;
-            let shares = shares.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+            let shares = shares
+                .iter()
+                .map(std::string::String::as_str)
+                .collect::<Vec<&str>>();
 
             // Register the event
             create_event_backup_end(
-                &self.context.config.path.events_path,
+                &self.config.path.events_path,
                 &self.uuid,
                 self.source,
                 &self.hostname,

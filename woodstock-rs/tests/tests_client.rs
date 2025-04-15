@@ -20,8 +20,8 @@ use woodstock::{
     utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
-    AuthenticateRequest, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
-    RefreshCacheRequest, Share,
+    AuthenticateRequest, ChunkAlgorithm, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest,
+    FileManifest, RefreshCacheRequest, Share,
 };
 
 async fn server_and_client_stub() -> (
@@ -196,7 +196,7 @@ async fn test_client_execute_command() {
 
         // Assert result is error
         let result_stdout = if cfg!(unix) {
-            "Cargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+            "Cargo.toml\nbenches\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
         } else {
             ".gitignore\n.vscode\nCargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
         };
@@ -311,6 +311,7 @@ async fn test_client_get_chunk_hash() {
             let chunk_request = ChunkHashRequest {
                 share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
+                algorithm: ChunkAlgorithm::Blake3 as i32,
             };
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
 

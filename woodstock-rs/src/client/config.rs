@@ -90,7 +90,7 @@ impl ClientConfig {
 
     /// Returns the default bind address of the client.
     fn default_bind() -> String {
-        format!("0.0.0.0:{}", DEFAULT_PORT).to_string()
+        format!("0.0.0.0:{DEFAULT_PORT}").to_string()
     }
 
     /// Generates a random 64-byte hexadecimal string as the default secret key for the client.
@@ -113,14 +113,17 @@ impl ClientConfig {
         12 * 3600
     }
 
+    #[must_use]
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
 
+    #[must_use]
     pub fn default_automatic_update() -> bool {
         cfg!(windows)
     }
 
+    #[must_use]
     pub fn default_update_delay() -> u64 {
         DAYLY_UPDATE
     }

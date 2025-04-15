@@ -1,14 +1,19 @@
-use log::Level;
-use std::{env, path::PathBuf};
+use eyre::Result;
+use lazy_static::lazy_static;
+use log::{info, warn, Level};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
-use crate::EventSource;
+use crate::{utils::chunk_hasher::DEFAULT_CHUNK_ALGORITHM, ChunkAlgorithm, EventSource};
 
 #[derive(Clone, Debug)]
-
 pub struct ConfigurationPath {
     pub backup_path: PathBuf,
     pub certificates_path: PathBuf,
     pub config_path: PathBuf,
+
     pub hosts_path: PathBuf,
     pub logs_path: PathBuf,
     pub pool_path: PathBuf,
@@ -17,6 +22,9 @@ pub struct ConfigurationPath {
 
     pub config_path_hosts: PathBuf,
     pub config_path_scheduler: PathBuf,
+    pub config_path_statistics: PathBuf,
+
+    pub config_path_pool_algorithm: PathBuf,
 }
 
 pub struct OptionalConfigurationPath {
@@ -58,7 +66,7 @@ impl ConfigurationPath {
         let logs_path = optional_path
             .logs_path
             .unwrap_or_else(|| backup_path.join("logs"));
-        let pools_path = optional_path
+        let pool_path = optional_path
             .pool_path
             .unwrap_or_else(|| backup_path.join("pool"));
         let jobs_path = optional_path
@@ -70,6 +78,9 @@ impl ConfigurationPath {
 
         let config_path_hosts = config_path.join("hosts.yml");
         let config_path_scheduler = config_path.join("scheduler.yml");
+        let config_path_statistics = config_path.join("statistics.yml");
+
+        let config_path_pool_algorithm = pool_path.join("algorithm");
 
         Self {
             backup_path,
@@ -77,12 +88,13 @@ impl ConfigurationPath {
             config_path,
             hosts_path,
             logs_path,
-            events_path,
-            pool_path: pools_path,
+            pool_path,
             jobs_path,
-
+            events_path,
             config_path_hosts,
             config_path_scheduler,
+            config_path_statistics,
+            config_path_pool_algorithm,
         }
     }
 }
@@ -120,8 +132,7 @@ impl Default for RedisConfiguration {
                 .unwrap_or_else(|| "localhost".to_string()),
             port: env::var("REDIS_PORT")
                 .ok()
-                .map(|p| p.parse().unwrap())
-                .unwrap_or(6379),
+                .map_or(6379, |p| p.parse().unwrap()),
         }
     }
 }
@@ -133,27 +144,54 @@ pub struct Configuration {
     pub path: ConfigurationPath,
     pub log_level: Level,
     pub cache_size: usize,
+    pub chunk_algorithm: ChunkAlgorithm,
 }
 
 impl Configuration {
     #[must_use]
-    pub fn new(
-        backup_path: PathBuf,
-        log_level: Level,
-        cache_size: usize,
-        redis: RedisConfiguration,
-    ) -> Self {
+    pub fn from_backup_path(backup_path: PathBuf) -> Self {
         Self {
-            redis,
             path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
-            log_level,
-            cache_size,
+            ..Default::default()
         }
     }
 
     #[must_use]
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    fn read_algorithm<P: AsRef<Path>>(pool_path: P) -> Result<ChunkAlgorithm> {
+        let algorithm = std::fs::read_to_string(pool_path)?;
+        let algorithm = algorithm.trim();
+        let algorithm = ChunkAlgorithm::from_str_name(&algorithm)
+            .ok_or_else(|| eyre::eyre!("Invalid chunk algorithm: {}", algorithm))?;
+
+        Ok(algorithm)
+    }
+
+    /// Write the algorithm to the pool directory to ensure that we can't change it without conversion
+    pub fn fix_algorithm(&self) -> Result<()> {
+        if self.path.config_path_pool_algorithm.exists() {
+            return Ok(());
+        }
+
+        std::fs::create_dir_all(&self.path.pool_path)?;
+        std::fs::write(
+            &self.path.config_path_pool_algorithm,
+            self.chunk_algorithm.as_str_name(),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn overwrite_algorithm(&self) -> Result<()> {
+        std::fs::write(
+            &self.path.config_path_pool_algorithm,
+            self.chunk_algorithm.as_str_name(),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -179,13 +217,43 @@ impl Default for Configuration {
 
         let redis = RedisConfiguration::default();
 
+        let wanted_chunk_algorithm = match env::var("CHUNK_ALGORITHM") {
+            Ok(algorithm) => match algorithm.to_lowercase().as_str() {
+                "blake3" => ChunkAlgorithm::Blake3,
+                "sha2_256" => ChunkAlgorithm::Sha2256,
+                "sha3_256" => ChunkAlgorithm::Sha3256,
+                _ => DEFAULT_CHUNK_ALGORITHM,
+            },
+            Err(_) => DEFAULT_CHUNK_ALGORITHM,
+        };
+
+        let chunk_algorithm = Configuration::read_algorithm(&path.config_path_pool_algorithm)
+            .unwrap_or_else(|_| {
+                warn!("Failed to read chunk algorithm from file, using default");
+                wanted_chunk_algorithm
+            });
+        if chunk_algorithm != wanted_chunk_algorithm {
+            warn!("Chunk algorithm in file is different from the one in environment variable");
+        }
+
+        info!(
+            "Using chunk algorithm: {} (wanted: {})",
+            chunk_algorithm.as_str_name(),
+            wanted_chunk_algorithm.as_str_name()
+        );
+
         Self {
             redis,
             path,
             log_level,
             cache_size,
+            chunk_algorithm,
         }
     }
+}
+
+lazy_static! {
+    pub static ref GlobalConfiguration: Configuration = Configuration::default();
 }
 
 ///
@@ -193,7 +261,6 @@ impl Default for Configuration {
 /// and pass the values to the functions that need them.
 #[derive(Clone, Debug)]
 pub struct Context {
-    pub config: Configuration,
     pub source: EventSource,
     pub username: Option<String>,
 }
@@ -201,27 +268,8 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Self {
-            config: Configuration::default(),
             source: EventSource::Cli,
             username: None,
-        }
-    }
-}
-
-impl Context {
-    #[must_use]
-    pub fn new(
-        backup_path: PathBuf,
-        redis: RedisConfiguration,
-        log_level: Level,
-        source: EventSource,
-        username: Option<&str>,
-        cache_size: usize,
-    ) -> Self {
-        Self {
-            config: Configuration::new(backup_path, log_level, cache_size, redis),
-            source,
-            username: username.map(|s| s.to_string()),
         }
     }
 }

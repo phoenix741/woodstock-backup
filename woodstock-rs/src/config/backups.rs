@@ -8,7 +8,7 @@ use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
 
 use crate::{manifest::Manifest, utils::path::mangle};
 
-use super::{Backup, Context};
+use super::{Backup, Configuration};
 
 pub struct Backups {
     config_host_path: PathBuf,
@@ -16,9 +16,9 @@ pub struct Backups {
 
 impl Backups {
     #[must_use]
-    pub fn new(ctxt: &Context) -> Self {
+    pub fn new(config: &Configuration) -> Self {
         Self {
-            config_host_path: ctxt.config.path.hosts_path.clone(),
+            config_host_path: config.path.hosts_path.clone(),
         }
     }
 

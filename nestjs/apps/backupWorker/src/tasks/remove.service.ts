@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { ApplicationConfigService, JobBackupData, JobService } from '@woodstock/shared';
-import { WoodstockBackupRemove } from '@woodstock/shared-rs';
+import { JobBackupData, JobService } from '@woodstock/shared';
+import { generateContext, WoodstockBackupRemove } from '@woodstock/shared-rs';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -19,13 +19,15 @@ export enum RemoveTaskName {
 @Injectable()
 export class RemoveService {
   constructor(
-    private applicationConfig: ApplicationConfigService,
     private queueTasksService: QueueTasksService,
     private jobService: JobService,
   ) {}
 
   async #createGlobalContext(job: Job<JobBackupData>, hostname: string, backupNumber: number) {
-    const remover = await WoodstockBackupRemove.createClient(hostname, backupNumber, this.applicationConfig.context);
+    const context = generateContext({
+      username: undefined,
+    });
+    const remover = await WoodstockBackupRemove.createClient(hostname, backupNumber, context);
 
     const globalContext = new QueueTaskContext({
       remover,

@@ -36,7 +36,7 @@ pub async fn append_events<P: AsRef<Path>>(path: P, events: &[&Event]) -> Result
 
     // Get the current date
     let current_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let daily_path = path.join(format!("{}.events", current_date));
+    let daily_path = path.join(format!("{current_date}.events"));
 
     let mut writer = ProtobufWriter::<UnCompressedWriter, Event>::open(daily_path).await?;
 
@@ -77,7 +77,7 @@ pub async fn read_events<P: AsRef<Path>>(
     let mut events = Vec::new();
 
     for date in dates {
-        let daily_path = path.as_ref().join(format!("{}.events", date));
+        let daily_path = path.as_ref().join(format!("{date}.events"));
         if !daily_path.exists() {
             continue;
         }
@@ -105,14 +105,14 @@ pub async fn create_event_backup_start<P: AsRef<Path>>(
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs(),
         source: source as i32,
-        user: "".to_string(),
+        user: String::new(),
         error_messages: Vec::new(),
         status: EventStatus::None as i32,
 
         information: Some(Information::Backup(EventBackupInformation {
             hostname: hostname.to_string(),
             number: num as u64,
-            share_path: shares.iter().map(|s| s.to_string()).collect(),
+            share_path: shares.iter().map(|s| (*s).to_string()).collect(),
         })),
     };
 
@@ -138,14 +138,14 @@ pub async fn create_event_backup_end<P: AsRef<Path>>(
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs(),
         source: source as i32,
-        user: "".to_string(),
+        user: String::new(),
         error_messages: Vec::new(),
         status: status as i32,
 
         information: Some(Information::Backup(EventBackupInformation {
             hostname: hostname.to_string(),
             number: num as u64,
-            share_path: shares.iter().map(|s| s.to_string()).collect(),
+            share_path: shares.iter().map(|s| (*s).to_string()).collect(),
         })),
     };
 
@@ -172,14 +172,14 @@ pub async fn create_event_backup_remove<P: AsRef<Path>>(
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_secs(),
         source: source as i32,
-        user: "".to_string(),
+        user: String::new(),
         error_messages: Vec::new(),
         status: EventStatus::None as i32,
 
         information: Some(Information::Backup(EventBackupInformation {
             hostname: hostname.to_string(),
             number: num as u64,
-            share_path: shares.iter().map(|s| s.to_string()).collect(),
+            share_path: shares.iter().map(|s| (*s).to_string()).collect(),
         })),
     };
 

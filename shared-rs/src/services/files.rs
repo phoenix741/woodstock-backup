@@ -11,13 +11,13 @@ use napi::{
 };
 use tokio::{io::AsyncReadExt, sync::Mutex};
 use woodstock::{
-  config::{Context, BUFFER_SIZE},
+  config::{GlobalConfiguration, BUFFER_SIZE},
   utils::path::vec_to_path,
   view::WoodstockView,
   FileManifest,
 };
 
-use crate::{config::context::JsBackupContext, models::JsFileManifest};
+use crate::models::JsFileManifest;
 
 #[napi(js_name = "ViewerService")]
 pub struct JsViewerService {
@@ -30,12 +30,11 @@ pub struct JsViewerService {
 impl JsViewerService {
   #[must_use]
   #[napi(constructor)]
-  pub fn new(context: &JsBackupContext, hostname: String, backup_number: u32) -> Self {
-    let context: Context = context.into();
+  pub fn new(hostname: String, backup_number: u32) -> Self {
     let backup_number = usize::try_from(backup_number).expect("Backup number is too large");
 
     Self {
-      view: Arc::new(Mutex::new(WoodstockView::new(&context))),
+      view: Arc::new(Mutex::new(WoodstockView::new(&GlobalConfiguration))),
       hostname,
       backup_number,
     }
@@ -84,7 +83,6 @@ impl JsViewerService {
 
 #[napi(js_name = "CoreFilesService")]
 pub struct JsFilesService {
-  context: JsBackupContext,
   pool_path: PathBuf,
 }
 
@@ -92,18 +90,15 @@ pub struct JsFilesService {
 impl JsFilesService {
   #[napi(constructor)]
   #[must_use]
-  pub fn new(context: &JsBackupContext) -> Self {
-    let rust_context: Context = context.into();
-    let pool_path = rust_context.config.path.pool_path.clone();
+  pub fn new() -> Self {
+    let pool_path = GlobalConfiguration.path.pool_path.clone();
 
-    let context = (*context).clone();
-
-    Self { context, pool_path }
+    Self { pool_path }
   }
 
   #[napi]
   pub fn create_viewer(&self, hostname: String, backup_number: u32) -> Result<JsViewerService> {
-    Ok(JsViewerService::new(&self.context, hostname, backup_number))
+    Ok(JsViewerService::new(hostname, backup_number))
   }
 
   #[napi]

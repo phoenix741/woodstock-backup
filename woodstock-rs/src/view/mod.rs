@@ -1,5 +1,5 @@
 use crate::{
-    config::{Backup, Backups, Context, Hosts},
+    config::{Backup, Backups, Configuration, Hosts},
     utils::path::{osstr_to_vec, vec_to_path},
     FileManifestStat, FileManifestType,
 };
@@ -19,6 +19,7 @@ use std::{collections::HashSet, num::NonZeroUsize};
 use tokio::io::AsyncBufRead;
 
 impl FileManifest {
+    #[must_use]
     pub fn from_host(host: &str) -> Self {
         Self {
             path: path_to_vec(PathBuf::from(host)),
@@ -31,6 +32,7 @@ impl FileManifest {
         }
     }
 
+    #[must_use]
     pub fn from_backup(backup: &Backup) -> Self {
         Self {
             path: path_to_vec(PathBuf::from(format!("{}", backup.number))),
@@ -50,6 +52,7 @@ impl FileManifest {
         }
     }
 
+    #[must_use]
     pub fn from_share(share: &str) -> Self {
         Self {
             path: path_to_vec(PathBuf::from(share)),
@@ -62,6 +65,7 @@ impl FileManifest {
         }
     }
 
+    #[must_use]
     pub fn from_file(file: &OsStr) -> Self {
         Self {
             path: path_to_vec(PathBuf::from(file)),
@@ -138,12 +142,13 @@ pub struct WoodstockView {
 }
 
 impl WoodstockView {
-    pub fn new(ctxt: &Context) -> Self {
+    #[must_use]
+    pub fn new(config: &Configuration) -> Self {
         Self {
-            hosts: Hosts::new(ctxt),
-            backups: Backups::new(ctxt),
-            pool_path: ctxt.config.path.pool_path.clone(),
-            cache: LruCache::new(NonZeroUsize::new(ctxt.config.cache_size).unwrap()),
+            hosts: Hosts::new(config),
+            backups: Backups::new(config),
+            pool_path: config.path.pool_path.clone(),
+            cache: LruCache::new(NonZeroUsize::new(config.cache_size).unwrap()),
         }
     }
 
@@ -192,7 +197,7 @@ impl WoodstockView {
 
         // Ensure that shares are sorted by length (longest last) to ensure that the selected share is the share that
         // is the most specific
-        shares.sort_by_key(|a| a.len());
+        shares.sort_by_key(std::string::String::len);
 
         let mut selected_share: Option<String> = None;
 

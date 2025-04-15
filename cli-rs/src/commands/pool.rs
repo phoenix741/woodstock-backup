@@ -6,13 +6,14 @@ use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use log::error;
 
 use woodstock::{
-    config::Context, pool::Refcnt, server::pool_fsck::PoolFsck, utils::lock::PoolLock,
+    config::Configuration, pool::Refcnt, server::pool_fsck::PoolFsck, utils::lock::PoolLock,
+    EventSource,
 };
 
-pub async fn check_compression(ctxt: &Context) -> Result<()> {
-    let _lock = PoolLock::new(&ctxt.config.path.pool_path).lock().await?;
+pub async fn check_compression(config: &Configuration) -> Result<()> {
+    let _lock = PoolLock::new(&config.path.pool_path).lock().await?;
 
-    let mut pool_refcnt = Refcnt::new(&ctxt.config.path.pool_path);
+    let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
     let mut compressed_size: u64 = 0;
@@ -56,8 +57,8 @@ pub async fn check_compression(ctxt: &Context) -> Result<()> {
     Ok(())
 }
 
-pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
-    let pool_fsck = PoolFsck::new(ctxt);
+pub async fn verify_chunk(config: &Configuration, source: EventSource) -> Result<()> {
+    let pool_fsck = PoolFsck::new(config);
 
     let max = pool_fsck.verify_chunk_max().await?;
 
@@ -71,7 +72,7 @@ pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
     );
 
     let result = pool_fsck
-        .verify_chunk(&|progress| {
+        .verify_chunk(source, &|progress| {
             bar.set_position(progress.progress_current as u64);
         })
         .await?;
@@ -87,8 +88,12 @@ pub async fn verify_chunk(ctxt: &Context) -> Result<()> {
     Ok(())
 }
 
-pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
-    let pool_fsck = PoolFsck::new(ctxt);
+pub async fn verify_refcnt(
+    config: &Configuration,
+    source: EventSource,
+    dry_run: bool,
+) -> Result<()> {
+    let pool_fsck = PoolFsck::new(config);
 
     let total = pool_fsck.verify_refcnt_max().await?;
 
@@ -102,7 +107,7 @@ pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
     );
 
     let result = pool_fsck
-        .verify_refcnt(dry_run, &|progress| {
+        .verify_refcnt(dry_run, source, &|progress| {
             bar.set_position(progress.progress_current as u64);
         })
         .await?;
@@ -118,8 +123,12 @@ pub async fn verify_refcnt(ctxt: &Context, dry_run: bool) -> Result<()> {
     Ok(())
 }
 
-pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
-    let pool_fsck = PoolFsck::new(ctxt);
+pub async fn verify_unused(
+    config: &Configuration,
+    source: EventSource,
+    dry_run: bool,
+) -> Result<()> {
+    let pool_fsck = PoolFsck::new(config);
 
     let total = pool_fsck.verify_unused_max().await?;
 
@@ -133,7 +142,7 @@ pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
     );
 
     let result = pool_fsck
-        .verify_unused(dry_run, &|p| {
+        .verify_unused(dry_run, source, &|p| {
             bar.set_position(p.progress_current as u64);
         })
         .await?;
@@ -160,8 +169,12 @@ pub async fn verify_unused(ctxt: &Context, dry_run: bool) -> Result<()> {
     Ok(())
 }
 
-pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result<()> {
-    let pool_fsck = PoolFsck::new(ctxt);
+pub async fn clean_unused_pool(
+    config: &Configuration,
+    source: EventSource,
+    target: Option<String>,
+) -> Result<()> {
+    let pool_fsck = PoolFsck::new(config);
 
     let target = target.map(PathBuf::from);
 
@@ -177,7 +190,7 @@ pub async fn clean_unused_pool(ctxt: &Context, target: Option<String>) -> Result
     );
 
     let result = pool_fsck
-        .clean_unused_pool(target, &|p| {
+        .clean_unused_pool(target, source, &|p| {
             bar.set_position(p.progress_current as u64);
         })
         .await?;

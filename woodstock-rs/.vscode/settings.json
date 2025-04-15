@@ -2,5 +2,8 @@
   "editor.defaultFormatter": "rust-lang.rust-analyzer",
   "rust-analyzer.cargo.buildScripts.enable": true,
   "rust-analyzer.procMacro.enable": true,
-  "rust-analyzer.procMacro.attributes.enable": true
+  "rust-analyzer.procMacro.attributes.enable": true,
+  "[proto3]": {
+    "editor.defaultFormatter": "zxh404.vscode-proto3"
+  }
 }

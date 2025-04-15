@@ -15,7 +15,7 @@ use tonic::{
 };
 
 use super::client::Client;
-use crate::config::Context;
+use crate::config::Configuration;
 use crate::utils::path::vec_to_path;
 use crate::woodstock;
 use crate::ChunkHashReply;
@@ -111,9 +111,9 @@ impl BackupGrpcClient {
         Ok(WoodstockClientServiceClient::new(channel))
     }
 
-    pub async fn new(hostname: &str, ip: &str, ctxt: &Context) -> Result<Self> {
+    pub async fn new(hostname: &str, ip: &str, config: &Configuration) -> Result<Self> {
         info!("Creating BackupGrpcClient with hostname = {hostname}, ip = {ip}");
-        let certs_path = ctxt.config.path.certificates_path.clone();
+        let certs_path = config.path.certificates_path.clone();
         let client = BackupGrpcClient::create_client(hostname, ip, &certs_path).await?;
 
         Ok(BackupGrpcClient {

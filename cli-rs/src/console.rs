@@ -13,6 +13,7 @@ mod commands;
 mod filesystem;
 
 use clap::{Parser, Subcommand};
+use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
 use commands::read_protobuf::read_log;
@@ -21,6 +22,7 @@ use eyre::Result;
 
 #[cfg(all(unix, feature = "fuse_unix"))]
 use commands::mount::{mount, MountOption};
+use woodstock::ChunkAlgorithm;
 
 use crate::commands::client::list_client_files;
 use crate::commands::pool::{
@@ -28,7 +30,8 @@ use crate::commands::pool::{
 };
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
-use woodstock::config::Context;
+use commands::client::read_chunk_from_file;
+use woodstock::config::{Context, GlobalConfiguration};
 use woodstock::pool::{add_refcnt_to_pool, remove_refcnt_to_pool};
 
 #[derive(Parser)]
@@ -122,6 +125,8 @@ enum Commands {
     /// will be take in the `CONFIG_DIRECTORY` (like on server)
     ///
     /// This command can be used for debugging purpose
+    ///
+    /// For DEBUG purpose only
     ListDirectory {
         /// Config path
         config_path: String,
@@ -130,9 +135,33 @@ enum Commands {
         share_path: String,
     },
 
-    ResolveMDns {
+    /// Read the file and return the list of hash of the file
+    /// For DEBUG purpose only
+    ReadFileChunk {
+        /// The path to the file to read
+        file_name: String,
+
+        /// The algorithm to use
+        algorithm: Option<String>,
+    },
+
+    /// Resolve the hostname using the cache.
+    ///
+    /// Work only on a redis on the localhost
+    ///
+    /// For DEBUG purpose only
+    ResolveHost {
         /// The hostname to resolve
         hostname: String,
+    },
+
+    /// Convert hash from a repository to another hash
+    ConvertHashRepo {
+        /// The path of the backup
+        backup_path: String,
+
+        /// The hash to convert
+        hash: String,
     },
 
     #[cfg(all(unix, feature = "fuse_unix"))]
@@ -180,16 +209,16 @@ async fn main() -> Result<()> {
             backup_number,
             share_path,
         } => {
-            read_log(&context, &hostname, backup_number, &share_path)
+            read_log(&GlobalConfiguration, &hostname, backup_number, &share_path)
                 .await
                 .expect("Failed to read log");
         }
 
         Commands::GetChunk { chunk } => {
-            read_chunk(&context.config.path.pool_path, &chunk).expect("Failed to read chunk");
+            read_chunk(&GlobalConfiguration.path.pool_path, &chunk).expect("Failed to read chunk");
         }
         Commands::SearchChunk { chunk } => {
-            search_chunk(&context, &chunk)
+            search_chunk(&GlobalConfiguration, &chunk)
                 .await
                 .expect("Failed to search chunk");
         }
@@ -197,7 +226,7 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            add_refcnt_to_pool(&context, &hostname, backup_number)
+            add_refcnt_to_pool(&GlobalConfiguration, &hostname, backup_number)
                 .await
                 .expect("Failed to add refcnt to pool");
         }
@@ -205,28 +234,28 @@ async fn main() -> Result<()> {
             hostname,
             backup_number,
         } => {
-            remove_refcnt_to_pool(&context, &hostname, backup_number)
+            remove_refcnt_to_pool(&GlobalConfiguration, &hostname, backup_number)
                 .await
                 .expect("Failed to remove refcnt to pool");
         }
         Commands::CleanUnused { target } => {
-            clean_unused_pool(&context, target)
+            clean_unused_pool(&GlobalConfiguration, context.source, target)
                 .await
                 .expect("Clean unused failed");
         }
-        Commands::CheckCompression {} => check_compression(&context)
+        Commands::CheckCompression {} => check_compression(&GlobalConfiguration)
             .await
             .expect("Failed to check compression"),
-        Commands::VerifyChunk {} => verify_chunk(&context)
+        Commands::VerifyChunk {} => verify_chunk(&GlobalConfiguration, context.source)
             .await
             .expect("Can't verify integrity"),
         Commands::VerifyRefcnt { dry_run } => {
-            verify_refcnt(&context, dry_run)
+            verify_refcnt(&GlobalConfiguration, context.source, dry_run)
                 .await
                 .expect("Can't verify refcnt");
         }
         Commands::VerifyUnused { dry_run } => {
-            verify_unused(&context, dry_run)
+            verify_unused(&GlobalConfiguration, context.source, dry_run)
                 .await
                 .expect("Can't verify unused");
         }
@@ -241,15 +270,30 @@ async fn main() -> Result<()> {
         Commands::ListDirectory {
             share_path,
             config_path,
-        } => list_client_files(&share_path, &config_path, &context)
+        } => list_client_files(&share_path, &config_path, &GlobalConfiguration)
             .await
             .expect("Failed to list files"),
-        Commands::ResolveMDns { hostname } => {
-            resolve_mdns(&context, &hostname)
+        Commands::ReadFileChunk {
+            file_name,
+            algorithm,
+        } => read_chunk_from_file(
+            &file_name,
+            algorithm
+                .as_deref()
+                .unwrap_or(ChunkAlgorithm::Blake3.as_str_name()),
+        )
+        .await
+        .expect("Failed to read chunk from file"),
+        Commands::ResolveHost { hostname } => {
+            resolve_mdns(&GlobalConfiguration, &hostname)
                 .await
                 .expect("Failed to resolve mDNS");
         }
-
+        Commands::ConvertHashRepo { backup_path, hash } => {
+            convert_hash_repo(&backup_path, &hash)
+                .await
+                .expect("Failed to convert hash repository");
+        }
         #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {
             hostname,
@@ -258,7 +302,7 @@ async fn main() -> Result<()> {
             mount_point,
         } => {
             mount(
-                &context,
+                &GlobalConfiguration,
                 &MountOption {
                     hostname,
                     backup_number,

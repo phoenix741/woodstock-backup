@@ -3,7 +3,10 @@ use uuid::Uuid;
 use woodstock::{
   EventBackupInformation, EventPoolCleanedInformation, EventPoolInformation,
   EventRefCountInformation, EventSource, EventStatus, EventStep, EventType,
+  HashConversionInformation,
 };
+
+use crate::config::configuration::JsChunkAlgorithm;
 
 #[napi]
 pub enum JsEventType {
@@ -14,6 +17,7 @@ pub enum JsEventType {
   PoolChecked,
   ChecksumChecked,
   PoolCleaned,
+  HashConversion,
 }
 
 impl From<EventType> for JsEventType {
@@ -26,6 +30,7 @@ impl From<EventType> for JsEventType {
       EventType::PoolChecked => JsEventType::PoolChecked,
       EventType::ChecksumChecked => JsEventType::ChecksumChecked,
       EventType::PoolCleaned => JsEventType::PoolCleaned,
+      EventType::HashConversion => JsEventType::HashConversion,
     }
   }
 }
@@ -60,6 +65,17 @@ impl From<EventSource> for JsEventSource {
       EventSource::Woodstock => JsEventSource::Woodstock,
       EventSource::Import => JsEventSource::Import,
       EventSource::Cli => JsEventSource::Cli,
+    }
+  }
+}
+
+impl From<JsEventSource> for EventSource {
+  fn from(event_source: JsEventSource) -> Self {
+    match event_source {
+      JsEventSource::User => EventSource::User,
+      JsEventSource::Woodstock => EventSource::Woodstock,
+      JsEventSource::Import => EventSource::Import,
+      JsEventSource::Cli => EventSource::Cli,
     }
   }
 }
@@ -156,6 +172,21 @@ impl From<EventPoolCleanedInformation> for JsEventPoolCleanedInformation {
 }
 
 #[napi(object)]
+pub struct JsHashConversionInformation {
+  pub count: BigInt,
+  pub algorithm: JsChunkAlgorithm,
+}
+
+impl From<HashConversionInformation> for JsHashConversionInformation {
+  fn from(event_information: HashConversionInformation) -> Self {
+    JsHashConversionInformation {
+      count: event_information.count.into(),
+      algorithm: event_information.algorithm().into(),
+    }
+  }
+}
+
+#[napi(object)]
 pub struct JsEvent {
   pub uuid: String,
   pub r#type: JsEventType,
@@ -166,7 +197,7 @@ pub struct JsEvent {
   pub error_messages: Vec<String>,
   pub status: JsEventStatus,
   #[napi(
-    ts_type = "JsEventBackupInformation | JsEventRefCountInformation | JsEventPoolInformation | JsEventPoolCleanedInformation"
+    ts_type = "JsEventBackupInformation | JsEventRefCountInformation | JsEventPoolInformation | JsEventPoolCleanedInformation | JsHashConversionInformation"
   )]
   pub information: Option<JsObject>,
 }
@@ -208,6 +239,14 @@ impl JsEvent {
         let mut obj = env.create_object().expect("Failed to create object");
         obj.set("size", info.size).unwrap();
         obj.set("count", info.count).unwrap();
+        Some(obj)
+      }
+      Some(woodstock::event::Information::HashConversion(info)) => {
+        let mut obj = env.create_object().expect("Failed to create object");
+        obj.set("count", info.count).unwrap();
+        obj
+          .set("algorithm", info.algorithm().as_str_name())
+          .unwrap();
         Some(obj)
       }
       None => None,

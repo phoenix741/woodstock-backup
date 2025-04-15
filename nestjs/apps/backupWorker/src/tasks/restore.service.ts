@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
-import { ApplicationConfigService, HostConfiguration, JobBackupData } from '@woodstock/shared';
-import { WoodstockBackupRestore } from '@woodstock/shared-rs';
+import { HostConfiguration, JobBackupData } from '@woodstock/shared';
+import { generateContext, WoodstockBackupRestore } from '@woodstock/shared-rs';
 import {
   QueueSubTask,
   QueueTaskContext,
@@ -44,18 +44,13 @@ export class RestoreContext {
 
 @Injectable()
 export class RestoreService {
-  constructor(
-    private applicationConfig: ApplicationConfigService,
-    private queueTasksService: QueueTasksService,
-  ) {}
+  constructor(private queueTasksService: QueueTasksService) {}
 
   async #createGlobalContext(job: Job<JobBackupData>, hostname: string, ip: string, backupNumber: number) {
-    const remover = await WoodstockBackupRestore.createClient(
-      hostname,
-      ip,
-      backupNumber,
-      this.applicationConfig.context,
-    );
+    const context = generateContext({
+      username: undefined,
+    });
+    const remover = await WoodstockBackupRestore.createClient(hostname, ip, backupNumber, context);
 
     const globalContext = new QueueTaskContext<RestoreContext>(new RestoreContext(job.data, remover));
 

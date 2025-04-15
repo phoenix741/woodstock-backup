@@ -1,17 +1,18 @@
 use async_compression::tokio::bufread::ZlibDecoder;
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
-use log::error;
+use log::{error, warn};
 use prost::Message;
-use sha2::Digest;
-use sha3::Sha3_256;
 use std::path::{Path, PathBuf};
 use tokio::{
-    fs::{copy, remove_file, rename, File},
+    fs::{copy, create_dir_all, remove_file, rename, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
 use crate::config::BUFFER_SIZE;
+use crate::utils::chunk_hasher::create_chunk_hasher;
+use crate::ChunkAlgorithm;
+use reflink_copy::reflink;
 
 use super::{
     calculate_chunk_path, get_temp_chunk_path, pool_chunk_information::PoolChunkInformation,
@@ -61,12 +62,12 @@ impl PoolChunkWrapper {
         remove_file(self.chunk_path()).await
     }
 
-    pub async fn mv(&self, target_path: &Path) -> std::io::Result<()> {
+    pub async fn mv<P: AsRef<Path>>(&self, target_path: P) -> std::io::Result<()> {
         assert_ne!(self.hash_str, None, "Hash of the file shouldn't be None");
 
-        if rename(self.chunk_path(), target_path).await.is_err() {
+        if rename(self.chunk_path(), &target_path).await.is_err() {
             // copy the file if the rename fails
-            copy(self.chunk_path(), target_path).await?;
+            copy(self.chunk_path(), &target_path).await?;
             self.remove().await?;
         }
 
@@ -114,11 +115,11 @@ impl PoolChunkWrapper {
         Ok(chunk_information)
     }
 
-    pub async fn check_chunk_information(&self) -> Result<bool> {
+    async fn calculate_chunk_hash(&self, chunk_algorithm: &ChunkAlgorithm) -> Result<Vec<u8>> {
         let file = File::open(self.chunk_path()).await?;
         let file = tokio::io::BufReader::new(file);
         let mut file = ZlibDecoder::new(file);
-        let mut hasher = Sha3_256::new();
+        let mut hasher = create_chunk_hasher(chunk_algorithm);
 
         let mut buffer = vec![0u8; BUFFER_SIZE];
         loop {
@@ -128,7 +129,11 @@ impl PoolChunkWrapper {
             }
             hasher.update(&buffer[..n]);
         }
-        let file_hash = hasher.finalize().to_vec();
+        Ok(hasher.finalize())
+    }
+
+    pub async fn check_chunk_information(&self, chunk_algorith: &ChunkAlgorithm) -> Result<bool> {
+        let file_hash = self.calculate_chunk_hash(chunk_algorith).await?;
 
         if let Some(hash) = &self.hash {
             if hash.ne(&file_hash) {
@@ -144,17 +149,18 @@ impl PoolChunkWrapper {
         Ok(true)
     }
 
-    pub async fn writer(&self) -> Result<PoolChunkWriter> {
+    pub async fn writer(&self, chunk_algorithm: &ChunkAlgorithm) -> Result<PoolChunkWriter> {
         let pool_path = self.pool_path.clone();
-        PoolChunkWriter::new(&pool_path).await
+        PoolChunkWriter::new(&pool_path, chunk_algorithm).await
     }
 
     pub async fn write(
         &mut self,
         data: impl Stream<Item = Result<Vec<u8>>>,
         debug_filename: &[u8],
+        chunk_algorithm: &ChunkAlgorithm,
     ) -> Result<PoolChunkInformation> {
-        let mut writer = self.writer().await?;
+        let mut writer = self.writer(chunk_algorithm).await?;
 
         pin_mut!(data);
 
@@ -173,5 +179,50 @@ impl PoolChunkWrapper {
         let chunk_information = writer.shutdown(self, debug_filename).await?;
 
         Ok(chunk_information)
+    }
+
+    pub async fn copy(
+        &self,
+        target_chunk: &mut PoolChunkWrapper,
+        chunk_algorithm: &ChunkAlgorithm,
+    ) -> Result<()> {
+        // Calculate the hash of the chunk
+        let hash = self.calculate_chunk_hash(chunk_algorithm).await?;
+        target_chunk.set_hash(Some(&hash));
+
+        // Copy the chunk
+        let target_chunk_path = target_chunk.chunk_path();
+        if let Some(path) = target_chunk_path.parent() {
+            create_dir_all(path).await?;
+        }
+
+        if target_chunk_path.exists() {
+            warn!(
+                "The target chunk already exists, possible risk of collision: {:?}",
+                target_chunk_path.display()
+            );
+        }
+
+        let reflink_result = reflink(self.chunk_path(), &target_chunk_path);
+        if reflink_result.is_err() {
+            copy(self.chunk_path(), &target_chunk_path).await?;
+        }
+
+        // Get the chunk information
+        let mut chunk_information = self.chunk_information().await?;
+        chunk_information.sha256 = hash.clone();
+
+        // Set the hash of the target chunk
+
+        let chunk_path = target_chunk.chunk_path();
+        if let Some(path) = chunk_path.parent() {
+            create_dir_all(path).await?;
+        }
+
+        target_chunk
+            .write_chunk_information(&chunk_information)
+            .await?;
+
+        Ok(())
     }
 }

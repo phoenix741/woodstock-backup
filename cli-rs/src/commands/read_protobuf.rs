@@ -1,10 +1,10 @@
 use std::{error::Error, ffi::OsString};
 
 use clap::ValueEnum;
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    config::{Backups, Context},
+    config::{Backups, Configuration},
     pool::PoolChunkInformation,
     proto::ProtobufReader,
     Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
@@ -58,10 +58,10 @@ pub async fn read_protobuf(
 
                 let message_str = match message.to_yaml() {
                     Ok(message_str) => message_str,
-                    Err(err) => format!("Error: {}", err),
+                    Err(err) => format!("Error: {err}"),
                 };
 
-                print!("{}", message_str);
+                print!("{message_str}");
             }
         }
         ProtobufFormat::FileManifestJournalEntry => {
@@ -98,10 +98,10 @@ pub async fn read_protobuf(
 
                 let message_str = match message.to_yaml() {
                     Ok(message_str) => message_str,
-                    Err(err) => format!("Error: {}", err),
+                    Err(err) => format!("Error: {err}"),
                 };
 
-                print!("{}", message_str);
+                print!("{message_str}");
             }
         }
         ProtobufFormat::RefCount => {
@@ -174,20 +174,18 @@ pub async fn read_protobuf(
 }
 
 pub async fn read_log(
-    ctxt: &Context,
+    config: &Configuration,
     hostname: &str,
     backup_number: usize,
     share_path: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let backups_services = Backups::new(ctxt);
+    let backups_services = Backups::new(config);
     let manifest = backups_services.get_manifest(hostname, backup_number, share_path);
-    let log_path = manifest.log_path;
 
-    let mut messages = ProtobufReader::<FileManifestJournalEntry>::new(log_path, true).await?;
-    let mut messages = messages.into_stream();
+    let messages = manifest.read_log_entries();
+    pin_mut!(messages);
 
     while let Some(message) = messages.next().await {
-        let message = message?;
         let log_line = message.to_log();
 
         println!("{log_line}");

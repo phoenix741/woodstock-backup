@@ -8,6 +8,7 @@ use log::error;
 use log::info;
 use woodstock::config::Backups;
 use woodstock::config::Context;
+use woodstock::config::GlobalConfiguration;
 use woodstock::config::Hosts;
 use woodstock::server::backup_client::BackupClient;
 use woodstock::server::grpc_client::BackupGrpcClient;
@@ -37,9 +38,9 @@ async fn main() -> Result<()> {
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&context);
+    let hosts = Hosts::new(&GlobalConfiguration);
     let host_configuration = hosts.get_host(&args.hostname).await?;
-    let backups = Backups::new(&context);
+    let backups = Backups::new(&GlobalConfiguration);
 
     let backup_number = match args.backup_number {
         Some(backup_number) => backup_number,
@@ -56,9 +57,15 @@ async fn main() -> Result<()> {
         &args.hostname, host_configuration.addresses,
     ))?;
 
-    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &context).await?;
+    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &GlobalConfiguration).await?;
 
-    let mut client = BackupClient::new(grpc_client, &args.hostname, backup_number, &context);
+    let mut client = BackupClient::new(
+        grpc_client,
+        &args.hostname,
+        backup_number,
+        &context,
+        &GlobalConfiguration,
+    );
 
     term.write_line(&format!("[1/9] {}Authenticating", Emoji("🔐 ", "")))?;
 

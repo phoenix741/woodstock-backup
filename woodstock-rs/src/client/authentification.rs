@@ -184,6 +184,7 @@ impl Service {
         Ok(token_data.claims.session_id)
     }
 
+    #[must_use]
     pub fn is_restauration_disabled(&self) -> bool {
         self.disable_restauration
     }

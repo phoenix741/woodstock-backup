@@ -1,6 +1,8 @@
 use eyre::Result;
 use std::fmt::{self};
 
+/* PoolChunkInformation */
+
 #[serde_with::serde_as]
 #[derive(Clone, PartialEq, ::prost::Message, serde::Serialize)]
 pub struct PoolChunkInformation {
@@ -34,4 +36,15 @@ impl fmt::Display for PoolChunkInformation {
         // Écrivez le chemin formaté dans le Formatter
         write!(f, "{yaml}")
     }
+}
+
+/* ConvertHashLink */
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ConvertHashLink {
+    #[prost(bytes = "vec", tag = "1")]
+    pub old_hash: Vec<u8>,
+
+    #[prost(bytes = "vec", tag = "2")]
+    pub new_hash: Vec<u8>,
 }

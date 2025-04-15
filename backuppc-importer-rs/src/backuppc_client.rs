@@ -9,7 +9,6 @@ use backuppc_pool_reader::{
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::{debug, error};
-use sha3::{Digest, Sha3_256};
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use woodstock::{
@@ -18,11 +17,15 @@ use woodstock::{
     manifest::IndexManifest,
     refresh_cache_request,
     server::client::Client,
-    utils::path::{osstr_to_vec, path_to_vec, str_to_vec, vec_to_path},
-    AuthenticateReply, ChunkHashReply, ChunkHashRequest, ChunkInformation, EntryState, EntryType,
-    ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile, FileChunkFooter,
-    FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat, FileManifestType,
-    FileManifestXAttr, RefreshCacheRequest, RestoreFileReply, RestoreFileRequest, Share,
+    utils::{
+        chunk_hasher::create_chunk_hasher,
+        path::{osstr_to_vec, path_to_vec, str_to_vec, vec_to_path},
+    },
+    AuthenticateReply, ChunkAlgorithm, ChunkHashReply, ChunkHashRequest, ChunkInformation,
+    EntryState, EntryType, ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile,
+    FileChunkFooter, FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat,
+    FileManifestType, FileManifestXAttr, RefreshCacheRequest, RestoreFileReply, RestoreFileRequest,
+    Share,
 };
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
@@ -32,6 +35,7 @@ pub struct BackupPCClient {
     hostname: String,
     number: usize,
     view: Arc<Mutex<BackupPC>>,
+    chunk_algorithm: ChunkAlgorithm,
 }
 
 fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManifest {
@@ -88,11 +92,17 @@ fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManif
 }
 
 impl BackupPCClient {
-    pub fn new(view: BackupPC, hostname: &str, number: usize) -> Self {
+    pub fn new(
+        view: BackupPC,
+        hostname: &str,
+        number: usize,
+        chunk_algorithm: &ChunkAlgorithm,
+    ) -> Self {
         Self {
             hostname: hostname.to_string(),
             number,
             view: Arc::new(Mutex::new(view)),
+            chunk_algorithm: *chunk_algorithm,
         }
     }
 
@@ -245,6 +255,11 @@ impl BackupPCClient {
 
                         state: EntryState::Metadata as i32,
                         state_messages: Vec::new(),
+
+                        xfer_start: 0,
+                        xfer_calculation: 0,
+                        xfer_duration: 0,
+                        xfer_check: 0,
                     });
                 }
 
@@ -254,6 +269,11 @@ impl BackupPCClient {
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
+
+                    xfer_start: 0,
+                    xfer_calculation: 0,
+                    xfer_duration: 0,
+                    xfer_check: 0,
                 })
             }
         });
@@ -280,6 +300,11 @@ impl BackupPCClient {
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
+
+                    xfer_start: 0,
+                    xfer_calculation: 0,
+                    xfer_duration: 0,
+                    xfer_check: 0,
                 };
             }
         });
@@ -354,8 +379,8 @@ impl Client for BackupPCClient {
             .read_file(&path)
             .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
 
-        let mut file_hasher = Sha3_256::new();
-        let mut chunk_hasher = Sha3_256::new();
+        let mut file_hasher = create_chunk_hasher(&request.algorithm());
+        let mut chunk_hasher = create_chunk_hasher(&request.algorithm());
         let mut chunks = Vec::<Vec<u8>>::new();
 
         let mut buf = vec![0; CHUNK_SIZE];
@@ -370,11 +395,11 @@ impl Client for BackupPCClient {
             file_hasher.update(&buf[..read]);
 
             let chunk_hash = chunk_hasher.finalize();
-            chunks.push(chunk_hash.to_vec());
-            chunk_hasher = Sha3_256::new();
+            chunks.push(chunk_hash);
+            chunk_hasher = create_chunk_hasher(&request.algorithm());
         }
 
-        let hash = file_hasher.finalize().to_vec();
+        let hash = file_hasher.finalize();
 
         Ok(ChunkHashReply { chunks, hash })
     }
@@ -384,6 +409,7 @@ impl Client for BackupPCClient {
         let hostname = self.hostname.as_bytes();
         let view = self.view.clone();
         let chunks = request.chunks_id.clone();
+        let algorithm = self.chunk_algorithm;
 
         try_stream!({
             let backup_number = &number.to_string().into_bytes();
@@ -412,8 +438,8 @@ impl Client for BackupPCClient {
             let mut position: u64 = 0;
             let mut send_chunk = false;
 
-            let mut file_hasher = Sha3_256::new();
-            let mut chunk_hasher = Sha3_256::new();
+            let mut file_hasher = create_chunk_hasher(&algorithm);
+            let mut chunk_hasher = create_chunk_hasher(&algorithm);
 
             loop {
                 let current_chunk = position / CHUNK_SIZE_U64;
@@ -422,11 +448,11 @@ impl Client for BackupPCClient {
                     debug!("Chunk change from {chunk_id} to {current_chunk}");
                     if send_chunk {
                         debug!("Send footer for chunk {path:?}:{chunk_id}");
-                        let chunk_hash = chunk_hasher.finalize().to_vec();
+                        let chunk_hash = chunk_hasher.finalize().clone();
                         yield FileChunk {
                             field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
                         };
-                        chunk_hasher = Sha3_256::new();
+                        chunk_hasher = create_chunk_hasher(&algorithm);
                     }
 
                     chunk_id = current_chunk;
@@ -464,13 +490,13 @@ impl Client for BackupPCClient {
 
             if (chunks.is_empty() || chunks.contains(&chunk_id)) && chunk_id != u64::MAX {
                 debug!("Send footer for chunk {path:?}:{chunk_id} last");
-                let chunk_hash = chunk_hasher.finalize().to_vec();
+                let chunk_hash = chunk_hasher.finalize();
                 yield FileChunk {
                     field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
                 };
             }
 
-            let hash = file_hasher.finalize().to_vec();
+            let hash = file_hasher.finalize();
 
             debug!("Send EOF for {path:?}");
             if chunks.is_empty() || usize::try_from(chunk_id).unwrap_or_default() == chunks.len() {

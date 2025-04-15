@@ -1,7 +1,10 @@
 use napi::{Error, Result};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use woodstock::{config::Context, server::backup_remove::BackupRemove};
+use woodstock::{
+  config::{Context, GlobalConfiguration},
+  server::backup_remove::BackupRemove,
+};
 
 use crate::{
   config::context::JsBackupContext,
@@ -29,7 +32,7 @@ impl WoodstockBackupRemove {
     let backup_number = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
 
-    let client = BackupRemove::new(&hostname, backup_number, &context);
+    let client = BackupRemove::new(&hostname, backup_number, &context, &GlobalConfiguration);
 
     Ok(Self {
       client: Arc::new(Mutex::new(client)),

@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufRead, AsyncReadExt};
 use tokio::sync::Mutex;
 use twox_hash::XxHash64;
-use woodstock::config::Context;
+use woodstock::config::Configuration;
 use woodstock::manifest::PathManifest;
 use woodstock::utils::path::{osstr_to_vec, path_to_vec, vec_to_osstr};
 use woodstock::view::WoodstockView;
@@ -149,10 +149,10 @@ struct WoodstockFileSystemInner {
 }
 
 impl WoodstockFileSystemInner {
-    pub fn new(ctxt: &Context, prefix_path: &Path) -> Self {
+    pub fn new(config: &Configuration, prefix_path: &Path) -> Self {
         WoodstockFileSystemInner {
             inodes: HashMap::new(),
-            view: WoodstockView::new(ctxt),
+            view: WoodstockView::new(config),
             cache: LruCache::new(NonZeroUsize::new(CACHE_SIZE).unwrap()),
             opened: HashMap::new(),
             prefix_path: prefix_path.to_path_buf(),
@@ -232,7 +232,7 @@ impl WoodstockFileSystemInner {
         match self.list_files(ino, &path).await {
             Ok(files) => Ok(files),
             Err(err) => {
-                eprintln!("Error listing files of {:?}: {}", path, err);
+                eprintln!("Error listing files of {path:?}: {err}");
                 Err(err)
             }
         }
@@ -370,7 +370,7 @@ impl WoodstockFileSystemInner {
         match self.view.read_file(&path).await {
             Ok(reader) => Ok(reader),
             Err(err) => {
-                eprintln!("Can't open the file {:?}: {}", path, err);
+                eprintln!("Can't open the file {path:?}: {err}");
                 Err(err)
             }
         }
@@ -391,7 +391,7 @@ impl WoodstockFileSystemInner {
         match self.view.get_attribute(&self.prefix_path.join(path)).await {
             Ok(manifest) => Ok(manifest.symlink.clone()),
             Err(err) => {
-                eprintln!("Can't read the link {:?}: {}", path, err);
+                eprintln!("Can't read the link {path:?}: {err}");
                 Err(err)
             }
         }
@@ -469,9 +469,12 @@ pub struct WoodstockFileSystem {
 }
 
 impl WoodstockFileSystem {
-    pub fn new(ctxt: &Context, prefix_path: &Path) -> Self {
+    pub fn new(config: &Configuration, prefix_path: &Path) -> Self {
         WoodstockFileSystem {
-            inner: Arc::new(Mutex::new(WoodstockFileSystemInner::new(ctxt, prefix_path))),
+            inner: Arc::new(Mutex::new(WoodstockFileSystemInner::new(
+                config,
+                prefix_path,
+            ))),
         }
     }
 }

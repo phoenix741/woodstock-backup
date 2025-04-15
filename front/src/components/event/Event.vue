@@ -48,6 +48,10 @@
             v-else-if="event.information?.__typename === 'EventPoolCleanedInformation'"
             :information="event.information"
           ></EventPoolCleanedInformationComponent>
+          <EventHashConversionComponent
+            v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
+            :information="event.information"
+          ></EventHashConversionComponent>
         </div>
 
         <template v-if="event.errorMessages?.length">
@@ -68,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { toDateTime } from '@/components/hosts/hosts.utils';
+import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import { useFragment } from '@/generated';
 import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
@@ -79,11 +83,13 @@ import EventBackupInformationComponent from './EventBackupInformationComponent.v
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
 import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
 import EventRefCountInformationComponent from './EventRefCountInformationComponent.vue';
+import EventHashConversionComponent from './EventHashConversionComponent.vue';
 import {
   EventBackupInformationFragment,
   EventPoolCleanedInformationFragment,
   EventPoolInformationFragment,
   EventRefCountInformationFragment,
+  EventHashConversionInformationFragment,
 } from './events.fragment';
 import { MergedApplicationEvent } from './events.model';
 
@@ -194,6 +200,11 @@ const title = computed(() => {
         return `Reference count completed`;
       }
       return `Reference count initiated`;
+    case EventType.HashConversion:
+      if (props.event.endDate) {
+        return `Hash conversion completed`;
+      }
+      return `Hash conversion initiated`;
     default:
       return `Event of type ${props.event.type}`;
   }
@@ -226,6 +237,10 @@ const subtitle = computed(() => {
         return 'No errors found';
       }
       return `${refCountInformation.error} errors ${refcountFix ? 'fixed' : 'found'}`;
+    }
+    case 'EventHashConversionInformation': {
+      const hashConversionInformation = useFragment(EventHashConversionInformationFragment, props.event.information);
+      return `${toNumber(hashConversionInformation?.count)} hashes converted`;
     }
     default:
       return '';

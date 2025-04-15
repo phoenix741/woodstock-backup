@@ -3,7 +3,6 @@ mod backuppc_manifest;
 
 use std::ffi::OsString;
 use std::path::Path;
-use std::path::PathBuf;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -25,7 +24,8 @@ use log::debug;
 use log::error;
 use log::info;
 use woodstock::client::config::ClientConfig;
-use woodstock::config::RedisConfiguration;
+use woodstock::config::Configuration;
+use woodstock::config::GlobalConfiguration;
 use woodstock::config::{Backups, Context, Hosts};
 use woodstock::pool::remove_refcnt_to_pool;
 use woodstock::pool::Refcnt;
@@ -45,11 +45,14 @@ struct BackupDefinition {
     pub size: u64,
 }
 
-async fn list_woodstock_backups(ctxt: &Context, excludes: &[&str]) -> Vec<BackupDefinition> {
+async fn list_woodstock_backups(
+    config: &Configuration,
+    excludes: &[&str],
+) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
-    let hosts_config = Hosts::new(ctxt);
-    let backups_config = Backups::new(ctxt);
+    let hosts_config = Hosts::new(config);
+    let backups_config = Backups::new(config);
 
     let hosts = hosts_config.list_hosts().await.unwrap_or_default();
     for host in hosts {
@@ -98,7 +101,7 @@ fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefini
 }
 
 pub async fn add_refcnt_to_pool(
-    ctxt: &Context,
+    config: &Configuration,
     from_directory: &Path,
     date: &SystemTime,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -108,11 +111,11 @@ pub async fn add_refcnt_to_pool(
 
     info!("Apply refcnt to pool");
     Refcnt::apply_all_from(
-        &ctxt.config.path.pool_path,
+        &config.path.pool_path,
         &backup_refcnt,
         &RefcntApplySens::Increase,
         date,
-        ctxt,
+        config,
     )
     .await?;
 
@@ -127,7 +130,7 @@ async fn launch_backup(
     backup: &BackupDefinition,
     backup_bar: &mut ProgressBar,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let backups_configuration = Backups::new(context);
+    let backups_configuration = Backups::new(&GlobalConfiguration);
     let backuppc_configuration = BackupPCHosts::new(backuppc_pool);
     let search = Search::new(backuppc_pool);
     let mut view = BackupPC::new(
@@ -139,7 +142,12 @@ async fn launch_backup(
     let hostname = osstr_to_vec(&OsString::from(&backup.hostname));
     let backuppc_shares = view.list_shares(&hostname, u32::try_from(backup.backup_number)?)?;
 
-    let backuppc_client = BackupPCClient::new(view, &backup.hostname, backup.backup_number);
+    let backuppc_client = BackupPCClient::new(
+        view,
+        &backup.hostname,
+        backup.backup_number,
+        &GlobalConfiguration.chunk_algorithm,
+    );
 
     let backup_number = match backups_configuration
         .get_last_backup(&backup.hostname)
@@ -158,7 +166,13 @@ async fn launch_backup(
     backup_bar.set_message(message);
     backup_bar.tick();
 
-    let mut client = BackupClient::new(backuppc_client, &backup.hostname, backup_number, context);
+    let mut client = BackupClient::new(
+        backuppc_client,
+        &backup.hostname,
+        backup_number,
+        context,
+        &GlobalConfiguration,
+    );
     client.set_fake_date(UNIX_EPOCH.checked_add(Duration::from_secs(backup.start_time)));
     client.set_agent_version(ClientConfig::version());
 
@@ -235,7 +249,12 @@ async fn launch_backup(
 
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();
-    add_refcnt_to_pool(context, &destination_directory, &client.get_fake_date()).await?;
+    add_refcnt_to_pool(
+        &GlobalConfiguration,
+        &destination_directory,
+        &client.get_fake_date(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -268,14 +287,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
     let term = Term::stdout();
 
-    let context = Context::new(
-        PathBuf::from(args.woodstock_pool.clone()),
-        RedisConfiguration::default(),
-        log::Level::Info,
-        woodstock::EventSource::Import,
-        None,
-        1,
-    );
+    let context = Context {
+        source: woodstock::EventSource::Import,
+        username: None,
+    };
+    GlobalConfiguration.fix_algorithm()?;
 
     // Write version
     term.write_line(&format!(
@@ -287,35 +303,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     term.write_line("Woodstock path:")?;
     term.write_line(&format!(
         "  - Backup:      {:?}",
-        context.config.path.backup_path
+        GlobalConfiguration.path.backup_path
     ))?;
     term.write_line(&format!(
         "  - Certificate: {:?}",
-        context.config.path.certificates_path
+        GlobalConfiguration.path.certificates_path
     ))?;
     term.write_line(&format!(
         "  - Config:      {:?}",
-        context.config.path.config_path
+        GlobalConfiguration.path.config_path
     ))?;
     term.write_line(&format!(
         "  - Hosts:       {:?}",
-        context.config.path.hosts_path
+        GlobalConfiguration.path.hosts_path
     ))?;
     term.write_line(&format!(
         "  - Logs:        {:?}",
-        context.config.path.logs_path
+        GlobalConfiguration.path.logs_path
     ))?;
     term.write_line(&format!(
         "  - Events:      {:?}",
-        context.config.path.events_path
+        GlobalConfiguration.path.events_path
     ))?;
     term.write_line(&format!(
         "  - Pool:        {:?}",
-        context.config.path.pool_path
+        GlobalConfiguration.path.pool_path
     ))?;
     term.write_line(&format!(
         "  - Jobs:        {:?}",
-        context.config.path.jobs_path
+        GlobalConfiguration.path.jobs_path
     ))?;
 
     term.write_line(&format!(
@@ -333,7 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(AsRef::as_ref)
         .collect();
 
-    let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
+    let mut woodstock_backups = list_woodstock_backups(&GlobalConfiguration, &excludes).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
 
     for woodstock in &woodstock_backups {
@@ -434,7 +450,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if !args.only_one {
         // List backups in woodstock that is not in backuppc
-        let mut woodstock_backups = list_woodstock_backups(&context, &excludes).await;
+        let mut woodstock_backups = list_woodstock_backups(&GlobalConfiguration, &excludes).await;
         woodstock_backups.sort_by_key(|backup| backup.start_time);
 
         let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool, &excludes);
@@ -476,9 +492,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for (count, backup) in woodstock_backups_to_remove.into_iter().enumerate() {
             if !args.dry_run {
-                let remover = BackupRemove::new(&backup.hostname, backup.backup_number, &context);
+                let remover = BackupRemove::new(
+                    &backup.hostname,
+                    backup.backup_number,
+                    &context,
+                    &GlobalConfiguration,
+                );
 
-                remove_refcnt_to_pool(&context, &backup.hostname, backup.backup_number).await?;
+                remove_refcnt_to_pool(&GlobalConfiguration, &backup.hostname, backup.backup_number)
+                    .await?;
 
                 remover.remove_refcnt_of_host().await?;
 

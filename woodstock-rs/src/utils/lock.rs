@@ -158,9 +158,8 @@ async fn create_lock_file(lock_file: &Path, name: &str) -> Result<bool> {
             warn!("Can't create lock file: {e} for {name}");
             if e.kind() == std::io::ErrorKind::AlreadyExists {
                 return Ok(false);
-            } else {
-                return Err(e.into());
             }
+            return Err(e.into());
         }
     };
 

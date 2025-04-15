@@ -1,10 +1,9 @@
+use log::info;
 use napi::{Error, Result};
 use woodstock::{
-  config::{Context, DEFAULT_PORT},
+  config::{GlobalConfiguration, DEFAULT_PORT},
   server::resolve::SocketAddrResolver,
 };
-
-use crate::config::context::JsBackupContext;
 
 use super::AbortHandle;
 
@@ -45,10 +44,8 @@ pub struct CoreClientResolver {
 #[napi]
 impl CoreClientResolver {
   #[napi(constructor)]
-  pub fn new(ctxt: &JsBackupContext) -> Result<Self> {
-    let context: Context = ctxt.into();
-
-    let resolver = SocketAddrResolver::new(&context)
+  pub fn new() -> Result<Self> {
+    let resolver = SocketAddrResolver::new(&GlobalConfiguration)
       .map_err(|_| Error::from_reason("Can't create socket address resolver".to_string()))?;
 
     Ok(Self { resolver })
@@ -70,16 +67,19 @@ impl CoreClientResolver {
     let default_port = default_port.unwrap_or(DEFAULT_PORT);
     let resolver = self.resolver.clone();
 
+    info!("Try resolving {hostname} with default port {default_port}");
+
     let addresses = resolver
       .resolve(&hostname, default_port)
       .await
       .map(|addresses| {
+        info!("Resolved {hostname} to {addresses:?}");
         addresses
           .iter()
           .map(|addr| addr.to_string())
           .collect::<Vec<_>>()
       })
-      .map_err(|_| Error::from_reason(format!("Can't resolve {hostname}").to_string()))?;
+      .map_err(|e| Error::from_reason(format!("Can't resolve {hostname}: {e}").to_string()))?;
 
     Ok(addresses)
   }

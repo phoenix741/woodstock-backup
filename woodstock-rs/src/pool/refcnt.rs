@@ -12,7 +12,7 @@ use futures::pin_mut;
 use futures::StreamExt;
 
 use crate::config::Backups;
-use crate::config::Context;
+use crate::config::Configuration;
 use crate::config::Hosts;
 use crate::proto::save_file;
 use crate::statistics::write_statistics;
@@ -40,11 +40,11 @@ pub struct Refcnt {
 // FIXME: Add lock (or add it on nodejs part ?)
 impl Refcnt {
     #[must_use]
-    pub fn new(path: &Path) -> Self {
+    pub fn new<P: AsRef<Path>>(path: P) -> Self {
         Self {
-            path: path.to_path_buf(),
-            refcnt_path: path.join("REFCNT"),
-            unused_path: path.join("unused"),
+            path: path.as_ref().to_path_buf(),
+            refcnt_path: path.as_ref().join("REFCNT"),
+            unused_path: path.as_ref().join("unused"),
             index: HashMap::new(),
             unused: HashMap::new(),
             statistics: PoolStatistics::default(),
@@ -61,7 +61,7 @@ impl Refcnt {
 
     #[must_use]
     pub fn size(&self) -> usize {
-        self.index.len()
+        self.index.len() + self.unused.len()
     }
 
     #[must_use]
@@ -98,9 +98,9 @@ impl Refcnt {
     pub async fn new_backup_refcnt_from_manifest(
         hostname: &str,
         backup_number: usize,
-        ctxt: &Context,
+        config: &Configuration,
     ) -> Result<Self> {
-        let backups = Backups::new(ctxt);
+        let backups = Backups::new(config);
         let refcnt_file = backups.get_backup_destination_directory(hostname, backup_number);
 
         let manifests = backups.get_manifests(hostname, backup_number).await;
@@ -119,8 +119,11 @@ impl Refcnt {
         Ok(refcnt)
     }
 
-    pub async fn new_host_refcnt_from_backups(hostname: &str, ctxt: &Context) -> Result<Self> {
-        let backups_config = Backups::new(ctxt);
+    pub async fn new_host_refcnt_from_backups(
+        hostname: &str,
+        config: &Configuration,
+    ) -> Result<Self> {
+        let backups_config = Backups::new(config);
         let refcnt_file = backups_config.get_host_path(hostname);
 
         let backups = backups_config.get_backups(hostname).await;
@@ -142,11 +145,11 @@ impl Refcnt {
         Ok(new_refcnt)
     }
 
-    pub async fn new_pool_refcnt_from_host(ctxt: &Context) -> Result<Self> {
-        let hosts_config = Hosts::new(ctxt);
-        let backups_config = Backups::new(ctxt);
+    pub async fn new_pool_refcnt_from_host(config: &Configuration) -> Result<Self> {
+        let hosts_config = Hosts::new(config);
+        let backups_config = Backups::new(config);
 
-        let refcnt_file = ctxt.config.path.pool_path.clone();
+        let refcnt_file = config.path.pool_path.clone();
 
         let hosts = hosts_config.list_hosts().await?;
 
@@ -171,7 +174,7 @@ impl Refcnt {
         refcnt: &Refcnt,
         sens: &RefcntApplySens,
         date: &SystemTime,
-        ctxt: &Context,
+        config: &Configuration,
     ) -> Result<Self> {
         let mut new_refcnt = Refcnt::new(path);
         new_refcnt.load_refcnt(false).await;
@@ -182,7 +185,7 @@ impl Refcnt {
             new_refcnt.apply(pool_refcnt, sens);
         }
 
-        new_refcnt.finish(&ctxt.config.path.pool_path).await?;
+        new_refcnt.finish(&config.path.pool_path).await?;
 
         new_refcnt.save_refcnt(date).await?;
         new_refcnt.save_unused().await?;
@@ -403,10 +406,6 @@ impl Refcnt {
 mod tests {
     use std::{collections::BTreeSet, fs::remove_dir_all};
 
-    use log::Level;
-
-    use crate::config::RedisConfiguration;
-
     use super::*;
 
     const SHA3_256_1: [u8; 1] = [0x1];
@@ -509,14 +508,7 @@ mod tests {
         let _clean_up = CleanUp;
 
         let path = PathBuf::from("./data");
-        let context = crate::config::Context::new(
-            path,
-            RedisConfiguration::default(),
-            Level::Debug,
-            crate::EventSource::Cli,
-            None,
-            1,
-        );
+        let config = Configuration::from_backup_path(path);
         let refcnt1 = create_refcnt(vec![&SHA3_256_1, &SHA3_256_2, &SHA3_256_3]);
         let refcnt2 = create_refcnt(vec![
             &SHA3_256_1,
@@ -536,7 +528,7 @@ mod tests {
             &refcnt1,
             &RefcntApplySens::Increase,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();
@@ -545,7 +537,7 @@ mod tests {
             &refcnt2,
             &RefcntApplySens::Increase,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();
@@ -554,7 +546,7 @@ mod tests {
             &refcnt3,
             &RefcntApplySens::Increase,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();
@@ -563,7 +555,7 @@ mod tests {
             &refcnt4,
             &RefcntApplySens::Increase,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();
@@ -623,7 +615,7 @@ mod tests {
             &refcnt2,
             &RefcntApplySens::Decrease,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();
@@ -677,7 +669,7 @@ mod tests {
             &refcnt3,
             &RefcntApplySens::Decrease,
             &now,
-            &context,
+            &config,
         )
         .await
         .unwrap();

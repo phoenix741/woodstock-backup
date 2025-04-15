@@ -1,14 +1,13 @@
 use async_compression::tokio::write::ZlibEncoder;
 use log::{debug, error, warn};
-use sha2::digest::core_api::CoreWrapper;
-use sha3::Digest;
-use sha3::{Sha3_256, Sha3_256Core};
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, metadata, rename, File};
 use tokio::io::AsyncWriteExt;
 
 use crate::config::CHUNK_SIZE;
+use crate::utils::chunk_hasher::{create_chunk_hasher, ChunkHasher};
 use crate::utils::path::vec_to_path;
+use crate::ChunkAlgorithm;
 use eyre::Result;
 
 use super::{get_temp_chunk_path, PoolChunkInformation, PoolChunkWrapper};
@@ -18,13 +17,13 @@ pub struct PoolChunkWriter {
     file: ZlibEncoder<tokio::io::BufWriter<File>>,
 
     uncompressed_size: usize,
-    file_hasher: Option<CoreWrapper<Sha3_256Core>>,
+    file_hasher: Option<Box<dyn ChunkHasher + Send + Sync>>, // Updated to use Box<dyn ChunkHasher>
 
     tempfilename: PathBuf,
 }
 
 impl PoolChunkWriter {
-    pub async fn new(pool_path: &Path) -> Result<PoolChunkWriter> {
+    pub async fn new(pool_path: &Path, algorithm: &ChunkAlgorithm) -> Result<PoolChunkWriter> {
         let tempfilename = get_temp_chunk_path(pool_path);
         if let Some(path) = tempfilename.parent() {
             create_dir_all(path).await?;
@@ -37,7 +36,7 @@ impl PoolChunkWriter {
         Ok(PoolChunkWriter {
             file,
             uncompressed_size: 0,
-            file_hasher: Some(Sha3_256::new()),
+            file_hasher: Some(create_chunk_hasher(algorithm)),
 
             tempfilename,
         })
@@ -61,8 +60,8 @@ impl PoolChunkWriter {
     ) -> Result<PoolChunkInformation> {
         self.file.shutdown().await?;
 
-        let file_hasher = self.file_hasher.take().unwrap();
-        let file_hash: Vec<u8> = file_hasher.finalize().to_vec();
+        let mut file_hasher = self.file_hasher.take().unwrap();
+        let file_hash: Vec<u8> = file_hasher.finalize();
 
         // Add a control
         if self.uncompressed_size > CHUNK_SIZE {

@@ -4,14 +4,19 @@ use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    config::{Context, Hosts},
-    scanner::{get_files, CreateManifestOptions},
+    config::{Configuration, Hosts},
+    scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
+    ChunkAlgorithm, ChunkHashRequest,
 };
 
-pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Context) -> Result<()> {
+pub async fn list_client_files(
+    share_path: &str,
+    config_path: &str,
+    config: &Configuration,
+) -> Result<()> {
     // Start by reading the configuration file
-    let hosts = Hosts::new(ctxt);
+    let hosts = Hosts::new(config);
     let host = hosts.read_host_file(config_path).await?;
 
     if let Some(operation) = host.operations.operation {
@@ -60,5 +65,18 @@ pub async fn list_client_files(share_path: &str, config_path: &str, ctxt: &Conte
         }
     }
 
+    Ok(())
+}
+
+pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P, algorithm: &str) -> Result<()> {
+    let information = ChunkHashRequest {
+        share_path: String::new(),
+        filename: filename.as_ref().as_bytes().to_vec(),
+        algorithm: ChunkAlgorithm::from_str_name(algorithm)
+            .ok_or_else(|| eyre::eyre!("Invalid algorithm name"))? as i32,
+    };
+    let result = calculate_chunk_hash_future(&information).await;
+    println!("Number of chunks: {}", result.chunks.len());
+    println!("File hash: {:?}", hex::encode(result.hash));
     Ok(())
 }

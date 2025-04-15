@@ -179,7 +179,6 @@ where
 ///
 /// * `path` - The path to the file to load.
 /// * `source` - An iterator over the messages to write.
-/// * `compress` - Whether the file is compressed with zlib.
 /// * `is_atomic` - Whether the file is written atomically.
 ///
 /// # Generics

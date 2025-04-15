@@ -114,7 +114,7 @@ fn create_manifest_from_file(
         }
         Err(e) => {
             state = EntryState::Error;
-            state_messages.push(format!("{:#}", e));
+            state_messages.push(format!("{e:#}"));
             (Vec::new(), None)
         }
     };
@@ -124,7 +124,7 @@ fn create_manifest_from_file(
             Ok(xattr) => xattr,
             Err(e) => {
                 state = EntryState::PartialMetadata;
-                state_messages.push(format!("{:#}", e));
+                state_messages.push(format!("{e:#}"));
                 Vec::new()
             }
         }
@@ -137,7 +137,7 @@ fn create_manifest_from_file(
             Ok(acl) => acl,
             Err(e) => {
                 state = EntryState::PartialMetadata;
-                state_messages.push(format!("{:#}", e));
+                state_messages.push(format!("{e:#}"));
                 Vec::new()
             }
         }
@@ -162,6 +162,11 @@ fn create_manifest_from_file(
 
         state: state as i32,
         state_messages,
+
+        xfer_start: 0,
+        xfer_calculation: 0,
+        xfer_duration: 0,
+        xfer_check: 0,
     }
 }
 
@@ -182,7 +187,7 @@ async fn one_level(
         Ok(dir) => dir,
         Err(e) => {
             entry.state = EntryState::Error;
-            entry.state_messages.push(format!("{:#}", e));
+            entry.state_messages.push(format!("{e:#}"));
             return vec![entry];
         }
     };
@@ -197,7 +202,7 @@ async fn one_level(
             Ok(child) => child,
             Err(e) => {
                 entry.state = EntryState::Error;
-                entry.state_messages.push(format!("{:#}", e));
+                entry.state_messages.push(format!("{e:#}"));
                 break;
             }
         };
@@ -213,7 +218,7 @@ async fn one_level(
             Ok(metadata) => metadata,
             Err(e) => {
                 child_entry.state = EntryState::Error;
-                child_entry.state_messages.push(format!("{:#}", e));
+                child_entry.state_messages.push(format!("{e:#}"));
                 files.push(child_entry);
                 continue;
             }
@@ -342,7 +347,7 @@ mod tests {
         ];
 
         for file in &ok_files {
-            println!("Testing ok {}", file);
+            println!("Testing ok {file}");
             assert!(is_file_authorized(
                 &PathBuf::from(file),
                 &includes,
@@ -350,7 +355,7 @@ mod tests {
             ));
         }
         for file in &ko_files {
-            println!("Testing ko {}", file);
+            println!("Testing ko {file}");
             assert!(!is_file_authorized(
                 &PathBuf::from(file),
                 &includes,

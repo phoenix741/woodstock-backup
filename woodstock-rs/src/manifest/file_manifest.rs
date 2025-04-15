@@ -145,6 +145,7 @@ impl FileManifest {
         }
     }
 
+    #[must_use]
     pub fn permissions_string(&self) -> String {
         let mode = self.mode();
         let mode = mode & 0o777;
@@ -217,14 +218,14 @@ impl FileManifest {
         };
 
         let str = format!(
-            "{}{} {:>8} {:>8} {:>10} {}{}",
+            "{}{} {:>8} {:>8} {:>12} {}{}",
             file_mode,
             mode,
             owner,
             group,
             size,
             path.display(),
-            symlink
+            symlink,
         );
 
         str
@@ -286,8 +287,21 @@ impl FileManifestJournalEntry {
         let manifest_str = self
             .manifest
             .as_ref()
-            .map(|f| f.to_log())
+            .map(super::super::woodstock::FileManifest::to_log)
             .unwrap_or_default();
+
+        let timestamp = if self.xfer_start > 0 {
+            chrono::DateTime::<chrono::Utc>::from_timestamp(
+                i64::try_from(self.xfer_start).unwrap_or_default(),
+                0,
+            )
+            .map_or_else(
+                || "invalid timestamp".to_string(),
+                |dt| dt.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            )
+        } else {
+            String::new()
+        };
 
         let type_str = match self.r#type() {
             EntryType::Add => "create",
@@ -303,13 +317,37 @@ impl FileManifestJournalEntry {
             EntryState::Error => "error",
         };
 
-        let state_messages = if !self.state_messages.is_empty() {
+        let state_messages = if self.state_messages.is_empty() {
+            String::new()
+        } else {
             "\n".to_string() + &self.state_messages.join("\n")
+        };
+
+        let xfer_calculation = if self.xfer_calculation > 0 {
+            format!("calc {}s", self.xfer_calculation)
+        } else {
+            String::new()
+        };
+        let xfer_duration = if self.xfer_duration > 0 {
+            format!("xfer {}s", self.xfer_duration)
+        } else {
+            String::new()
+        };
+        let xfer_check = if self.xfer_check > 0 {
+            format!("chk {}s", self.xfer_check)
+        } else {
+            String::new()
+        };
+        let timings = if !xfer_calculation.is_empty()
+            || !xfer_duration.is_empty()
+            || !xfer_check.is_empty()
+        {
+            format!("(timings: {xfer_calculation} {xfer_duration} {xfer_check})")
         } else {
             String::new()
         };
 
-        format!("{type_str} {state:>22} {manifest_str} {state_messages}")
+        format!("{timestamp} {type_str} {state:>22} {manifest_str} {state_messages} {timings}")
     }
 }
 

@@ -16,7 +16,7 @@ use std::{
 };
 use tokio::{net::TcpStream, time::timeout};
 
-use crate::config::{Context, REDIS_WOODSTOCK_KEY_DNS};
+use crate::config::{Configuration, REDIS_WOODSTOCK_KEY_DNS};
 
 const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
 
@@ -59,6 +59,7 @@ async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
     reachable_ips
 }
 
+#[must_use]
 pub fn resolve_dns(hostname: &str) -> Vec<IpAddr> {
     lookup_host(hostname).ok().unwrap_or_default()
 }
@@ -121,10 +122,10 @@ impl ToRedisArgs for SocketAddrInformation {
 /// - mDNS (multicast DNS) to resolve the hostname to a `SocketAddr`.
 /// - DNS (Domain Name System) to resolve the hostname to a `SocketAddr`.
 ///
-/// The resolver will use the mdns_sd to listen for mDNS responses in continue, and will provide
+/// The resolver will use the `mdns_sd` to listen for mDNS responses in continue, and will provide
 /// a method to get the resolved `SocketAddr` if available.
 ///
-/// If not available, the resolver will use the tokio::net::lookup_host to resolve the hostname
+/// If not available, the resolver will use the `tokio::net::lookup_host` to resolve the hostname
 #[derive(Clone)]
 pub struct SocketAddrResolver {
     #[cfg(feature = "mdns")]
@@ -134,11 +135,8 @@ pub struct SocketAddrResolver {
 
 impl SocketAddrResolver {
     /// Create a new `SocketAddrResolver` instance.
-    pub fn new(context: &Context) -> Result<Self> {
-        let redis_url = format!(
-            "redis://{}:{}",
-            context.config.redis.host, context.config.redis.port
-        );
+    pub fn new(config: &Configuration) -> Result<Self> {
+        let redis_url = format!("redis://{}:{}", config.redis.host, config.redis.port);
         info!("Connect to Redis URL for DNS resolution: {}", redis_url);
 
         let client = redis::Client::open(redis_url).unwrap();
@@ -194,7 +192,7 @@ impl SocketAddrResolver {
     pub async fn resolve(&self, hostname: &str, default_port: u16) -> Result<Vec<SocketAddr>> {
         debug!("Resolve hostname: {}", hostname);
         let addresses = if let Some(socket_addr_info) = self.get_informations(hostname).await? {
-            debug!("Found hostname in cache: {}", hostname);
+            info!("Found hostname in cache: {}", hostname);
             let addresses =
                 is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
 
@@ -205,16 +203,16 @@ impl SocketAddrResolver {
         } else {
             #[cfg(feature = "mdns")]
             {
-                debug!("Resolve hostname with mdns: {}", hostname);
+                info!("Resolve hostname with mdns: {}", hostname);
                 let addresses = self.resolve_mdns(hostname, default_port).await;
 
                 if let Some(addresses) = addresses {
-                    debug!("Found hostname with mdns: {}", hostname);
+                    info!("Found hostname with mdns: {}", hostname);
                     return Ok(addresses);
                 }
             }
 
-            debug!("Resolve hostname with dns: {}", hostname);
+            info!("Resolve hostname with dns: {}", hostname);
             resolve_dns(hostname)
                 .iter()
                 .map(|ip| SocketAddr::new(*ip, default_port))
@@ -277,10 +275,10 @@ impl SocketAddrResolver {
 
         let version = info
             .get_property("version")
-            .map(|version| version.val_str())
+            .map(mdns_sd::TxtProperty::val_str)
             .unwrap_or_default()
             .to_string();
-        let addresses = info.get_addresses().iter().cloned().collect::<Vec<_>>();
+        let addresses = info.get_addresses().iter().copied().collect::<Vec<_>>();
 
         let socket_addr_info = SocketAddrInformation {
             refresh_date: chrono::Utc::now().timestamp(),
@@ -296,10 +294,9 @@ impl SocketAddrResolver {
     }
 
     async fn resolve_mdns(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
-        let mdns_recv = self.mdns.resolve_hostname(
-            &format!("{}{}", hostname, MDNS_SUFFIX),
-            Some(MDNS_TIMEOUT_MSEC),
-        );
+        let mdns_recv = self
+            .mdns
+            .resolve_hostname(&format!("{hostname}{MDNS_SUFFIX}"), Some(MDNS_TIMEOUT_MSEC));
 
         if let Ok(recv) = mdns_recv {
             let info = recv.recv_async().await;

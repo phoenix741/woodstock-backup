@@ -59,28 +59,23 @@ const providers = [
     ...providers,
     {
       provide: CoreHostsService,
-      useFactory: (config: ApplicationConfigService) => new CoreHostsService(config.context),
-      inject: [ApplicationConfigService],
+      useFactory: () => new CoreHostsService(),
     },
     {
       provide: CoreBackupsService,
-      useFactory: (config: ApplicationConfigService) => new CoreBackupsService(config.context),
-      inject: [ApplicationConfigService],
+      useFactory: () => new CoreBackupsService(),
     },
     {
       provide: CoreFilesService,
-      useFactory: (config: ApplicationConfigService) => new CoreFilesService(config.context),
-      inject: [ApplicationConfigService],
+      useFactory: () => new CoreFilesService(),
     },
     {
       provide: CorePoolService,
-      useFactory: (config: ApplicationConfigService) => new CorePoolService(config.context),
-      inject: [ApplicationConfigService],
+      useFactory: () => new CorePoolService(),
     },
     {
       provide: CoreClientResolver,
-      useFactory: (config: ApplicationConfigService) => new CoreClientResolver(config.context),
-      inject: [ApplicationConfigService],
+      useFactory: () => new CoreClientResolver(),
     },
   ],
   exports: [...providers, RegisteredQueue],

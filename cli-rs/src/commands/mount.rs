@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use eyre::Result;
-use woodstock::config::Context;
+use woodstock::config::Configuration;
 
 use crate::filesystem::WoodstockFileSystem;
 
@@ -12,7 +12,7 @@ pub struct MountOption {
     pub mount_point: String,
 }
 
-pub async fn mount(ctxt: &Context, options: &MountOption) -> Result<()> {
+pub async fn mount(config: &Configuration, options: &MountOption) -> Result<()> {
     let path = vec![
         options.hostname.clone(),
         options.backup_number.map(|x| x.to_string()),
@@ -23,17 +23,17 @@ pub async fn mount(ctxt: &Context, options: &MountOption) -> Result<()> {
         .flatten()
         .collect::<Vec<String>>()
         .join("/");
-    let path = format!("/{}", path);
+    let path = format!("/{path}");
 
     // Mount path
     println!("Mounting path: {}", options.mount_point);
     if !path.is_empty() {
-        println!("Prefix Path: {}", path);
+        println!("Prefix Path: {path}");
     }
 
     let path = PathBuf::from(&path);
 
-    let fs = WoodstockFileSystem::new(ctxt, &path);
+    let fs = WoodstockFileSystem::new(config, &path);
     let mount_options = [];
     fuser::mount2(fs, &options.mount_point, &mount_options).unwrap();
     Ok(())

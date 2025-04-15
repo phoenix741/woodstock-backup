@@ -6,15 +6,12 @@ use napi::{
   threadsafe_function::{ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction},
   Error, JsFunction, Result,
 };
-use woodstock::{config::Context, events::read_events, Event};
-
-use crate::config::context::JsBackupContext;
+use woodstock::{config::GlobalConfiguration, events::read_events, Event};
 
 #[napi]
 pub fn list_events(
   start_date: String,
   end_date: String,
-  context: &JsBackupContext,
   #[napi(ts_arg_type = "(err: null | Error, result: Array<JsEvent>) => void")] callback: JsFunction,
 ) -> Result<()> {
   let tsfn: ThreadsafeFunction<Vec<Event>, ErrorStrategy::CalleeHandled> = callback
@@ -29,8 +26,8 @@ pub fn list_events(
     })?;
 
   // Get the path events
-  let ctxt: Context = context.into();
-  let events = ctxt.config.path.events_path;
+  let configuration = &GlobalConfiguration;
+  let events = &configuration.path.events_path;
 
   // String (format YYYY-MM-DD) to chrono date
   let start_date = chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")

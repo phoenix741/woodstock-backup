@@ -27,6 +27,23 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Migrate",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "convert-hash-repo",
+        "/media/phoenix/298c48fb-d146-46db-94dc-f73bc90e2268/",
+        "Blake3"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "resolve-m-dns",
       "cargo": {
         "args": [
