@@ -1,3 +1,16 @@
+# [2.0.0-alpha.34](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.33...v2.0.0-alpha.34) (2025-04-15)
+
+
+### Features
+
+* add benchmarking for testing hashing function ([ca4b2ab](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ca4b2abb7ea22619f7077834ea08f73b5de4a523))
+* add command read file from console for debug purpose ([1d78ca5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1d78ca5c80e4e34971c21860f1cb0caa24ab39df))
+* add timings informations on xfer log ([e87ba63](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e87ba639c829c0a196adfb4f1f7a76dc09e8de76))
+* create a new command to change the hash used in a backup directory ([c34e079](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c34e07914b38b69c3e95bf71de9ce14091b73d85))
+* get configuration from rust ([85b9167](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/85b916780ba9d003a7179a8f03659553f343579b))
+* permist usage of different hash for chunk ([9b961a9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9b961a995f774b8fd43a343bbf78ff1cc2a5106a))
+* try to optimise generation of the sha3_256 ([e8db387](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e8db38781630f533bb60a3732b0596e1bb9abb11))
+
 # [2.0.0-alpha.33](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.32...v2.0.0-alpha.33) (2025-04-05)
 
 
