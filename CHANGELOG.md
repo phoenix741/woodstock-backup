@@ -1,3 +1,10 @@
+# [2.0.0-alpha.35](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.34...v2.0.0-alpha.35) (2025-04-16)
+
+
+### Bug Fixes
+
+* 🚑️ fix chunk calculation ([fb2a1ce](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/fb2a1ceac1dd03a2e50053c95748012b4a5c4d2a))
+
 # [2.0.0-alpha.34](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.33...v2.0.0-alpha.34) (2025-04-15)
 
 
