@@ -27,6 +27,7 @@ use crate::woodstock::{
     file_chunk, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter, FileChunkHeader,
     FileManifest, FileManifestJournalEntry,
 };
+use crate::ChunkAlgorithm;
 use crate::ChunkHashReply;
 use crate::ChunkHashRequest;
 
@@ -138,7 +139,7 @@ pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHas
         let path = path.join(vec_to_path(&request.filename));
         debug!("Calculating chunk hash for {}", &path.display());
 
-        let manifest = caculate_chunk_hash(&request);
+        let manifest = caculate_chunk_hash(&path, &request.algorithm());
 
         match manifest {
             Ok(manifest) => manifest,
@@ -168,11 +169,11 @@ pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHas
 ///
 /// The updated `FileManifest` with chunk hash information.
 ///
-fn caculate_chunk_hash(request: &ChunkHashRequest) -> Result<ChunkHashReply, Box<dyn Error>> {
-    let file = vec_to_path(&request.filename);
-    info!("Calculating chunk hash for {}", &file.display());
-
-    let algorithm = request.algorithm();
+fn caculate_chunk_hash<P: AsRef<Path>>(
+    file: P,
+    algorithm: &ChunkAlgorithm,
+) -> Result<ChunkHashReply, Box<dyn Error>> {
+    info!("Calculating chunk hash for {}", file.as_ref().display());
 
     let mut file_hasher = create_chunk_hasher(&algorithm);
 

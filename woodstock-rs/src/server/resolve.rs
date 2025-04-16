@@ -22,6 +22,7 @@ const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
 
 async fn is_reachable(ip: IpAddr, port: u16) -> bool {
     let addr = SocketAddr::new(ip, port);
+    debug!("Try to connect to {addr}");
 
     // Tentative de connexion avec un timeout pour éviter de bloquer indéfiniment
     matches!(
@@ -192,9 +193,16 @@ impl SocketAddrResolver {
     pub async fn resolve(&self, hostname: &str, default_port: u16) -> Result<Vec<SocketAddr>> {
         debug!("Resolve hostname: {}", hostname);
         let addresses = if let Some(socket_addr_info) = self.get_informations(hostname).await? {
-            info!("Found hostname in cache: {}", hostname);
+            debug!(
+                "Found hostname in cache: {hostname} (addresses: {:?})",
+                socket_addr_info.addresses
+            );
             let addresses =
                 is_reachables(socket_addr_info.addresses.clone(), socket_addr_info.port).await;
+            info!(
+                "Found reachable addresses for host '{hostname}' in cache: {:?}",
+                addresses
+            );
 
             addresses
                 .iter()
