@@ -32,6 +32,7 @@ export default defineConfig({
           items: [
             { text: "Introduction", link: "/doc/" },
             { text: "Installation", link: "/doc/installation" },
+            { text: "Agent", link: "/doc/agent" },
             { text: "Configuration", link: "/doc/configuration" },
             { text: "Scheduler", link: "/doc/scheduler" },
             { text: "FAQ", link: "/doc/faq" },

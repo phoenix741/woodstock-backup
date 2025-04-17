@@ -10,6 +10,7 @@ the documentation will explain how the software is working internally for develo
 ## Summary
 
 - [Installation](/doc/installation)
+- [Agent](/doc/agent)
 - [Configuration](/doc/configuration)
 - [Update the scheduler](/doc/scheduler)
 - [FAQ](/doc/faq)

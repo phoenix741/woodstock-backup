@@ -15,34 +15,66 @@ Woodstock Backup consists of two main components:
 
 ## Docker Installation (Recommended)
 
-### Standard Configuration (with mDNS)
-
-The following configuration enables mDNS discovery using privileged mode:
+### Standard Configuration
 
 ```yaml
 services:
+  website:
+    build:
+      context: ./docs/website
+      dockerfile: Dockerfile
+    image: phoenix741/woodstock-backup-website:develop
+    ports:
+      - 8080:80
   woodstock:
-    image: phoenix741/woodstock-backup:2
-    privileged: true
-    network_mode: host
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1
+        - NODE_VERSION=20-slim
+        - DEBIAN_VERSION=debian:12-slim
+    image: phoenix741/woodstock-backup:develop
+    ports:
+      - 3000:3000
+    depends_on:
+      - redis
     environment:
-      - REDIS_HOST=172.55.0.2
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
       - LOG_LEVEL=warn
       - NODE_ENV=production
       - BACKUP_PATH=/backups
       - BACKUP_WORKER_INSTANCES=3
+      - CLIENT_API_HOSTNAME=myserver.localdomain.com
+      - CLIENT_API_PORT=8443
     volumes:
       - "backups_storage:/backups"
 
+  woodstock_client:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=1
+        - NODE_VERSION=20-slim
+        - DEBIAN_VERSION=debian:12-slim
+      target: client
+    image: phoenix741/woodstock-backup-client:develop
+    ports:
+      - 3657:3657
+    environment:
+      - LOG_LEVEL=debug
+    volumes:
+      - "client_storage:/etc/woodstock"
+
   redis:
-    image: "bitnami/redis:7.2"
+    image: "bitnami/redis:7.4"
     environment:
       - ALLOW_EMPTY_PASSWORD=yes
       - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
-    networks:
-      woodstock:
-        ipv4_address: 172.55.0.2
+    ports:
+      - "6379:6379"
     volumes:
       - "redis_data:/bitnami/redis/data"
 
@@ -53,17 +85,10 @@ services:
       - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
     network_mode: "host"
 
-networks:
-  woodstock:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.55.0.0/16
-          gateway: 172.55.0.1
-
 volumes:
   redis_data:
   prometheus_storage:
+  client_storage:
   backups_storage:
     driver: local
     driver_opts:
@@ -71,6 +96,8 @@ volumes:
       device: /var/lib/woodstock
       o: bind
 ```
+
+### Standard Configuration (with mDNS)
 
 ### Alternative Configuration (without mDNS)
 
@@ -176,17 +203,24 @@ apt install redis nodejs protobuf-compiler cmake make build-essential git-lfs li
 You can run the server using PM2.
 
 ```bash
-# You can use pm2 and the file ecosystem.config.js to run the server
+# You can use pm2 and the ecosystem.config.js file to run the server
 pm2 startup
 ```
 
-With the following `ecosystem.config.js` configuration
+With the following `ecosystem.config.js` configuration:
 
 ```js
 module.exports = [
   {
     script: 'apps/api/main.js',
     name: 'api',
+    cwd: '/app/nestjs',
+    exec_mode: 'cluster',
+    instances: parseInt(process.env.API_INSTANCES ?? '1'),
+  },
+  {
+    script: 'apps/clientApi/main.js',
+    name: 'clientApi',
     cwd: '/app/nestjs',
     exec_mode: 'cluster',
     instances: parseInt(process.env.API_INSTANCES ?? '1'),
@@ -225,13 +259,33 @@ As an alternative to PM2, you can use systemd to manage the services. Create the
 # /etc/systemd/system/woodstock-api.service
 [Unit]
 Description=Woodstock API Service
-After=network.target redis.service woodstock-api.service
+After=network.target redis.service
 
 [Service]
 Type=simple
 User=woodstock
 WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/backupWorker/main.js
+ExecStart=/usr/bin/node apps/api/main.js
+Restart=always
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Client API Service
+
+```systemd
+# /etc/systemd/system/woodstock-client-api.service
+[Unit]
+Description=Woodstock Client API Service
+After=network.target redis.service
+
+[Service]
+Type=simple
+User=woodstock
+WorkingDirectory=/app/nestjs
+ExecStart=/usr/bin/node apps/clientApi/main.js
 Restart=always
 Environment=NODE_ENV=production
 
@@ -304,11 +358,13 @@ WantedBy=multi-user.target
 
 ```bash
 systemctl enable woodstock-api.service
+systemctl enable woodstock-client-api.service
 systemctl enable woodstock-backup-worker.service
 systemctl enable woodstock-refcnt-worker.service
 systemctl enable woodstock-schedule-worker.service
 
 systemctl start woodstock-api.service
+systemctl start woodstock-client-api.service
 systemctl start woodstock-backup-worker.service
 systemctl start woodstock-refcnt-worker.service
 systemctl start woodstock-schedule-worker.service
