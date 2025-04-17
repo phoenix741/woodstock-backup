@@ -1,3 +1,10 @@
+# [2.0.0-alpha.36](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.35...v2.0.0-alpha.36) (2025-04-17)
+
+
+### Bug Fixes
+
+* 🩹 fix timings rendering on log view ([53dfbc5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/53dfbc55d12b529f51786fac2de348de7d5513c5))
+
 # [2.0.0-alpha.35](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.34...v2.0.0-alpha.35) (2025-04-16)
 
 
