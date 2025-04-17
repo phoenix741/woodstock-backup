@@ -5,6 +5,7 @@ version = "2.0.0-alpha.36"
 edition = "2021"
 authors = ["Ulrich Vandenhekke"]
 license = "MIT"
+build = "build.rs"
 
 [package.metadata.deb]
 license-file = ["../LICENSE", "0"]
@@ -71,3 +72,6 @@ features = [
     "Win32_System_Ole",
     "Win32_NetworkManagement_WindowsFirewall",
 ]
+
+[target.'cfg(windows)'.build-dependencies]
+windows_exe_info = "0.4"
