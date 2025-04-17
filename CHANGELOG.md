@@ -1,3 +1,10 @@
+# [2.0.0-alpha.37](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.36...v2.0.0-alpha.37) (2025-04-17)
+
+
+### Features
+
+* ✨ add icon to client for windows ([724e5d1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/724e5d1ee44a75bb6041a0281bd9c650a74feb05))
+
 # [2.0.0-alpha.36](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.35...v2.0.0-alpha.36) (2025-04-17)
 
 
