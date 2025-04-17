@@ -650,16 +650,18 @@ impl<Clt: Client> BackupClient<Clt> {
             let is_special_file = file_manifest_journal_entry.is_special_file();
             let is_error = file_manifest_journal_entry.state() == EntryState::Error;
 
+            // timestamp of the start of the transfer
+            let xfer_start = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            file_manifest_journal_entry.xfer_start = xfer_start;
+
             if !is_remove && !is_special_file && !is_error {
                 if let Some(file_manifest) = file_manifest_journal_entry.manifest.as_mut() {
                     // TODO: Parrallellise to download CHUNK_SIZE manifest max at the same time
                     let progression = Arc::clone(&progression);
 
-                    // timestamp of the start of the transfer
-                    let xfer_start = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
                     let file_manifest = self
                         .download_manifest_chunk(share_path, file_manifest, is_add, &move |chunk| {
                             let progression = Arc::clone(&progression);
@@ -683,7 +685,6 @@ impl<Clt: Client> BackupClient<Clt> {
                             }
                                 as i32;
 
-                            file_manifest_journal_entry.xfer_start = xfer_start;
                             file_manifest_journal_entry.xfer_calculation = xfer_calculation;
                             file_manifest_journal_entry.xfer_duration = xfer_duration;
                             file_manifest_journal_entry.xfer_check = xfer_check;

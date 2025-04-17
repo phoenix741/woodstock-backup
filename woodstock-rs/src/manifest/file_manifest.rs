@@ -342,7 +342,15 @@ impl FileManifestJournalEntry {
             || !xfer_duration.is_empty()
             || !xfer_check.is_empty()
         {
-            format!("(timings: {xfer_calculation} {xfer_duration} {xfer_check})")
+            format!(
+                "(timings: {})",
+                [xfer_calculation, xfer_duration, xfer_check]
+                    .iter()
+                    .filter(|s| !s.is_empty())
+                    .cloned()
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            )
         } else {
             String::new()
         };
