@@ -11,7 +11,7 @@ Woodstock Backup consists of two main components:
 
 - Sufficient storage space on the server for backups
 - For the server: Docker (recommended) or Node.js environment
-- For the agent: Rust runtime environment
+- For the agent: Linux, Windows, or Rust runtime environment to compile your own agent
 
 ## Docker Installation (Recommended)
 
@@ -89,62 +89,6 @@ volumes:
   redis_data:
   prometheus_storage:
   client_storage:
-  backups_storage:
-    driver: local
-    driver_opts:
-      type: none
-      device: /var/lib/woodstock
-      o: bind
-```
-
-### Standard Configuration (with mDNS)
-
-### Alternative Configuration (without mDNS)
-
-If you prefer not to use privileged mode, you can bind the server to port 3000:
-
-```yaml
-services:
-  woodstock:
-    image: phoenix741/woodstock-backup:2
-    ports:
-      - "3000:3000"
-    networks:
-      - woodstock
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LOG_LEVEL=warn
-      - NODE_ENV=production
-      - BACKUP_PATH=/backups
-      - BACKUP_WORKER_INSTANCES=3
-    volumes:
-      - "backups_storage:/backups"
-
-  redis:
-    image: "bitnami/redis:7.2"
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
-    networks:
-      - woodstock
-    volumes:
-      - "redis_data:/bitnami/redis/data"
-
-  prometheus:
-    image: bitnami/prometheus:2
-    volumes:
-      - prometheus_storage:/opt/bitnami/prometheus/data
-      - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
-    ports:
-      - "9090:9090"
-
-networks:
-  woodstock:
-
-volumes:
-  redis_data:
-  prometheus_storage:
   backups_storage:
     driver: local
     driver_opts:
@@ -376,20 +320,39 @@ systemctl start woodstock-schedule-worker.service
 
 | Environment Variable      | Default Value                            | Description                                                           |
 |---------------------------|------------------------------------------|-----------------------------------------------------------------------|
+| LOG_LEVEL                 | `info`                                   | The level of log to display (error, warn, info, debug, trace)         |
+| CHUNK_ALGORITHM           | `blake3`                                 | The hash algorithm for chunks (blake3, sha2_256, sha3_256)            |
+
+### Paths Environment Variables
+
+| Environment Variable      | Default Value                            | Description                                                           |
+|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
 | STATIC_PATH               | -                                        | The path where the vuetify client will be served                      |
 | BACKUP_PATH               | `/var/lib/woodstock`                     | The path where the backup will be stored                              |
-| CERTIFICATES_PATH         | `/etc/woodstock/certs`                   | The path where the certificates will be stored                        |
-| CONFIG_PATH               | `/etc/woodstock/config`                  | The path where the configuration of devices will be stored            |
-| HOSTS_PATH                | `/etc/woodstock/hosts`                   | The path where the file list of each device will be stored            |
-| LOGS_PATH                 | `/var/log/woodstock/logs`                | The path where the logs will be stored                                |
-| POOL_PATH                 | `/var/lib/woodstock/pool`                | The path where the pool of backup will be stored                      |
-| JOBS_PATH                 | `/var/lib/woodstock/jobs`                | The path where logs of jobs will be stored                            |
-| REDIS_HOST                | -                                        | The host of redis to connect                                          |
-| REDIS_PORT                | -                                        | The port of redis to connect                                          |
+| CERTIFICATES_PATH         | `$BACKUP_PATH/certs`                     | The path where the certificates will be stored                        |
+| CONFIG_PATH               | `$BACKUP_PATH/config`                    | The path where the configuration of devices will be stored            |
+| HOSTS_PATH                | `$BACKUP_PATH/hosts`                     | The path where the file list of each device will be stored            |
+| LOGS_PATH                 | `$BACKUP_PATH/logs`                      | The path where the logs will be stored                                |
+| POOL_PATH                 | `$BACKUP_PATH/pool`                      | The path where the pool of backup will be stored                      |
+| JOBS_PATH                 | `$LOGS_PATH/jobs`                        | The path where logs of jobs will be stored                            |
+| EVENTS_PATH               | `$BACKUP_PATH/events`                    | The path where event data will be stored                              |
+
+### Redis Environment Variables
+
+| Environment Variable      | Default Value                            | Description                                                           |
+|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
+| REDIS_HOST                | `localhost`                              | The host of redis to connect                                          |
+| REDIS_PORT                | `6379`                                   | The port of redis to connect                                          |
+
+### File view Environment Variables
+
+| Environment Variable      | Default Value                            | Description                                                           |
+|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
 | CACHE_TTL                 | `24h`                                    | The time to live of the cache, where the config of devices are cached |
-| LOG_LEVEL                 | `info`                                   | The level of log to display                                           |
+| CACHE_SIZE                | `10`                                     | The size of the cache for items like file manifests                   |
 | FILE_VIEW_MAX_ELEMENTS    | `10`                                     | The number of backups file list to store in the cache                 |
 | FILE_VIEW_TTL_CACHE       | `15min`                                  | The time to live of the cache of the file list                        |
+
 
 ### Docker-Specific Environment Variables
 
@@ -400,12 +363,16 @@ systemctl start woodstock-schedule-worker.service
 | DISABLE_REFCNT            | `false`                                  | Disable the refcnt of the backup (to be run on another container)     |
 | DISABLE_SCHEDULER         | `false`                                  | Disable the scheduler of the backup (to be run on another container)  |
 | MAX_BACKUP_TASK           | `2`                                      | The number of backup task to run in parallel in each worker instance  |
+| CLIENT_API_HOSTNAME       | -                                        | The hostname for the client API connections                           |
+| CLIENT_API_PORT           | -                                        | The port for the client API connections                               |
 
 ## Used ports
 
-| Port | Protocol | Description       | Required |
-|------|----------|-------------------|----------|
-| 3000 | TCP      | HTTP API          | Yes      |
-| 5353 | UDP      | mDNS Discovery    | No       |
-| 9090 | TCP      | Prometheus        | No       |
-| 6379 | TCP      | Redis             | Yes      |
+| Port | Protocol | Description                                                                                                      | Required |
+|------|----------|------------------------------------------------------------------------------------------------------------------|----------|
+| 3000 | TCP      | HTTP API (Management interface) - Used to manage backups, view them, start/delete tasks and monitor the system   | Yes      |
+| 8443 | TCP/TLS  | HTTPS Client API - Used by client agents to authenticate and report their presence to the server (priority over mDNS) | Yes      |
+| 3657 | TCP      | Default listening port on client agents to receive instructions from the server                                  | Yes      |
+| 5353 | UDP      | mDNS Discovery - Used to automatically discover clients on the local network (alternative method)                | No       |
+| 9090 | TCP      | Prometheus - For collecting and visualizing monitoring metrics                                                   | No       |
+| 6379 | TCP      | Redis - Storage of temporary data, queues and communication between components                                   | Yes      |
