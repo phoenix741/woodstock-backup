@@ -40,6 +40,12 @@ export default defineConfig({
           ],
         },
         {
+          text: "Migration Documentation",
+          items: [
+            { text: "BackupPC", link: "/doc/migration/backuppc" },
+          ],
+        },
+        {
           text: "Internal Documentation",
           items: [
             { text: "Pool of chunk", link: "/doc/internal/pool" },

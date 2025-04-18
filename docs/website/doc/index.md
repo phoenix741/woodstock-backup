@@ -15,6 +15,8 @@ the documentation will explain how the software works internally for development
 - [Update the scheduler](/doc/scheduler)
 - [FAQ](/doc/faq)
 - [Roadmap](/doc/roadmap)
+- [Migration](/doc/migration/)
+  - [From BackupPC](/doc/migration/backuppc)
 - [Internal](/doc/internal/)
   - [Pool](/doc/internal/pool)
   - [Server Authentication to Client](/doc/internal/client_auth_backup)
