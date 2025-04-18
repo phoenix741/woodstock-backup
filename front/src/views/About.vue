@@ -11,7 +11,7 @@
       <br />
 
       <p class="text-justify">
-        The backups are stored in a compressed and shared pool that allows for efficient deduplication. With a 4MB
+        The backups are stored in a compressed and shared pool that allows for efficient deduplication. With a 16MB
         block-level deduplication, Woodstock Backup ensures that only modified data is saved, making it especially
         effective for backing up virtual machines. We also provide tools to verify the integrity of your backups and
         pool.

@@ -47,11 +47,15 @@ import LatestVersion from './components/LatestVersionComponent.vue'
 
 ## Latest version
 
+> **The latest version of Woodstock Backup is in alpha stage and is not yet recommended for production use. However, it is
+> available for testing and feedback.**
+
 <LatestVersion></LatestVersion>
 
 ## Why Woodstock Backup?
 
 Woodstock Backup was developed to solve two major limitations of traditional backup solutions:
+
 - **Simplified Windows backups** without dependency on rsync or SSH
 - **Easy access to backup data** through FUSE filesystem mounting
 

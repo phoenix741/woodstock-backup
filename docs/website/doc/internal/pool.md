@@ -2,35 +2,35 @@
 
 The backup is stored on the server. The backups are stored in two directories:
 
-- `hosts`: Contains the manifest of the backups
+- `hosts`: Contains the manifests of the backups
 - `pool`: Contains the pool of chunks used for deduplication
 
-## Pool of Chunk
+## Pool of Chunks
 
-The pool is used to store the content of the file for deduplication. The goal of deduplication is to reduce the amount of space used
-between multiple backups of the same host, files that have been moved, and the same file accross different hosts.
+The pool is used to store the content of files for deduplication. The goal of deduplication is to reduce the amount of space used
+between multiple backups of the same host, files that have been moved, and the same file across different hosts.
 
-To limit used space of file that can change accross multiple backups, we split the file into multiple chunks. If a part of the file
-changed, only the chunk of this part will be re-uploaded.
+To limit the space used by files that can change across multiple backups, we split the file into multiple chunks. If a part of the file
+changes, only the chunk of this part will be re-uploaded.
 
 ### Size of chunk
 
-The size of the chunk should be chosen depending on the repartition of the size accross all files.
+The size of the chunk should be chosen depending on the distribution of file sizes across all files.
 
-If the size of the chunk is too small, we will have too many chunks and the space taken by the the pool will be greater than the
+If the size of the chunk is too small, we will have too many chunks and the space taken by the pool will be greater than the
 real size.
 
-If the size of the chunk is too big, we need to retransfer the whole chunk if a part of the file changed.
+If the size of the chunk is too big, we need to retransfer the whole chunk if a part of the file changes.
 
-Files that can be changed over time and should be deduplicated will be:
+Files that can change over time and should be deduplicated include:
 
-- image disk of virtual machine,
-- file log (that will be appended automatically).
+- disk images of virtual machines (VirtualBox, VMware, WSL2, ...),
+- log files (that will be appended automatically).
 
-We should take care of the network latency too.
+We should also take into account network latency.
 
-What is the right size of chunks ? I scan a sample of all the file from the directory to see the repartition of the size
-on my different host by number of files. This is the command I launch to view the repartition of the files.
+What is the right size of chunks? I scanned a sample of all the files from a directory to see the distribution of sizes
+on different hosts by number of files. This is the command I launched to view the distribution of the files:
 
 ```bash
 find . -type f -print0 | \
@@ -40,111 +40,139 @@ sort -n | \
 awk 'function human(x) { x[1]/=1024; if (x[1]>=1024) { x[2]++; human(x) } } { a[1]=$1; a[2]=0; human(a); printf("%3d%s: %6d\n", a[1],substr("kMGTEPYZ",a[2]+1,1),$2) }'
 ```
 
-And this is the result.
+And this is the result:
 
-| File size | Number   | Repartition |
-| --------- | -------- | ----------- |
-| 1k        | 29126558 | 37,36 %     |
-| 2k        | 8649088  | 48,45 %     |
-| 4k        | 7915884  | 58,60 %     |
-| 8k        | 6394302  | 66,81 %     |
-| 16k       | 4839627  | 73,01 %     |
-| 32k       | 3606949  | 77,64 %     |
-| 64k       | 3477900  | 82,10 %     |
-| 128k      | 5158625  | 88,72 %     |
-| 256k      | 3601985  | 93,34 %     |
-| 512k      | 971108   | 94,58 %     |
-| 1M        | 875574   | 95,71 %     |
-| 2M        | 1698194  | 97,88 %     |
-| 4M        | 1046430  | 99,23 %     |
-| 8M        | 309027   | 99,62 %     |
-| 16M       | 105271   | 99,76 %     |
-| 32M       | 65211    | 99,84 %     |
-| 64M       | 50832    | 99,91 %     |
-| 128M      | 33947    | 99,95 %     |
-| 256M      | 21338    | 99,98 %     |
-| 512M      | 8066     | 99,99 %     |
-| > 1G      | 10068    | 100,00 %    |
+| File size | Number     | Repartition |
+| --------- | ---------- | ----------- |
+| 1k        | 29,126,558 | 37.36%      |
+| 2k        |  8,649,088 | 48.45%      |
+| 4k        |  7,915,884 | 58.60%      |
+| 8k        |  6,394,302 | 66.81%      |
+| 16k       |  4,839,627 | 73.01%      |
+| 32k       |  3,606,949 | 77.64%      |
+| 64k       |  3,477,900 | 82.10%      |
+| 128k      |  5,158,625 | 88.72%      |
+| 256k      |  3,601,985 | 93.34%      |
+| 512k      |    971,108 | 94.58%      |
+| 1M        |    875,574 | 95.71%      |
+| 2M        |  1,698,194 | 97.88%      |
+| 4M        |  1,046,430 | 99.23%      |
+| 8M        |    309,027 | 99.62%      |
+| 16M       |    105,271 | 99.76%      |
+| 32M       |     65,211 | 99.84%      |
+| 64M       |     50,832 | 99.91%      |
+| 128M      |     33,947 | 99.95%      |
+| 256M      |     21,338 | 99.98%      |
+| 512M      |      8,066 | 99.99%      |
+| > 1G      |     10,068 | 100.00%     |
 
-With a chunk of 4Mo, we have 99% of a file that wouldn't be split into chunks. We can found in this file: text, picture, and all small
-files. All of these files will be unique most of the time.
+With a chunk size of 4MB, 99% of files wouldn't be split into chunks. These include text files, pictures, and all small
+files. Most of these files will be unique.
 
-In the first version, the size couldn't be changed, but in a future version the size of the chunk should be customizable (for different
-possibilities).
+In the latest version of Woodstock, the chunk size is set to 16MB. This choice was made to limit the number of chunks
+and optimize the calculation of the hash. Blake3 is used to calculate the hash of the chunk (using parallelism).
+
+In the first version of Woodstock, the chunk size cannot be modified, but in a future version, if it is a community
+request, we could add an option to modify the chunk size.
 
 ### Hash table
 
-All small pieces of chunk should be easily accessible with a key without rereading the content of the file. We use a hash table to store
-this chunk of file. As the file system already manages this file as a hash table (where the filename is the key), we use the underlying file system.
+All chunks should be easily accessible with a key without having to reread the content of the file. We use a hash table to store
+these chunks. As the file system already manages files as a hash table (where the filename is the key), we use the underlying file system.
 
-The key used to deduplicated the content is a SHA-256 of the content. Using a SHA-256 key allows to easily check if the chunk of file already
-exists on the pool.
+The key used to deduplicate the content is a Blake 3 hash of the content. Using a Blake 3 key allows us to easily check
+if the chunk already exists in the pool. Originally, we used SHA-256, but it was too slow. Blake 3 is faster.
 
-In case of pool check, we can easily verify the coherence between the SHA-256 and the content of the file.
+During pool integrity checks, we can easily verify the coherence between the Blake3 hash and the content of the file.
 
-The risk of using a SHA-256 key is collision. If two chunks have the same SHA-256, the backup will fail silently (the problem will be the
-restauration of the files). After reading some documentation SHA-256 key shouldn't be a big problem. The risk of collision is small.
+The risk of using a Blake3/SHA-256 key is collision. If two chunks have the same hash, the backup will fail silently (the
+problem will emerge during restoration of the files). Based on cryptographic research, SHA-256 collisions should not be
+a significant problem as the risk is extremely small.
 
-In the first version, we keep only the SHA-256 key. In a future version, we can use a sequence id appended to it to identify multiple collisions.
-In this case, we need to read the file and the backup will be slower.
+In the first version, we only keep the Blake3 key. In a future version, we could use a sequence ID appended to it to
+identify potential collisions.
+However, this would require reading the file, which would slow down the backup process.
 
-In a sample of 3 500 000 of files, I don't have collision on an existing MD5.
+In a sample of 3,500,000 files, we didn't encounter any collision using MD5.
 
 ### Structure of the pool
 
-The pool will use the file system as a hashtable. The pool must be stored on a filesytem where the number of files has no limit. A SHA-256 can
-have approximately `1.15 x 10^77` different possible chunks.
+The pool uses the file system as a hash table. The pool must be stored on a filesystem where the number of files has no limit. A SHA-256 can
+have approximately `1.15 x 10^77` different possible values.
 
-Even if the pool is split in different directories, the number of files will still be too high.
+Even with the pool split into different directories, the potential number of files would still be very high.
 
-Old filesystems like FAT32, EXT2 can't be used (even if it depends on file really backedup).
+Older filesystems like FAT32 and EXT2 cannot be used efficiently (even if it depends on the actual files being backed up).
 
-Filesystems that should work are: EXT4, Btrfs, XFS, NTFS, ...
+Recommended filesystems include: EXT4, Btrfs, XFS, NTFS, and other modern filesystems.
 
-The pool will be split in a directory structure of three levels. The first three levels are composed of the 3 first bytes of the SHA-256.
-This directory structure will be used to limit the number of locks on the chunk and refcnt file.
+The pool is organized in a directory structure with three levels. The first three levels use the first 3 bytes of the SHA-256 hash.
+This directory structure helps limit the number of locks on chunk and reference count files.
 
 ```bash
  pool
    ├── aa
    │    ├── aa
    │    │    ├── aa
-   │    │    │    └── aaaaaacdefghih-sha256.zlib
+   │    │    │    └── aaaaaacdefghih-sha256.zz
    │    │    │    └── aaaaaacdefghih-sha256.info
    ├── unused
    ├── statistics.yml
    ├── REFCNT
    ├── history.yml
    ├── disk_history.yml
+   └── _new (temporary directory for chunk creation)
 ```
 
-The `unused` file is used to list all the chunks that are not used in any backup. This file is used to purge the pool.
-The `REFCNT` file is used to count the number of times the chunk is used in a backup. A lock file is used to lock the
-pool when the `REFCNT` or `unused` file is modified. If the count of a sha256 in the `REFCNT` file is changed to 0, the
-chunk is moved to the `unused` file.
+The `unused` file lists all the chunks that are not used in any backup. This file is used to purge the pool.
+The `REFCNT` file counts the number of times each chunk is used across all backups. A lock mechanism is used when the
+`REFCNT` or `unused` file is modified. When a chunk's reference count drops to 0, it is moved to the `unused` file.
 
-The content of the chunk is stored directly in a file (that can be compressed).
+The chunks themselves are stored in compressed files with a `.zz` extension, with additional metadata in `.info` files.
+New chunks are temporarily placed in the `_new` directory during creation.
 
-Currently, only zlib compression is supported.
+Currently, only zlib compression is supported for chunk storage.
+
+## Chunk Handling
+
+When a new chunk is created:
+
+1. A temporary file is created in the `_new` directory
+2. The data is compressed with zlib compression
+3. The Blake3 hash of the uncompressed data is calculated
+4. The chunk is moved to its final location based on the hash
+5. A reference count is updated in the `REFCNT` file
+
+## Reference Counting
+
+The reference counting system (`Refcnt`) tracks how many backups use each chunk. This allows:
+
+- Identifying unused chunks for removal
+- Generating statistics about deduplication efficiency
+- Ensuring the integrity of the pool
+
+During backup operations, the reference count for each used chunk is incremented. When backups are deleted, the
+reference counts are decremented.
+Chunks with a reference count of zero are marked as unused.
 
 ## Backup Manifest
 
-The pool is used to store the content of the file. But it doesn't describe how to restore the backup.
+The pool stores the content of files, but doesn't describe how to restore the backup.
 
-The goal of the backup manifest is to describe files in the backup.
+The backup manifest describes all files in the backup.
 
-We will have one file by backup, each manifest file will be stored in the `hosts` directory (different for each host backuped).
+We have one manifest file per share and per backup, each stored in the `hosts` directory (organized by host).
 
-The manifest file will contain, for each backup, the list of files saved, and for each file:
+The manifest file contains, for each backup, the list of files saved, and for each file:
 
-- metadata associated with the file (owner, size, acl, ...),
-- list of hash of chunks of the file,
-- a sha256 of the file.
+- metadata associated with the file (owner, group, permissions, size, timestamps, acl, etc.),
+- list of hashes of chunks comprising the file,
+- a Blake3 hash of the entire file for verification.
 
-For performance reasons, the file will be stored in a binary format (readable by the software). Like JSON, and XML for the text, in Woodstock
-we will use a standard format for binary storage. This standard is [protocol-buffers](https://developers.google.com/protocol-buffers).
+For performance reasons, the file is stored in a binary format. Like JSON and XML for text formats, Woodstock
+uses a standard format for binary storage called [Protocol Buffers](https://developers.google.com/protocol-buffers).
 
-Using a protocol-buffer simplifies the writing of different programs in different languages to write and read the protocol buffer.
+Protocol Buffers simplify the development of programs in different languages that need to read and write the same data format.
 
 ```protobuf
 enum FileManifestType {
@@ -213,7 +241,7 @@ message FileManifest {
 }
 ```
 
-The manifest file will be a stream of `FileManifest` prefixed by the size of the file manifest:
+The manifest file is a stream of `FileManifest` objects, each prefixed by its size:
 
 ```
 int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest int32 FileManifest

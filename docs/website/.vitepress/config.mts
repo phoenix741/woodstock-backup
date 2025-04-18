@@ -42,10 +42,13 @@ export default defineConfig({
         {
           text: "Internal Documentation",
           items: [
-            { text: "Pool", link: "/doc/internal/pool" },
+            { text: "Pool of chunk", link: "/doc/internal/pool" },
             {
-              text: "Client Authentication",
-              link: "/doc/internal/client_auth",
+              text: "Server Auth to Client",
+              link: "/doc/internal/client_auth_backup",
+            }, {
+              text: "Client Auth to Server",
+              link: "/doc/internal/client_auth_dns",
             },
           ],
         },
