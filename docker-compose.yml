@@ -22,9 +22,13 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=warn
       - NODE_ENV=development
       - BACKUP_PATH=/backups
+      - NODE_ENV=production
+      - BACKUP_WORKER_INSTANCES=3
+      - CLIENT_API_HOSTNAME=myserver.localdomain.com
+      - CLIENT_API_PORT=8443
     volumes:
       - "backups_storage:/backups"
 

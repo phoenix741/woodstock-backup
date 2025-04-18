@@ -1,6 +1,9 @@
-# Client Authentication
+# Server Authentication to Client
 
 ## Overview
+
+When the server attempts to back up a client, the server needs to authenticate the client device. This page describes the
+authentication protocol used by the Woodstock backup server to authenticate the client device.
 
 This security protocol is designed to authenticate the server with each client device that needs to be backed up, ensuring secure and trusted communication between them. It combines mutual TLS (mTLS) for secure communication and JSON Web Tokens (JWT) with RSA encryption (RS256 algorithm) for robust authentication. The protocol ensures that both the server and client can verify each other's identities and that the data transmitted is encrypted and protected against tampering.
 
@@ -17,9 +20,9 @@ The goal of this key pair is to sign the JWT token sent to the client. The publi
 
 #### Device Certificate
 
-On the first start of the Woodstock backup server, the server generate an authority certificate used to sign all devices certificates (stored in `rootCA.pem` and `rootCA.key`).
+On the first start of the Woodstock backup server, the server generates an authority certificate used to sign all devices certificates (stored in `rootCA.pem` and `rootCA.key`).
 
-For the creation of each devices, the Woodstock backup server will generate the following certificates:
+For the creation of each device, the Woodstock backup server will generate the following certificates:
 
 - `${host}_ca.pem` and `${host}_ca.key`: The certificate authority of the device.
 - `${host}_client.pem` and `${host}_client.key`: The server certificate signed with `rootCA` certificate.
@@ -36,9 +39,9 @@ When the agent is downloaded on the Woodstock backup server UI, all necessary ce
 
 ### 2. Mutual TLS (mTLS)
 
-The Woodstock backup server use mTLS to authenticate the device. mTLS is a two-way authentication protocol where both the client and server authenticate each other using certificates.
+The Woodstock backup server uses mTLS to authenticate the device. mTLS is a two-way authentication protocol where both the client and server authenticate each other using certificates.
 
-The device use the `${host}_server.pem` and `${host}_server.key` to authenticate itself to the server and the server will use the `${host}_ca.pem` to verify the device certificate, and in the other way, the server use the `${host}_client.pem` and `${host}_client.key` to authenticate itself to the device and the device will use the `rootCA.pem` to verify the server certificate.
+The device uses the `${host}_server.pem` and `${host}_server.key` to authenticate itself to the server and the server will use the `${host}_ca.pem` to verify the device certificate, and in the other direction, the server uses the `${host}_client.pem` and `${host}_client.key` to authenticate itself to the device and the device will use the `rootCA.pem` to verify the server certificate.
 
 ## Authentication Flow
 
@@ -67,7 +70,7 @@ The Woodstock Backup server will generate a JWT token with the following claims:
 - `iss`: The issuer of the token, in this case, `woodstock.shadoware.org`.
 - `aud`: The audience of the token, in this case, `${host}`.
 - `sub`: The subject of the token, in this case, `${host}`.
-- `exp`: The expiration time of the token, in this case, 1 minutes after the token creation.
+- `exp`: The expiration time of the token, in this case, 1 minute after the token creation.
 - `hash`: The hash (SHA-256) of the password of the device.
 
 The JWT token is signed with the server private key (`private_key.pem`).
@@ -91,7 +94,7 @@ After successful authentication, the server generates a session token for the Wo
 A new HS256 JWT is created with claims including a unique session ID (session_id) and standard claims (a secret known
 only by the device is used).
 
-The session token should be send in the metadata of each request by the Woodstock Backup Server.
+The session token should be sent in the metadata of each request by the Woodstock Backup Server.
 
 ### Step 6: Server Sends Session Token to Device
 

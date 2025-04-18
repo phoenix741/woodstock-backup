@@ -1,6 +1,6 @@
-# Update the scheduler
+# Updating the Scheduler
 
-You can update the default scheduler instead of the host scheduler.
+You can update the default scheduler configuration instead of modifying individual host schedulers.
 
 ```yaml
 wakeupSchedule: "*/15 * * * *"
@@ -16,22 +16,22 @@ defaultSchedule:
     yearly: -1
 ```
 
-## The application scheduler
+## The Application Scheduler
 
-Inside the file we have the following properties:
+Inside the configuration file, you have the following properties:
 
 | Field           | Default value  | Description                                                           |
 | --------------- | -------------  | --------------------------------------------------------------------- |
-| wakeupSchedule  | `*/15 * * * *` | Cron to wakeup the backup software and launch all backup if necessary |
-| nightlySchedule | `0 0 * * *`    | Cron to wakeup the backup software and launch statistics              |
-| defaultSchedule | See above      | The default backup scheduler                                          |
+| wakeupSchedule  | `*/15 * * * *` | Cron expression to wake up the backup software and launch all necessary backups |
+| nightlySchedule | `0 0 * * *`    | Cron expression to wake up the backup software and generate statistics        |
+| defaultSchedule | See above      | The default backup scheduler configuration                                     |
 
-## The scheduler
+## The Scheduler
 
-Inside the field `scheduler`:
+Inside the `scheduler` field:
 
 | Field        | Default value                                                  | Description                                  |
 | ------------ | -------------------------------------------------------------- | -------------------------------------------- |
-| activated    | true                                                           | Active / Desactive the automatic backup      |
-| backupPeriod | 8340                                                           | Period between two backup: 24H - 5 minutes   |
-| backupToKeep | `{ hourly: 24, daily: 7, weekly: 4, monthly: 12, yearly: 1 }`  | Number of backups to keep (not used currently) |
+| activated    | true                                                           | Enable or disable automatic backups          |
+| backupPeriod | 8340                                                           | Period between two backups in minutes (24H - 5 minutes) |
+| backupToKeep | `{ hourly: 24, daily: 7, weekly: 4, monthly: 12, yearly: 1 }`  | Number of backups to keep in each category (not currently used) |

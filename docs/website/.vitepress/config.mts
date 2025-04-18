@@ -32,6 +32,7 @@ export default defineConfig({
           items: [
             { text: "Introduction", link: "/doc/" },
             { text: "Installation", link: "/doc/installation" },
+            { text: "Agent", link: "/doc/agent" },
             { text: "Configuration", link: "/doc/configuration" },
             { text: "Scheduler", link: "/doc/scheduler" },
             { text: "FAQ", link: "/doc/faq" },
@@ -39,12 +40,21 @@ export default defineConfig({
           ],
         },
         {
+          text: "Migration Documentation",
+          items: [
+            { text: "BackupPC", link: "/doc/migration/backuppc" },
+          ],
+        },
+        {
           text: "Internal Documentation",
           items: [
-            { text: "Pool", link: "/doc/internal/pool" },
+            { text: "Pool of chunk", link: "/doc/internal/pool" },
             {
-              text: "Client Authentication",
-              link: "/doc/internal/client_auth",
+              text: "Server Auth to Client",
+              link: "/doc/internal/client_auth_backup",
+            }, {
+              text: "Client Auth to Server",
+              link: "/doc/internal/client_auth_dns",
             },
           ],
         },
