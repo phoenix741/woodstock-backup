@@ -13,11 +13,9 @@ import { HeatmapChart } from 'echarts/charts';
 import { CalendarComponent, TooltipComponent, VisualMapComponent } from 'echarts/components';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { computed, provide } from 'vue';
-import VChart, { THEME_KEY } from 'vue-echarts';
+import { computed } from 'vue';
+import VChart from 'vue-echarts';
 import { NbChunkPoolUsage } from './pool.interface';
-
-provide(THEME_KEY, 'dark');
 
 use([CanvasRenderer, VisualMapComponent, TooltipComponent, CalendarComponent, HeatmapChart]);
 
@@ -92,9 +90,6 @@ const option = computed(() => ({
     left: 'center',
     top: 10,
     width: 500,
-    inRange: {
-      color: ['#EDE7F6', '#D1C4E9', '#B39DDB', '#9575CD', '#7E57C2', '#5E35B1', '#512DA8', '#4527A0', '#311B92'],
-    },
   },
   calendar: {
     top: 90,

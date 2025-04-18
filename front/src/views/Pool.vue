@@ -31,7 +31,7 @@
         <text-size-card
           title="References"
           icon="mdi-dots-grid"
-          color="purple"
+          color="primary-darken-1"
           :used="result?.statistics.poolUsage?.nbRef ?? 0"
           :yesterday="result?.statistics.poolUsage?.nbRefLastMonth ?? 0"
         ></text-size-card>
@@ -40,7 +40,7 @@
         <text-size-card
           title="Chunks"
           icon="mdi-checkerboard"
-          color="amber"
+          color="secondary-darken-1"
           :used="result?.statistics.poolUsage?.nbChunk ?? 0"
           :yesterday="result?.statistics.poolUsage?.nbChunkLastMonth ?? 0"
         ></text-size-card>
@@ -135,16 +135,21 @@ const { tasks, isFetching: isTaskFetching } = useTasks(
 
 const { cleanupPool, fsckPool, verifyChecksum } = usePool();
 
-async function cleanupPoolCallback(): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
+async function cleanupPoolCallback(): Promise<{
+  response?: JobPoolResponseFragment;
+  errors?: readonly GraphQLFormattedError[];
+}> {
   const { data, errors } = (await cleanupPool()) ?? {};
   const response = useFragment(JobPoolResponseFragmentNode, data?.cleanupPool);
   return {
-     response,
+    response,
     errors,
   };
 }
 
-async function fsckPoolCallback(fix = false): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
+async function fsckPoolCallback(
+  fix = false,
+): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
   const { data, errors } = (await fsckPool({ fix })) ?? {};
   const response = useFragment(JobPoolResponseFragmentNode, data?.checkAndFixPool);
   return {
@@ -153,7 +158,10 @@ async function fsckPoolCallback(fix = false): Promise<{ response?: JobPoolRespon
   };
 }
 
-async function verifyChecksumCallback(): Promise<{ response?: JobPoolResponseFragment; errors?: readonly GraphQLFormattedError[] }> {
+async function verifyChecksumCallback(): Promise<{
+  response?: JobPoolResponseFragment;
+  errors?: readonly GraphQLFormattedError[];
+}> {
   const { data, errors } = (await verifyChecksum()) ?? {};
   const response = useFragment(JobPoolResponseFragmentNode, data?.verifyChecksum);
   return {

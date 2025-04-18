@@ -3,14 +3,12 @@ import { PieChart } from 'echarts/charts';
 import { LegendComponent, TooltipComponent } from 'echarts/components';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { computed, provide } from 'vue';
-import VChart, { THEME_KEY } from 'vue-echarts';
+import { computed } from 'vue';
+import VChart from 'vue-echarts';
 import { HostCountByState } from '../hosts.interface';
 import { getColor } from '../hosts.utils';
 
 use([CanvasRenderer, LegendComponent, TooltipComponent, PieChart]);
-
-provide(THEME_KEY, 'dark');
 
 const props = defineProps<{
   countByState: HostCountByState[];
