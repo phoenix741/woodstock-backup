@@ -1,5 +1,10 @@
 <template>
   <v-container>
+    <v-row>
+      <v-col>
+        <HostCard :deviceId="deviceId"></HostCard>
+      </v-col>
+    </v-row>
     <v-row v-if="backups && (backups?.length ?? 0) >= 3">
       <v-col>
         <BackupsChartsComponent :backups="backups"></BackupsChartsComponent>
@@ -19,16 +24,9 @@
             loading-title="Loading... Please wait"
             item-value="number"
             class="elevation-1"
-            @click:row="
-              (_event: unknown, { item }: any) => {
-                showDialog[item.number] = true;
-              }
-            "
+            @click:row="navigateTo"
           >
-            <template v-slot:[`item.number`]="{ item }">
-              <BackupView v-model="showDialog[item.number]" :deviceId="deviceId" :backup="item"></BackupView
-              >{{ item.number }}
-            </template>
+            <template v-slot:[`item.number`]="{ item }">{{ item.number }}</template>
             <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate * 1000) }}</template>
             <template v-slot:[`item.fileCount`]="{ item }"
               >{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize) }})</template
@@ -75,25 +73,26 @@
 
 <script lang="ts" setup>
 import BackupsChartsComponent from '@/components/backups/cards/BackupsChartsComponent.vue';
-import { toDateTime, toMinutes, toNumber } from '@/components/hosts/hosts.utils';
+import HostCard from '@/components/hosts/cards/HostCard.vue';
+import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
-import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { VDataTable } from 'vuetify/components';
 
 import { useBackups } from '../utils/backups';
 import BackupCreate from './dialogs/BackupCreate.vue';
 import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
-import BackupView from './dialogs/BackupView.vue';
 
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
 const route = useRoute();
+const router = useRouter();
 
 const deviceId = Array.isArray(route.params.deviceId) ? route.params.deviceId[0] : route.params.deviceId;
 
-let itemsPerPage = ref(25);
+const itemsPerPage = ref(25);
 
 const headers: ReadonlyHeaders = [
   {
@@ -121,22 +120,18 @@ const { backups, isFetching } = useBackups(deviceId);
 
 const backupsDataTable = computed(() => {
   return backups.value?.map((backup) => ({
-    duration: backup.endDate && toMinutes((backup.endDate - backup.startDate) * 1000),
+    duration: backup.endDate && toDuration((backup.endDate - backup.startDate) * 1000),
     ...backup,
   }));
 });
 
 const selection = ref<number[]>([]);
-const showDialog = ref<Record<number, boolean>>({});
-
-watch(
-  () => backups.value,
-  () => {
-    showDialog.value = backups.value?.reduce((acc, backup) => ({ ...acc, [backup.number]: false }), {}) ?? {};
-  },
-);
 
 function toErrorCountColor(errorCount: number): string {
   return errorCount > 0 ? 'error' : 'success';
+}
+
+function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknown> }) {
+  router.push(`/backups/${deviceId}/${item.number}`);
 }
 </script>

@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { computed, provide } from 'vue';
+import filesize from '@/utils/filesize';
 import { TreemapChart } from 'echarts/charts';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import VChart, { THEME_KEY } from 'vue-echarts';
-import filesize from '@/utils/filesize';
-import { HostBySize } from '../hosts.interface';
 import type { ECBasicOption } from 'echarts/types/dist/shared';
+import { computed } from 'vue';
+import VChart from 'vue-echarts';
+import type { HostBySize } from '../hosts.interface';
 
 use([CanvasRenderer, TreemapChart]);
-
-provide(THEME_KEY, 'dark');
 
 const props = defineProps<{
   hosts: HostBySize[];
@@ -19,25 +17,10 @@ const props = defineProps<{
 const option = computed(
   () =>
     ({
-      color: [
-        '#311B92',
-        '#4527A0',
-        '#512DA8',
-        '#5E35B1',
-        '#6200EA',
-        '#651FFF',
-        '#7C4DFF',
-        '#7E57C2',
-        '#9575CD',
-        '#B388FF',
-        '#B39DDB',
-        '#D1C4E9',
-        '#EDE7F6',
-      ],
       label: {
         position: 'insideTopLeft',
         formatter: function (params: { data: { name: string; originalValue: bigint } }) {
-          let arr = [
+          const arr = [
             '{name|' + params.data.name + '}',
             '{hr|}',
             '{budget| ' + filesize(params.data.originalValue) + '}',
@@ -79,7 +62,7 @@ const option = computed(
           })),
         },
       ],
-    } satisfies ECBasicOption),
+    }) satisfies ECBasicOption,
 );
 </script>
 

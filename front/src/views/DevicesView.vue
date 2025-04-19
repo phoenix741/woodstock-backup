@@ -32,9 +32,10 @@
               <template v-if="item.lastBackupSize">{{ filesize(item.lastBackupSize) }}</template>
             </template>
             <template v-slot:[`item.agentVersion`]="{ item }">
-              <v-chip :color="item.availibilityState" variant="outlined" rounded>{{
-                item.agentVersion || 'unknown'
-              }}</v-chip>
+              {{ item.agentVersion || 'unknown' }}
+            </template>
+            <template v-slot:[`item.availibility`]="{ item }">
+              <v-chip :color="item.availibilityColor" rounded>{{ item.availibilityState || 'unknown' }}</v-chip>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -55,7 +56,7 @@
 import HostRepartitionChartsComponent from '@/components/hosts/cards/HostRepartitionChartsComponent.vue';
 import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSuccessFailureChartsComponent.vue';
 
-import { getColor, getState, toDateTime, toDay } from '@/components/hosts/hosts.utils';
+import { getAvailabilityColor, getColor, getState, toDateTime, toDuration } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
@@ -63,7 +64,6 @@ import { VDataTable } from 'vuetify/components';
 
 import { useDevices } from '../utils/devices';
 import { useDiskUsageStats } from '../utils/stats';
-import { HostAvailibilityState } from '@/generated/graphql';
 
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
@@ -75,7 +75,7 @@ function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknow
   router.push(`/backups/${item.name}`);
 }
 
-let itemsPerPage = ref(25);
+const itemsPerPage = ref(25);
 
 const headers: ReadonlyHeaders = [
   {
@@ -89,33 +89,23 @@ const headers: ReadonlyHeaders = [
   { title: 'Next Backup', align: 'end', key: 'nextBackup' },
   { title: 'Last backup size', align: 'end', key: 'lastBackupSize' },
   { title: 'Agent', align: 'start', key: 'agentVersion' },
+  { title: 'Availability', align: 'start', key: 'availibility' },
   { title: 'State', align: 'end', key: 'state' },
 ];
 
 const devicesDataTable = computed(() => {
   return devices.value?.hosts.map((device) => {
-    let availibilityState;
-    switch (device.availibilityState) {
-      case HostAvailibilityState.Online:
-        availibilityState = 'green';
-        break;
-      case HostAvailibilityState.Offline:
-        availibilityState = 'red';
-        break;
-      case HostAvailibilityState.Unknown:
-        availibilityState = 'yellow';
-    }
-
     return {
       name: device.name,
       lastBackupNumber: device.lastBackup?.number,
-      lastBackupAge: device.timeSinceLastBackup && toDay(device.timeSinceLastBackup * 1000),
+      lastBackupAge: device.timeSinceLastBackup && toDuration(device.timeSinceLastBackup * 1000),
       nextBackup: device.dateToNextBackup && toDateTime(device.dateToNextBackup),
       lastBackupSize: device.lastBackup?.fileSize,
       state: getState(device),
       configuration: device.configuration,
       agentVersion: device.agentVersion || device.lastBackup?.agentVersion || '',
-      availibilityState,
+      availibilityState: device.availibilityState,
+      availibilityColor: getAvailabilityColor(device.availibilityState),
     };
   });
 });

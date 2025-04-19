@@ -36,7 +36,7 @@
 </template>
 
 <script lang="ts" setup>
-import { QueueStats } from "./stats.interface";
+import type { QueueStats } from './stats.interface';
 
 defineProps<{
   stats: QueueStats;

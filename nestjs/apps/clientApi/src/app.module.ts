@@ -9,7 +9,7 @@ import {
   CertificateService,
   ConfigProviderModule,
   SharedModule,
-  initializeLog
+  initializeLog,
 } from '@woodstock/shared';
 import { PubSub } from 'graphql-subscriptions';
 import { ClientCertificateStrategy } from './auth/client-strategy.service.js';

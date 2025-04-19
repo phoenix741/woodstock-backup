@@ -1,0 +1,33 @@
+query Host($hostname: String!) {
+  host(hostname: $hostname) {
+    name
+    agentVersion
+    lastBackup {
+      agentVersion
+      completed
+    }
+    availibilityState
+    timeSinceLastBackup
+    dateToNextBackup
+    lastBackupState
+    addresses
+    configuration {
+      operations {
+        preCommands {
+          command
+        }
+        operation {
+          shares {
+            name
+          }
+        }
+        postCommands {
+          command
+        }
+      }
+      schedule {
+        activated
+      }
+    }
+  }
+}

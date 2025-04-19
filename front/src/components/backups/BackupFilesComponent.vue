@@ -69,7 +69,7 @@ import filesize from '@/utils/filesize';
 import { computed } from 'vue';
 import BackupFilesTreeComponent from '@/components/backups/BackupFilesTreeComponent.vue';
 import BackupRestore from '@/components/backups/dialog/BackupRestore.vue';
-import { TreeViewNode } from './backups.interface';
+import type { TreeViewNode } from './backups.interface';
 
 const props = defineProps<{
   deviceId: string;

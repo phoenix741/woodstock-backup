@@ -8,11 +8,12 @@
 </template>
 
 <script setup lang="ts">
-import { FragmentType, useFragment } from '@/generated';
+import type { FragmentType } from '@/generated';
+import { useFragment } from '@/generated';
 import { toNumber } from '../hosts/hosts.utils';
 import { EventPoolInformationFragment } from './events.fragment';
 
 const props = defineProps<{ information: FragmentType<typeof EventPoolInformationFragment> }>();
 
-const information = useFragment(EventPoolInformationFragment, props.information)
+const information = useFragment(EventPoolInformationFragment, props.information);
 </script>

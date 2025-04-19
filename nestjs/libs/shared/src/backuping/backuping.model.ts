@@ -55,7 +55,7 @@ export class BackupContext {
   connection: WoodstockBackupClient;
 
   constructor(jobData: JobBackupData, connection: WoodstockBackupClient) {
-    if (!jobData.config || jobData.number === undefined || (!jobData.ip && !jobData.config.isLocal)) {
+    if (!jobData.config || jobData.number === undefined || !jobData.ip) {
       throw new BadRequestException(`Initialisation of backup failed.`);
     }
 

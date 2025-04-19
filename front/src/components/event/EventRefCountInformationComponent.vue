@@ -4,11 +4,12 @@
 </template>
 
 <script setup lang="ts">
-import { FragmentType, useFragment } from '@/generated';
+import type { FragmentType } from '@/generated';
+import { useFragment } from '@/generated';
 import { toNumber } from '../hosts/hosts.utils';
 import { EventRefCountInformationFragment } from './events.fragment';
 
 const props = defineProps<{ information: FragmentType<typeof EventRefCountInformationFragment> }>();
 
-const information = useFragment(EventRefCountInformationFragment, props.information)
+const information = useFragment(EventRefCountInformationFragment, props.information);
 </script>

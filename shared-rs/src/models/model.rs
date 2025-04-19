@@ -122,7 +122,6 @@ impl From<woodstock::config::HostConfigOperation> for JsHostConfigOperation {
 
 #[napi(object)]
 pub struct JsHostConfiguration {
-  pub is_local: Option<bool>,
   pub password: String,
   pub addresses: Option<Vec<String>>,
   pub port: u16,
@@ -133,7 +132,6 @@ pub struct JsHostConfiguration {
 impl From<woodstock::config::HostConfiguration> for JsHostConfiguration {
   fn from(host_configuration: woodstock::config::HostConfiguration) -> Self {
     Self {
-      is_local: host_configuration.is_local,
       password: host_configuration.password,
       addresses: host_configuration.addresses,
       port: host_configuration.port,

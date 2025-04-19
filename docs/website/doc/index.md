@@ -21,6 +21,7 @@ the documentation will explain how the software works internally for development
   - [Pool](/doc/internal/pool)
   - [Server Authentication to Client](/doc/internal/client_auth_backup)
   - [Client Authentication to Server](/doc/internal/client_auth_dns)
+  - [Colors](/doc/colors)
 
 ## Contribution
 

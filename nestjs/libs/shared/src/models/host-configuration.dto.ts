@@ -70,10 +70,6 @@ export class HostConfigOperation {
  */
 @ObjectType()
 export class HostConfiguration {
-  @ApiProperty({ type: Boolean })
-  @Field(() => Boolean)
-  isLocal?: boolean;
-
   @Exclude()
   password: string;
 

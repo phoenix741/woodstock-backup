@@ -77,7 +77,8 @@ import { useFragment } from '@/generated';
 import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
 import { usePool } from '@/utils/pool';
-import { FormatDistanceFn, FormatDistanceToken, formatDuration, intervalToDuration } from 'date-fns';
+import type { FormatDistanceFn, FormatDistanceToken } from 'date-fns';
+import { formatDuration, intervalToDuration } from 'date-fns';
 import { computed, ref } from 'vue';
 import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
@@ -91,7 +92,7 @@ import {
   EventRefCountInformationFragment,
   EventHashConversionInformationFragment,
 } from './events.fragment';
-import { MergedApplicationEvent } from './events.model';
+import type { MergedApplicationEvent } from './events.model';
 
 const { fsckPool } = usePool();
 

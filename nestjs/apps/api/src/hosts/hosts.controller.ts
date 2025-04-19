@@ -1,5 +1,5 @@
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import {
-  Body,
   ClassSerializerInterceptor,
   Controller,
   Get,
@@ -8,25 +8,28 @@ import {
   Logger,
   NotFoundException,
   Param,
-  Post,
   Query,
   Res,
   UnsupportedMediaTypeException,
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiHeader, ApiOkResponse, ApiProduces, ApiQuery } from '@nestjs/swagger';
-import { ApplicationConfigService, findNearestPackageJson, ResolveService, YamlService } from '@woodstock/shared';
-import { HostConfiguration } from '@woodstock/shared';
-import { CertificateService } from '@woodstock/shared';
+import {
+  ApplicationConfigService,
+  BackupsService,
+  CertificateService,
+  findNearestPackageJson,
+  HostConfiguration,
+  HostsService,
+  YamlService,
+} from '@woodstock/shared';
 import * as archiver from 'archiver';
+import { Cache } from 'cache-manager';
 import { Response } from 'express';
-import { join } from 'path';
-import { ClientType, HostInformation } from './hosts.dto.js';
-import { BackupsService, HostsService } from '@woodstock/shared';
 import { readFile } from 'fs/promises';
 import * as JSZip from 'jszip';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { join } from 'path';
+import { ClientType, HostInformation } from './hosts.dto.js';
 
 const ZIP_URL_MAPPING: Record<ClientType, string | undefined> = {
   [ClientType.Windows]: 'binaries-windows-x86_64-pc-windows-msvc.zip',
@@ -49,7 +52,7 @@ export class HostController {
     private backupsService: BackupsService,
     private hostsService: HostsService,
     private yamlService: YamlService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOkResponse({

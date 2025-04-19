@@ -56,6 +56,7 @@ export default defineConfig({
               text: "Client Auth to Server",
               link: "/doc/internal/client_auth_dns",
             },
+            { text: "Colors", link: "/doc/colors" },
           ],
         },
       ],

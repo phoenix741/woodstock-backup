@@ -35,8 +35,9 @@ import { VTreeview } from 'vuetify/labs/VTreeview';
 import { computed, ref, watch } from 'vue';
 import { unmangle } from '../../utils/file';
 import { useApolloClient } from '@vue/apollo-composable';
-import { TreeViewNode } from './backups.interface';
-import { EnumFileType, FragmentFileDescriptionFragment } from '@/generated/graphql';
+import type { TreeViewNode } from './backups.interface';
+import type { FragmentFileDescriptionFragment } from '@/generated/graphql';
+import { EnumFileType } from '@/generated/graphql';
 
 const props = defineProps<{
   deviceId: string;
@@ -72,11 +73,15 @@ const cssVars = computed(() => {
   };
 });
 
-watch(shares, (value) => {
-  let sharesNode = value?.map((item) => mapShareNode(item));
+watch(
+  shares,
+  (value) => {
+    const sharesNode = value?.map((item) => mapShareNode(item));
 
-  items.value = sharesNode ?? [];
-});
+    items.value = sharesNode ?? [];
+  },
+  { immediate: true },
+);
 
 function mapShareNode(node: FragmentFileDescriptionFragment): TreeViewNode {
   return {
@@ -105,7 +110,7 @@ function mapFileNode(node: FragmentFileDescriptionFragment, parent: TreeViewNode
 }
 
 function isTreeNode(node: unknown): node is TreeViewNode {
-  return (node as TreeViewNode).displayName !== undefined;
+  return (node as TreeViewNode)?.displayName !== undefined;
 }
 
 async function fetchNodes(node: unknown) {

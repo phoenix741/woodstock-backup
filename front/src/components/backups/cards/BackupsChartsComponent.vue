@@ -5,15 +5,13 @@ import { BarChart, LineChart } from 'echarts/charts';
 import { GridComponent } from 'echarts/components';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { computed, provide } from 'vue';
-import VChart, { THEME_KEY } from 'vue-echarts';
-import { BackupSizeByDate } from '../backups.interface';
+import { computed } from 'vue';
+import VChart from 'vue-echarts';
+import type { BackupSizeByDate } from '../backups.interface';
 
 const BIGINT_DELTA = 1024n * 1024n;
 
 use([CanvasRenderer, GridComponent, BarChart, LineChart]);
-
-provide(THEME_KEY, 'dark');
 
 const props = defineProps<{
   backups: BackupSizeByDate[];

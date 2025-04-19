@@ -1,11 +1,12 @@
 import { useFragment } from '@/generated';
 import {
+  BackupDocument,
   BackupsBrowseDocument,
   BackupsDocument,
   FragmentFileDescriptionFragmentDoc,
   SharesBrowseDocument,
 } from '@/generated/graphql';
-import { ApolloClient } from '@apollo/client';
+import { ApolloClient } from '@apollo/client/core';
 import { useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
@@ -36,6 +37,20 @@ export function useBackups(deviceId: string) {
 
   return {
     backups,
+    isFetching,
+  };
+}
+
+export function useBackup(deviceId: string, backupNumber: number) {
+  const { result: data, loading: isFetching } = useQuery(BackupDocument, {
+    hostname: deviceId,
+    number: backupNumber,
+  });
+
+  const backup = computed(() => data.value?.backup);
+
+  return {
+    backup,
     isFetching,
   };
 }

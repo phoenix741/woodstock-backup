@@ -1,8 +1,12 @@
-import { FragmentType, graphql, useFragment } from '@/generated';
-import { ProgressTaskFragment, QueueTaskState } from '@/generated/graphql';
-import { UseQueryReturn, useQuery } from '@vue/apollo-composable';
-import { Ref, computed } from 'vue';
-import { JobTaskGui } from './tasks.interface';
+import type { FragmentType } from '@/generated';
+import { graphql, useFragment } from '@/generated';
+import type { ProgressTaskFragment } from '@/generated/graphql';
+import { QueueTaskState } from '@/generated/graphql';
+import type { UseQueryReturn } from '@vue/apollo-composable';
+import { useQuery } from '@vue/apollo-composable';
+import type { Ref } from 'vue';
+import { computed } from 'vue';
+import type { JobTaskGui } from './tasks.interface';
 
 const TASKS_GROUP_NAME_TO_DISPLAY: Record<string, (description?: string | null) => string> = {
   // Task
@@ -294,28 +298,42 @@ export function useTasks(
       }
     `),
     updateQuery: (previousResult, { subscriptionData }) => {
-      if (!subscriptionData.data.jobUpdated) return previousResult;
-      const jobFragment = useFragment(JobFragmentDoc, subscriptionData.data.jobUpdated);
+      if (!subscriptionData.data?.jobUpdated) return previousResult;
 
-      const queue = [...(previousResult?.queue || [])];
-      const index = queue.findIndex((task) => {
-        const taskFragment = useFragment(JobFragmentDoc, task);
-        return taskFragment.id === jobFragment.id;
+      // Vérifier que previousResult existe et a une propriété queue
+      if (!previousResult) return previousResult;
+
+      // Créer une copie du résultat précédent
+      const updatedQueue = previousResult.queue ? [...previousResult.queue] : [];
+
+      // Trouver l'index du job dans la queue si présent
+      const index = updatedQueue.findIndex((task) => {
+        if (!task) return false;
+
+        return task.id === subscriptionData.data.jobUpdated.id;
       });
 
-      if (taskFilter.value.includes(jobFragment.state || '') || taskFilter.value.length === 0) {
+      // Gérer la mise à jour selon l'état du job et le filtre
+      const jobState = subscriptionData.data.jobUpdated.state;
+      if (taskFilter.value.includes(jobState || '') || taskFilter.value.length === 0) {
         if (index < 0) {
-          queue.push(subscriptionData.data.jobUpdated);
+          // Ajouter le job à la queue s'il n'existe pas déjà
+          updatedQueue.push(subscriptionData.data.jobUpdated);
           refetch?.();
+        } else {
+          // Mettre à jour le job existant
+          updatedQueue[index] = subscriptionData.data.jobUpdated;
         }
       } else if (index >= 0) {
-        queue.splice(index, 1);
+        // Supprimer le job s'il ne correspond plus aux filtres
+        updatedQueue.splice(index, 1);
         refetch?.();
       }
 
+      // Retourner un nouvel objet avec la queue mise à jour
       return {
         ...previousResult,
-        queue,
+        queue: updatedQueue,
       };
     },
   }));

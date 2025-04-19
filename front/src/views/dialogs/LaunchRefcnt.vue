@@ -58,8 +58,8 @@
 </template>
 
 <script lang="ts" setup>
-import { JobPoolResponseFragment } from '@/generated/graphql';
-import { GraphQLFormattedError } from 'graphql';
+import type { JobPoolResponseFragment } from '@/generated/graphql';
+import type { GraphQLFormattedError } from 'graphql';
 import { ref } from 'vue';
 
 enum ProgressDialogState {

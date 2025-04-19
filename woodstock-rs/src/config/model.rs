@@ -54,7 +54,6 @@ pub struct HostConfigOperation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HostConfiguration {
-    pub is_local: Option<bool>,
     pub password: String,
     pub addresses: Option<Vec<String>>,
     #[serde(default = "default_port")]

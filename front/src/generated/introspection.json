@@ -7,9 +7,6 @@
       "EventPoolInformation",
       "EventRefCountInformation"
     ],
-    "SubTaskOrGroupTasks": [
-      "JobGroupTasks",
-      "JobSubTask"
-    ]
+    "SubTaskOrGroupTasks": ["JobGroupTasks", "JobSubTask"]
   }
 }

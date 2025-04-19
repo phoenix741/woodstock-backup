@@ -90,7 +90,7 @@ export class HostConsumer extends WorkerHost {
 
         return this.applicationLogger.useLogger(backupTask.host, backupTask.number ?? -1, 'backup', async () => {
           this.logger.debug(`Resolve IP - JOB ID = ${job.id}`);
-          if (!backupTask.ip && !backupTask.config?.isLocal) {
+          if (!backupTask.ip) {
             backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
             if (!backupTask.ip) {
               throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
