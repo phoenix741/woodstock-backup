@@ -86,15 +86,6 @@ export function toDuration(age: number) {
   return formatDuration(duration);
 }
 
-export function toMinutes(age: number) {
-  const duration = intervalToDuration({ start: 0, end: age });
-  if (duration.seconds) {
-    duration.minutes = (duration.minutes ?? 0) + 1;
-    duration.seconds = 0;
-  }
-  return formatDuration(duration);
-}
-
 export function toDateTime(value: string | number) {
   return format(value, 'MM/dd/yyyy HH:mm');
 }

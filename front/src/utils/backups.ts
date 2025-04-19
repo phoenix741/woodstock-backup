@@ -1,5 +1,6 @@
 import { useFragment } from '@/generated';
 import {
+  BackupDocument,
   BackupsBrowseDocument,
   BackupsDocument,
   FragmentFileDescriptionFragmentDoc,
@@ -39,6 +40,21 @@ export function useBackups(deviceId: string) {
     isFetching,
   };
 }
+
+export function useBackup(deviceId: string, backupNumber: number) {
+  const { result: data, loading: isFetching } = useQuery(BackupDocument, {
+    hostname: deviceId,
+    number: backupNumber,
+  });
+
+  const backup = computed(() => data.value?.backup);
+
+  return {
+    backup,
+    isFetching,
+  };
+}
+
 
 export function useBackupsBrowse(deviceId: string, backupNumber: number) {
   const { shares, isFetching } = useShare(deviceId, backupNumber);

@@ -22,9 +22,9 @@ export class BackupsFilesService {
           path: Buffer.from(path),
           stats: {
             mode: -1,
-            created: startDate,
-            lastRead: startDate,
-            lastModified: startDate,
+            created: startDate * 1000,
+            lastRead: startDate * 1000,
+            lastModified: startDate * 1000,
             ownerId: 0,
             groupId: 0,
             size: 0n,

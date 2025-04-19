@@ -25,6 +25,11 @@ const routes = [
         component: () => import(/* webpackChunkName: "backups" */ '@/views/Backups.vue'),
       },
       {
+        path: 'backups/:deviceId/:backupId',
+        name: 'BackupDetails',
+        component: () => import(/* webpackChunkName: "backups" */ '@/views/BackupDetails.vue'),
+      },
+      {
         path: 'tasks/:taskFilter',
         name: 'Tasks',
         props: true,

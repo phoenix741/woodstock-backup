@@ -41,7 +41,7 @@
           </tr>
           <tr v-if="selected.node.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified) * 1000) }}</td>
+            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified)) }}</td>
           </tr>
         </tbody>
         <tfoot>
