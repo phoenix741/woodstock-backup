@@ -75,7 +75,7 @@ function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknow
   router.push(`/backups/${item.name}`);
 }
 
-let itemsPerPage = ref(25);
+const itemsPerPage = ref(25);
 
 const headers: ReadonlyHeaders = [
   {

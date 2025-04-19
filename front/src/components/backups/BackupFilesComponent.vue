@@ -41,7 +41,7 @@
           </tr>
           <tr v-if="selected.node.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified)) }}</td>
+            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified) * 1000) }}</td>
           </tr>
         </tbody>
         <tfoot>
@@ -69,7 +69,7 @@ import filesize from '@/utils/filesize';
 import { computed } from 'vue';
 import BackupFilesTreeComponent from '@/components/backups/BackupFilesTreeComponent.vue';
 import BackupRestore from '@/components/backups/dialog/BackupRestore.vue';
-import { TreeViewNode } from './backups.interface';
+import type { TreeViewNode } from './backups.interface';
 
 const props = defineProps<{
   deviceId: string;

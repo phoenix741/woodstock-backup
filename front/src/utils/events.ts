@@ -1,6 +1,7 @@
 import { graphql } from '@/generated/gql';
 import { useQuery } from '@vue/apollo-composable';
-import { computed, Ref } from 'vue';
+import { computed } from 'vue';
+import type { Ref } from 'vue';
 
 const allEventsDocument = graphql(/* GraphQL */ `
   query Events($firstEvent: DateTime!, $lastEvent: DateTime!) {

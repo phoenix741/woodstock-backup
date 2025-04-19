@@ -5,7 +5,7 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
-import { HostCountByState } from '../hosts.interface';
+import type { HostCountByState } from '../hosts.interface';
 import { getColor } from '../hosts.utils';
 
 use([CanvasRenderer, LegendComponent, TooltipComponent, PieChart]);

@@ -103,7 +103,7 @@
 <script setup lang="ts">
 import { toDateTime, toNumber, toPercent } from '@/components/hosts/hosts.utils';
 import { QueueTaskState } from '@/generated/graphql';
-import { JobTaskGui, ProgressTaskDetailGui } from '@/utils/tasks.interface';
+import type { JobTaskGui, ProgressTaskDetailGui } from '@/utils/tasks.interface';
 import filesize from '@/utils/filesize';
 import { computed, defineProps } from 'vue';
 

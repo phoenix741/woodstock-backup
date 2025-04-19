@@ -1,7 +1,7 @@
-import { HostCountByState } from '@/components/hosts/hosts.interface';
+import type { HostCountByState } from '@/components/hosts/hosts.interface';
 import { getState } from '@/components/hosts/hosts.utils';
 import { graphql } from '@/generated';
-import { HostsDocument } from '@/generated/graphql';
+import { HostDocument, HostsDocument } from '@/generated/graphql';
 import { useMutation, useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
@@ -10,11 +10,14 @@ export function useDevices() {
 
   const devicesByState = computed<HostCountByState[]>(() => {
     const devicesByState =
-      devices.value?.hosts.reduce((acc, device) => {
-        const state = getState(device);
-        acc[state] = (acc[state] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>) || {};
+      devices.value?.hosts.reduce(
+        (acc, device) => {
+          const state = getState(device);
+          acc[state] = (acc[state] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ) || {};
 
     return Object.entries(devicesByState).map(([name, value]) => ({
       name,
@@ -39,5 +42,18 @@ export function useDevices() {
     isDeviceFetching,
     devicesByState,
     clearCache,
+  };
+}
+
+export function useDevice(hostname: string) {
+  const { result, loading: isDeviceFetching } = useQuery(HostDocument, {
+    hostname,
+  });
+
+  const device = computed(() => result.value?.host);
+
+  return {
+    device,
+    isDeviceFetching,
   };
 }

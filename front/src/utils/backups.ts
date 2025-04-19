@@ -6,7 +6,7 @@ import {
   FragmentFileDescriptionFragmentDoc,
   SharesBrowseDocument,
 } from '@/generated/graphql';
-import { ApolloClient } from '@apollo/client';
+import { ApolloClient } from '@apollo/client/core';
 import { useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
@@ -54,7 +54,6 @@ export function useBackup(deviceId: string, backupNumber: number) {
     isFetching,
   };
 }
-
 
 export function useBackupsBrowse(deviceId: string, backupNumber: number) {
   const { shares, isFetching } = useShare(deviceId, backupNumber);

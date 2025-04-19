@@ -5,10 +5,11 @@
 </template>
 
 <script setup lang="ts">
-import { FragmentType, useFragment } from '@/generated';
+import type { FragmentType } from '@/generated';
+import { useFragment } from '@/generated';
 import { EventBackupInformationFragment } from './events.fragment';
 
 const props = defineProps<{ information: FragmentType<typeof EventBackupInformationFragment> }>();
 
-const information = useFragment(EventBackupInformationFragment, props.information)
+const information = useFragment(EventBackupInformationFragment, props.information);
 </script>

@@ -1,4 +1,4 @@
-import { FieldPolicy } from '@apollo/client/cache';
+import type { FieldPolicy } from '@apollo/client/cache';
 
 export const bigintTypePolicy: FieldPolicy<bigint, string> = {
   merge: (_, incoming) => {

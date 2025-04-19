@@ -7,7 +7,7 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
-import { BackupSizeByDate } from '../backups.interface';
+import type { BackupSizeByDate } from '../backups.interface';
 
 const BIGINT_DELTA = 1024n * 1024n;
 

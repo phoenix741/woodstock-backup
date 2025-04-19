@@ -20,11 +20,14 @@ export function useDiskUsageStats() {
 
   const devicesBySize = computed(() => {
     const devicesBySize =
-      data.value?.statistics?.hosts?.reduce((acc, device) => {
-        const host = device.host ?? 'unknown';
-        acc[host] = (acc[host] ?? 0n) + (device.compressedSize ?? 0n);
-        return acc;
-      }, {} as Record<string, bigint>) || {};
+      data.value?.statistics?.hosts?.reduce(
+        (acc, device) => {
+          const host = device.host ?? 'unknown';
+          acc[host] = (acc[host] ?? 0n) + (device.compressedSize ?? 0n);
+          return acc;
+        },
+        {} as Record<string, bigint>,
+      ) || {};
 
     return Object.entries(devicesBySize).map(([name, value]) => ({
       name,

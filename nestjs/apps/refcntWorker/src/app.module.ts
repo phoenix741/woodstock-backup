@@ -8,7 +8,7 @@ import {
   CacheConfigService,
   ConfigProviderModule,
   initializeLog,
-  SharedModule
+  SharedModule,
 } from '@woodstock/shared';
 import { RefcntConsumer } from './refcnt.consumer.js';
 

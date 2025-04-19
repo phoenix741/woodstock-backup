@@ -1,8 +1,8 @@
-import { HostAvailibilityState, HostsQuery } from '@/generated/graphql';
+import { HostAvailibilityState } from '@/generated/graphql';
 import { format, formatDuration, intervalToDuration } from 'date-fns';
 import numeral from 'numeral';
-import vuetify from '../../plugins/vuetify';
 import { computed } from 'vue';
+import vuetify from '../../plugins/vuetify';
 
 // On récupère les thèmes de Vuetify (light et dark)
 const vuetifyThemes = vuetify.theme.themes.value;
@@ -13,7 +13,11 @@ const currentTheme = computed(() => {
   return vuetify.theme.global.current.value.dark ? darkColors : lightColors;
 });
 
-export function getState(host: HostsQuery['hosts'][0]) {
+export function getState(host: {
+  configuration?: { schedule?: { activated?: boolean | null } | null } | null;
+  lastBackupState?: string | null;
+  lastBackup?: { completed?: boolean | null } | null;
+}) {
   if (!host.configuration?.schedule?.activated) {
     return 'disabled';
   } else if (host.lastBackupState) {

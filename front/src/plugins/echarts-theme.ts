@@ -6,7 +6,8 @@
 
 import * as echarts from 'echarts';
 import vuetify from './vuetify';
-import { App, computed } from 'vue';
+import type { App } from 'vue';
+import { computed } from 'vue';
 import { THEME_KEY } from 'vue-echarts';
 
 // Fonction pour créer les thèmes echarts à partir des thèmes Vuetify
@@ -36,7 +37,7 @@ export function setupEchartsTheme() {
       },
       subtextStyle: {
         color: lightColors['on-surface-variant'],
-      }
+      },
     },
     line: {
       itemStyle: {
@@ -64,49 +65,49 @@ export function setupEchartsTheme() {
       itemStyle: {
         barBorderWidth: 0,
         barBorderColor: lightColors['surface-variant'],
-      }
+      },
     },
     pie: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     scatter: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     boxplot: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     parallel: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     sankey: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     funnel: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     gauge: {
       itemStyle: {
         borderWidth: 0,
         borderColor: lightColors['surface-variant'],
-      }
+      },
     },
     candlestick: {
       itemStyle: {
@@ -115,7 +116,7 @@ export function setupEchartsTheme() {
         borderColor: lightColors.error,
         borderColor0: lightColors.success,
         borderWidth: 1,
-      }
+      },
     },
     graph: {
       itemStyle: {
@@ -135,11 +136,11 @@ export function setupEchartsTheme() {
         lightColors.info,
         lightColors.success,
         lightColors.warning,
-        lightColors.error
+        lightColors.error,
       ],
       label: {
         color: lightColors['on-background'],
-      }
+      },
     },
     map: {
       itemStyle: {
@@ -158,8 +159,8 @@ export function setupEchartsTheme() {
         },
         label: {
           color: lightColors['on-primary'],
-        }
-      }
+        },
+      },
     },
     visualMap: {
       inRange: {
@@ -194,21 +195,21 @@ export function setupEchartsTheme() {
         },
         label: {
           color: lightColors['on-primary'],
-        }
-      }
+        },
+      },
     },
     categoryAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -217,33 +218,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: false,
         lineStyle: {
-          color: [
-            lightColors['surface-light'],
-          ]
-        }
+          color: [lightColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            lightColors['surface'],
-            lightColors['surface-light'],
-          ]
-        }
-      }
+          color: [lightColors['surface'], lightColors['surface-light']],
+        },
+      },
     },
     valueAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -252,33 +248,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            lightColors['surface-light'],
-          ]
-        }
+          color: [lightColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            lightColors['surface'],
-            lightColors['surface-light'],
-          ]
-        }
-      }
+          color: [lightColors['surface'], lightColors['surface-light']],
+        },
+      },
     },
     logAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -287,33 +278,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            lightColors['surface-light'],
-          ]
-        }
+          color: [lightColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            lightColors['surface'],
-            lightColors['surface-light'],
-          ]
-        }
-      }
+          color: [lightColors['surface'], lightColors['surface-light']],
+        },
+      },
     },
     timeAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: lightColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -322,20 +308,15 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            lightColors['surface-light'],
-          ]
-        }
+          color: [lightColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            lightColors['surface'],
-            lightColors['surface-light'],
-          ]
-        }
-      }
+          color: [lightColors['surface'], lightColors['surface-light']],
+        },
+      },
     },
     toolbox: {
       iconStyle: {
@@ -344,13 +325,13 @@ export function setupEchartsTheme() {
       emphasis: {
         iconStyle: {
           borderColor: lightColors['on-background'],
-        }
-      }
+        },
+      },
     },
     legend: {
       textStyle: {
         color: lightColors['on-background'],
-      }
+      },
     },
     tooltip: {
       axisPointer: {
@@ -361,14 +342,14 @@ export function setupEchartsTheme() {
         crossStyle: {
           color: lightColors['surface-variant'],
           width: 1,
-        }
+        },
       },
       backgroundColor: lightColors['surface-bright'],
       borderColor: lightColors['surface-variant'],
       borderWidth: 1,
       textStyle: {
         color: lightColors['on-surface'],
-      }
+      },
     },
     timeline: {
       lineStyle: {
@@ -402,8 +383,8 @@ export function setupEchartsTheme() {
         },
         label: {
           color: lightColors['on-background'],
-        }
-      }
+        },
+      },
     },
 
     dataZoom: {
@@ -414,7 +395,7 @@ export function setupEchartsTheme() {
       handleSize: '100%',
       textStyle: {
         color: lightColors['on-background'],
-      }
+      },
     },
   });
 
@@ -429,7 +410,7 @@ export function setupEchartsTheme() {
       darkColors.warning,
       darkColors.error,
       darkColors['primary-darken-1'],
-      darkColors['secondary-darken-1']
+      darkColors['secondary-darken-1'],
     ],
     textStyle: {
       color: darkColors['on-background'],
@@ -440,7 +421,7 @@ export function setupEchartsTheme() {
       },
       subtextStyle: {
         color: darkColors['on-surface-variant'],
-      }
+      },
     },
     line: {
       itemStyle: {
@@ -468,49 +449,49 @@ export function setupEchartsTheme() {
       itemStyle: {
         barBorderWidth: 0,
         barBorderColor: darkColors['surface-variant'],
-      }
+      },
     },
     pie: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     scatter: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     boxplot: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     parallel: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     sankey: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     funnel: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     gauge: {
       itemStyle: {
         borderWidth: 0,
         borderColor: darkColors['surface-variant'],
-      }
+      },
     },
     candlestick: {
       itemStyle: {
@@ -519,7 +500,7 @@ export function setupEchartsTheme() {
         borderColor: darkColors.error,
         borderColor0: darkColors.success,
         borderWidth: 1,
-      }
+      },
     },
     graph: {
       itemStyle: {
@@ -539,11 +520,11 @@ export function setupEchartsTheme() {
         darkColors.info,
         darkColors.success,
         darkColors.warning,
-        darkColors.error
+        darkColors.error,
       ],
       label: {
         color: darkColors['on-background'],
-      }
+      },
     },
     map: {
       itemStyle: {
@@ -562,8 +543,8 @@ export function setupEchartsTheme() {
         },
         label: {
           color: darkColors['on-primary'],
-        }
-      }
+        },
+      },
     },
     geo: {
       itemStyle: {
@@ -582,21 +563,21 @@ export function setupEchartsTheme() {
         },
         label: {
           color: darkColors['on-primary'],
-        }
-      }
+        },
+      },
     },
     categoryAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -605,33 +586,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: false,
         lineStyle: {
-          color: [
-            darkColors['surface-light'],
-          ]
-        }
+          color: [darkColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            darkColors['surface'],
-            darkColors['surface-light'],
-          ]
-        }
-      }
+          color: [darkColors['surface'], darkColors['surface-light']],
+        },
+      },
     },
     valueAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -640,33 +616,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            darkColors['surface-light'],
-          ]
-        }
+          color: [darkColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            darkColors['surface'],
-            darkColors['surface-light'],
-          ]
-        }
-      }
+          color: [darkColors['surface'], darkColors['surface-light']],
+        },
+      },
     },
     logAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -675,33 +646,28 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            darkColors['surface-light'],
-          ]
-        }
+          color: [darkColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            darkColors['surface'],
-            darkColors['surface-light'],
-          ]
-        }
-      }
+          color: [darkColors['surface'], darkColors['surface-light']],
+        },
+      },
     },
     timeAxis: {
       axisLine: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisTick: {
         show: true,
         lineStyle: {
           color: darkColors['surface-variant'],
-        }
+        },
       },
       axisLabel: {
         show: true,
@@ -710,20 +676,15 @@ export function setupEchartsTheme() {
       splitLine: {
         show: true,
         lineStyle: {
-          color: [
-            darkColors['surface-light'],
-          ]
-        }
+          color: [darkColors['surface-light']],
+        },
       },
       splitArea: {
         show: false,
         areaStyle: {
-          color: [
-            darkColors['surface'],
-            darkColors['surface-light'],
-          ]
-        }
-      }
+          color: [darkColors['surface'], darkColors['surface-light']],
+        },
+      },
     },
     toolbox: {
       iconStyle: {
@@ -732,13 +693,13 @@ export function setupEchartsTheme() {
       emphasis: {
         iconStyle: {
           borderColor: darkColors['on-background'],
-        }
-      }
+        },
+      },
     },
     legend: {
       textStyle: {
         color: darkColors['on-background'],
-      }
+      },
     },
     tooltip: {
       axisPointer: {
@@ -749,14 +710,14 @@ export function setupEchartsTheme() {
         crossStyle: {
           color: darkColors['surface-variant'],
           width: 1,
-        }
+        },
       },
       backgroundColor: darkColors['surface-bright'],
       borderColor: darkColors['surface-variant'],
       borderWidth: 1,
       textStyle: {
         color: darkColors['on-surface'],
-      }
+      },
     },
     timeline: {
       lineStyle: {
@@ -790,8 +751,8 @@ export function setupEchartsTheme() {
         },
         label: {
           color: darkColors['on-background'],
-        }
-      }
+        },
+      },
     },
     visualMap: {
       inRange: {
@@ -807,7 +768,7 @@ export function setupEchartsTheme() {
           '#412316',
           '#2a140b',
         ],
-      }
+      },
     },
     dataZoom: {
       backgroundColor: darkColors.surface,
@@ -817,7 +778,7 @@ export function setupEchartsTheme() {
       handleSize: '100%',
       textStyle: {
         color: darkColors['on-background'],
-      }
+      },
     },
   });
 }

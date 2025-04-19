@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import type { ECBasicOption } from 'echarts/types/dist/shared';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
-import { HostBySize } from '../hosts.interface';
+import type { HostBySize } from '../hosts.interface';
 
 use([CanvasRenderer, TreemapChart]);
 
@@ -20,7 +20,7 @@ const option = computed(
       label: {
         position: 'insideTopLeft',
         formatter: function (params: { data: { name: string; originalValue: bigint } }) {
-          let arr = [
+          const arr = [
             '{name|' + params.data.name + '}',
             '{hr|}',
             '{budget| ' + filesize(params.data.originalValue) + '}',
@@ -62,7 +62,7 @@ const option = computed(
           })),
         },
       ],
-    } satisfies ECBasicOption),
+    }) satisfies ECBasicOption,
 );
 </script>
 

@@ -4,11 +4,12 @@
 </template>
 
 <script setup lang="ts">
-import { FragmentType, useFragment } from '@/generated';
+import type { FragmentType } from '@/generated';
+import { useFragment } from '@/generated';
 import { toNumber } from '../hosts/hosts.utils';
 import { EventHashConversionInformationFragment } from './events.fragment';
 
 const props = defineProps<{ information: FragmentType<typeof EventHashConversionInformationFragment> }>();
 
-const information = useFragment(EventHashConversionInformationFragment, props.information)
+const information = useFragment(EventHashConversionInformationFragment, props.information);
 </script>

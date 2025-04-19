@@ -15,7 +15,7 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
-import { NbChunkPoolUsage } from './pool.interface';
+import type { NbChunkPoolUsage } from './pool.interface';
 
 use([CanvasRenderer, VisualMapComponent, TooltipComponent, CalendarComponent, HeatmapChart]);
 
@@ -46,12 +46,15 @@ const nbChunkRange = computed(() => {
   const array = [...emptyChunk.value, ...nbChunkRange]
     .sort((a, b) => a.time - b.time)
     .map(({ time, value }) => ({ time: format(time, 'yyyy-MM-dd'), value }))
-    .reduce((acc, { time, value }, currentIndex, array) => {
-      const previous =
-        currentIndex > 0 ? array.findLast((val, i) => !!val.value && i <= currentIndex - 1)?.value ?? 0 : 0;
-      acc[time] = value ?? previous;
-      return acc;
-    }, {} as Record<string, number>);
+    .reduce(
+      (acc, { time, value }, currentIndex, array) => {
+        const previous =
+          currentIndex > 0 ? (array.findLast((val, i) => !!val.value && i <= currentIndex - 1)?.value ?? 0) : 0;
+        acc[time] = value ?? previous;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
   const entries = Object.entries(array).map(([time, value], i, array) => {
     const previous = i > 0 ? array[i - 1] : [0, 0];

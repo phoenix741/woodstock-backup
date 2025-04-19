@@ -17,7 +17,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
 import filesize from '../../utils/filesize';
-import { CompressedSizePoolUsage } from './pool.interface';
+import type { CompressedSizePoolUsage } from './pool.interface';
 
 use([CanvasRenderer, GridComponent, LineChart]);
 

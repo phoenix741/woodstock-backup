@@ -8,7 +8,7 @@ import {
   CacheConfigService,
   ConfigProviderModule,
   SharedModule,
-  initializeLog
+  initializeLog,
 } from '@woodstock/shared';
 import { BackupClientProgress } from './backups/backup-client-progress.service.js';
 import { BackupsClientService } from './backups/backups-client.service.js';

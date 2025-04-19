@@ -1,5 +1,10 @@
 <template>
   <v-container>
+    <v-row>
+      <v-col>
+        <HostCard :deviceId="deviceId"></HostCard>
+      </v-col>
+    </v-row>
     <v-row v-if="backups && (backups?.length ?? 0) >= 3">
       <v-col>
         <BackupsChartsComponent :backups="backups"></BackupsChartsComponent>
@@ -68,6 +73,7 @@
 
 <script lang="ts" setup>
 import BackupsChartsComponent from '@/components/backups/cards/BackupsChartsComponent.vue';
+import HostCard from '@/components/hosts/cards/HostCard.vue';
 import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { computed, ref } from 'vue';
@@ -86,7 +92,7 @@ const router = useRouter();
 
 const deviceId = Array.isArray(route.params.deviceId) ? route.params.deviceId[0] : route.params.deviceId;
 
-let itemsPerPage = ref(25);
+const itemsPerPage = ref(25);
 
 const headers: ReadonlyHeaders = [
   {

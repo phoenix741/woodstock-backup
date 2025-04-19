@@ -118,11 +118,11 @@ import SpaceUsageCard from '@/components/pool/SpaceUsageCard.vue';
 import TextSizeCard from '@/components/pool/TextSizeCard.vue';
 import TaskCard from '@/components/tasks/TaskCard.vue';
 import { useFragment } from '@/generated';
-import { JobPoolResponseFragment } from '@/generated/graphql';
+import type { JobPoolResponseFragment } from '@/generated/graphql';
 import { JobPoolResponseFragmentNode, usePool } from '@/utils/pool';
 import { usePoolStats } from '@/utils/stats';
 import { useTasks } from '@/utils/tasks';
-import { GraphQLFormattedError } from 'graphql';
+import type { GraphQLFormattedError } from 'graphql';
 import { ref } from 'vue';
 import LaunchRefcnt from './dialogs/LaunchRefcnt.vue';
 

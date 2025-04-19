@@ -1,4 +1,4 @@
-import { FragmentFileDescriptionFragment } from '@/generated/graphql';
+import type { FragmentFileDescriptionFragment } from '@/generated/graphql';
 
 export interface BackupSizeByDate {
   startDate: number;

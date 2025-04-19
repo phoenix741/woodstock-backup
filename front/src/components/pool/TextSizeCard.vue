@@ -58,7 +58,7 @@ const iconHistory = computed(() =>
   usedPercent.value > 0
     ? 'mdi-arrow-top-right'
     : usedPercent.value === 0
-    ? 'mdi-arrow-right'
-    : 'mdi-arrow-bottom-right',
+      ? 'mdi-arrow-right'
+      : 'mdi-arrow-bottom-right',
 );
 </script>
