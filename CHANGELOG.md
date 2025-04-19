@@ -1,3 +1,16 @@
+# [2.0.0-alpha.38](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.37...v2.0.0-alpha.38) (2025-04-19)
+
+
+### Bug Fixes
+
+* correction on windows timestamp ([adb1033](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/adb103317a76e38d9864054a82fda6fc7513088a))
+
+
+### Features
+
+* 💄 update the interface of the front of woodstock ([980b3c9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/980b3c9c8814035cc7e5b48126d3eefb06122ae4))
+* 💄 update the theme of woodstock ([cd89973](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/cd8997327803206fbf78d3033f0237f3182f2500))
+
 # [2.0.0-alpha.37](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.36...v2.0.0-alpha.37) (2025-04-17)
 
 
