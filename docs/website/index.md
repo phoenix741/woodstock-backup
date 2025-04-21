@@ -6,7 +6,7 @@ hero:
   text: Centralized Backup Solution
   tagline: Data protection with advanced deduplication and FUSE filesystem access
   image:
-    src: /images/hosts.png
+    src: /images/devices.png
     alt: Woodstock Backup
   actions:
     - theme: brand

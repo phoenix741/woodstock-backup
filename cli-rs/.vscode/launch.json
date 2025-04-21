@@ -82,6 +82,28 @@
         "--filter",
         "phoenix/Downloads/"
       ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ws_console_readlog",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "env": {
+        "BACKUP_PATH": "/media/phoenix/fa590744-57fc-4a88-9ae3-be9092f0d624/woodstock",
+        "RUST_LOG": "debug"
+      },
+      "args": [
+        "read-log",
+        "pc-eve",
+        "35",
+        "C:\\"
+      ]
     }
   ]
 }
