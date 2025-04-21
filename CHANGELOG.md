@@ -1,3 +1,10 @@
+# [2.0.0-alpha.39](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.38...v2.0.0-alpha.39) (2025-04-21)
+
+
+### Features
+
+* update the doc with good screenshoot ([a23dc43](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/a23dc439a697668550675d753bef04d4cf1e4dd6))
+
 # [2.0.0-alpha.38](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.37...v2.0.0-alpha.38) (2025-04-19)
 
 
