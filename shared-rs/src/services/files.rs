@@ -20,9 +20,20 @@ use woodstock::{
 use crate::models::JsFileManifest;
 
 #[napi(js_name = "ViewerService")]
+/// Provides file viewing capabilities for a specific host and backup number.
+///
+/// This struct manages the Woodstock view and allows listing and reading files for a backup.
+///
+/// # Fields
+/// * `view` - The Woodstock view instance, protected by a mutex for async access.
+/// * `hostname` - The hostname associated with the backup.
+/// * `backup_number` - The backup number.
 pub struct JsViewerService {
+  /// The Woodstock view instance, protected by a mutex for async access.
   view: Arc<Mutex<WoodstockView>>,
+  /// The hostname associated with the backup.
   hostname: String,
+  /// The backup number.
   backup_number: usize,
 }
 
@@ -30,6 +41,14 @@ pub struct JsViewerService {
 impl JsViewerService {
   #[must_use]
   #[napi(constructor)]
+  /// Creates a new `JsViewerService` for the specified host and backup number.
+  ///
+  /// # Arguments
+  /// * `hostname` - The hostname associated with the backup.
+  /// * `backup_number` - The backup number.
+  ///
+  /// # Panics
+  /// Panics if the backup number cannot be converted to `usize`.
   pub fn new(hostname: String, backup_number: u32) -> Self {
     let backup_number = usize::try_from(backup_number).expect("Backup number is too large");
 
@@ -41,6 +60,14 @@ impl JsViewerService {
   }
 
   #[napi]
+  /// Lists the files in the specified directory for the given share and path.
+  ///
+  /// # Arguments
+  /// * `share_path` - The share path to list files from.
+  /// * `path` - The directory path as a buffer.
+  ///
+  /// # Errors
+  /// Returns an error if the directory cannot be listed.
   pub async fn list_dir(&self, share_path: String, path: Buffer) -> Result<Vec<JsFileManifest>> {
     let path: Vec<u8> = path.into();
     let path = vec_to_path(&path);
@@ -59,6 +86,14 @@ impl JsViewerService {
   }
 
   #[napi]
+  /// Recursively lists all files in the specified directory for the given share and path.
+  ///
+  /// # Arguments
+  /// * `share_path` - The share path to list files from.
+  /// * `path` - The directory path as a buffer.
+  ///
+  /// # Errors
+  /// Returns an error if the directory cannot be listed.
   pub async fn list_dir_recursive(
     &self,
     share_path: String,
@@ -82,14 +117,31 @@ impl JsViewerService {
 }
 
 #[napi(js_name = "CoreFilesService")]
+/// Provides file management services for the Woodstock backup system.
+///
+/// This struct manages the pool path and allows creating file viewers and reading files from the backup pool.
+///
+/// # Fields
+/// * `pool_path` - The path to the backup pool.
 pub struct JsFilesService {
+  /// The path to the backup pool.
   pool_path: PathBuf,
+}
+
+impl Default for JsFilesService {
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 #[napi]
 impl JsFilesService {
   #[napi(constructor)]
   #[must_use]
+  /// Creates a new `JsFilesService` instance.
+  ///
+  /// # Returns
+  /// A new instance of `JsFilesService` with the default pool path.
   pub fn new() -> Self {
     let pool_path = GlobalConfiguration.path.pool_path.clone();
 
@@ -97,15 +149,30 @@ impl JsFilesService {
   }
 
   #[napi]
+  /// Creates a new file viewer for the specified host and backup number.
+  ///
+  /// # Arguments
+  /// * `hostname` - The hostname associated with the backup.
+  /// * `backup_number` - The backup number.
+  ///
+  /// # Errors
+  /// Returns an error if the viewer cannot be created.
   pub fn create_viewer(&self, hostname: String, backup_number: u32) -> Result<JsViewerService> {
     Ok(JsViewerService::new(hostname, backup_number))
   }
 
   #[napi]
+  /// Reads a file from the backup pool and invokes the callback with the file contents.
+  ///
+  /// # Arguments
+  /// * `manifest` - The file manifest describing the file to read.
+  /// * `callback` - A JavaScript callback function to receive the file contents as a buffer.
+  ///
+  /// # Errors
+  /// Returns an error if the file cannot be read or if the callback cannot be invoked.
   pub fn read_file(
     &self,
     manifest: JsFileManifest,
-
     #[napi(ts_arg_type = "(err: null | Error, result: Buffer) => void")] callback: JsFunction,
   ) -> Result<()> {
     let tsfn: ThreadsafeFunction<Option<Buffer>, ErrorStrategy::CalleeHandled> = callback

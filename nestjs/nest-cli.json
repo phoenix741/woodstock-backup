@@ -7,13 +7,19 @@
     "webpack": true,
     "webpackConfigPath": "webpack.config.cjs",
     "tsConfigPath": "apps/api/tsconfig.app.json",
-    "assets": ["**/*.proto"],
+    "assets": [
+      "**/*.proto"
+    ],
     "watchAssets": true,
     "plugins": [
       {
         "name": "@nestjs/graphql",
         "options": {
-          "typeFileNameSuffix": [".input.ts", ".args.ts", ".dto.ts"],
+          "typeFileNameSuffix": [
+            ".input.ts",
+            ".args.ts",
+            ".dto.ts"
+          ],
           "introspectComments": true
         }
       },
@@ -55,15 +61,6 @@
       "sourceRoot": "apps/scheduleWorker/src",
       "compilerOptions": {
         "tsConfigPath": "apps/scheduleWorker/tsconfig.app.json"
-      }
-    },
-    "refcntWorker": {
-      "type": "application",
-      "root": "apps/refcntWorker",
-      "entryFile": "main",
-      "sourceRoot": "apps/refcntWorker/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/refcntWorker/tsconfig.app.json"
       }
     },
     "shared": {

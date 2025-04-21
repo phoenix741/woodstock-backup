@@ -18,8 +18,18 @@ use tokio::{net::TcpStream, time::timeout};
 
 use crate::config::{Configuration, REDIS_WOODSTOCK_KEY_DNS};
 
+/// The interval in seconds for direct DNS update checks.
 const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
 
+/// Checks if a specific IP address and port are reachable.
+///
+/// # Arguments
+/// * `ip` - The IP address to check.
+/// * `port` - The port to check.
+///
+/// # Returns
+///
+/// * `bool` - `true` if the address is reachable, `false` otherwise.
 async fn is_reachable(ip: IpAddr, port: u16) -> bool {
     let addr = SocketAddr::new(ip, port);
     debug!("Try to connect to {addr}");
@@ -31,6 +41,16 @@ async fn is_reachable(ip: IpAddr, port: u16) -> bool {
     )
 }
 
+/// Checks which IP addresses in a list are reachable on a given port.
+///
+/// # Arguments
+///
+/// * `ips` - A vector of IP addresses to check.
+/// * `port` - The port to check for reachability.
+///
+/// # Returns
+///
+/// A vector containing only the IP addresses that are reachable on the specified port.
 async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
     let mut reachable_ips = Vec::new();
 
@@ -60,6 +80,14 @@ async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
     reachable_ips
 }
 
+/// Resolves a hostname to a list of IP addresses.
+///
+/// # Arguments
+/// * `hostname` - The hostname to resolve.
+///
+/// # Returns
+///
+/// * `Vec<IpAddr>` - A list of resolved IP addresses.
 #[must_use]
 pub fn resolve_dns(hostname: &str) -> Vec<IpAddr> {
     lookup_host(hostname).ok().unwrap_or_default()
@@ -108,9 +136,7 @@ impl ToRedisArgs for SocketAddrInformation {
     where
         W: ?Sized + redis::RedisWrite,
     {
-        let v = if let Ok(v) = serde_json::to_string(self) {
-            v
-        } else {
+        let Ok(v) = serde_json::to_string(self) else {
             return;
         };
         v.write_redis_args(out);
@@ -130,12 +156,31 @@ impl ToRedisArgs for SocketAddrInformation {
 #[derive(Clone)]
 pub struct SocketAddrResolver {
     #[cfg(feature = "mdns")]
+    /// The mDNS service daemon used for multicast DNS resolution.
     mdns: ServiceDaemon,
+    /// The Redis client used for DNS information storage and retrieval.
     redis: redis::Client,
 }
 
 impl SocketAddrResolver {
     /// Create a new `SocketAddrResolver` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The configuration containing Redis connection information.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Self)` if the resolver is successfully created.
+    /// * `Err(eyre::Report)` if an error occurs during creation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the mDNS service daemon cannot be created (when the feature is enabled) or if the Redis client cannot be opened.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the Redis client cannot be created from the provided URL (unwrap is used).
     pub fn new(config: &Configuration) -> Result<Self> {
         let redis_url = format!("redis://{}:{}", config.redis.host, config.redis.port);
         info!("Connect to Redis URL for DNS resolution: {}", redis_url);
@@ -148,6 +193,19 @@ impl SocketAddrResolver {
         })
     }
 
+    /// Registers a service in the Redis database.
+    ///
+    /// # Arguments
+    /// * `information` - The `SocketAddrInformation` to register.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the service is successfully registered.
+    /// * `Err(eyre::Report)` if an error occurs during registration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection to Redis fails or if the registration operation fails.
     pub async fn register_service(&self, information: &SocketAddrInformation) -> Result<()> {
         let mut con = self.redis.get_multiplexed_async_connection().await?;
         let hostname = information.hostname.clone();
@@ -172,6 +230,20 @@ impl SocketAddrResolver {
         Ok(())
     }
 
+    /// Retrieves information about a hostname from the Redis database.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname to retrieve information for.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(SocketAddrInformation))` if the information is found.
+    /// * `Ok(None)` if no information is found.
+    /// * `Err(eyre::Report)` if an error occurs during retrieval.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection to Redis fails or if the retrieval operation fails.
     pub async fn get_informations(&self, hostname: &str) -> Result<Option<SocketAddrInformation>> {
         let mut con = self.redis.get_multiplexed_async_connection().await?;
         let result = con.hget(REDIS_WOODSTOCK_KEY_DNS, hostname).await?;
@@ -179,6 +251,20 @@ impl SocketAddrResolver {
         Ok(result)
     }
 
+    /// Updates the online status of a hostname in the Redis database.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname to update.
+    /// * `is_online` - The new online status.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the status is successfully updated.
+    /// * `Err(eyre::Report)` if an error occurs during the update.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection to Redis fails or if the update operation fails.
     pub async fn update_online_status(&self, hostname: &str, is_online: bool) -> Result<()> {
         let information = self.get_informations(hostname).await?;
         if let Some(mut information) = information {
@@ -190,6 +276,20 @@ impl SocketAddrResolver {
         Ok(())
     }
 
+    /// Resolves a hostname to a list of socket addresses.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname to resolve.
+    /// * `default_port` - The default port to use if no port is specified.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Vec<SocketAddr>)` if the resolution succeeds.
+    /// * `Err(eyre::Report)` if an error occurs during resolution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection to Redis fails or if the resolution operation fails.
     pub async fn resolve(&self, hostname: &str, default_port: u16) -> Result<Vec<SocketAddr>> {
         debug!("Resolve hostname: {}", hostname);
         let addresses = if let Some(socket_addr_info) = self.get_informations(hostname).await? {
@@ -230,6 +330,16 @@ impl SocketAddrResolver {
         Ok(addresses)
     }
 
+    /// Listens for incoming mDNS or DNS events and updates the resolver state.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the listener runs successfully.
+    /// * `Err(eyre::Report)` if an error occurs while listening.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the listener fails to start or encounters an error during execution.
     pub async fn listen(&self) -> Result<()> {
         #[cfg(feature = "mdns")]
         {
@@ -274,6 +384,15 @@ impl SocketAddrResolver {
 // MDNS part
 #[cfg(feature = "mdns")]
 impl SocketAddrResolver {
+    /// Updates the Redis database with information from an mDNS service.
+    ///
+    /// # Arguments
+    /// * `info` - The `ServiceInfo` containing the mDNS service information.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the information is successfully updated.
+    /// * `Err(eyre::Report)` if an error occurs during the update.
     async fn update_host(&self, info: &ServiceInfo) -> Result<()> {
         // Hostname without .local. suffix
         let hostname = info.get_fullname();
@@ -301,6 +420,16 @@ impl SocketAddrResolver {
         self.register_service(&socket_addr_info).await
     }
 
+    /// Resolves a hostname using mDNS.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname to resolve.
+    /// * `default_port` - The default port to use if no port is specified.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Vec<SocketAddr>)` if the resolution succeeds.
+    /// * `None` if the resolution fails.
     async fn resolve_mdns(&self, hostname: &str, default_port: u16) -> Option<Vec<SocketAddr>> {
         let mdns_recv = self
             .mdns

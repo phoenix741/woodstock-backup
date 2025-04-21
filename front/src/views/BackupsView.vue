@@ -13,27 +13,15 @@
     <v-row>
       <v-col>
         <v-sheet rounded="lg">
-          <v-data-table
-            show-select
-            v-model="selection"
-            v-model:items-per-page="itemsPerPage"
-            :headers="headers"
-            :items="backupsDataTable"
-            :loading="isFetching"
-            :sort-by="[{ key: 'number', order: 'desc' }]"
-            loading-title="Loading... Please wait"
-            item-value="number"
-            class="elevation-1"
-            @click:row="navigateTo"
-          >
+          <v-data-table show-select v-model="selection" v-model:items-per-page="itemsPerPage" :headers="headers"
+            :items="backupsDataTable" :loading="isFetching" :sort-by="[{ key: 'number', order: 'desc' }]"
+            loading-title="Loading... Please wait" item-value="number" class="elevation-1" @click:row="navigateTo">
             <template v-slot:[`item.number`]="{ item }">{{ item.number }}</template>
             <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate * 1000) }}</template>
-            <template v-slot:[`item.fileCount`]="{ item }"
-              >{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize) }})</template
-            >
-            <template v-slot:[`item.newFileCount`]="{ item }"
-              >{{ toNumber(item.newFileCount) }} ({{ filesize(item.newFileSize) }})</template
-            >
+            <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize)
+              }})</template>
+            <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.newFileCount) }} ({{
+              filesize(item.newFileSize) }})</template>
             <template v-slot:[`item.removedFileCount`]="{ item }">{{ toNumber(item.removedFileCount) }}</template>
             <template v-slot:[`item.modifiedFileCount`]="{ item }">{{ toNumber(item.modifiedFileCount) }}</template>
 
@@ -43,15 +31,10 @@
             </template>
 
             <template v-slot:[`item.completed`]="{ item }">
-              <v-progress-circular
-                v-if="!item.endDate"
-                indeterminate
-                color="primary"
-                width="20"
-                size="20"
-              ></v-progress-circular>
+              <v-progress-circular v-if="!item.endDate" indeterminate color="primary" width="20"
+                size="20"></v-progress-circular>
 
-              <v-checkbox v-if="item.endDate" readonly v-model="item.completed" disabled></v-checkbox>
+              <v-chip :color="item.statusColor" size="small" label :text="item.status"> </v-chip>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -78,9 +61,9 @@ import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils
 import filesize from '@/utils/filesize';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { VDataTable } from 'vuetify/components';
+import { type VDataTable } from 'vuetify/components';
 
-import { useBackups } from '../utils/backups';
+import { getBackupStatusColor, useBackups } from '../utils/backups';
 import BackupCreate from './dialogs/BackupCreate.vue';
 import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
@@ -121,6 +104,7 @@ const { backups, isFetching } = useBackups(deviceId);
 const backupsDataTable = computed(() => {
   return backups.value?.map((backup) => ({
     duration: backup.endDate && toDuration((backup.endDate - backup.startDate) * 1000),
+    statusColor: getBackupStatusColor(backup.status),
     ...backup,
   }));
 });

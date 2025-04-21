@@ -52,7 +52,7 @@ export class HostController {
     private backupsService: BackupsService,
     private hostsService: HostsService,
     private yamlService: YamlService,
-  ) { }
+  ) {}
 
   @Get()
   @ApiOkResponse({

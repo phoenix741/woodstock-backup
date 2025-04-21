@@ -1,27 +1,25 @@
-import { InjectQueue, QueueEventsHost, QueueEventsListener } from '@nestjs/bullmq';
+import { InjectQueue, QueueEventsHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, JobState, Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 
+import { JsBackupStatus } from '@woodstock/shared-rs';
 import { BackupsService, HostsService, LockService } from '../backups';
-import { QueueName } from '../queue';
-import { JobBackupData } from './backuping.model';
-import { RefcntJobData } from '../models';
-import { SchedulerConfigService } from '../config';
 import { PingService } from '../commands';
+import { SchedulerConfigService } from '../config';
+import { QueueName } from '../queue';
+import { BackupQueueData, JobBackupData, JobRemoveData, JobRestoreData } from './backuping.dto';
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
 
 export const LOCK_TIMEOUT = 60_000;
 
 @Injectable()
-@QueueEventsListener(QueueName.REFCNT_QUEUE)
 export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);
 
   constructor(
-    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
-    @InjectQueue(QueueName.REFCNT_QUEUE) private refcnQueue: Queue<RefcntJobData>,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<BackupQueueData>,
     private lockService: LockService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
@@ -45,7 +43,7 @@ export class JobService extends QueueEventsHost {
       return 0;
     }
     const lastBackup = await this.backupsService.getLastBackup(hostname);
-    if (!lastBackup || !lastBackup.completed) {
+    if (!lastBackup || [JsBackupStatus.Aborted, JsBackupStatus.Failed].includes(lastBackup.status)) {
       this.logger.debug(`Last backup for the host ${hostname} is not completed`);
       return 0;
     }
@@ -78,14 +76,22 @@ export class JobService extends QueueEventsHost {
     return interval.next().toDate();
   }
 
+  #getJobKey(job: Job<BackupQueueData>): string {
+    const jobData = job.data as JobBackupData | JobRestoreData | JobRemoveData;
+    if (jobData.host) {
+      return jobData.host;
+    }
+    return 'application_level';
+  }
+
   /**
    * Lock the job during it's execution
    * @param job The job to lock
    * @param routine The code to execute
    * @returns A value to return
    */
-  using<T>(job: Job<JobBackupData>, routine: (signal: AbortSignal) => Promise<T>): Promise<T> {
-    return this.lockService.using([job.data.host], LOCK_TIMEOUT, routine);
+  using<T>(job: Job<BackupQueueData>, routine: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    return this.lockService.using([this.#getJobKey(job)], LOCK_TIMEOUT, routine);
   }
 
   /**
@@ -93,16 +99,16 @@ export class JobService extends QueueEventsHost {
    * @param job The job to check
    * @returns A boolean to indicate if the value is locked
    */
-  async isLocked(job: Job<JobBackupData> | string): Promise<boolean> {
+  async isLocked(job: Job<BackupQueueData> | string): Promise<boolean> {
     if (typeof job === 'string') {
       return await this.lockService.isLocked([job]);
     }
-    return await this.lockService.isLocked([job.data.host]);
+    return await this.lockService.isLocked([this.#getJobKey(job)]);
   }
 
   async isBackupRunning(host: string, jobId?: string): Promise<boolean> {
     const runningJob = await this.hostsQueue.getJobs(RUN_JOB_STATE);
-    const runningJobForHost = runningJob.find((b) => b.data.host === host && b.id !== jobId);
+    const runningJobForHost = runningJob.find((b) => this.#getJobKey(b) === host && b.id !== jobId);
     if (runningJobForHost) {
       this.logger.debug(
         `A job is already running for ${host}: ${runningJobForHost.id}/${
@@ -181,35 +187,5 @@ export class JobService extends QueueEventsHost {
     } else {
       return { number: 0, previousNumber: undefined };
     }
-  }
-
-  /**
-   * Launch on refcnt queue the children to delete or create a backup.
-   */
-  async launchRefcntJob(
-    jobid: string,
-    jobname: string,
-    host: string,
-    number: number,
-    operation: 'add_backup' | 'remove_backup',
-  ): Promise<void> {
-    this.logger.log(`Launch ${operation} for ${host}`);
-    const job = await this.refcnQueue.add(
-      operation,
-      {
-        host,
-        number,
-      },
-      {
-        parent: {
-          id: jobid,
-          queue: jobname,
-        },
-        removeOnComplete: true,
-      },
-    );
-
-    await job.waitUntilFinished(this.queueEvents);
-    this.logger.log(`${operation} for ${host} finished`);
   }
 }

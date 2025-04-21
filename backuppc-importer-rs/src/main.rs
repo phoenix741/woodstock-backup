@@ -1,8 +1,14 @@
-mod backuppc_client;
-mod backuppc_manifest;
+//! Main entry point for the `BackupPC` importer application.
+//!
+//! This crate provides tools and utilities to import and synchronize backups from a `BackupPC` pool into the Woodstock backup system.
+//! It includes logic for listing, comparing, and transferring backup data, as well as managing backup metadata and progress reporting.
+
+//! Module for `BackupPC` client logic and Woodstock synchronization.
+pub mod backuppc_client;
+/// Module for `BackupPC` manifest structures and conversions.
+pub mod backuppc_manifest;
 
 use std::ffi::OsString;
-use std::path::Path;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -23,28 +29,42 @@ use indicatif::ProgressStyle;
 use log::debug;
 use log::error;
 use log::info;
+use tokio::sync::mpsc;
 use woodstock::client::config::ClientConfig;
+use woodstock::config::BackupStatus;
 use woodstock::config::Configuration;
 use woodstock::config::GlobalConfiguration;
+use woodstock::config::DEFAULT_CHANNEL_BUFFER_SIZE;
 use woodstock::config::{Backups, Context, Hosts};
-use woodstock::pool::remove_refcnt_to_pool;
-use woodstock::pool::Refcnt;
-use woodstock::pool::RefcntApplySens;
-use woodstock::server::backup_client::BackupClient;
-use woodstock::server::backup_remove::BackupRemove;
+use woodstock::pool::apply_pending_refcnt_operations;
+use woodstock::server::backup::remove::BackupRemove;
+use woodstock::server::backup::save::BackupSave;
+use woodstock::server::progression::BackupProgression;
 use woodstock::Share;
 
+/// Represents a backup definition for a host in the `BackupPC` or Woodstock system.
+///
+/// This struct contains metadata about a specific backup, including the host name, backup number, start time, and size.
 #[derive(Debug)]
 struct BackupDefinition {
+    /// The name of the host for which the backup is defined.
     pub hostname: String,
-
+    /// The backup number associated with the host.
     pub backup_number: usize,
-
+    /// The start time of the backup (Unix timestamp).
     pub start_time: u64,
-
+    /// The size of the backup in bytes.
     pub size: u64,
 }
 
+/// Lists all Woodstock backups, excluding those matching the provided patterns.
+///
+/// # Arguments
+/// * `config` - The Woodstock configuration to use for listing backups.
+/// * `excludes` - A slice of string patterns to exclude from the results.
+///
+/// # Returns
+/// A vector of `BackupDefinition` containing metadata for each backup found.
 async fn list_woodstock_backups(
     config: &Configuration,
     excludes: &[&str],
@@ -74,6 +94,14 @@ async fn list_woodstock_backups(
     result
 }
 
+/// Lists all `BackupPC` backups in the specified pool path, excluding those matching the provided patterns.
+///
+/// # Arguments
+/// * `pool_path` - The path to the `BackupPC` pool.
+/// * `excludes` - A slice of string patterns to exclude from the results.
+///
+/// # Returns
+/// A vector of `BackupDefinition` containing metadata for each backup found in the `BackupPC` pool.
 fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
@@ -100,30 +128,19 @@ fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefini
     result
 }
 
-pub async fn add_refcnt_to_pool(
-    config: &Configuration,
-    from_directory: &Path,
-    date: &SystemTime,
-) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Add refcnt to pool for {}", from_directory.display());
-    let mut backup_refcnt = Refcnt::new(from_directory);
-    backup_refcnt.load_refcnt(false).await;
-
-    info!("Apply refcnt to pool");
-    Refcnt::apply_all_from(
-        &config.path.pool_path,
-        &backup_refcnt,
-        &RefcntApplySens::Increase,
-        date,
-        config,
-    )
-    .await?;
-
-    info!("Refcnt applied to pool");
-
-    Ok(())
-}
-
+/// Launches a backup operation from a `BackupPC` pool for a specific backup definition.
+///
+/// # Arguments
+/// * `context` - The Woodstock context for the operation.
+/// * `backuppc_pool` - The path to the `BackupPC` pool.
+/// * `backup` - The backup definition to process.
+/// * `backup_bar` - The progress bar to update during the operation.
+///
+/// # Returns
+/// Returns `Ok(())` if the backup operation succeeds, or an error if it fails.
+///
+/// # Errors
+/// Returns an error if the backup operation fails, if the `BackupPC` pool cannot be accessed, or if there are issues with the backup definition.
 async fn launch_backup(
     context: &Context,
     backuppc_pool: &str,
@@ -157,16 +174,13 @@ async fn launch_backup(
         None => 0,
     };
 
-    let destination_directory =
-        backups_configuration.get_backup_destination_directory(&backup.hostname, backup_number);
-
     let mut abort = false;
 
     let message = format!("Backuping {}", &backup.hostname);
     backup_bar.set_message(message);
     backup_bar.tick();
 
-    let mut client = BackupClient::new(
+    let mut client = BackupSave::new(
         backuppc_client,
         &backup.hostname,
         backup_number,
@@ -174,7 +188,7 @@ async fn launch_backup(
         &GlobalConfiguration,
     );
     client.set_fake_date(UNIX_EPOCH.checked_add(Duration::from_secs(backup.start_time)));
-    client.set_agent_version(ClientConfig::version());
+    client.set_agent_version(ClientConfig::version()).await;
 
     backup_bar.set_message("Create backup directory");
     backup_bar.tick();
@@ -201,7 +215,7 @@ async fn launch_backup(
         };
 
         if !abort {
-            if let Err(err) = client.synchronize_file_list(&share, &|_| {}).await {
+            if let Err(err) = client.synchronize_file_list(&share, None).await {
                 error!("Error synchronize file list: {}", err);
                 abort = true;
             }
@@ -221,12 +235,24 @@ async fn launch_backup(
         backup_bar.tick();
 
         if !abort {
-            if let Err(err) = client
-                .create_backup(share, &|progress| {
-                    backup_bar.set_position(progress_min + progress.progress_current);
-                })
-                .await
-            {
+            // Créer un canal pour recevoir les mises à jour de progression
+            let (tx, mut rx) = mpsc::channel::<BackupProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
+
+            // Spawn une tâche pour traiter les mises à jour de progression
+            let backup_bar_clone = backup_bar.clone();
+            let progress_task = tokio::spawn(async move {
+                while let Some(progress) = rx.recv().await {
+                    backup_bar_clone.set_position(progress_min + progress.progress_current);
+                }
+            });
+
+            // Appeler create_backup avec le canal de progression
+            let result = client.create_backup(share, Some(tx)).await;
+
+            // Attendre que la tâche de mise à jour de progression se termine
+            let _ = progress_task.await;
+
+            if let Err(err) = result {
                 error!("Error downloading chunks: {}", err);
                 abort = true;
             }
@@ -244,38 +270,45 @@ async fn launch_backup(
     backup_bar.tick();
 
     client.count_references().await?;
+    client.add_refcnt_to_pool().await?;
 
-    client.save_backup(true, !abort).await?;
+    client
+        .save_backup(if abort {
+            BackupStatus::Failed
+        } else {
+            BackupStatus::Completed
+        })
+        .await?;
 
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();
-    add_refcnt_to_pool(
-        &GlobalConfiguration,
-        &destination_directory,
-        &client.get_fake_date(),
-    )
-    .await?;
+
+    apply_pending_refcnt_operations(&GlobalConfiguration, &client.get_fake_date()).await?;
 
     Ok(())
 }
 
+/// Command-line interface options for the `BackupPC` importer application.
+///
+/// This struct defines the available command-line arguments for configuring the import process, including pool paths, transfer options, and exclusions.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// The path to the file to read
+    /// The path to the `BackupPC` pool to read from.
     backuppc_pool: String,
 
-    /// The type of the file to read
+    /// The path to the Woodstock pool to read from or write to.
     woodstock_pool: String,
 
-    /// Option to set the transfert of only one
+    /// Option to transfer only one backup.
     #[clap(short, long)]
     only_one: bool,
 
-    /// Dry run
+    /// Perform a dry run without making any changes.
     #[clap(short, long)]
     dry_run: bool,
 
+    /// List of patterns to exclude from the import process.
     #[clap(long)]
     excludes: Option<Vec<String>>,
 }
@@ -295,7 +328,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Write version
     term.write_line(&format!(
-        "BackupPC to Woodstock migration tool v{}",
+        "`BackupPC` to Woodstock migration tool v{}",
         woodstock::config::Configuration::version()
     ))?;
 
@@ -335,7 +368,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ))?;
 
     term.write_line(&format!(
-        "[1/4] {}Import BackupPC pool {} to Woodstock pool {}",
+        "[1/4] {}Import `BackupPC` pool {} to Woodstock pool {}",
         Emoji("➡️ ", ""),
         args.backuppc_pool,
         args.woodstock_pool
@@ -364,7 +397,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for backuppc in &backuppc_backups {
         debug!(
-            "BackupPC backup {}/{}: {} (start at {})",
+            "`BackupPC` backup {}/{}: {} (start at {})",
             backuppc.hostname, backuppc.backup_number, backuppc.size, backuppc.start_time
         );
     }
@@ -402,7 +435,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for backuppc in &backuppc_backups {
         info!(
-            "BackupPC backup {}/{}: {}",
+            "`BackupPC` backup {}/{}: {}",
             backuppc.hostname, backuppc.backup_number, backuppc.size
         );
     }
@@ -499,8 +532,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &GlobalConfiguration,
                 );
 
-                remove_refcnt_to_pool(&GlobalConfiguration, &backup.hostname, backup.backup_number)
-                    .await?;
+                remover.add_refcnt_to_pool().await?;
 
                 remover.remove_refcnt_of_host().await?;
 
@@ -512,6 +544,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         total_bar.finish();
     }
+
+    apply_pending_refcnt_operations(&GlobalConfiguration, &SystemTime::now()).await?;
 
     term.write_line(&format!("[4/4] {}Backups migrate", Emoji("🪄 ", "")))?;
 

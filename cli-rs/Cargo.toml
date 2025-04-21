@@ -45,7 +45,7 @@ woodstock-rs = { path = "../woodstock-rs", default-features = false }
 
 # Fuse dependencies
 [target.'cfg(unix)'.dependencies]
-lru = { version = "^0.13", optional = true }
+lru = { version = "^0.14", optional = true }
 twox-hash = { version = "^2.1", optional = true }
 libc = { version = "^0.2", optional = true }
 fuser = { version = "0.15", optional = true }

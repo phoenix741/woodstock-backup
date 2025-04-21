@@ -1,16 +1,60 @@
+/// # Backups Management Module
+///
+/// This module provides the [`Backups`] struct and associated methods for managing backup metadata,
+/// directories, manifests, and share paths in the Woodstock backup system. It is responsible for
+/// organizing backup data on disk, tracking backup history, and supporting operations such as
+/// backup creation, cloning, removal, and metadata updates.
+///
+/// ## Main Structure
+///
+/// - [`Backups`]: Central struct for managing backup directories and metadata for a given host.
+///
+/// ## Key Methods
+///
+/// - [`Backups::new`]: Create a new `Backups` manager from a configuration.
+/// - [`Backups::get_backup_destination_directory`]: Get the directory for a specific backup.
+/// - [`Backups::get_manifest`]: Get the manifest for a backup/share.
+/// - [`Backups::get_backups`]: List all backups for a host.
+/// - [`Backups::get_backup`]: Get a specific backup by number.
+/// - [`Backups::add_or_replace_backup`]: Add or update a backup entry.
+/// - [`Backups::remove_backup`]: Remove a backup and its directory.
+/// - [`Backups::clone_backup`]: Clone backup data for incremental backups.
+/// - [`Backups::get_backup_share_paths`]: List all share paths for a backup.
+/// - [`Backups::add_backup_share_path`]: Add a share path to a backup.
+///
+/// ## Error Handling
+///
+/// - Most methods return `Result` and propagate I/O or serialization errors using the `eyre` crate.
+/// - Methods that read or write YAML files may return errors if the file is missing, corrupted, or not writable.
+/// - Removal methods may return errors if directories cannot be deleted.
+///
+/// ## Panics
+///
+/// - Methods do not panic under normal operation. Errors are returned as `Result`.
+///
+/// ## Thread Safety
+///
+/// This struct is not thread-safe by itself. If used in a concurrent context, wrap in a mutex or use only from one thread.
+///
+/// ## See Also
+///
+/// - [`Manifest`]: For file manifest operations
+/// - [`Backup`]: For backup metadata
+use eyre::Result;
+use log::error;
 use std::{
     io::{Error, ErrorKind},
     path::PathBuf,
 };
-
-use eyre::Result;
 use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
 
 use crate::{manifest::Manifest, utils::path::mangle};
 
 use super::{Backup, Configuration};
 
+/// Central struct for managing backup directories and metadata for a given host.
 pub struct Backups {
+    /// Path to the directory containing host backup data.
     config_host_path: PathBuf,
 }
 
@@ -66,7 +110,17 @@ impl Backups {
         let backups = read_to_string(self.get_backup_file(hostname)).await;
 
         match backups {
-            Ok(backups) => serde_yaml::from_str(&backups).unwrap_or(vec![]),
+            Ok(backups) => {
+                let backups: std::result::Result<Vec<Backup>, serde_yaml::Error> =
+                    serde_yaml::from_str(&backups);
+                match backups {
+                    Ok(backups) => backups,
+                    Err(e) => {
+                        error!("Failed to parse backups: {e}");
+                        vec![]
+                    }
+                }
+            }
             Err(_) => vec![],
         }
     }
@@ -118,6 +172,21 @@ impl Backups {
         }
     }
 
+    /// Adds a share path to the backup configuration for a given host and backup number.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to add the share path.
+    /// * `backup_number` - The backup number to which the share path should be added.
+    /// * `share_path` - The share path to add.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the share path is successfully added.
+    /// * `Err(eyre::Report)` if an error occurs during the operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the share paths cannot be serialized or written to disk.
     pub async fn add_backup_share_path(
         &self,
         hostname: &str,
@@ -156,6 +225,22 @@ impl Backups {
             .join("shares.yml")
     }
 
+    /// Clones a backup configuration and its associated files to a new destination.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to clone the backup.
+    /// * `backup_number` - The optional backup number to clone. If None, all backups are cloned.
+    /// * `destination_number` - The destination backup number.
+    /// * `shares` - The list of share paths to include in the clone.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the backup is successfully cloned.
+    /// * `Err(eyre::Report)` if an error occurs during the operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any file operation (copying, reading, or writing) fails during the cloning process.
     pub async fn clone_backup(
         &self,
         hostname: &str,
@@ -192,6 +277,20 @@ impl Backups {
         Ok(())
     }
 
+    /// Adds a new backup or replaces an existing backup for a given host.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to add or replace the backup.
+    /// * `backup` - The backup configuration to add or replace.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the backup is successfully added or replaced.
+    /// * `Err(eyre::Report)` if an error occurs during the operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backup list cannot be read or written to disk.
     pub async fn add_or_replace_backup(&self, hostname: &str, backup: &Backup) -> Result<()> {
         let backups = self.get_backups(hostname).await;
 
@@ -215,6 +314,20 @@ impl Backups {
         Ok(())
     }
 
+    /// Removes a backup for a given host and backup number.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to remove the backup.
+    /// * `backup_number` - The backup number to remove.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Backup)` if the backup is successfully removed.
+    /// * `Err(eyre::Report)` if an error occurs during the operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backup cannot be found, read, or written to disk.
     pub async fn remove_backup(&self, hostname: &str, backup_number: usize) -> Result<Backup> {
         let backup_destination = self.get_backup_destination_directory(hostname, backup_number);
 
@@ -242,6 +355,20 @@ impl Backups {
         Ok(backup)
     }
 
+    /// Saves the list of backups for a given host to disk.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to save the backups.
+    /// * `backups` - The list of backups to save.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the backups are successfully saved.
+    /// * `Err(eyre::Report)` if an error occurs during the operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the backups cannot be serialized or written to disk.
     async fn save(&self, hostname: &str, backups: &Vec<Backup>) -> Result<()> {
         let backups = serde_yaml::to_string(&backups).map_err(|_| {
             Error::new(

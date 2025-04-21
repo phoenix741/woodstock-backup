@@ -1,3 +1,15 @@
+//! This module provides chunk reading and searching utilities for Woodstock backups.
+//!
+//! It includes functions to decode, decompress, print, and search for chunk contents in the backup pool for inspection or debugging purposes.
+//!
+//! # Errors
+//!
+//! Functions in this module may return errors if chunk files are missing, corrupted, or if decompression fails.
+//!
+//! # Panics
+//!
+//! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
+
 use console::Term;
 use flate2::bufread::ZlibDecoder;
 use log::info;
@@ -14,6 +26,20 @@ use woodstock::{
     pool::PoolChunkWrapper,
 };
 
+/// Reads and prints the content of a chunk from the backup pool, decompressing it if necessary.
+///
+/// # Arguments
+///
+/// * `pool_path` - The path to the backup pool directory.
+/// * `chunk` - The hexadecimal string representing the chunk hash.
+///
+/// # Errors
+///
+/// Returns an error if the chunk does not exist, cannot be decoded, or if reading/decompression fails.
+///
+/// # Panics
+///
+/// This function may panic if writing to stdout fails.
 pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     let chunk = hex::decode(chunk)?;
     let chunk = PoolChunkWrapper::new(pool_path, Some(&chunk));
@@ -42,6 +68,20 @@ pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Searches for a chunk in all backups and prints its location if found.
+///
+/// # Arguments
+///
+/// * `config` - The Woodstock configuration containing backup and pool paths.
+/// * `chunk` - The hexadecimal string representing the chunk hash.
+///
+/// # Errors
+///
+/// Returns an error if the chunk cannot be decoded, if searching fails, or if I/O operations fail.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn search_chunk(config: &Configuration, chunk: &str) -> Result<(), Box<dyn Error>> {
     let term = Term::stdout();
 

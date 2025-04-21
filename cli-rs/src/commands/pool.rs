@@ -1,4 +1,16 @@
-use std::path::PathBuf;
+//! This module provides pool management commands for Woodstock backups.
+//!
+//! It includes utilities for checking compression, verifying pool integrity, and cleaning unused data, ensuring the health and efficiency of the backup storage pool.
+//!
+//! # Errors
+//!
+//! Functions in this module may return errors if pool files are missing, corrupted, or if locking or I/O operations fail.
+//!
+//! # Panics
+//!
+//! Some functions may panic if internal invariants are violated or if system resources are unavailable.
+
+use std::{cell::RefCell, path::PathBuf};
 
 use console::Term;
 use eyre::Result;
@@ -6,12 +18,33 @@ use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use log::error;
 
 use woodstock::{
-    config::Configuration, pool::Refcnt, server::pool_fsck::PoolFsck, utils::lock::PoolLock,
+    config::Configuration,
+    pool::Refcnt,
+    server::pool::{
+        fsck_machine::FsckMachine, fsck_state::FsckExecutionState,
+        pool_cleaner_machine::PoolCleanerMachine, pool_cleaner_state::CleanerExecutionState,
+    },
+    utils::lock::PoolLock,
     EventSource,
 };
 
+/// Checks the compression ratios of all chunks in the pool and reports anomalies.
+///
+/// # Arguments
+///
+/// * `config` - The Woodstock configuration containing the pool path.
+///
+/// # Errors
+///
+/// Returns an error if the pool cannot be locked or if I/O operations fail.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn check_compression(config: &Configuration) -> Result<()> {
-    let _lock = PoolLock::new(&config.path.pool_path).lock().await?;
+    let _lock = PoolLock::new_with_name(&config.path.pool_path, "check_compression")
+        .lock_exclusive()
+        .await?;
 
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
@@ -57,145 +90,251 @@ pub async fn check_compression(config: &Configuration) -> Result<()> {
     Ok(())
 }
 
-pub async fn verify_chunk(config: &Configuration, source: EventSource) -> Result<()> {
-    let pool_fsck = PoolFsck::new(config);
-
-    let max = pool_fsck.verify_chunk_max().await?;
-
-    let term = Term::stdout();
-    let bar = ProgressBar::new(max.len() as u64);
-    bar.set_style(
-        ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
-        )
-        .unwrap(),
-    );
-
-    let result = pool_fsck
-        .verify_chunk(source, &|progress| {
-            bar.set_position(progress.progress_current as u64);
-        })
-        .await?;
-
-    bar.finish();
-
-    term.write_line(&std::format!(
-        "Total errors: {}/{}",
-        HumanCount(result.error),
-        HumanCount(result.count)
-    ))?;
-
-    Ok(())
+/// Returns a human-readable message for the current fsck execution state.
+///
+/// # Arguments
+///
+/// * `state` - The current fsck execution state.
+///
+/// # Returns
+///
+/// A string describing the current step in the fsck process.
+fn fsck_message_from_state(state: &FsckExecutionState) -> String {
+    match state {
+        FsckExecutionState::Initialization => "Initializing verification".to_string(),
+        FsckExecutionState::ApplyingRefcnt => "Applying reference counts".to_string(),
+        FsckExecutionState::VerifyRefcnt => "Verifying references".to_string(),
+        FsckExecutionState::VerifyUnused => "Verifying unused files".to_string(),
+        FsckExecutionState::VerifyChunk => "Verifying chunks".to_string(),
+        FsckExecutionState::Completed => "Verification completed".to_string(),
+        FsckExecutionState::Waiting => "Waiting for verification".to_string(),
+    }
 }
 
-pub async fn verify_refcnt(
+/// Verifies the integrity of all chunks in the pool, optionally as a dry run.
+///
+/// # Arguments
+///
+/// * `config` - The Woodstock configuration containing the pool path.
+/// * `source` - The event source for reporting progress.
+/// * `dry_run` - If true, performs a dry run without making changes.
+/// * `verify_chunks` - If true, verifies the chunks in the pool.
+/// * `skip_ref_unused` - If true, skips the verification of refcnt and unused files.
+///
+/// # Errors
+///
+/// Returns an error if verification fails or if I/O operations fail.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
+pub async fn verify_all(
     config: &Configuration,
     source: EventSource,
     dry_run: bool,
+    verify_chunks: bool,
+    skip_ref_unused: bool,
 ) -> Result<()> {
-    let pool_fsck = PoolFsck::new(config);
-
-    let total = pool_fsck.verify_refcnt_max().await?;
-
     let term = Term::stdout();
-    let bar = ProgressBar::new(total as u64);
-    bar.set_style(
+
+    // Create a channel to receive states
+    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+
+    // Create the fsck machine
+    let machine = FsckMachine::new(
+        config,
+        source,
+        dry_run,
+        verify_chunks,
+        skip_ref_unused,
+        Some(tx),
+    );
+
+    // Create a single progress bar for all processes
+    let progress_bar = ProgressBar::no_length();
+    progress_bar.set_style(
         ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
+            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta} {msg}",
         )
         .unwrap(),
     );
+    progress_bar.set_message("Initializing...");
 
-    let result = pool_fsck
-        .verify_refcnt(dry_run, source, &|progress| {
-            bar.set_position(progress.progress_current as u64);
-        })
-        .await?;
+    let previous_execution_state = RefCell::new(FsckExecutionState::Waiting);
 
-    bar.finish();
+    let term_clone = term.clone();
+    // Launch a task to update the display
+    let display_task = tokio::spawn(async move {
+        while let Some(state) = rx.recv().await {
+            let current_execution_state = state.execution_state.clone();
+            if current_execution_state != *previous_execution_state.borrow() {
+                progress_bar.set_message(fsck_message_from_state(&current_execution_state));
+                *previous_execution_state.borrow_mut() = current_execution_state;
+            }
 
-    term.write_line(&std::format!(
-        "Total errors: {}/{}",
-        HumanCount(result.error),
-        HumanCount(result.count)
-    ))?;
+            // Calculate overall progress percentage
+            match state.execution_state {
+                FsckExecutionState::Initialization
+                | FsckExecutionState::ApplyingRefcnt
+                | FsckExecutionState::VerifyRefcnt
+                | FsckExecutionState::VerifyUnused
+                | FsckExecutionState::VerifyChunk => {
+                    let length = state.chunk_progression.progress_max
+                        + state.refcnt_progression.progress_max
+                        + state.unused_progression.progress_max;
+
+                    if progress_bar.length().is_none() && length > 0 {
+                        progress_bar.set_position(0);
+                        progress_bar.set_length(length as u64);
+                    }
+
+                    let position = state.refcnt_progression.progress_current
+                        + state.unused_progression.progress_current
+                        + state.chunk_progression.progress_current;
+                    progress_bar.set_position(position as u64);
+                }
+                FsckExecutionState::Completed => {
+                    progress_bar.finish_with_message("Verification completed");
+
+                    // Display summary
+                    term.write_line("").unwrap();
+                    term.write_line(&format!(
+                        "Reference count verification results: {} errors/{}",
+                        state.refcnt_progression.error_count, state.refcnt_progression.total_count
+                    ))
+                    .unwrap();
+
+                    term.write_line("Unused files verification results:")
+                        .unwrap();
+                    term.write_line(&format!(
+                        "- In refcnt: {}",
+                        HumanCount(state.unused_progression.in_refcnt as u64)
+                    ))
+                    .unwrap();
+                    term.write_line(&format!(
+                        "- In unused: {}",
+                        HumanCount(state.unused_progression.in_unused as u64)
+                    ))
+                    .unwrap();
+                    term.write_line(&format!(
+                        "- In nothing: {}",
+                        HumanCount(state.unused_progression.in_nothing as u64)
+                    ))
+                    .unwrap();
+                    term.write_line(&format!(
+                        "- Missing: {}",
+                        HumanCount(state.unused_progression.missing as u64)
+                    ))
+                    .unwrap();
+
+                    if verify_chunks {
+                        term.write_line(&format!(
+                            "Chunks verification results: {} errors/{}",
+                            state.chunk_progression.error_count,
+                            state.chunk_progression.total_count
+                        ))
+                        .unwrap();
+                    }
+                }
+                FsckExecutionState::Waiting => {
+                    // Do nothing
+                }
+            }
+        }
+    });
+
+    // Execute verification
+    let result = machine.execute().await;
+
+    // Make sure the display task ends
+    drop(machine);
+    display_task.await?;
+
+    if let Err(e) = result {
+        term_clone.write_line(&format!("Error during verification: {e}"))?;
+    }
 
     Ok(())
 }
 
-pub async fn verify_unused(
-    config: &Configuration,
-    source: EventSource,
-    dry_run: bool,
-) -> Result<()> {
-    let pool_fsck = PoolFsck::new(config);
-
-    let total = pool_fsck.verify_unused_max().await?;
-
-    let term = Term::stdout();
-    let bar = ProgressBar::new(total as u64);
-    bar.set_style(
-        ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
-        )
-        .unwrap(),
-    );
-
-    let result = pool_fsck
-        .verify_unused(dry_run, source, &|p| {
-            bar.set_position(p.progress_current as u64);
-        })
-        .await?;
-
-    bar.finish();
-
-    term.write_line(&std::format!(
-        "In Refcnt: {}",
-        HumanCount(result.in_refcnt as u64)
-    ))?;
-    term.write_line(&std::format!(
-        "In Unused: {}",
-        HumanCount(result.in_unused as u64)
-    ))?;
-    term.write_line(&std::format!(
-        "In Nothing: {}",
-        HumanCount(result.in_nothing as u64)
-    ))?;
-    term.write_line(&std::format!(
-        "In Missing: {}",
-        HumanCount(result.missing as u64)
-    ))?;
-
-    Ok(())
-}
-
+/// Cleans unused chunks from the pool, optionally targeting a specific backup.
+///
+/// # Arguments
+///
+/// * `config` - The Woodstock configuration containing the pool path.
+/// * `source` - The event source for reporting progress.
+/// * `target` - An optional target backup to clean unused chunks for.
+///
+/// # Errors
+///
+/// Returns an error if cleaning fails or if I/O operations fail.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn clean_unused_pool(
     config: &Configuration,
     source: EventSource,
     target: Option<String>,
 ) -> Result<()> {
-    let pool_fsck = PoolFsck::new(config);
-
     let target = target.map(PathBuf::from);
 
-    let total = pool_fsck.clean_unused_max().await?;
-
     let term = Term::stdout();
-    let bar = ProgressBar::new(total as u64);
+
+    // Create a channel to receive states
+    let (tx, mut rx) = tokio::sync::mpsc::channel(10);
+
+    // Create the pool cleaner machine
+    let machine = PoolCleanerMachine::new(config, target, source, Some(tx));
+
+    // Create a progress bar
+    let bar = ProgressBar::new(0);
     bar.set_style(
         ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta}",
+            "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta} {msg}",
         )
         .unwrap(),
     );
 
-    let result = pool_fsck
-        .clean_unused_pool(target, source, &|p| {
-            bar.set_position(p.progress_current as u64);
-        })
-        .await?;
+    // Launch a task to update the display
+    let display_task = tokio::spawn(async move {
+        while let Some(state) = rx.recv().await {
+            // Update the progress bar according to the state
+            match state.execution_state {
+                CleanerExecutionState::Initialization => {
+                    bar.set_message("Initializing pool cleaner...");
+                }
+                CleanerExecutionState::ApplyingRefcnt => {
+                    bar.set_message("Applying reference counts...");
+                }
+                CleanerExecutionState::Cleaning => {
+                    let total = state.progression.progress_max as u64;
+                    let current = state.progression.progress_current as u64;
 
-    bar.finish();
+                    if bar
+                        .length()
+                        .is_some_and(|length| length != total && total > 0)
+                    {
+                        bar.set_length(total);
+                    }
+
+                    bar.set_position(current);
+                }
+                CleanerExecutionState::Completed => {
+                    bar.finish();
+                }
+                CleanerExecutionState::Waiting => {
+                    // Do nothing
+                }
+            }
+        }
+    });
+
+    // Execute the cleaning
+    let result = machine.execute().await?;
+
+    // Make sure the display task ends
+    display_task.abort();
 
     term.write_line(&std::format!("Total removed: {}", HumanBytes(result.size)))?;
 

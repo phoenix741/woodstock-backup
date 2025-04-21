@@ -1,2 +1,2 @@
 export * from './job.service';
-export * from './backuping.model';
+export * from './backuping.dto';

@@ -14,9 +14,6 @@ export const ApplicationEventFragment = graphql(/* GraphQL */ `
       ... on EventBackupInformation {
         ...EventBackupInformation
       }
-      ... on EventRefCountInformation {
-        ...EventRefCountInformation
-      }
       ... on EventPoolInformation {
         ...EventPoolInformation
       }
@@ -38,21 +35,17 @@ export const EventBackupInformationFragment = graphql(/* GraphQL */ `
   }
 `);
 
-export const EventRefCountInformationFragment = graphql(/* GraphQL */ `
-  fragment EventRefCountInformation on EventRefCountInformation {
-    fix
-    count
-    error
-  }
-`);
-
 export const EventPoolInformationFragment = graphql(/* GraphQL */ `
   fragment EventPoolInformation on EventPoolInformation {
     fix
+    refcount
+    refcountError
     inUnused
     inRefcnt
     inNothing
     missing
+    chunkCount
+    chunkError
   }
 `);
 

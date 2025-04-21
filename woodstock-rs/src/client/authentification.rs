@@ -16,31 +16,48 @@ use crate::utils::encryption;
 use eyre::{eyre, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
+/// Represents the JWT claims structure used for authentication.
 struct Claims {
+    /// Issuer of the token, typically the hostname
     iss: String,
+    /// Audience of the token, typically the hostname
     aud: String,
+    /// Expiration timestamp
     exp: u64,
+    /// Subject of the token, typically a UUID
     sub: String,
 
+    /// Session identifier for the authenticated session
     session_id: String,
+    /// Flag indicating whether the session is authenticated
     is_authenticated: bool,
 }
 
 struct ContextData {
+    /// Expiration timestamp for the session context
     exp: u64,
 }
 
 /// The goal of this module is to provide a way to create and verify a JWT token
 /// using the HS256 algorithm.
 pub struct Service {
+    /// Map of active session contexts, indexed by session ID
     context: HashMap<String, Arc<Mutex<ContextData>>>,
+    /// Path to the certificate file used for authentication
     certificate_path: PathBuf,
+    /// Client hostname
     hostname: String,
+    /// Client password for authentication
     password: String,
+    /// Key used for JWT token encoding
     encoding_secret: EncodingKey,
+    /// Key used for JWT token decoding
     decoding_secret: DecodingKey,
+    /// Timeout for backup operations in seconds
     backup_timeout: u64,
+    /// Maximum duration for which a backup session can remain active, in seconds
     max_backup_seconds: u64,
+    /// Flag indicating whether restoration operations are disabled
     disable_restauration: bool,
 }
 
@@ -185,11 +202,25 @@ impl Service {
     }
 
     #[must_use]
+    /// Checks if restoration operations are disabled in the current configuration.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if restoration operations are disabled, `false` otherwise.
     pub fn is_restauration_disabled(&self) -> bool {
         self.disable_restauration
     }
 
     #[must_use]
+    /// Validates if a session with the given ID exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - The session ID to validate.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the session exists, `false` otherwise.
     pub fn validate_session(&self, session_id: &str) -> bool {
         self.context.contains_key(session_id)
     }

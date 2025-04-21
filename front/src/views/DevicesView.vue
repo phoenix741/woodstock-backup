@@ -2,10 +2,8 @@
   <v-container>
     <v-row>
       <v-col cols="3">
-        <HostSuccessFailureChartsComponent
-          v-if="!isDeviceFetching"
-          :countByState="devicesByState"
-        ></HostSuccessFailureChartsComponent>
+        <HostSuccessFailureChartsComponent v-if="!isDeviceFetching" :countByState="devicesByState">
+        </HostSuccessFailureChartsComponent>
       </v-col>
       <v-col cols="9">
         <HostRepartitionChartsComponent v-if="!isStatsFetching" :hosts="devicesBySize"></HostRepartitionChartsComponent>
@@ -14,19 +12,11 @@
     <v-row>
       <v-col>
         <v-sheet rounded="lg">
-          <v-data-table
-            v-model:items-per-page="itemsPerPage"
-            :headers="headers"
-            :items="devicesDataTable"
-            :loading="isDeviceFetching"
-            loading-text="Loading... Please wait"
-            item-value="name"
-            item-title="name"
-            class="elevation-1"
-            @click:row="navigateTo"
-          >
+          <v-data-table v-model:items-per-page="itemsPerPage" :headers="headers" :items="devicesDataTable"
+            :loading="isDeviceFetching" loading-text="Loading... Please wait" item-value="name" item-title="name"
+            class="elevation-1" @click:row="navigateTo">
             <template v-slot:[`item.state`]="{ item }">
-              <v-chip v-if="item.state" :color="getColor(item.state)">{{ item.state }}</v-chip>
+              <v-chip v-if="item.state" :color="getStateColor(item.state)">{{ item.state }}</v-chip>
             </template>
             <template v-slot:[`item.lastBackupSize`]="{ item }">
               <template v-if="item.lastBackupSize">{{ filesize(item.lastBackupSize) }}</template>
@@ -56,11 +46,11 @@
 import HostRepartitionChartsComponent from '@/components/hosts/cards/HostRepartitionChartsComponent.vue';
 import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSuccessFailureChartsComponent.vue';
 
-import { getAvailabilityColor, getColor, getState, toDateTime, toDuration } from '@/components/hosts/hosts.utils';
+import { getAvailabilityColor, getState, getStateColor, toDateTime, toDuration } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { VDataTable } from 'vuetify/components';
+import { type VDataTable } from 'vuetify/components';
 
 import { useDevices } from '../utils/devices';
 import { useDiskUsageStats } from '../utils/stats';

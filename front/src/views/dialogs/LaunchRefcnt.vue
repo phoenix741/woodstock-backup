@@ -1,6 +1,6 @@
 <template>
-  <v-btn block
-    >{{ buttonAction }}
+  <v-btn block icon :color="color" :title="buttonText">
+    <v-icon :icon="buttonIcon"></v-icon>
     <v-dialog v-model="dialog" activator="parent" width="700px" height="500px">
       <v-card v-if="dialogState == ProgressDialogState.Waiting">
         <v-card-text class="justify-center">
@@ -70,7 +70,9 @@ enum ProgressDialogState {
 }
 
 const props = defineProps<{
-  buttonAction: string;
+  buttonText: string;
+  buttonIcon: string;
+  color: string;
 
   action: string;
   description: string;

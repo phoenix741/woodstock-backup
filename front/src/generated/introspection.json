@@ -1,12 +1,24 @@
 {
   "possibleTypes": {
+    "BackupQueueData": [
+      "JobBackupData",
+      "JobCleanupData",
+      "JobFsckData",
+      "JobRemoveData",
+      "JobRestoreData"
+    ],
     "EventInformation": [
       "EventBackupInformation",
       "EventHashConversionInformation",
       "EventPoolCleanedInformation",
-      "EventPoolInformation",
-      "EventRefCountInformation"
+      "EventPoolInformation"
     ],
-    "SubTaskOrGroupTasks": ["JobGroupTasks", "JobSubTask"]
+    "TaskState": [
+      "BackupTaskState",
+      "CleanerTaskState",
+      "FsckTaskState",
+      "RemoveTaskState",
+      "RestoreTaskState"
+    ]
   }
 }

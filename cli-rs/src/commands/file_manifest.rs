@@ -1,3 +1,15 @@
+//! This module provides file manifest comparison and management commands for Woodstock backups.
+//!
+//! It includes utilities for generating and printing differences between manifest files, helping users track changes between backup states.
+//!
+//! # Errors
+//!
+//! Functions in this module may return errors if manifest files are missing, corrupted, or if terminal output fails.
+//!
+//! # Panics
+//!
+//! Some functions may panic if manifest paths are invalid or if file names cannot be converted to strings.
+
 use std::path::Path;
 
 use async_stream::stream;
@@ -7,6 +19,24 @@ use futures::{pin_mut, Stream, StreamExt};
 use indicatif::HumanBytes;
 use woodstock::{manifest::Manifest, EntryState, EntryType, FileManifestJournalEntry};
 
+/// Generates a stream of file manifest journal entries by comparing two manifests.
+///
+/// # Arguments
+///
+/// * `manifest1` - Path to the first manifest file.
+/// * `manifest2` - Path to the second manifest file.
+///
+/// # Returns
+///
+/// A stream of `FileManifestJournalEntry` items representing added, modified, or removed files between the two manifests.
+///
+/// # Errors
+///
+/// This function yields entries and does not return errors directly, but errors may occur when reading manifests.
+///
+/// # Panics
+///
+/// This function may panic if the manifest paths are invalid or if file names cannot be converted to strings.
 pub fn generate_compare_stream(
     manifest1: &str,
     manifest2: &str,
@@ -93,6 +123,20 @@ pub fn generate_compare_stream(
     })
 }
 
+/// Compares two manifest files and prints the differences to the console.
+///
+/// # Arguments
+///
+/// * `manifest1` - Path to the first manifest file.
+/// * `manifest2` - Path to the second manifest file.
+///
+/// # Errors
+///
+/// Returns an error if writing to the terminal fails or if manifest comparison encounters an error.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn compare(manifest1: &str, manifest2: &str) -> Result<()> {
     let term = Term::stdout();
 

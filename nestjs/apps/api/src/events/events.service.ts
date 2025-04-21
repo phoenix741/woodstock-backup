@@ -1,102 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import { ApplicationConfigService } from '@woodstock/shared';
 import {
   JsEvent,
   JsEventBackupInformation,
   JsEventPoolCleanedInformation,
   JsEventPoolInformation,
-  JsEventRefCountInformation,
-  JsEventSource,
-  JsEventStatus,
-  JsEventStep,
-  JsEventType,
   JsHashConversionInformation,
   listEvents,
 } from '@woodstock/shared-rs';
 import {
   ApplicationEvent,
   EventBackupInformation,
+  EventHashConversionInformation,
   EventPoolCleanedInformation,
   EventPoolInformation,
-  EventRefCountInformation,
-  EventSource,
-  EventStatus,
-  EventStep,
-  EventType,
-  EventHashConversionInformation,
 } from './events.dto';
 
-const rustEventTypeToEventTypeMap: Record<JsEventType, EventType> = {
-  [JsEventType.Backup]: EventType.Backup,
-  [JsEventType.Restore]: EventType.Restore,
-  [JsEventType.Delete]: EventType.Delete,
-  [JsEventType.RefcntChecked]: EventType.RefcntChecked,
-  [JsEventType.PoolChecked]: EventType.PoolChecked,
-  [JsEventType.ChecksumChecked]: EventType.ChecksumChecked,
-  [JsEventType.PoolCleaned]: EventType.PoolCleaned,
-  [JsEventType.HashConversion]: EventType.HashConversion,
-};
-
-const rustEventStepToEventStepMap: Record<JsEventStep, EventStep> = {
-  [JsEventStep.Start]: EventStep.Start,
-  [JsEventStep.End]: EventStep.End,
-};
-
-const rustEventSourceToEventSourceMap: Record<JsEventSource, EventSource> = {
-  [JsEventSource.User]: EventSource.User,
-  [JsEventSource.Woodstock]: EventSource.Woodstock,
-  [JsEventSource.Import]: EventSource.Import,
-  [JsEventSource.Cli]: EventSource.Cli,
-};
-
-const rustEventStatusToEventStatusMap: Record<JsEventStatus, EventStatus> = {
-  [JsEventStatus.None]: EventStatus.None,
-  [JsEventStatus.Success]: EventStatus.Success,
-  [JsEventStatus.ClientDisconnected]: EventStatus.ClientDisconnected,
-  [JsEventStatus.ServerCrashed]: EventStatus.ServerCrashed,
-  [JsEventStatus.GenericError]: EventStatus.GenericError,
-};
-
 function isJsEventBackupInformation(
-  i:
-    | JsEventBackupInformation
-    | JsEventRefCountInformation
-    | JsEventPoolInformation
-    | JsEventPoolCleanedInformation
-    | JsHashConversionInformation,
+  i: JsEventBackupInformation | JsEventPoolInformation | JsEventPoolCleanedInformation | JsHashConversionInformation,
 ): i is JsEventBackupInformation {
   return (i as JsEventBackupInformation).hostname !== undefined;
 }
 
-function isJsEventRefCountInformation(
-  i:
-    | JsEventBackupInformation
-    | JsEventRefCountInformation
-    | JsEventPoolInformation
-    | JsEventPoolCleanedInformation
-    | JsHashConversionInformation,
-): i is JsEventRefCountInformation {
-  return (i as JsEventRefCountInformation).fix !== undefined && (i as JsEventRefCountInformation).count !== undefined;
-}
-
 function isJsEventPoolInformation(
-  i:
-    | JsEventBackupInformation
-    | JsEventRefCountInformation
-    | JsEventPoolInformation
-    | JsEventPoolCleanedInformation
-    | JsHashConversionInformation,
+  i: JsEventBackupInformation | JsEventPoolInformation | JsEventPoolCleanedInformation | JsHashConversionInformation,
 ): i is JsEventPoolInformation {
   return (i as JsEventPoolInformation).fix !== undefined && (i as JsEventPoolInformation).inRefcnt !== undefined;
 }
 
 function isJsHashConversionInformation(
-  i:
-    | JsEventBackupInformation
-    | JsEventRefCountInformation
-    | JsEventPoolInformation
-    | JsEventPoolCleanedInformation
-    | JsHashConversionInformation,
+  i: JsEventBackupInformation | JsEventPoolInformation | JsEventPoolCleanedInformation | JsHashConversionInformation,
 ): i is JsHashConversionInformation {
   return (i as JsHashConversionInformation).algorithm !== undefined;
 }
@@ -104,68 +36,37 @@ function isJsHashConversionInformation(
 function fromInformation(
   information:
     | JsEventBackupInformation
-    | JsEventRefCountInformation
     | JsEventPoolInformation
     | JsEventPoolCleanedInformation
     | JsHashConversionInformation,
-):
-  | EventBackupInformation
-  | EventRefCountInformation
-  | EventPoolInformation
-  | EventPoolCleanedInformation
-  | EventHashConversionInformation {
+): EventBackupInformation | EventPoolInformation | EventPoolCleanedInformation | EventHashConversionInformation {
   if (isJsEventBackupInformation(information)) {
-    return new EventBackupInformation({
-      hostname: information.hostname,
-      number: Number(information.number),
-      sharePath: information.sharePath,
-    });
-  }
-  if (isJsEventRefCountInformation(information)) {
-    return new EventRefCountInformation({
-      fix: information.fix,
-      count: Number(information.count),
-      error: Number(information.error),
-    });
+    return new EventBackupInformation(information);
   }
   if (isJsEventPoolInformation(information)) {
-    return new EventPoolInformation({
-      fix: information.fix,
-      inUnused: Number(information.inUnused),
-      inRefcnt: Number(information.inRefcnt),
-      inNothing: Number(information.inNothing),
-      missing: Number(information.missing),
-    });
+    return new EventPoolInformation(information);
   }
   if (isJsHashConversionInformation(information)) {
-    return new EventHashConversionInformation({
-      algorithm: information.algorithm.toString(),
-      count: Number(information.count),
-    });
+    return new EventHashConversionInformation(information);
   }
-  return new EventPoolCleanedInformation({
-    size: Number(information.size),
-    count: Number(information.count),
-  });
+  return new EventPoolCleanedInformation(information);
 }
 
 function from(rustEvent: JsEvent): ApplicationEvent {
   return {
     uuid: rustEvent.uuid,
-    type: rustEventTypeToEventTypeMap[rustEvent.type],
-    step: rustEventStepToEventStepMap[rustEvent.step],
-    source: rustEventSourceToEventSourceMap[rustEvent.source],
+    type: rustEvent.type,
+    step: rustEvent.step,
+    source: rustEvent.source,
     timestamp: new Date(Number(rustEvent.timestamp * 1000n)),
     errorMessages: rustEvent.errorMessages,
-    status: rustEventStatusToEventStatusMap[rustEvent.status],
+    status: rustEvent.status,
     information: rustEvent.information ? fromInformation(rustEvent.information) : undefined,
   };
 }
 
 @Injectable()
 export class EventsService {
-  constructor(private applicationConfig: ApplicationConfigService) {}
-
   async #listEvents(startDate: string, endDate: string): Promise<JsEvent[]> {
     return new Promise((resolve, reject) => {
       listEvents(startDate, endDate, (err, events) => {

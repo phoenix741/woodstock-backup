@@ -8,9 +8,7 @@ enum EventType {
   Backup = 0;
   Restore = 1;
   Delete = 2;
-  RefcntChecked = 3;
   PoolChecked = 4;
-  ChecksumChecked = 5;
   PoolCleaned = 6;
   HashConversion = 7;
 }
@@ -41,18 +39,16 @@ message EventBackupInformation {
   repeated string sharePath = 3;
 }
 
-message EventRefCountInformation {
-  bool fix = 1;
-  uint64 count = 2;
-  uint64 error = 3;
-}
-
 message EventPoolInformation {
   bool fix = 1;
+  uint64 refcount = 2;
+  uint64 refcount_error = 3;
   uint64 in_unused = 4;
   uint64 in_refcnt = 5;
   uint64 in_nothing = 6;
   uint64 missing = 7;
+  uint64 chunk_count = 8;
+  uint64 chunk_error = 9;
 }
 
 message EventPoolCleanedInformation {
@@ -77,7 +73,6 @@ message Event {
   
   oneof information {
     EventBackupInformation backup = 8;
-    EventRefCountInformation refcnt = 9;
     EventPoolCleanedInformation poolCleaned = 10;
     EventPoolInformation pool = 11;
     HashConversionInformation hashConversion = 13;

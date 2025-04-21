@@ -1,6 +1,6 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger, NotFoundException } from '@nestjs/common';
-import { HostsService, JobBackupData, JobService, QueueName, RefcntJobData } from '@woodstock/shared';
+import { BackupQueueData, HostsService, JobBackupData, JobService, QueueName } from '@woodstock/shared';
 import { Job, Queue } from 'bullmq';
 import { StatsService } from './stats.service';
 
@@ -9,8 +9,7 @@ export class SchedulerConsumer extends WorkerHost {
   private logger = new Logger(SchedulerConsumer.name);
 
   constructor(
-    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
-    @InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<BackupQueueData>,
     private hostsService: HostsService,
     private jobService: JobService,
     private statsService: StatsService,
@@ -47,6 +46,6 @@ export class SchedulerConsumer extends WorkerHost {
 
     await this.statsService.calculateSpaceStats();
 
-    this.refcntQueue.add('unused', {});
+    this.hostsQueue.add('cleanup_refcnt', {});
   }
 }

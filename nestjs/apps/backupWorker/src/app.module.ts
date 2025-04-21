@@ -3,6 +3,7 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import {
+  ApplicationConfigService,
   ApplicationLogger,
   BackupsService,
   CacheConfigService,
@@ -10,13 +11,13 @@ import {
   SharedModule,
   initializeLog,
 } from '@woodstock/shared';
-import { BackupClientProgress } from './backups/backup-client-progress.service.js';
-import { BackupsClientService } from './backups/backups-client.service.js';
-import { BackupTasksService } from './tasks/backup-tasks.service.js';
 import { HostConsumer } from './tasks/host.consumer.js';
-import { RemoveService } from './tasks/remove.service.js';
-import { RestoreService } from './tasks/restore.service.js';
 import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
+import { BackupMachineService } from './backups/backup-machine.service.js';
+import { RestoreMachineService } from './backups/restore-machine.service.js';
+import { RemoveMachineService } from './backups/remove-machine.service.js';
+import { CleanupMachineService } from './pool/cleanup-machine.service.js';
+import { FsckMachineService } from './pool/fsck-machine.service.js';
 
 @Module({
   imports: [
@@ -30,18 +31,19 @@ import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
     SharedModule,
   ],
   providers: [
-    BackupClientProgress,
-    BackupsClientService,
     CacheConfigService,
     HostConsumer,
     HostConsumerUtilService,
-    BackupTasksService,
-    RemoveService,
-    RestoreService,
+    BackupMachineService,
+    RestoreMachineService,
+    RemoveMachineService,
+    CleanupMachineService,
+    FsckMachineService,
     {
       provide: ApplicationLogger,
-      useFactory: (backupsService) => new ApplicationLogger('backup', backupsService),
-      inject: [BackupsService],
+      useFactory: (applicationConfigService, backupsService) =>
+        new ApplicationLogger('backup', applicationConfigService, backupsService),
+      inject: [ApplicationConfigService, BackupsService],
     },
   ],
 })

@@ -4,6 +4,10 @@ use woodstock::{
 };
 
 #[napi]
+/// Generates a new RSA key and stores it in the certificates path.
+///
+/// # Errors
+/// Returns an error if the RSA key generation fails or if the key cannot be written to disk.
 pub fn generate_rsa_key() -> Result<()> {
   let certificate_path = &GlobalConfiguration.path.certificates_path;
 

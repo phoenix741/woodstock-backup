@@ -1,3 +1,7 @@
+//! Event module for Woodstock shared library.
+//!
+//! This module provides event-related types and functions for the Woodstock backup system.
+//! It includes event models and utilities to interact with events, such as listing events between dates.
 mod model;
 
 pub use model::*;
@@ -9,6 +13,10 @@ use napi::{
 use woodstock::{config::GlobalConfiguration, events::read_events, Event};
 
 #[napi]
+/// List events between two dates and return them via a callback.
+///
+/// # Errors
+/// Returns an error if the date parsing fails or if the callback cannot be created.
 pub fn list_events(
   start_date: String,
   end_date: String,
@@ -31,18 +39,16 @@ pub fn list_events(
 
   // String (format YYYY-MM-DD) to chrono date
   let start_date = chrono::NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")
-    .map_err(|e| Error::from_reason(format!("Can't parse start date {:?}", e).to_string()))?;
+    .map_err(|e| Error::from_reason(format!("Can't parse start date {e:?}").to_string()))?;
   let end_date = chrono::NaiveDate::parse_from_str(&end_date, "%Y-%m-%d")
-    .map_err(|e| Error::from_reason(format!("Can't parse end date {:?}", e).to_string()))?;
+    .map_err(|e| Error::from_reason(format!("Can't parse end date {e:?}").to_string()))?;
 
   let tsfn = tsfn.clone();
   tokio::spawn(async move {
     // Read events from the file
-    let events = read_events(events, &start_date, &end_date)
+    let events = read_events(events, start_date, end_date)
       .await
-      .map_err(|e| {
-        Error::from_reason(format!("Can't read the events database {:?}", e).to_string())
-      });
+      .map_err(|e| Error::from_reason(format!("Can't read the events database {e:?}").to_string()));
 
     tsfn.call(
       events,

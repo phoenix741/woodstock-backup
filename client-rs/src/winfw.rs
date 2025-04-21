@@ -12,10 +12,14 @@ use windows::Win32::System::Com::{
     COINIT_APARTMENTTHREADED,
 };
 
+/// Network protocol used for the firewall rule.
 #[derive(Clone, Default)]
 pub enum Protocols {
+    /// TCP protocol.
     Tcp,
+    /// UDP protocol.
     Udp,
+    /// Any protocol (default value).
     #[default]
     Any,
 }
@@ -49,10 +53,14 @@ impl From<&Protocols> for NET_FW_IP_PROTOCOL {
     }
 }
 
+/// Traffic direction for the firewall rule.
 #[derive(Clone, Default)]
 pub enum Directions {
+    /// Incoming traffic.
     In,
+    /// Outgoing traffic.
     Out,
+    /// Any direction (default value).
     #[default]
     Any,
 }
@@ -86,11 +94,15 @@ impl From<&Directions> for NET_FW_RULE_DIRECTION {
     }
 }
 
+/// Action to apply to the firewall rule.
 #[derive(Clone, Default)]
 pub enum Actions {
+    /// Block traffic (default value).
     #[default]
     Block,
+    /// Allow traffic.
     Allow,
+    /// Max action (Windows API specific).
     Max,
 }
 
@@ -123,30 +135,52 @@ impl From<&Actions> for NET_FW_ACTION {
     }
 }
 
+/// Represents a Windows firewall rule.
 #[derive(Default, Clone)]
 pub struct FwRule {
+    /// Rule name.
     pub name: String,
+    /// Rule description.
     pub description: String,
+    /// Associated application name.
     pub app_name: String,
+    /// Associated service name.
     pub service_name: String,
+    /// Protocol used.
     pub protocol: Protocols,
+    /// ICMP type (if applicable).
     pub icmp_type: String,
+    /// Local ports concerned.
     pub local_ports: String,
+    /// Remote ports concerned.
     pub remote_ports: String,
+    /// Local addresses concerned.
     pub local_adresses: String,
+    /// Remote addresses concerned.
     pub remote_addresses: String,
+    /// Profile 1 (Windows Firewall specific).
     pub profile1: String,
+    /// Profile 2 (Windows Firewall specific).
     pub profile2: String,
+    /// Profile 3 (Windows Firewall specific).
     pub profile3: String,
+    /// Traffic direction.
     pub direction: Directions,
+    /// Action to apply.
     pub action: Actions,
+    /// Interface types concerned.
     pub interface_types: String,
+    /// Interfaces concerned.
     pub interfaces: String,
+    /// Whether the rule is enabled.
     pub enabled: bool,
+    /// Rule grouping.
     pub grouping: String,
+    /// Whether edge traversal is enabled.
     pub edge_traversal: bool,
 }
 
+/// RAII helper to uninitialize COM on drop.
 struct DropUninitializeCom;
 
 impl Drop for DropUninitializeCom {
@@ -155,6 +189,10 @@ impl Drop for DropUninitializeCom {
     }
 }
 
+/// Initializes the COM model.
+///
+/// # Errors
+/// Returns an error if COM initialization fails.
 fn initialize_com() -> Result<()> {
     unsafe {
         CoInitializeEx(Some(std::ptr::null_mut()), COINIT_APARTMENTTHREADED).ok()?;
@@ -163,12 +201,17 @@ fn initialize_com() -> Result<()> {
     Ok(())
 }
 
+/// Uninitializes the COM model.
 fn uninitialize_com() {
     unsafe {
         CoUninitialize();
     }
 }
 
+/// Creates a Windows firewall rule.
+///
+/// # Errors
+/// Returns an error if rule creation fails.
 pub fn create_firewall_rule(rule: &FwRule) -> Result<()> {
     let _ = DropUninitializeCom;
     initialize_com()?;
@@ -268,6 +311,10 @@ pub fn create_firewall_rule(rule: &FwRule) -> Result<()> {
     Ok(())
 }
 
+/// Deletes a Windows firewall rule by name.
+///
+/// # Errors
+/// Returns an error if deletion fails.
 pub fn delete_firewall_rule(name: &str) -> Result<()> {
     let _ = DropUninitializeCom;
     initialize_com()?;
@@ -281,6 +328,10 @@ pub fn delete_firewall_rule(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Enables or disables a Windows firewall rule by name.
+///
+/// # Errors
+/// Returns an error if the operation fails.
 pub fn enable_fw_rule(name: &str, enabled: bool) -> Result<()> {
     let _ = DropUninitializeCom;
     initialize_com()?;
@@ -299,6 +350,10 @@ pub fn enable_fw_rule(name: &str, enabled: bool) -> Result<()> {
     Ok(())
 }
 
+/// Checks if a firewall rule exists by name.
+///
+/// # Errors
+/// Returns an error if the check fails.
 pub fn rule_exists(name: &str) -> Result<bool> {
     let _ = DropUninitializeCom;
     initialize_com()?;

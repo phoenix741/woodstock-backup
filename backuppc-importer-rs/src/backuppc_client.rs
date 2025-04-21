@@ -30,14 +30,34 @@ use woodstock::{
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
 
+/// The `BackupPCClient` struct provides an interface to interact with a `BackupPC` pool.
+/// It allows for file listing, chunk retrieval, and synchronization with a Woodstock server.
+///
+/// # Fields
+/// - `hostname`: The name of the host for which the backup is managed.
+/// - `number`: The backup number associated with the host.
+/// - `view`: An `Arc<Mutex<BackupPC>>` providing thread-safe access to the `BackupPC`` view.
+/// - `chunk_algorithm`: The chunking algorithm used for file chunking operations.
 #[derive(Clone)]
 pub struct BackupPCClient {
+    /// The name of the host for which the backup is managed.
     hostname: String,
+    /// The backup number associated with the host.
     number: usize,
+    /// Thread-safe access to the `BackupPC` view.
     view: Arc<Mutex<BackupPC>>,
+    /// The chunking algorithm used for file chunking operations.
     chunk_algorithm: ChunkAlgorithm,
 }
 
+/// Converts a `FileAttributes` object and its path into a `FileManifest`.
+///
+/// # Arguments
+/// * `path` - The path to the file as a slice of byte slices.
+/// * `file` - The file attributes to convert.
+///
+/// # Returns
+/// A `FileManifest` representing the file and its metadata.
 fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManifest {
     // Filename is path + filename
     let mut path = path.iter().map(|s| s.to_vec()).collect::<Vec<Vec<u8>>>();
@@ -92,6 +112,17 @@ fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManif
 }
 
 impl BackupPCClient {
+    #[must_use]
+    /// Creates a new `BackupPCClient` instance.
+    ///
+    /// # Arguments
+    /// * `view` - The `BackupPC` view to use for file operations.
+    /// * `hostname` - The name of the host for which the backup is managed.
+    /// * `number` - The backup number associated with the host.
+    /// * `chunk_algorithm` - The chunking algorithm to use for file chunking operations.
+    ///
+    /// # Returns
+    /// A new `BackupPCClient` instance.
     pub fn new(
         view: BackupPC,
         hostname: &str,
@@ -106,6 +137,17 @@ impl BackupPCClient {
         }
     }
 
+    /// Visits a single directory level in the `BackupPC` pool and collects file manifests.
+    ///
+    /// # Arguments
+    /// * `path` - The current path as a vector of byte vectors.
+    /// * `to_visit` - A mutable reference to the stack of paths to visit next.
+    ///
+    /// # Returns
+    /// Returns a `Result` containing a vector of `FileManifest` objects for the current directory level, or an error if the directory cannot be read.
+    ///
+    /// # Errors
+    /// Returns an error if the directory listing fails or if there is an issue accessing the `BackupPC` view.
     async fn one_level(
         &self,
         path: Vec<Vec<u8>>,
@@ -138,6 +180,13 @@ impl BackupPCClient {
         Ok(files)
     }
 
+    /// Returns a stream of `FileManifest` objects for all files in the specified share.
+    ///
+    /// # Arguments
+    /// * `share` - The share path as a byte slice.
+    ///
+    /// # Returns
+    /// A stream yielding `FileManifest` objects for each file found in the share.
     fn get_files(&self, share: &[u8]) -> impl Stream<Item = FileManifest> + '_ {
         let share = share
             .split(|s| s == &b'/')
@@ -180,6 +229,16 @@ impl BackupPCClient {
         })
     }
 
+    /// Asynchronously synchronizes the file list by comparing the current `BackupPC` pool with the provided stream of refresh requests.
+    ///
+    /// # Arguments
+    /// * `stream` - A stream of `RefreshCacheRequest` items representing the desired state.
+    ///
+    /// # Returns
+    /// A stream yielding `Result<FileManifestJournalEntry>` for each detected change (add, modify, remove).
+    ///
+    /// # Errors
+    /// Returns an error if the stream cannot be processed or if there are issues with the `BackupPC` view.
     async fn async_synchronize_file_list(
         &mut self,
         stream: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
@@ -319,11 +378,11 @@ impl Client for BackupPCClient {
         Ok(true)
     }
 
-    async fn authenticate(&mut self, _password: &str) -> Result<AuthenticateReply> {
+    async fn authenticate(&self, _password: &str) -> Result<AuthenticateReply> {
         unimplemented!("No authentication required for BackupPCClient");
     }
 
-    async fn execute_command(&mut self, _command: &str) -> Result<ExecuteCommandReply> {
+    async fn execute_command(&self, _command: &str) -> Result<ExecuteCommandReply> {
         unimplemented!("No command available for import");
     }
 
@@ -379,8 +438,8 @@ impl Client for BackupPCClient {
             .read_file(&path)
             .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
 
-        let mut file_hasher = create_chunk_hasher(&request.algorithm());
-        let mut chunk_hasher = create_chunk_hasher(&request.algorithm());
+        let mut file_hasher = create_chunk_hasher(request.algorithm());
+        let mut chunk_hasher = create_chunk_hasher(request.algorithm());
         let mut chunks = Vec::<Vec<u8>>::new();
 
         let mut buf = vec![0; CHUNK_SIZE];
@@ -396,7 +455,7 @@ impl Client for BackupPCClient {
 
             let chunk_hash = chunk_hasher.finalize();
             chunks.push(chunk_hash);
-            chunk_hasher = create_chunk_hasher(&request.algorithm());
+            chunk_hasher = create_chunk_hasher(request.algorithm());
         }
 
         let hash = file_hasher.finalize();
@@ -438,8 +497,8 @@ impl Client for BackupPCClient {
             let mut position: u64 = 0;
             let mut send_chunk = false;
 
-            let mut file_hasher = create_chunk_hasher(&algorithm);
-            let mut chunk_hasher = create_chunk_hasher(&algorithm);
+            let mut file_hasher = create_chunk_hasher(algorithm);
+            let mut chunk_hasher = create_chunk_hasher(algorithm);
 
             loop {
                 let current_chunk = position / CHUNK_SIZE_U64;
@@ -452,7 +511,7 @@ impl Client for BackupPCClient {
                         yield FileChunk {
                             field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
                         };
-                        chunk_hasher = create_chunk_hasher(&algorithm);
+                        chunk_hasher = create_chunk_hasher(algorithm);
                     }
 
                     chunk_id = current_chunk;

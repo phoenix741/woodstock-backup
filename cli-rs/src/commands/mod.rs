@@ -1,3 +1,18 @@
+//! This module contains all submodules for the Woodstock CLI commands.
+//!
+//! Each submodule implements a specific set of commands for backup management, chunk operations, file manifest handling, and more. These modules are re-exported here for use in the main CLI entry points.
+//!
+//! # Modules
+//!
+//! - `client`: Client-related commands for interacting with backup clients.
+//! - `convertion`: Commands for data conversion and migration.
+//! - `file_manifest`: File manifest comparison and management.
+//! - `pool`: Pool management commands.
+//! - `read_chunk`: Chunk reading and searching utilities.
+//! - `read_protobuf`: Protobuf log and data reading commands.
+//! - `resolve`: Network and mDNS resolution commands.
+//! - `mount`: (Unix only) FUSE-based mounting commands.
+
 pub mod client;
 pub mod convertion;
 pub mod file_manifest;

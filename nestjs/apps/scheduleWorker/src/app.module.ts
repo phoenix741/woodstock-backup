@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import {
+  ApplicationConfigService,
   ApplicationLogger,
   BackupsService,
   CacheConfigService,
@@ -30,8 +31,9 @@ import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.j
     StatsService,
     {
       provide: ApplicationLogger,
-      useFactory: (backupsService) => new ApplicationLogger('stats', backupsService),
-      inject: [BackupsService],
+      useFactory: (applicationConfigService, backupsService) =>
+        new ApplicationLogger('stats', applicationConfigService, backupsService),
+      inject: [ApplicationConfigService, BackupsService],
     },
   ],
 })

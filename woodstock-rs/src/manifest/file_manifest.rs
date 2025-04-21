@@ -1,3 +1,36 @@
+/// # File Manifest Module
+///
+/// This module defines the main data structures and logic for file manifests in the Woodstock backup system.
+/// It provides lightweight and full-featured manifest types, trait implementations for index operations,
+/// and utility methods for file metadata, serialization, and display.
+///
+/// ## Main Structures
+///
+/// - [`FileManifestLight`]: Lightweight file manifest for index operations.
+/// - [`FileManifest`]: Full-featured file manifest with metadata and chunk information.
+/// - [`FileManifestJournalEntry`]: Journal entry for file manifest changes.
+///
+/// ## Main Methods
+///
+/// - [`FileManifest::path`], [`FileManifest::set_path`]: Get/set the file path.
+/// - [`FileManifest::mode`], [`FileManifest::file_mode`]: Get file mode and type.
+/// - [`FileManifest::size`], [`FileManifest::compressed_size`]: Get file sizes.
+/// - [`FileManifest::chunk_count`]: Get the number of chunks for the file.
+/// - [`FileManifest::is_special_file`], [`FileManifest::is_regular_file`]: File type checks.
+/// - [`FileManifest::to_yaml`], [`FileManifest::to_log`]: Serialization and logging.
+///
+/// ## Error Handling & Panics
+///
+/// - All public methods return `Result` and propagate I/O or serialization errors using the `eyre` crate.
+/// - Panics are not expected under normal operation; errors are returned as `Result`.
+///
+/// ## Generics
+///
+/// - The `PathManifest` trait is implemented for both lightweight and full manifests.
+///
+/// ## See Also
+///
+/// - [`PathManifest`], [`FileManifestJournalEntry`], [`FileManifestLight`]
 use std::{
     fmt::{self},
     path::{Path, PathBuf},
@@ -15,31 +48,40 @@ use crate::{
 use super::PathManifest;
 
 #[derive(Clone)]
+/// Lightweight file manifest for index operations.
 pub struct FileManifestLight {
+    /// Path of the file as a byte vector.
     pub path: Vec<u8>,
+    /// Last modification timestamp (UNIX epoch).
     last_modified: i64,
+    /// File size in bytes.
     size: u64,
 }
 
 impl PathManifest for FileManifestLight {
+    /// Returns the file path as a byte vector.
     fn array_path(&self) -> &Vec<u8> {
         &self.path
     }
 
+    /// Returns the last modification timestamp.
     fn last_modified(&self) -> i64 {
         self.last_modified
     }
 
+    /// Returns the file size in bytes.
     fn size(&self) -> u64 {
         self.size
     }
 }
 
 impl PathManifest for FileManifest {
+    /// Returns the file path as a byte vector.
     fn array_path(&self) -> &Vec<u8> {
         &self.path
     }
 
+    /// Returns the last modification timestamp.
     fn last_modified(&self) -> i64 {
         self.stats
             .as_ref()
@@ -47,6 +89,7 @@ impl PathManifest for FileManifest {
             .unwrap_or_default()
     }
 
+    /// Returns the file size in bytes.
     fn size(&self) -> u64 {
         self.stats
             .as_ref()
@@ -184,6 +227,10 @@ impl FileManifest {
             || self.file_mode() == FileManifestType::Unknown
     }
 
+    /// Serializes the file manifest to YAML format.
+    ///
+    /// # Errors
+    /// Returns an error if serialization fails.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
         let str = serde_yaml::to_string(&object)?;
@@ -276,6 +323,10 @@ impl FileManifestJournalEntry {
         }
     }
 
+    /// Serializes the journal entry to YAML format.
+    ///
+    /// # Errors
+    /// Returns an error if serialization fails.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
         let str = serde_yaml::to_string(&object)?;
@@ -369,7 +420,7 @@ impl fmt::Display for FileManifest {
             }
         };
 
-        // Écrivez le chemin formaté dans le Formatter
+        // Write the formatted path to the Formatter
         write!(f, "{yaml}")
     }
 }
@@ -384,7 +435,7 @@ impl fmt::Display for FileManifestJournalEntry {
             }
         };
 
-        // Écrivez le chemin formaté dans le Formatter
+        // Write the formatted path to the Formatter
         write!(f, "{yaml}")
     }
 }

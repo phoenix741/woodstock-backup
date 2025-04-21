@@ -1,10 +1,13 @@
-import { Field, ObjectType } from '@nestjs/graphql';
+import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
+import { JsBackup, JsBackupStatus } from '@woodstock/shared-rs';
 import { Transform } from 'class-transformer';
 
+registerEnumType(JsBackupStatus, { name: 'BackupStatus' });
+
 @ObjectType()
-export class Backup {
+export class Backup implements JsBackup {
   number!: number;
-  completed!: boolean;
+  status!: JsBackupStatus;
 
   errorCount!: number;
 

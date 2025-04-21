@@ -4,54 +4,32 @@
       {{ startDate }}
       {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
     </template>
-    <v-card
-      :prepend-icon="icon"
-      :append-icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-      class="mx-auto"
-      :width="344"
-      :subtitle="subtitle"
-      :title="title"
-      @click="show = !show"
-    >
+    <v-card :prepend-icon="icon" :append-icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mx-auto"
+      :width="344" :subtitle="subtitle" :title="title" @click="show = !show">
       <v-card-text v-if="show">
         <div class="d-flex flex-wrap">
-          <v-chip
-            v-if="event.status && event.status !== EventStatus.None"
-            :color="eventStatusColor"
-            class="ma-2"
-            label
-            >{{ event.status }}</v-chip
-          >
-          <v-chip v-if="event.source" class="ma-2" label>
+          <v-chip v-if="event.status && event.status !== EventStatus.None" :color="eventStatusColor" class="ma-2"
+            label>{{
+              event.status }}</v-chip>
+          <v-chip title="Source" v-if="event.source" class="ma-2" label>
             <v-icon icon="mdi-target" start></v-icon>{{ event.source }}
           </v-chip>
-          <v-chip v-if="startDate" class="ma-2" label>
+          <v-chip title="Start date" v-if="startDate" class="ma-2" label>
             <v-icon icon="mdi-calendar-start" start></v-icon>{{ startDate }}
           </v-chip>
-          <v-chip v-if="executionTime" class="ma-2" label>
+          <v-chip title="Execution time" v-if="executionTime" class="ma-2" label>
             <v-icon icon="mdi-timer" start></v-icon>{{ executionTime }}
           </v-chip>
 
-          <EventBackupInformationComponent
-            v-if="event.information?.__typename === 'EventBackupInformation'"
-            :information="event.information"
-          ></EventBackupInformationComponent>
-          <EventRefCountInformationComponent
-            v-else-if="event.information?.__typename === 'EventRefCountInformation'"
-            :information="event.information"
-          ></EventRefCountInformationComponent>
-          <EventPoolInformationComponent
-            v-else-if="event.information?.__typename === 'EventPoolInformation'"
-            :information="event.information"
-          ></EventPoolInformationComponent>
+          <EventBackupInformationComponent v-if="event.information?.__typename === 'EventBackupInformation'"
+            :information="event.information"></EventBackupInformationComponent>
+          <EventPoolInformationComponent v-else-if="event.information?.__typename === 'EventPoolInformation'"
+            :information="event.information"></EventPoolInformationComponent>
           <EventPoolCleanedInformationComponent
             v-else-if="event.information?.__typename === 'EventPoolCleanedInformation'"
-            :information="event.information"
-          ></EventPoolCleanedInformationComponent>
-          <EventHashConversionComponent
-            v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
-            :information="event.information"
-          ></EventHashConversionComponent>
+            :information="event.information"></EventPoolCleanedInformationComponent>
+          <EventHashConversionComponent v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
+            :information="event.information"></EventHashConversionComponent>
         </div>
 
         <template v-if="event.errorMessages?.length">
@@ -83,13 +61,11 @@ import { computed, ref } from 'vue';
 import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
 import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
-import EventRefCountInformationComponent from './EventRefCountInformationComponent.vue';
 import EventHashConversionComponent from './EventHashConversionComponent.vue';
 import {
   EventBackupInformationFragment,
   EventPoolCleanedInformationFragment,
   EventPoolInformationFragment,
-  EventRefCountInformationFragment,
   EventHashConversionInformationFragment,
 } from './events.fragment';
 import type { MergedApplicationEvent } from './events.model';
@@ -107,9 +83,7 @@ const icon = computed(() => {
     case EventType.Restore:
       return `mdi-server`;
 
-    case EventType.ChecksumChecked:
     case EventType.PoolChecked:
-    case EventType.RefcntChecked:
       if (props.event.endDate) {
         return `mdi-check`;
       }
@@ -181,11 +155,6 @@ const title = computed(() => {
     case EventType.Restore:
       return `Backup restored`;
 
-    case EventType.ChecksumChecked:
-      if (props.event.endDate) {
-        return `Checksum completed`;
-      }
-      return `Checksum initiated`;
     case EventType.PoolChecked:
       if (props.event.endDate) {
         return `Pool content completed`;
@@ -196,11 +165,6 @@ const title = computed(() => {
         return `Pool cleaning completed`;
       }
       return `Pool cleaning initiated`;
-    case EventType.RefcntChecked:
-      if (props.event.endDate) {
-        return `Reference count completed`;
-      }
-      return `Reference count initiated`;
     case EventType.HashConversion:
       if (props.event.endDate) {
         return `Hash conversion completed`;
@@ -219,7 +183,7 @@ const subtitle = computed(() => {
     }
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
-      const errorCount = poolInformation?.inNothing + poolInformation?.missing;
+      const errorCount = poolInformation?.inNothing + poolInformation?.missing + poolInformation?.refcountError + poolInformation?.chunkError;
       const poolFixed = poolInformation?.fix;
       if (errorCount === 0) {
         return 'No errors found';
@@ -230,14 +194,6 @@ const subtitle = computed(() => {
       const poolCleanedInformation = useFragment(EventPoolCleanedInformationFragment, props.event.information);
       const size = filesize(poolCleanedInformation?.size);
       return `${size} cleaned`;
-    }
-    case 'EventRefCountInformation': {
-      const refCountInformation = useFragment(EventRefCountInformationFragment, props.event.information);
-      const refcountFix = refCountInformation?.fix;
-      if (refCountInformation.error === 0) {
-        return 'No errors found';
-      }
-      return `${refCountInformation.error} errors ${refcountFix ? 'fixed' : 'found'}`;
     }
     case 'EventHashConversionInformation': {
       const hashConversionInformation = useFragment(EventHashConversionInformationFragment, props.event.information);
@@ -252,11 +208,7 @@ const shoudFix = computed(() => {
   switch (props.event?.information?.__typename) {
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
-      return !poolInformation?.fix && poolInformation?.missing + poolInformation?.inNothing > 0;
-    }
-    case 'EventRefCountInformation': {
-      const refCountInformation = useFragment(EventRefCountInformationFragment, props.event.information);
-      return !refCountInformation?.fix && refCountInformation?.error > 0;
+      return !poolInformation?.fix && (poolInformation?.missing + poolInformation?.inNothing + poolInformation?.refcountError) > 0;
     }
     default:
       return false;
@@ -266,8 +218,7 @@ const shoudFix = computed(() => {
 async function launchFix() {
   switch (props.event?.type) {
     case EventType.PoolChecked:
-    case EventType.RefcntChecked:
-      await fsckPool({ fix: true });
+      await fsckPool({ fix: true, verifyChunks: false });
   }
 }
 </script>

@@ -34,11 +34,14 @@ pub struct JsBackupLogMessage {
   pub complete: bool,
 }
 
+/// Log handler for forwarding log messages to JavaScript via N-API.
 struct JavascriptLog {
+  /// Threadsafe function for sending log messages to JavaScript.
   tsfn: ThreadsafeFunction<JsBackupLogMessage, ErrorStrategy::Fatal>,
 }
 
 impl JavascriptLog {
+  /// Create a new `JavascriptLog` with the given threadsafe function.
   pub fn new(tsfn: ThreadsafeFunction<JsBackupLogMessage, ErrorStrategy::Fatal>) -> Self {
     Self { tsfn }
   }
@@ -79,6 +82,10 @@ impl log::Log for JavascriptLog {
 }
 
 #[napi]
+/// Initialize the logger and forward log messages to JavaScript.
+///
+/// # Errors
+/// Returns an error if the logger cannot be set or if the callback cannot be created.
 pub fn init_log(
   #[napi(ts_arg_type = "(result: JsBackupLogMessage) => void")] callback: JsFunction,
 ) -> Result<()> {

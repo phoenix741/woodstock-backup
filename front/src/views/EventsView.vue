@@ -2,23 +2,13 @@
   <v-container>
     <v-row dense>
       <v-col cols="12" md="6">
-        <v-date-input
-          label="First event date"
-          prepend-icon=""
-          prepend-inner-icon="$calendar"
-          variant="solo"
-          v-model="startDate"
-        ></v-date-input>
+        <v-date-input label="First event date" prepend-icon="" prepend-inner-icon="$calendar" variant="solo"
+          v-model="startDate"></v-date-input>
       </v-col>
 
       <v-col cols="12" md="6">
-        <v-date-input
-          label="Last event date"
-          prepend-icon=""
-          prepend-inner-icon="$calendar"
-          variant="solo"
-          v-model="endDate"
-        ></v-date-input>
+        <v-date-input label="Last event date" prepend-icon="" prepend-inner-icon="$calendar" variant="solo"
+          v-model="endDate"></v-date-input>
       </v-col>
     </v-row>
     <v-timeline :hide-opposite="mobile" :density="mobile ? 'compact' : 'default'" side="end">
@@ -56,6 +46,9 @@ const mergedEvents = computed<Array<MergedApplicationEvent>>(() => {
             e.startDate = timestamp;
             break;
           case EventStep.End:
+            e.information = event.information;
+            e.status = event.status;
+            e.errorMessages = event.errorMessages;
             e.endDate = timestamp;
             break;
         }

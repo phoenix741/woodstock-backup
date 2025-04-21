@@ -11,11 +11,8 @@
 
       <v-list-item-title>{{ filesize(used) }} / {{ filesize(total) }}</v-list-item-title>
       <v-list-item-subtitle v-if="total">
-        <v-progress-linear
-          :color="color"
-          :model-value="Number((100n * (used - (buffer ?? 0n))) / total)"
-          :buffer-value="Number((100n * used) / total)"
-        ></v-progress-linear>
+        <v-progress-linear :color="color" :model-value="Number((100n * (used - (buffer ?? 0n))) / total)"
+          :buffer-value="Number((100n * used) / total)"></v-progress-linear>
       </v-list-item-subtitle>
     </v-list-item>
 

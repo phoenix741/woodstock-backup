@@ -23,7 +23,7 @@ export class RestoreInput {
   number!: number;
 
   @IsString()
-  destinationDirectory?: string;
+  destinationDirectory: string;
 
   @IsNotEmpty()
   @IsArray()

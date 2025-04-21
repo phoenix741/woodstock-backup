@@ -10,7 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
 
-use crate::scanner::create_file_from_manifest;
+use crate::client::scanner::create_file_from_manifest;
 use crate::utils::path::path_to_vec;
 use crate::woodstock::{
     refresh_cache_request, woodstock_client_service_server::WoodstockClientService,
@@ -19,15 +19,15 @@ use crate::woodstock::{
 };
 use crate::{client::authentification::Service as AuthService, ChunkInformation};
 use crate::{client::config::ClientConfig, FileChunk};
-use crate::{client::exexcute_command::execute_command, scanner::CreateManifestOptions};
+use crate::{client::exexcute_command::execute_command, client::scanner::CreateManifestOptions};
+use crate::{client::scanner::get_files_with_hash, ChunkHashReply};
+use crate::{
+    client::scanner::{calculate_chunk_hash_future, read_chunk},
+    RefreshCacheRequest,
+};
 use crate::{manifest::FileManifestLight, PingRequest};
 use crate::{manifest::IndexManifest, ChunkHashRequest};
 use crate::{restore_file_request, FileManifest, RestoreFileReply, RestoreFileRequest};
-use crate::{scanner::get_files_with_hash, ChunkHashReply};
-use crate::{
-    scanner::{calculate_chunk_hash_future, read_chunk},
-    RefreshCacheRequest,
-};
 use crate::{
     utils::path::{list_to_globset, vec_to_str},
     Share,
@@ -36,8 +36,11 @@ use crate::{
 /// The main context struct for the Woodstock Backup client.
 /// It holds the authentication service and the client's context.
 pub struct WoodstockClient {
+    /// The hostname of the server.
     hostname: String,
+    /// The authentication service used for secure communication.
     authentification_service: Arc<RwLock<AuthService>>,
+    /// Options for creating file manifests.
     create_manifest_options: CreateManifestOptions,
 }
 
@@ -96,6 +99,20 @@ impl WoodstockClient {
         Ok(session_id)
     }
 
+    /// Handles the restore file stream from the server.
+    ///
+    /// # Arguments
+    ///
+    /// * `stream` - The stream of restore file requests.
+    /// * `tx` - The transmitter channel to send restore file replies.
+    ///
+    /// # Returns
+    ///
+    /// A result indicating success or failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `tonic::Status` with an error message if the restore operation fails.
     async fn handle_restore_file(
         mut stream: tonic::Streaming<RestoreFileRequest>,
         tx: mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
@@ -189,6 +206,21 @@ impl WoodstockClient {
         Ok(())
     }
 
+    /// Processes the file manifest during a restore operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - The file manifest to process.
+    /// * `tx` - The transmitter channel to send restore file replies.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optional tuple containing the path and file writer if the file was created
+    /// successfully and is a regular file.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `tonic::Status` with an error message if the operation fails.
     async fn process_restore_manifest(
         file: &FileManifest,
         tx: &mpsc::Sender<Result<RestoreFileReply, tonic::Status>>,
@@ -239,6 +271,22 @@ impl WoodstockClient {
         }
     }
 
+    /// Processes a chunk of data during a file restore operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk` - The chunk of data to write to the file.
+    /// * `current_file` - The file writer to write the chunk to.
+    /// * `current_path` - The path of the file being restored.
+    /// * `tx` - The transmitter channel to send restore file replies.
+    ///
+    /// # Returns
+    ///
+    /// Returns a boolean indicating whether an error occurred during processing.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `tonic::Status` with an error message if the operation fails.
     async fn process_restore_chunk<P: AsRef<Path>>(
         chunk: &[u8],
         current_file: &mut tokio::io::BufWriter<File>,
@@ -261,6 +309,21 @@ impl WoodstockClient {
         Ok(result)
     }
 
+    /// Sends an error reply during a file restore operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path of the file being restored.
+    /// * `message` - The error message.
+    /// * `tx` - The transmitter channel to send restore file replies.
+    ///
+    /// # Returns
+    ///
+    /// Returns a result indicating success or failure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a `tonic::Status` with an error message if sending the reply fails.
     async fn send_restore_error_reply<P: AsRef<Path>>(
         path: P,
         message: String,

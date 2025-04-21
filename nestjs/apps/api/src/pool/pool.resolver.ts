@@ -1,17 +1,17 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { NotFoundException } from '@nestjs/common';
 import { Args, Mutation, Resolver } from '@nestjs/graphql';
-import { QueueName, RefcntJobData } from '@woodstock/shared';
+import { BackupQueueData, QueueName } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { JobResponse } from '../backups/backups.dto';
 
 @Resolver()
 export class PoolResolver {
-  constructor(@InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>) {}
+  constructor(@InjectQueue(QueueName.BACKUP_QUEUE) private backupQueue: Queue<BackupQueueData>) {}
 
   @Mutation(() => JobResponse)
   async cleanupPool(): Promise<JobResponse> {
-    const { id } = await this.refcntQueue.add('unused', {});
+    const { id } = await this.backupQueue.add('cleanup_refcnt', {});
     if (!id) {
       throw new NotFoundException(`Can't cleanup the pool`);
     }
@@ -22,22 +22,13 @@ export class PoolResolver {
   }
 
   @Mutation(() => JobResponse)
-  async checkAndFixPool(@Args('fix', { type: () => Boolean }) fix?: boolean): Promise<JobResponse> {
-    const { id } = await this.refcntQueue.add('fsck', { fix, refcnt: true, unused: true });
+  async checkAndFixPool(
+    @Args('fix', { type: () => Boolean }) fix?: boolean,
+    @Args('verifyChunks', { type: () => Boolean }) verifyChunks?: boolean,
+  ): Promise<JobResponse> {
+    const { id } = await this.backupQueue.add('fsck', { dryRun: !fix, verifyChunks: !!verifyChunks });
     if (!id) {
       throw new NotFoundException(`Can't check and fix the pool`);
-    }
-
-    return {
-      id,
-    };
-  }
-
-  @Mutation(() => JobResponse)
-  async verifyChecksum(): Promise<JobResponse> {
-    const { id } = await this.refcntQueue.add('verify_checksum', {});
-    if (!id) {
-      throw new NotFoundException(`Can't verify checksum the pool`);
     }
 
     return {

@@ -92,7 +92,7 @@ export class QueueService extends QueueEventsHost {
     try {
       const job = await this.backupQueue.getJob(jobId);
       if (job) {
-        this.logger.log(`Job ${job.id} for the host ${job.data.host} is in progress.`);
+        this.logger.debug(`Job ${job.id} for the host ${job.data.host} is in progress.`);
         this.pubSub.publish('jobUpdated', { jobUpdated: await this.queueUtils.getJob(job) });
       }
     } catch (err) {

@@ -19,6 +19,14 @@ use std::{collections::HashSet, num::NonZeroUsize};
 use tokio::io::AsyncBufRead;
 
 impl FileManifest {
+    /// Creates a new `FileManifest` from a host name.
+    ///
+    /// # Arguments
+    /// * `host` - The name of the host.
+    ///
+    /// # Returns
+    ///
+    /// A new `FileManifest` instance representing the host.
     #[must_use]
     pub fn from_host(host: &str) -> Self {
         Self {
@@ -32,6 +40,14 @@ impl FileManifest {
         }
     }
 
+    /// Creates a new `FileManifest` from a backup.
+    ///
+    /// # Arguments
+    /// * `backup` - The backup to create the manifest from.
+    ///
+    /// # Returns
+    ///
+    /// A new `FileManifest` instance representing the backup.
     #[must_use]
     pub fn from_backup(backup: &Backup) -> Self {
         Self {
@@ -52,6 +68,14 @@ impl FileManifest {
         }
     }
 
+    /// Creates a new `FileManifest` from a share name.
+    ///
+    /// # Arguments
+    /// * `share` - The name of the share.
+    ///
+    /// # Returns
+    ///
+    /// A new `FileManifest` instance representing the share.
     #[must_use]
     pub fn from_share(share: &str) -> Self {
         Self {
@@ -65,6 +89,14 @@ impl FileManifest {
         }
     }
 
+    /// Creates a new `FileManifest` from a file path.
+    ///
+    /// # Arguments
+    /// * `file` - The file path as an `OsStr`.
+    ///
+    /// # Returns
+    ///
+    /// A new `FileManifest` instance representing the file.
     #[must_use]
     pub fn from_file(file: &OsStr) -> Self {
         Self {
@@ -79,11 +111,16 @@ impl FileManifest {
     }
 }
 
+/// Represents the result of comparing the start of two path components.
 #[derive(Debug, PartialEq)]
 enum ComponentsStartWith {
+    /// The components start with the base path.
     Base,
+    /// The components are equal.
     Equal,
+    /// The components start with a different prefix.
     Other(OsString),
+    /// The components differ completely.
     Diff,
 }
 
@@ -135,13 +172,26 @@ pub struct PathInformation<'a> {
 ///
 /// The view can be used to access to the directory as files
 pub struct WoodstockView {
+    /// The hosts configuration for the Woodstock application.
     hosts: Hosts,
+    /// The backups configuration for the Woodstock application.
     backups: Backups,
+    /// The path to the storage pool.
     pool_path: PathBuf,
+    /// A cache for storing file manifests.
     cache: LruCache<PathBuf, Vec<FileManifest>>,
 }
 
 impl WoodstockView {
+    /// Creates a new `WoodstockView` instance.
+    ///
+    /// # Arguments
+    /// * `config` - The configuration for the Woodstock application.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the cache size in the configuration is zero.
+    /// Ensure that the cache size is set to a non-zero value before calling this function.
     #[must_use]
     pub fn new(config: &Configuration) -> Self {
         Self {
@@ -152,6 +202,17 @@ impl WoodstockView {
         }
     }
 
+    /// Retrieves the manifest from the cache or loads it if not present.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname of the backup.
+    /// * `backup_number` - The backup number.
+    /// * `share` - The share name.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(&Vec<FileManifest>)` if the manifest is successfully retrieved.
+    /// * `Err(eyre::Report)` if an error occurs during retrieval.
     async fn get_manifest_from_cache(
         &mut self,
         hostname: &str,
@@ -184,11 +245,11 @@ impl WoodstockView {
     /// # Errors
     ///
     /// An error can't be returned if the hosts, backup, can't be read
-    async fn list_shares_of<'a>(
+    async fn list_shares_of(
         &self,
         hostname: &str,
         backup_number: usize,
-        path: &mut std::path::Components<'a>,
+        path: &mut std::path::Components<'_>,
     ) -> Result<SelectedShares> {
         let mut shares = self
             .backups
@@ -234,6 +295,16 @@ impl WoodstockView {
         })
     }
 
+    /// Retrieves a file from the specified path.
+    ///
+    /// # Arguments
+    /// * `hostname` - The name of the host.
+    /// * `backup_number` - The backup number.
+    /// * `path` - The path to the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be found or if an I/O error occurs.
     async fn get_file_from_path(
         &mut self,
         hostname: &str,
@@ -256,6 +327,17 @@ impl WoodstockView {
         Err(eyre!("File not found"))
     }
 
+    /// Lists all files in the specified directory.
+    ///
+    /// # Arguments
+    /// * `hostname` - The name of the host.
+    /// * `backup_number` - The backup number.
+    /// * `share` - The share name.
+    /// * `path` - The directory path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the directory cannot be read or if an I/O error occurs.
     pub async fn list_all_files(
         &mut self,
         hostname: &str,
@@ -279,6 +361,17 @@ impl WoodstockView {
         Ok(files)
     }
 
+    /// Lists files from a specific directory.
+    ///
+    /// # Arguments
+    /// * `hostname` - The name of the host.
+    /// * `backup_number` - The backup number.
+    /// * `share` - The share name.
+    /// * `path` - The directory path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the directory cannot be read or if an I/O error occurs.
     pub async fn list_file_from_dir(
         &mut self,
         hostname: &str,
@@ -327,6 +420,15 @@ impl WoodstockView {
         Ok(files.into_values().collect())
     }
 
+    /// Retrieves the backup information from a given path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to retrieve the backup information from.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(PathInformation)` if the backup information is successfully retrieved.
+    /// * `Err(eyre::Report)` if an error occurs during retrieval.
     async fn backup_from_path<'a>(&self, path: &'a Path) -> Result<PathInformation<'a>> {
         // Remove first slash if at start
         let path = path.strip_prefix("/").unwrap_or(path);
@@ -387,6 +489,14 @@ impl WoodstockView {
         }
     }
 
+    /// Lists files based on the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to list files from.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the path cannot be read or if an I/O error occurs.
     pub async fn list(&mut self, path: &Path) -> Result<Vec<FileManifest>> {
         info!("Listing path: {:?}", path);
 
@@ -461,6 +571,14 @@ impl WoodstockView {
         }
     }
 
+    /// Retrieves attributes of a file based on the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file attributes cannot be retrieved due to I/O issues.
     pub async fn get_attribute(&mut self, path: &Path) -> Result<&FileManifest> {
         let path_info = self.backup_from_path(path).await?;
 
@@ -484,6 +602,14 @@ impl WoodstockView {
         Ok(manifest)
     }
 
+    /// Reads a file from the specified path.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be read due to I/O issues.
     pub async fn read_file(&mut self, path: &Path) -> Result<impl AsyncBufRead> {
         info!("Reading file: {:?}", path);
 

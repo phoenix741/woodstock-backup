@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { computed } from 'vue';
 import VChart from 'vue-echarts';
 import type { HostCountByState } from '../hosts.interface';
-import { getColor } from '../hosts.utils';
+import { getStateColor } from '../hosts.utils';
 
 use([CanvasRenderer, LegendComponent, TooltipComponent, PieChart]);
 
@@ -45,7 +45,7 @@ const option = computed(() => ({
       },
       data: props.countByState.map((v) => ({
         ...v,
-        itemStyle: { color: getColor(v.name) },
+        itemStyle: { color: getStateColor(v.name) },
       })),
     },
   ],

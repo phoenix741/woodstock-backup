@@ -5,14 +5,13 @@ query Hosts {
       number
       startDate
       fileSize
-      completed
+      status
       agentVersion
     }
     agentVersion
     availibilityState
     timeSinceLastBackup
     dateToNextBackup
-    lastBackupState
     configuration {
       schedule {
         activated

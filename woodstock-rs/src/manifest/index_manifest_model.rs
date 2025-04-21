@@ -1,12 +1,47 @@
+// # Index Manifest Model Module
+//
+// This module defines the trait and data structures for index-based file manifest management in the Woodstock backup system.
+// It provides generic support for mapping file paths to manifest entries, journal application, and index walking.
+//
+// ## Main Structures
+//
+// - [`PathManifest`]: Trait for types that can be used as a path-based manifest entry.
+// - [`IndexFileEntry`]: Represents an entry in the index file.
+// - [`IndexManifest`]: Represents the index manifest, mapping file paths to entries.
+//
+// ## Main Methods
+//
+// - [`IndexManifest::new`]: Create a new index manifest.
+// - [`IndexManifest::apply`]: Apply a journal entry to the index.
+// - [`IndexManifest::walk`]: Iterate over sorted index entries.
+// - [`IndexManifest::add`], [`IndexManifest::remove`], [`IndexManifest::mark`]: Index management.
+// - [`IndexManifest::get_entry`]: Retrieve an entry by file path.
+//
+// ## Error Handling & Panics
+//
+// - All public methods return `Result` or Option and do not panic under normal operation.
+//
+// ## Generics
+//
+// - The index is generic over any type implementing [`PathManifest`].
+//
+// ## See Also
+//
+// - [`FileManifest`], [`FileManifestJournalEntry`], [`FileManifestLight`]
+
 use std::collections::HashMap;
 
 use crate::{woodstock::EntryType, FileManifest, FileManifestJournalEntry};
 
+/// Trait for types that can be used as a path-based manifest entry.
 pub trait PathManifest: Clone + From<FileManifest> {
+    /// Returns the array path for the manifest entry.
     #[must_use]
     fn array_path(&self) -> &Vec<u8>;
+    /// Returns the last modified timestamp.
     #[must_use]
     fn last_modified(&self) -> i64;
+    /// Returns the size of the entry.
     #[must_use]
     fn size(&self) -> u64;
 }
@@ -14,7 +49,9 @@ pub trait PathManifest: Clone + From<FileManifest> {
 /// Represents an entry in the index file.
 #[derive(Clone, Debug)]
 pub struct IndexFileEntry<T: PathManifest> {
+    /// Whether the entry has been marked as viewed.
     pub mark_viewed: bool,
+    /// The manifest data for this entry.
     pub manifest: T,
 }
 
@@ -26,9 +63,10 @@ impl<T: PathManifest> IndexFileEntry<T> {
     }
 }
 
-/// Represents the index manifest.
+/// Represents the index manifest, mapping file paths to entries.
 #[derive(Debug)]
 pub struct IndexManifest<T: PathManifest> {
+    /// Map of file paths to index file entries.
     files: HashMap<Vec<u8>, IndexFileEntry<T>>,
 }
 

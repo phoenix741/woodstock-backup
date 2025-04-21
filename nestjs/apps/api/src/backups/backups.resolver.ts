@@ -1,7 +1,15 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { ClassSerializerInterceptor, NotFoundException, UseInterceptors } from '@nestjs/common';
 import { Args, ID, Int, Mutation, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import { Backup, BackupsService, FileDescription, HostsService, JobBackupData, QueueName } from '@woodstock/shared';
+import {
+  Backup,
+  BackupQueueData,
+  BackupsService,
+  FileDescription,
+  HostsService,
+  JobRestoreData,
+  QueueName,
+} from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import { BackupsFilesService } from './backups-files.service.js';
 import { JobResponse } from './backups.dto.js';
@@ -14,7 +22,7 @@ export interface ExtendedBackup extends Backup {
 @Resolver(() => Backup)
 export class BackupsResolver {
   constructor(
-    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
+    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<BackupQueueData>,
     private service: BackupsFilesService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
@@ -123,7 +131,7 @@ export class BackupsResolver {
       number: input.number,
       destinationDirectory: input.destinationDirectory,
       files: input.files,
-    });
+    } satisfies JobRestoreData);
     if (!id) {
       throw new NotFoundException(`Can't create restoration job for the host with the name ${input.hostname}`);
     }

@@ -3,6 +3,13 @@ import { ApiExtraModels, ApiProperty } from '@nestjs/swagger';
 import { Exclude } from 'class-transformer';
 import { IsNumber, ValidateNested } from 'class-validator';
 
+import {
+  JsBackupOperation,
+  JsBackupTaskShare,
+  JsExecuteCommandOperation,
+  JsHostConfigOperation,
+  JsHostConfiguration,
+} from '@woodstock/shared-rs';
 import { Schedule } from '../config';
 
 /**
@@ -11,7 +18,7 @@ import { Schedule } from '../config';
  * Store information about a share
  */
 @ObjectType()
-export class BackupTaskShare {
+export class BackupTaskShare implements JsBackupTaskShare {
   @ApiProperty({ example: '/home' })
   name!: string;
 
@@ -23,13 +30,13 @@ export class BackupTaskShare {
 }
 
 @ObjectType()
-export class ExecuteCommandOperation {
+export class ExecuteCommandOperation implements JsExecuteCommandOperation {
   @ApiProperty({ example: '/bin/true' })
   command!: string;
 }
 
 @ObjectType()
-export class BackupOperation {
+export class BackupOperation implements JsBackupOperation {
   @ValidateNested()
   shares!: Array<BackupTaskShare>;
 
@@ -46,7 +53,7 @@ export class BackupOperation {
 
 @ApiExtraModels(BackupOperation, ExecuteCommandOperation)
 @ObjectType()
-export class HostConfigOperation {
+export class HostConfigOperation implements JsHostConfigOperation {
   @ApiProperty({ type: [ExecuteCommandOperation] })
   @ValidateNested()
   @Field(() => [ExecuteCommandOperation])
@@ -69,7 +76,7 @@ export class HostConfigOperation {
  * Contains all information that can be used to backup a host.
  */
 @ObjectType()
-export class HostConfiguration {
+export class HostConfiguration implements JsHostConfiguration {
   @Exclude()
   password: string;
 
@@ -80,7 +87,7 @@ export class HostConfiguration {
   port: number;
 
   @ValidateNested()
-  operations?: HostConfigOperation = new HostConfigOperation();
+  operations: HostConfigOperation;
 
   @ValidateNested()
   schedule?: Schedule;
