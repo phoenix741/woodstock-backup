@@ -4614,7 +4614,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock_shared-rs"
-version = "2.0.0-alpha.40"
+version = "2.0.0-alpha.41"
 dependencies = [
  "chrono",
  "futures-util",

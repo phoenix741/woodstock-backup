@@ -1,3 +1,10 @@
+# [2.0.0-alpha.41](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.40...v2.0.0-alpha.41) (2025-06-16)
+
+
+### Bug Fixes
+
+* 🚑️ fix pm2 in docker not starting ([7bb4341](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7bb43411b22b6fd4a94f8da4cd56ed43c10a9bf3))
+
 # [2.0.0-alpha.40](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.39...v2.0.0-alpha.40) (2025-06-16)
 
 
