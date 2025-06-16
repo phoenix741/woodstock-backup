@@ -1,3 +1,102 @@
+# [2.0.0-alpha.40](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.39...v2.0.0-alpha.40) (2025-06-16)
+
+
+* refactor!: ♻️ move of the backup logic to the Rust core ([621ab9d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/621ab9d4d5007436c71c960b99d5731ab30ccc92))
+
+
+### BREAKING CHANGES
+
+* The extensive nature of these refactorings introduces significant
+breaking changes that will impact existing deployed versions.
+
+- **Core Backup Logic:** The backup logic has been substantially
+  refactored and largely moved into the Rust core. This will likely
+  affect how client applications and other services interact with the
+  backup process.
+- **API and GraphQL:** Major refactoring of NestJS components and
+  GraphQL queries/fragments means that API contracts have changed.
+  Client applications (including the Vue.js frontend) and any external
+  integrations will need to be updated to align with the new API
+  structure.
+- **Data Format (`backup.yml`):** The `completed` field in `backup.yml`
+  files has been renamed to `status`. Existing backup metadata files
+  will need to be migrated.
+- **Data Management (refcnt & Pool):** The introduction and evolution
+  of reference counting (`refcnt`) for pool files, along with changes to
+  how `fsck` and the cleaner operate, will likely require data migration
+  or specific cleanup scripts for existing installations. Data
+  structures related to the pool and file metadata have been altered.
+  Orphaned `.info` files (without corresponding `.zz` data chunks) may
+  exist and require cleanup.
+- **Directory Structure:** The project's directory structure has been
+  modified, which might affect build scripts or deployment processes.
+- **Locking Mechanisms:** Changes to lock management (introduction of
+  shared/exclusive locks) might alter how concurrent operations are
+  handled and could require adjustments in custom scripts or
+  integrations.
+
+Detailed Summary of Changes:
+
+**Features & Enhancements:**
+- **Directory Structure Refactoring:** Initial refactoring of the
+  project's directory layout.
+- **Rust Core Logic:** Significant portions of the backup logic
+  previously in JavaScript/TypeScript have been moved to the Rust core
+  for improved maintainability.
+- **Reference Counting (`refcnt`):**
+    - Introduced `refcnt` for files awaiting addition to the pool.
+    - Refactored `refcnt` update mechanisms.
+    - Improved `refcnt` operations and associated cleanup processes.
+    - Added an `ApplyingRefcnt` state to `fsck` and cleaner processes
+      to manage this new mechanism.
+- **Lock Management:** Implemented support for shared and exclusive
+  locks, enhancing concurrency control.
+- **Debugging & Logging:** Added more debug information for chunk
+  control and improved logging in backup and `fsck` processes.
+- **Standardization:**
+    - Standardized code comments, log messages, and all user-facing text
+      to English.
+    - Addressed `clippy` lints for better Rust code quality.
+- **Documentation:** Updated documentation, aided by `clippy`
+  suggestions.
+
+**Refactorings:**
+- **Rust Code:** Extensive refactoring of Rust backup code and overall
+  system architecture.
+- **JavaScript/NestJS:** Major refactoring of the JavaScript frontend
+  components and NestJS backend services.
+- **GraphQL:** Refactored GraphQL queries and fragments for backup and
+  task management.
+- **UI Components:** Simplified BTRFS commands and improved UI
+  components like `PoolView` and `TaskCard`.
+- **Error Handling:** Unified error handling mechanisms across backup,
+  restore, cleaner, and `fsck` tasks.
+- **Build & Linting:** Addressed `clippy` lints and fixed client build
+  issues.
+
+**Fixes:**
+
+- **Client Build:** Resolved issues preventing the client from building
+  correctly.
+- **`fsck` Integrity:** Fixed `fsck` integrity problems and improved the
+  repair process for reference counts.
+- **Pool Operations:** Corrected the reference file path used in pool
+  operations.
+- **Chunk Control:** Added debug information to aid in diagnosing chunk
+  control issues.
+
+**Migration Scripts & Procedures:**
+
+  * **`backup.yml` Migration:** Execute the
+    `cli-rs/migrate_completed_field.sh` script to rename the `completed`
+    field to `status` in all existing `backup.yml` files. This script
+    will update `completed: true` to `status: Completed` and
+    `completed: false` to `status: Aborted`.
+  * **Orphaned Chunk Info Cleanup:** Run the
+    `cli-rs/check_chunk_integrity.sh --delete` script to identify and
+    remove any orphaned `.info` files that do not have corresponding
+    `.zz` data chunk files in the pool.
+
 # [2.0.0-alpha.39](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.38...v2.0.0-alpha.39) (2025-04-21)
 
 
