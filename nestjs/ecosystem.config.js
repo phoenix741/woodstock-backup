@@ -23,12 +23,6 @@ module.exports = [
     },
   },
   {
-    script: 'apps/refcntWorker/main.js',
-    name: 'refcntWorker',
-    cwd: '/app/nestjs',
-    instances: process.env.DISABLE_REFCNT === 'true' ? 0 : 1,
-  },
-  {
     script: 'apps/scheduleWorker/main.js',
     name: 'scheduleWorker',
     cwd: '/app/nestjs',
