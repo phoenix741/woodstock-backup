@@ -14,12 +14,29 @@ use tokio::{
 ///
 /// The file is expected to be a sequence of length-delimited protobuf messages.
 pub struct ProtobufReader<T: Message + Default> {
+    /// The underlying async reader.
     reader: Pin<Box<dyn AsyncRead + Send + Sync>>,
+    /// Marker for the message type.
     _marker: std::marker::PhantomData<T>,
-    buffer: Vec<u8>, // Buffer réutilisable
+    /// Reusable buffer for reading messages.
+    buffer: Vec<u8>,
 }
 
 impl<T: Message + Default> ProtobufReader<T> {
+    /// Creates a new `ProtobufReader` for the given file path.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the protobuf file.
+    /// * `compress` - Whether the file is compressed with zlib.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(ProtobufReader<T>)` - A new instance of `ProtobufReader`.
+    /// * `Err(io::Error)` if the file cannot be opened.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened.
     pub async fn new<P: AsRef<Path>>(path: P, compress: bool) -> io::Result<Self> {
         let file = File::open(path).await?;
         let reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if compress {
@@ -35,6 +52,19 @@ impl<T: Message + Default> ProtobufReader<T> {
         })
     }
 
+    /// Reads a single protobuf message from the file into the provided buffer.
+    ///
+    /// # Arguments
+    /// * `buf` - The message buffer to fill.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the message is successfully read.
+    /// * `Err(io::Error)` if reading or decoding fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading or decoding fails.
     pub async fn read(&mut self, buf: &mut T) -> io::Result<()> {
         self.buffer.clear();
         let mut encoded_length = Vec::with_capacity(10);
@@ -65,6 +95,19 @@ impl<T: Message + Default> ProtobufReader<T> {
         Ok(())
     }
 
+    /// Reads all protobuf messages from the file into the provided vector.
+    ///
+    /// # Arguments
+    /// * `messages` - The vector to fill with messages.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(usize)` - The number of messages read.
+    /// * `Err(io::Error)` if reading fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading fails.
     pub async fn read_to_end(&mut self, messages: &mut Vec<T>) -> io::Result<usize> {
         let mut count = 0;
         loop {
@@ -87,6 +130,11 @@ impl<T: Message + Default> ProtobufReader<T> {
         Ok(count)
     }
 
+    /// Returns a stream over all protobuf messages in the file.
+    ///
+    /// # Returns
+    ///
+    /// A stream of protobuf messages, where each item is a `Result` containing a message or an `io::Error`.
     pub fn into_stream(&mut self) -> Pin<Box<dyn Stream<Item = io::Result<T>> + Send + Sync + '_>> {
         Box::pin(unfold(self, |reader| async move {
             let mut message = T::default();

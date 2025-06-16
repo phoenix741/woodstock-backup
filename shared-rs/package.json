@@ -16,8 +16,8 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.3",
-    "ava": "^6.0.1"
+    "@napi-rs/cli": "^2.18.4",
+    "ava": "^6.3.0"
   },
   "ava": {
     "timeout": "3m"
@@ -27,8 +27,8 @@
   },
   "scripts": {
     "artifacts": "napi artifacts",
-    "build": "napi build --platform --release",
-    "build:debug": "napi build --platform",
+    "build": "napi build --platform --release --no-const-enum",
+    "build:debug": "napi build --platform --no-const-enum",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "universal": "napi universal",

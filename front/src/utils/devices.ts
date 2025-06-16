@@ -1,5 +1,5 @@
 import type { HostCountByState } from '@/components/hosts/hosts.interface';
-import { getState } from '@/components/hosts/hosts.utils';
+import { getState, type DeviceBackupStatus } from '@/components/hosts/hosts.utils';
 import { graphql } from '@/generated';
 import { HostDocument, HostsDocument } from '@/generated/graphql';
 import { useMutation, useQuery } from '@vue/apollo-composable';
@@ -9,18 +9,18 @@ export function useDevices() {
   const { result: devices, loading: isDeviceFetching } = useQuery(HostsDocument);
 
   const devicesByState = computed<HostCountByState[]>(() => {
-    const devicesByState =
+    const stateCount: Record<DeviceBackupStatus, number> =
       devices.value?.hosts.reduce(
         (acc, device) => {
           const state = getState(device);
           acc[state] = (acc[state] || 0) + 1;
           return acc;
         },
-        {} as Record<string, number>,
-      ) || {};
+        {} as Record<DeviceBackupStatus, number>,
+      ) || ({} as Record<DeviceBackupStatus, number>);
 
-    return Object.entries(devicesByState).map(([name, value]) => ({
-      name,
+    return Object.entries(stateCount).map(([name, value]) => ({
+      name: name as DeviceBackupStatus,
       value,
     }));
   });

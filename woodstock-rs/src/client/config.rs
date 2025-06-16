@@ -13,14 +13,19 @@ use eyre::Result;
 
 use crate::config::DEFAULT_PORT;
 
+/// Number of seconds in a day, used for the default update check interval.
 const DAYLY_UPDATE: u64 = 24 * 3600;
 
 #[derive(Clone, Debug, Deserialize, Default)]
+/// Defines the resolution mode used to discover servers.
 pub enum ResolutionMode {
     #[cfg(feature = "mdns")]
+    /// Uses mDNS (multicast DNS) for server discovery.
     Mdns,
     #[default]
+    /// Uses direct DNS resolution for server discovery.
     Direct,
+    /// Disables automatic server discovery.
     None,
 }
 
@@ -46,12 +51,15 @@ pub struct ClientConfig {
     pub max_backup_seconds: u64,
 
     #[serde(default)]
+    /// The resolution mode for server discovery. Defaults to the value specified by `ResolutionMode::default()`.
     pub resolution_mode: ResolutionMode,
 
     #[serde(default)]
+    /// Optional list of network interfaces to use for mDNS resolution.
     pub mdns_interfaces: Option<Vec<String>>,
 
     #[serde(default)]
+    /// Optional server hostname or address to connect to directly.
     pub server: Option<String>,
 
     /// If the restauration should be disabled, for security reason
@@ -81,6 +89,11 @@ pub struct ClientConfig {
 
 impl ClientConfig {
     /// Returns the default hostname of the client.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the hostname cannot be retrieved from the system or if the hostname
+    /// cannot be converted to a string.
     fn default_hostname() -> String {
         hostname::get()
             .expect("Failed to get hostname")
@@ -114,16 +127,31 @@ impl ClientConfig {
     }
 
     #[must_use]
+    /// Returns the current version of the client package.
+    ///
+    /// # Returns
+    ///
+    /// The version string from Cargo package metadata.
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
 
     #[must_use]
+    /// Returns the default value for automatic updates.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` on Windows, `false` on other platforms.
     pub fn default_automatic_update() -> bool {
         cfg!(windows)
     }
 
     #[must_use]
+    /// Returns the default delay between update checks.
+    ///
+    /// # Returns
+    ///
+    /// The delay in seconds (defaults to one day).
     pub fn default_update_delay() -> u64 {
         DAYLY_UPDATE
     }

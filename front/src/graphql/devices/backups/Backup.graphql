@@ -3,7 +3,7 @@ query Backup($hostname: String!, $number: Int!) {
     id
 
     number
-    completed
+    status
 
     startDate
     endDate

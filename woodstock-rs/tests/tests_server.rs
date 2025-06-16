@@ -14,8 +14,8 @@ use woodstock::{
         config::{ClientConfig, ResolutionMode},
         server::WoodstockClient,
     },
-    config::{Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
-    server::{backup_client::BackupClient, grpc_client::BackupGrpcClient},
+    config::{BackupStatus, Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
+    server::{backup::save::BackupSave, client::grpc::BackupGrpcClient},
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
     ChunkAlgorithm, Share,
@@ -51,7 +51,7 @@ fn create_config() -> Configuration {
 async fn server_and_client_stub(
     context: &Context,
     app_config: &Configuration,
-) -> (impl Future<Output = ()>, BackupClient<BackupGrpcClient>) {
+) -> (impl Future<Output = ()>, BackupSave<BackupGrpcClient>) {
     let config_path = std::path::Path::new("./data");
 
     let config = ClientConfig {
@@ -109,7 +109,7 @@ async fn server_and_client_stub(
 
     let client = WoodstockClientServiceClient::new(channel);
     let client = BackupGrpcClient::with_client("localhost", "127.0.0.1", client, config_path);
-    let client = BackupClient::new(client, "localhost", 0, context, app_config);
+    let client = BackupSave::new(client, "localhost", 0, context, app_config);
 
     (serve_future, client)
 }
@@ -147,7 +147,7 @@ async fn test_server_backup() {
 
     let context = create_context();
     let config = create_config();
-    let (serve_future, mut client) = server_and_client_stub(&context, &config).await;
+    let (serve_future, client) = server_and_client_stub(&context, &config).await;
 
     tokio::spawn(async move {
         serve_future.await;
@@ -169,9 +169,9 @@ async fn test_server_backup() {
             share_path: share_path.clone(),
         };
 
-        client.synchronize_file_list(&share, &|_| {}).await.unwrap();
+        client.synchronize_file_list(&share, None).await.unwrap();
 
-        client.create_backup(&share_path, &|_| {}).await.unwrap();
+        client.create_backup(&share_path, None).await.unwrap();
 
         client.close().await.unwrap();
 
@@ -179,7 +179,7 @@ async fn test_server_backup() {
 
         client.count_references().await.unwrap();
 
-        client.save_backup(true, true).await.unwrap();
+        client.save_backup(BackupStatus::Completed).await.unwrap();
     };
 
     // Wait for completion, when the client request future completes

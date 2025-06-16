@@ -6,9 +6,9 @@
       </v-col>
 
       <v-col v-if="!isFetching">
-        <v-row v-for="task in tasks" :key="task.jobId">
+        <v-row v-for="task in tasks" :key="task.id ?? 'unknown'">
           <v-col>
-            <TaskCard :task="task"></TaskCard>
+            <TaskCard :job="task"></TaskCard>
           </v-col>
         </v-row>
       </v-col>

@@ -1,21 +1,41 @@
+//! Synchronize backups with a Woodstock server via gRPC.
+//!
+//! This binary provides a command-line interface to synchronize backups from a Woodstock server. It handles authentication, backup selection, progress reporting, and chunk download, using asynchronous Rust and gRPC communication.
+//!
+//! # Errors
+//!
+//! This crate will return errors if:
+//! - The server cannot be reached or authentication fails.
+//! - The backup number is invalid or not found.
+//! - File or chunk download fails due to network or server issues.
+//! - Any I/O or configuration error occurs during the backup process.
+
+use std::cell::RefCell;
+use std::sync::Arc;
+
 use clap::Parser;
 use console::Emoji;
 use console::Term;
 use eyre::Result;
 use indicatif::ProgressBar;
+use indicatif::ProgressDrawTarget;
 use indicatif::ProgressStyle;
-use log::error;
-use log::info;
+use tokio::sync::mpsc;
 use woodstock::config::Backups;
 use woodstock::config::Context;
 use woodstock::config::GlobalConfiguration;
 use woodstock::config::Hosts;
-use woodstock::server::backup_client::BackupClient;
-use woodstock::server::grpc_client::BackupGrpcClient;
-use woodstock::Share;
+use woodstock::config::DEFAULT_CHANNEL_BUFFER_SIZE;
+use woodstock::server::backup::save_machine::SaveBackupMachine;
+use woodstock::server::backup::save_state::BackupExecutionState;
+use woodstock::server::backup::save_state::BackupState;
+use woodstock::server::client::grpc::BackupGrpcClient;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
+/// Command-line arguments for the Woodstock backup synchronization tool.
+///
+/// This struct defines the parameters required to connect to a Woodstock server and select a backup to synchronize.
 struct Cli {
     /// The hostname of the server
     hostname: String,
@@ -25,6 +45,64 @@ struct Cli {
 
     /// The backup number (if not provided, the latest backup will be used)
     backup_number: Option<usize>,
+}
+
+/// Returns a human-readable message describing the current backup execution state.
+///
+/// # Arguments
+///
+/// * `state` - The current execution state of the backup process.
+///
+/// # Returns
+///
+/// A string describing the current step in the backup process, including progress and context.
+fn message_from_state(state: &BackupExecutionState) -> String {
+    match state {
+        BackupExecutionState::Authenticate => format!("[1/10] {}Authenticating", Emoji("🔐 ", "")),
+        BackupExecutionState::Waiting => format!("[0/10] {}Waiting", Emoji("⏳ ", "")),
+        BackupExecutionState::Initialization => {
+            format!("[2/10] {}Create backup directory", Emoji("🔨 ", ""))
+        }
+        BackupExecutionState::PreCommands(operation) => {
+            format!(
+                "[3/10] {}Execute pre-commands for operation: {}",
+                Emoji("⚙️ ", ""),
+                operation.command
+            )
+        }
+        BackupExecutionState::DownloadFileList(share) => {
+            format!(
+                "[4/10] {}Download file list for share: {share}",
+                Emoji("⬇️ ", ""),
+            )
+        }
+        BackupExecutionState::DownloadChunks(share) => {
+            format!(
+                "[5/10] {}Download chunks for share: {share}",
+                Emoji("💾 ", ""),
+            )
+        }
+        BackupExecutionState::PostCommands(operation) => {
+            format!(
+                "[6/10] {}Execute post-commands for operation: {}",
+                Emoji("⚙️ ", ""),
+                operation.command
+            )
+        }
+        BackupExecutionState::Compact(share) => {
+            format!(
+                "[7/10] {}Compact manifests for share: {share}",
+                Emoji("📦 ", "")
+            )
+        }
+        BackupExecutionState::CountReferences => {
+            format!("[8/10] {}Count reference of backup", Emoji("📏 ", ""))
+        }
+        BackupExecutionState::AddReferencesToPool => {
+            format!("[9/10] {}Add references to pool", Emoji("📥 ", ""))
+        }
+        BackupExecutionState::Completed => "[10/10] End".to_string(),
+    }
 }
 
 #[tokio::main]
@@ -50,8 +128,6 @@ async fn main() -> Result<()> {
         },
     };
 
-    let mut abort = false;
-
     term.write_line(&format!(
         "Backuping {} (ips = {:?})",
         &args.hostname, host_configuration.addresses,
@@ -59,87 +135,10 @@ async fn main() -> Result<()> {
 
     let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &GlobalConfiguration).await?;
 
-    let mut client = BackupClient::new(
-        grpc_client,
-        &args.hostname,
-        backup_number,
-        &context,
-        &GlobalConfiguration,
-    );
+    let previous_execution_state = RefCell::new(BackupExecutionState::Waiting);
+    let (tx, mut rx) = mpsc::channel::<BackupState>(DEFAULT_CHANNEL_BUFFER_SIZE);
 
-    term.write_line(&format!("[1/9] {}Authenticating", Emoji("🔐 ", "")))?;
-
-    client.authenticate(&host_configuration.password).await?;
-
-    term.write_line(&format!(
-        "[2/9] {}Create backup directory",
-        Emoji("🔐 ", "")
-    ))?;
-
-    let shares = host_configuration
-        .operations
-        .operation
-        .as_ref()
-        .map(|op| {
-            op.shares
-                .iter()
-                .map(|share| share.name.as_str())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-
-    client.init_backup_directory(&shares).await?;
-
-    term.write_line(&format!("[3/9] {}Execute pre-commands", Emoji("⚙️ ", "")))?;
-
-    if let Some(pre_commands) = host_configuration.operations.pre_commands {
-        for pre_command in pre_commands {
-            let reply = client.execute_command(&pre_command.command).await?;
-            info!(
-                "Command {} executed with code {}",
-                pre_command.command, reply.code
-            );
-            if !reply.stdout.is_empty() {
-                info!("{}", reply.stdout);
-            }
-            if !reply.stderr.is_empty() {
-                error!("{}", reply.stderr);
-            }
-        }
-    }
-
-    term.write_line(&format!("[4/9] {}Download file list", Emoji("⬇️ ", "")))?;
-
-    if let Some(ref operation) = host_configuration.operations.operation {
-        let includes = operation.includes.clone().unwrap_or_default();
-        let excludes = operation.excludes.clone().unwrap_or_default();
-
-        for share in &operation.shares {
-            let mut share_includes = share.includes.clone().unwrap_or_default();
-            let mut share_excludes = share.excludes.clone().unwrap_or_default();
-
-            share_includes.extend(includes.clone());
-            share_excludes.extend(excludes.clone());
-
-            let share = Share {
-                includes: share_includes,
-                excludes: share_excludes,
-                share_path: share.name.clone(),
-            };
-
-            if !abort {
-                if let Err(err) = client.synchronize_file_list(&share, &|_| {}).await {
-                    error!("Error downloading file list: {}", err);
-                    abort = true;
-                }
-            }
-        }
-    }
-
-    term.write_line(&format!("[5/9] {}Download chunks", Emoji("💾 ", "")))?;
-
-    let progress_max = client.progress().await.progress_max;
-    let bar = ProgressBar::new(progress_max);
+    let bar = Arc::new(ProgressBar::hidden());
     bar.set_style(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% ({bytes_per_sec}) ETA: {eta}",
@@ -147,77 +146,62 @@ async fn main() -> Result<()> {
         .unwrap(),
     );
 
-    if let Some(ref operation) = host_configuration.operations.operation {
-        for share in &operation.shares {
-            let progress_min = client.progress().await.progress_current;
-            term.write_line(&format!("Downloading {}", share.name))?;
+    // Lancer une tâche pour traiter les états de sauvegarde
+    let term_clone = term.clone();
+    let bar_clone = Arc::clone(&bar);
+    let progress_task = tokio::spawn(async move {
+        while let Some(state) = rx.recv().await {
+            let current_execution_state = state.execution_state.clone();
+            if current_execution_state != *previous_execution_state.borrow() {
+                let _ = term_clone.write_line(&message_from_state(&current_execution_state));
+                *previous_execution_state.borrow_mut() = current_execution_state;
 
-            if !abort {
-                if let Err(err) = client
-                    .create_backup(&share.name, &|progress| {
-                        bar.set_position(progress_min + progress.progress_current);
-                    })
-                    .await
-                {
-                    error!("Error downloading chunks: {}", err);
-                    abort = true;
+                if let BackupExecutionState::DownloadChunks(_) = &state.execution_state {
+                    bar_clone.set_draw_target(ProgressDrawTarget::stderr());
                 }
             }
+
+            if let BackupExecutionState::DownloadFileList(_) = &state.execution_state {
+                let mut total_progress = 0;
+                for share in state.share_states.keys() {
+                    if let Some(share_sate) = state.share_states.get(share) {
+                        total_progress += share_sate.file_list_progression.file_size;
+                    }
+                }
+                bar_clone.set_length(total_progress);
+            }
+
+            if let BackupExecutionState::DownloadChunks(_) = &state.execution_state {
+                let mut total_progress = 0;
+                for share in state.share_states.keys() {
+                    if let Some(share_sate) = state.share_states.get(share) {
+                        total_progress += share_sate.backup_progression.progress_current;
+                    }
+                }
+                bar_clone.set_position(total_progress);
+            }
         }
-    }
+    });
+
+    let mut client = SaveBackupMachine::new(
+        grpc_client,
+        &args.hostname,
+        backup_number,
+        &context,
+        &GlobalConfiguration,
+        Some(tx),
+    )
+    .await?;
+
+    // Exécuter la sauvegarde avec le canal
+    Box::pin(client.execute()).await?;
+
+    drop(client);
+
+    // Attendre que la tâche de traitement des états se termine
+    let _ = progress_task.await;
+
     bar.finish();
-
-    term.write_line(&format!("[6/9] {}Execute post-commands", Emoji("⚙️ ", "")))?;
-
-    if let Some(post_commands) = host_configuration.operations.post_commands {
-        for post_command in post_commands {
-            if !abort {
-                let reply = client.execute_command(&post_command.command).await;
-                match reply {
-                    Ok(reply) => {
-                        info!(
-                            "Command {} executed with code {}",
-                            post_command.command, reply.code
-                        );
-                        if !reply.stdout.is_empty() {
-                            info!("{}", reply.stdout);
-                        }
-                        if !reply.stderr.is_empty() {
-                            error!("{}", reply.stderr);
-                        }
-                    }
-                    Err(err) => {
-                        error!("Error executing command: {}", err);
-                        abort = true;
-                    }
-                }
-            }
-        }
-    }
-
-    if let Err(err) = client.close().await {
-        error!("Error closing the connection: {}", err);
-        abort = true;
-    }
-
-    term.write_line(&format!("[7/9] {}Compact manifests", Emoji("📦 ", "")))?;
-
-    if let Some(ref operation) = host_configuration.operations.operation {
-        for share in &operation.shares {
-            client.compact(&share.name).await?;
-        }
-    }
-
-    term.write_line(&format!(
-        "[8/9] {}Count reference of backup",
-        Emoji("📏 ", "")
-    ))?;
-
-    client.count_references().await?;
-
-    client.save_backup(true, !abort).await?;
-
-    term.write_line("[9/9] Fin")?;
 
     Ok(())
 }

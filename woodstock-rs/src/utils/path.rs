@@ -9,15 +9,13 @@ use std::{
 };
 
 /// Converts a vector of byte vectors to a vector of string slices.
-///   
-/// # Arguments
 ///
+/// # Arguments
 /// * `vec` - A vector of byte vectors.
 ///
 /// # Returns
 ///
 /// A vector of string slices.
-///
 #[must_use]
 pub fn vec_to_str(vec: &Vec<String>) -> Vec<&str> {
     let mut vec_of_str: Vec<&str> = Vec::new();
@@ -32,13 +30,11 @@ pub fn vec_to_str(vec: &Vec<String>) -> Vec<&str> {
 /// Converts a path to a vector of bytes.
 ///
 /// # Arguments
-///
 /// * `path` - A path.
 ///
 /// # Returns
 ///
 /// A vector of bytes.
-///
 #[must_use]
 pub fn osstr_to_vec(path: &OsStr) -> Vec<u8> {
     path.as_encoded_bytes().to_vec()
@@ -106,13 +102,11 @@ pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
 /// Converts a vector of bytes to a `PathBuf`.
 ///
 /// # Arguments
-///
 /// * `vec` - A vector of bytes.
 ///
 /// # Returns
 ///
-/// A `PathBuf`.
-///
+/// A `PathBuf` representing the path.
 #[must_use]
 pub fn vec_to_path(vec: &[u8]) -> PathBuf {
     // Create a new string, replace all b'/' and b'\\' with MAIN_SEPARTOR
@@ -133,17 +127,16 @@ pub fn vec_to_path(vec: &[u8]) -> PathBuf {
 /// Converts a list of string slices to a `GlobSet`.
 ///
 /// # Arguments
-///
 /// * `list` - A list of string slices.
 ///
 /// # Returns
 ///
-/// A `Result` containing the `GlobSet` if successful, or an error if the pattern cannot be parsed.
+/// * `Ok(GlobSet)` if the conversion is successful.
+/// * `Err(globset::Error)` if an error occurs during conversion.
 ///
 /// # Errors
 ///
-/// An error is returned if the pattern cannot be parsed.
-///
+/// Returns an error if the glob pattern cannot be parsed.
 pub fn list_to_globset(list: &[&str]) -> Result<globset::GlobSet, globset::Error> {
     let mut builder = GlobSetBuilder::new();
     for pattern in list {

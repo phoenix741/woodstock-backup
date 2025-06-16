@@ -8,6 +8,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { BackupsService } from '../backups';
 
 import 'winston-daily-rotate-file';
+import { ApplicationConfigService } from '../config';
 
 const { combine, timestamp, printf, colorize } = format;
 
@@ -26,10 +27,11 @@ const applicationFormat = printf((info: logform.TransformableInfo) => {
   return `${info.timestamp} [${padString((info.hostname as string) ?? 'global')}][${padString(info.context as string)}] ${info.level}: ${info.message} ${info.trace ?? ''}`;
 });
 
-interface LogStorage {
+export interface LogStorage {
+  jobId: string;
+  operation?: string;
   hostname?: string;
   backupNumber?: number;
-  operation?: string;
 }
 
 const logAsyncLocalStorage = new AsyncLocalStorage<LogStorage>();
@@ -41,6 +43,7 @@ export class ApplicationLogger implements LoggerService {
 
   constructor(
     readonly worker: string,
+    private config: ApplicationConfigService,
     private backupsService: BackupsService,
   ) {
     this.#globalLogger = this.#createGlobalLogger(worker);
@@ -85,13 +88,17 @@ export class ApplicationLogger implements LoggerService {
     });
   }
 
-  #getBackupLogger(hostname: string, backupNumber: number, operation: string): Logger {
-    const key = `${hostname}-${backupNumber}-${operation}`;
-    if (this.#mapLogger.has(key)) {
-      return this.#mapLogger.get(key)!;
+  #getBackupLogger(jobId: string, operation?: string, hostname?: string, backupNumber?: number): Logger {
+    if (this.#mapLogger.has(jobId)) {
+      return this.#mapLogger.get(jobId)!;
     }
 
-    const destinationDirectory = this.backupsService.getLogDirectory(hostname, backupNumber ?? 0);
+    const destinationDirectory =
+      hostname && backupNumber && operation !== 'remove'
+        ? this.backupsService.getLogDirectory(hostname, backupNumber ?? 0)
+        : this.config.jobPath;
+
+    console.log('destinationDirectory', destinationDirectory);
 
     mkdirSync(destinationDirectory, { recursive: true });
     const logger = createLogger({
@@ -99,42 +106,37 @@ export class ApplicationLogger implements LoggerService {
       format: combine(timestamp(), applicationFormat),
       transports: [
         new transports.File({
-          filename: join(destinationDirectory, operation + '-error.log'),
+          filename: join(destinationDirectory, `${jobId}-${operation}-error.log`),
           level: 'error',
         }),
         new transports.File({
-          filename: join(destinationDirectory, operation + '.log'),
+          filename: join(destinationDirectory, `${jobId}-${operation}.log`),
         }),
       ],
     });
 
-    this.#mapLogger.set(key, logger);
+    this.#mapLogger.set(jobId, logger);
     return logger;
   }
 
   #getLogger(message: Record<string, unknown>): Logger {
     const storage = logAsyncLocalStorage.getStore();
 
+    const jobId = (message.jobId as string | undefined) ?? storage?.jobId;
     const hostname = (message.hostname as string | undefined) ?? storage?.hostname;
     const backupNumber = (message.backupNumber as number | undefined) ?? storage?.backupNumber;
     const operation = (message.operation as string | undefined) ?? storage?.operation;
 
-    if (hostname !== undefined && backupNumber !== undefined && operation !== undefined) {
-      return this.#getBackupLogger(hostname, backupNumber, operation);
+    if (jobId !== undefined) {
+      return this.#getBackupLogger(jobId, operation, hostname, backupNumber);
     }
 
     return this.#globalLogger;
   }
 
-  useLogger<R, TArgs extends any[]>(
-    hostname: string,
-    backupNumber: number,
-    operation: string,
-    callback: (...args: TArgs) => R,
-    ...args: TArgs
-  ): R {
+  useLogger<R, TArgs extends any[]>(options: LogStorage, callback: (...args: TArgs) => R, ...args: TArgs): R {
     return logAsyncLocalStorage.run(
-      { hostname, backupNumber, operation },
+      options,
       (...args) => {
         return callback(...args);
       },
@@ -142,11 +144,10 @@ export class ApplicationLogger implements LoggerService {
     );
   }
 
-  closeLogger(hostname: string, backupNumber: number, operation: string): void {
-    const key = `${hostname}-${backupNumber}-${operation}`;
-    if (this.#mapLogger.has(key)) {
-      this.#mapLogger.get(key)!.close();
-      this.#mapLogger.delete(key);
+  closeLogger(jobId: string): void {
+    if (this.#mapLogger.has(jobId)) {
+      this.#mapLogger.get(jobId)!.close();
+      this.#mapLogger.delete(jobId);
     }
   }
 

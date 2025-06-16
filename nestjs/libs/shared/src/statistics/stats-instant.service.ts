@@ -6,6 +6,7 @@ import { HostsService } from '../backups/hosts.service.js';
 import { ApplicationConfigService } from '../config/application-config.service.js';
 import { PoolStatisticsService } from './pool-statistics.service.js';
 import { HostsStatsUsage, PoolStatistics, StatsDiskUsage } from './statistics.interface.js';
+import { JsBackupStatus } from '@woodstock/shared-rs';
 
 const FS_MAPPING = new Map<number, string>([
   [0xadf5, 'ADFS'],
@@ -133,7 +134,7 @@ export class StatsInstantService {
             lastBackupTime: lastBackup.endDate || lastBackup.startDate || 0,
             lastBackupAge: new Date().getTime() - (lastBackup.endDate || lastBackup.startDate || 0),
             lastBackupDuration: (lastBackup.endDate || lastBackup.startDate) - lastBackup.startDate,
-            lastBackupComplete: lastBackup.completed ? 1 : 0,
+            lastBackupComplete: [JsBackupStatus.Completed].includes(lastBackup.status) ? 1 : 0,
             ...hostStats,
           };
           acc[host] = stats;

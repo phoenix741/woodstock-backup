@@ -3,12 +3,38 @@ import {
   BackupDocument,
   BackupsBrowseDocument,
   BackupsDocument,
+  BackupStatus,
   FragmentFileDescriptionFragmentDoc,
   SharesBrowseDocument,
 } from '@/generated/graphql';
 import { ApolloClient } from '@apollo/client/core';
 import { useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
+import vuetify from '../plugins/vuetify';
+
+// On récupère les thèmes de Vuetify (light et dark)
+const vuetifyThemes = vuetify.theme.themes.value;
+const lightColors = vuetifyThemes.light.colors;
+const darkColors = vuetifyThemes.dark.colors;
+
+const currentTheme = computed(() => {
+  return vuetify.theme.global.current.value.dark ? darkColors : lightColors;
+});
+
+export function getBackupStatusColor(backupStatus: BackupStatus | undefined | null) {
+  switch (backupStatus) {
+    case BackupStatus.Completed:
+      return currentTheme.value.success;
+    case BackupStatus.Aborted:
+    case BackupStatus.Failed:
+      return currentTheme.value.error;
+    case BackupStatus.Finishing:
+    case BackupStatus.InProgress:
+      return currentTheme.value.info;
+    default:
+      return currentTheme.value.primary;
+  }
+}
 
 export function useShare(deviceId: string, backupNumber: number) {
   const { result: data, loading: isFetching } = useQuery(SharesBrowseDocument, {

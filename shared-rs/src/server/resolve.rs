@@ -22,28 +22,35 @@ impl From<woodstock::server::resolve::SocketAddrInformation> for JsSocketAddrInf
       hostname: info.hostname,
       port: info.port,
       version: info.version,
-      addresses: info.addresses.iter().map(|addr| addr.to_string()).collect(),
+      addresses: info.addresses.iter().map(ToString::to_string).collect(),
       is_online: info.is_online,
     }
   }
 }
 
+#[must_use]
 #[napi]
 pub fn resolve_dns(hostname: String) -> Vec<String> {
   woodstock::server::resolve::resolve_dns(&hostname)
     .iter()
-    .map(|addr| addr.to_string())
+    .map(ToString::to_string)
     .collect()
 }
 
 #[napi(js_name = "CoreClientResolver")]
+/// Resolver for client socket addresses, used to manage network service discovery.
 pub struct CoreClientResolver {
+  /// The underlying socket address resolver.
   resolver: SocketAddrResolver,
 }
 
 #[napi]
 impl CoreClientResolver {
   #[napi(constructor)]
+  /// Create a new `CoreClientResolver`.
+  ///
+  /// # Errors
+  /// Returns an error if the socket address resolver cannot be created.
   pub fn new() -> Result<Self> {
     let resolver = SocketAddrResolver::new(&GlobalConfiguration)
       .map_err(|_| Error::from_reason("Can't create socket address resolver".to_string()))?;
@@ -52,6 +59,10 @@ impl CoreClientResolver {
   }
 
   #[napi]
+  /// Start listening for network service discovery events.
+  ///
+  /// # Errors
+  /// Returns an error if the listener cannot be started.
   pub fn listen(&self) -> Result<AbortHandle> {
     let resolver = self.resolver.clone();
 
@@ -63,6 +74,10 @@ impl CoreClientResolver {
   }
 
   #[napi]
+  /// Resolve a hostname to a list of addresses asynchronously.
+  ///
+  /// # Errors
+  /// Returns an error if the resolution fails.
   pub async fn resolve(&self, hostname: String, default_port: Option<u16>) -> Result<Vec<String>> {
     let default_port = default_port.unwrap_or(DEFAULT_PORT);
     let resolver = self.resolver.clone();
@@ -85,6 +100,13 @@ impl CoreClientResolver {
   }
 
   #[napi]
+  /// Register a network service for discovery.
+  ///
+  /// # Panics
+  /// Panics if an address cannot be parsed.
+  ///
+  /// # Errors
+  /// Returns an error if the service cannot be registered.
   pub async fn register_service(&self, information: JsSocketAddrInformation) -> Result<()> {
     let resolver = self.resolver.clone();
     let information = woodstock::server::resolve::SocketAddrInformation {
@@ -110,6 +132,10 @@ impl CoreClientResolver {
   }
 
   #[napi]
+  /// Get information about a registered service by hostname.
+  ///
+  /// # Errors
+  /// Returns an error if the information cannot be retrieved.
   pub async fn get_informations(
     &self,
     hostname: String,
@@ -120,10 +146,14 @@ impl CoreClientResolver {
       .await
       .map_err(|err| Error::from_reason(err.to_string()))?;
 
-    Ok(informations.map(|info| info.into()))
+    Ok(informations.map(Into::into))
   }
 
   #[napi]
+  /// Update the online status of a registered service by hostname.
+  ///
+  /// # Errors
+  /// Returns an error if the status cannot be updated.
   pub async fn update_online_status(&self, hostname: String, is_online: bool) -> Result<()> {
     let resolver = self.resolver.clone();
     resolver

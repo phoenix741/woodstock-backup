@@ -1,8 +1,12 @@
-import { HostAvailibilityState } from '@/generated/graphql';
+import { BackupStatus, HostAvailibilityState } from '@/generated/graphql';
 import { format, formatDuration, intervalToDuration } from 'date-fns';
 import numeral from 'numeral';
 import { computed } from 'vue';
 import vuetify from '../../plugins/vuetify';
+
+export const BackupStatusDisabled = 'Disabled';
+export const BackupStatusIdle = 'Idle';
+export type DeviceBackupStatus = BackupStatus | typeof BackupStatusDisabled | typeof BackupStatusIdle;
 
 // On récupère les thèmes de Vuetify (light et dark)
 const vuetifyThemes = vuetify.theme.themes.value;
@@ -15,35 +19,29 @@ const currentTheme = computed(() => {
 
 export function getState(host: {
   configuration?: { schedule?: { activated?: boolean | null } | null } | null;
-  lastBackupState?: string | null;
-  lastBackup?: { completed?: boolean | null } | null;
-}) {
+  lastBackup?: { status?: BackupStatus | null } | null;
+}): DeviceBackupStatus {
   if (!host.configuration?.schedule?.activated) {
-    return 'disabled';
-  } else if (host.lastBackupState) {
-    return host.lastBackupState;
-  } else if (host.lastBackup?.completed) {
-    return 'failed';
-  } else {
-    return 'idle';
+    return BackupStatusDisabled;
+  } else if (host.lastBackup?.status) {
+    return host.lastBackup.status;
   }
+  return BackupStatusIdle;
 }
 
-export function getColor(state: string) {
+export function getStateColor(state: DeviceBackupStatus) {
   switch (state) {
-    case 'waiting':
-      return currentTheme.value.warning;
-    case 'active':
-      return currentTheme.value.info;
-    case 'failed':
+    case BackupStatus.Aborted:
+    case BackupStatus.Failed:
       return currentTheme.value.error;
-    case 'completed':
+    case BackupStatus.InProgress:
+    case BackupStatus.Finishing:
+      return currentTheme.value.info;
+    case BackupStatus.Completed:
       return currentTheme.value.success;
-    case 'delayed':
-      return currentTheme.value.warning;
-    case 'disabled':
+    case BackupStatusDisabled:
       return currentTheme.value.secondary;
-    case 'idle':
+    case BackupStatusIdle:
       return currentTheme.value.primary;
   }
 }

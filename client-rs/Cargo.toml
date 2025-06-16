@@ -74,4 +74,4 @@ features = [
 ]
 
 [target.'cfg(windows)'.build-dependencies]
-windows_exe_info = "0.4"
+windows_exe_info = "0.5"

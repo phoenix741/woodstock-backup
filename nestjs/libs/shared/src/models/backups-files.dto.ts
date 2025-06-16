@@ -12,37 +12,11 @@ import { Exclude, Expose, Transform } from 'class-transformer';
 
 import { mangle } from '../utils';
 
-export enum EnumFileType {
-  RegularFile = 0,
-  Symlink = 1,
-  Directory = 2,
-  BlockDevice = 3,
-  CharacterDevice = 4,
-  Fifo = 5,
-  Socket = 6,
-  Unknown = 99,
-}
-
-export enum FileManifestAclQualifier {
-  Undefined = 0,
-  UserObj = 1,
-  GroupObj = 2,
-  Other = 3,
-  UserId = 4,
-  GroupId = 5,
-  Mask = 6,
-}
-
-registerEnumType(EnumFileType, {
-  name: 'EnumFileType',
-});
-
-registerEnumType(FileManifestAclQualifier, {
-  name: 'FileManifestAclQualifier',
-});
+registerEnumType(JsFileManifestType, { name: 'EnumFileType' });
+registerEnumType(JsFileManifestAclQualifier, { name: 'FileManifestAclQualifier' });
 
 @ObjectType()
-export class FileStat {
+export class FileStat implements JsFileManifestStat {
   @ApiProperty({ type: () => Number })
   @Field(() => Int)
   ownerId: number;
@@ -77,8 +51,8 @@ export class FileStat {
   @Field(() => Int)
   mode: number;
 
-  @ApiProperty({ type: () => Number, enum: EnumFileType })
-  @Field(() => EnumFileType)
+  @ApiProperty({ type: () => Number, enum: JsFileManifestType })
+  @Field(() => JsFileManifestType)
   type: JsFileManifestType;
 
   @ApiProperty({ type: () => String })
@@ -108,8 +82,8 @@ export class FileStat {
 
 @ObjectType()
 export class FileAcl implements JsFileManifestAcl {
-  @ApiProperty({ type: () => FileManifestAclQualifier })
-  @Field(() => FileManifestAclQualifier)
+  @ApiProperty({ type: () => JsFileManifestAclQualifier })
+  @Field(() => JsFileManifestAclQualifier)
   qualifier: JsFileManifestAclQualifier;
   @ApiProperty({ type: () => Number })
   @Field(() => Int)
@@ -141,7 +115,7 @@ export class FileXattr implements JsFileManifestXAttr {
 }
 
 @ObjectType()
-export class FileDescription {
+export class FileDescription implements JsFileManifest {
   @Transform(({ value }) => mangle(value))
   @ApiProperty({ type: () => String })
   @Field(() => String)
@@ -149,10 +123,10 @@ export class FileDescription {
 
   stats: FileStat | undefined;
 
-  @Field(() => FileXattr)
+  @Field(() => [FileXattr])
   xattr: FileXattr[];
 
-  @Field(() => FileAcl)
+  @Field(() => [FileAcl])
   acl: FileAcl[];
 
   @Transform(({ value }) => value && mangle(value))
@@ -182,8 +156,8 @@ export class FileDescription {
   }
 
   @Expose()
-  @ApiProperty({ type: Number, enum: EnumFileType })
-  @Field(() => EnumFileType)
+  @ApiProperty({ type: Number, enum: JsFileManifestType })
+  @Field(() => JsFileManifestType)
   get type(): JsFileManifestType {
     return this.stats?.type ?? JsFileManifestType.Unknown;
   }

@@ -26,10 +26,15 @@ use eyre::{eyre, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Claims {
+    /// Issuer of the token (typically the service or application name).
     iss: String,
+    /// Expiration time as a UNIX timestamp (in seconds).
     exp: u64,
+    /// Audience for which the token is intended.
     aud: String,
+    /// Subject of the token (typically the user or entity).
     sub: String,
+    /// Hash value for additional verification or integrity.
     hash: String,
 }
 

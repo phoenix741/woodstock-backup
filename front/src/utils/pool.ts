@@ -18,25 +18,15 @@ export function usePool() {
     `),
   );
 
-  const { mutate: fsckPool } = useMutation(
+  const { mutate: checkAndFixPool } = useMutation(
     graphql(/* GraphQL */ `
-      mutation fsckPool($fix: Boolean!) {
-        checkAndFixPool(fix: $fix) {
+      mutation checkAndFixPool($fix: Boolean!, $verifyChunks: Boolean!) {
+        checkAndFixPool(fix: $fix, verifyChunks: $verifyChunks) {
           ...JobPoolResponse
         }
       }
     `),
   );
 
-  const { mutate: verifyChecksum } = useMutation(
-    graphql(/* GraphQL */ `
-      mutation verifyChecksum {
-        verifyChecksum {
-          ...JobPoolResponse
-        }
-      }
-    `),
-  );
-
-  return { cleanupPool, fsckPool, verifyChecksum };
+  return { cleanupPool, fsckPool: checkAndFixPool };
 }

@@ -1,3 +1,15 @@
+//! This module provides utilities for reading and displaying protobuf-encoded data from Woodstock backup files.
+//!
+//! It supports multiple protobuf formats, including file manifests, journal entries, reference counts, unused chunks, events, and chunk information. The module allows filtering and pretty-printing of protobuf data for inspection and debugging.
+//!
+//! # Errors
+//!
+//! Functions in this module may return errors if protobuf files are missing, corrupted, or if decoding fails.
+//!
+//! # Panics
+//!
+//! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
+
 use std::{error::Error, ffi::OsString};
 
 use clap::ValueEnum;
@@ -10,21 +22,51 @@ use woodstock::{
     Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
 };
 
+/// Supported protobuf formats for reading Woodstock backup data.
+///
+/// - `FileManifest`: Represents a file manifest.
+/// - `FileManifestJournalEntry`: Represents a journal entry for file manifests.
+/// - `RefCount`: Represents reference count information for pool chunks.
+/// - `Unused`: Represents unused chunk information.
+/// - `Event`: Represents backup or restore events.
+/// - `ChunkInformation`: Represents detailed chunk information.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum ProtobufFormat {
+    /// File manifest protobuf format.
     FileManifest,
+    /// File manifest journal entry protobuf format.
     FileManifestJournalEntry,
+    /// Reference count protobuf format for pool chunks.
     RefCount,
+    /// Unused chunk protobuf format.
     Unused,
+    /// Event protobuf format for backup/restore events.
     Event,
+    /// Chunk information protobuf format.
     ChunkInformation,
 }
 
+/// Reads and prints protobuf-encoded data from a file, supporting multiple formats and optional filtering.
+///
+/// # Arguments
+///
+/// * `path` - The path to the protobuf file to read.
+/// * `format` - The protobuf format to decode.
+/// * `filter_name` - Optional filter for file names.
+/// * `filter_chunks` - Optional filter for chunk identifiers.
+///
+/// # Errors
+///
+/// Returns an error if the file cannot be read, decoded, or if filtering fails.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn read_protobuf(
     path: &str,
     format: &ProtobufFormat,
-    filter_name: &Option<String>,
-    filter_chunks: &Option<String>,
+    filter_name: Option<&String>,
+    filter_chunks: Option<&String>,
 ) -> Result<(), Box<dyn Error>> {
     match format {
         ProtobufFormat::FileManifest => {
@@ -173,6 +215,21 @@ pub async fn read_protobuf(
     Ok(())
 }
 
+/// Reads and prints the backup log for a given host and backup number.
+///
+/// # Arguments
+///
+/// * `config` - The Woodstock configuration containing backup paths.
+/// * `hostname` - The hostname of the backup server.
+/// * `backup_number` - The backup number to read the log for.
+///
+/// # Errors
+///
+/// Returns an error if the log file cannot be read or decoded.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn read_log(
     config: &Configuration,
     hostname: &str,

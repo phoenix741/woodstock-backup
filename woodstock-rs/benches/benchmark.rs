@@ -8,7 +8,7 @@ use tempfile::NamedTempFile;
 use woodstock::{config::CHUNK_SIZE, utils::chunk_hasher::create_chunk_hasher, ChunkAlgorithm};
 
 fn hash_data(file: File, algo: ChunkAlgorithm) -> Vec<u8> {
-    let mut hasher = create_chunk_hasher(&algo);
+    let mut hasher = create_chunk_hasher(algo);
 
     let mut reader = std::io::BufReader::new(file);
 

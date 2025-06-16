@@ -1,24 +1,12 @@
-import { InjectQueue } from '@nestjs/bullmq';
 import { NotFoundException } from '@nestjs/common';
 import { Args, Float, Parent, Query, ResolveField, Resolver } from '@nestjs/graphql';
-import {
-  Backup,
-  BackupsService,
-  HostConfiguration,
-  HostsService,
-  JobBackupData,
-  JobService,
-  QueueName,
-  ResolveService,
-} from '@woodstock/shared';
-import { Queue } from 'bullmq';
-import { Host, HostAvailibilityState } from './hosts.dto.js';
+import { Backup, BackupsService, HostConfiguration, HostsService, JobService, ResolveService } from '@woodstock/shared';
 import { ExtendedBackup } from '../backups/backups.resolver.js';
+import { Host, HostAvailibilityState } from './hosts.dto.js';
 
 @Resolver(() => Host)
 export class HostsResolver {
   constructor(
-    @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<JobBackupData>,
     private hostsService: HostsService,
     private backupsService: BackupsService,
     private jobService: JobService,
@@ -81,19 +69,6 @@ export class HostsResolver {
   async dateToNextBackup(@Parent() host: Host): Promise<Date | undefined> {
     if (!(await this.jobService.isBackupRunning(host.name))) {
       return await this.jobService.getDateToNextBackup(host.name);
-    }
-    return undefined;
-  }
-
-  @ResolveField(() => String, { nullable: true })
-  async lastBackupState(@Parent() host: Host): Promise<string | undefined> {
-    const jobs = await this.hostsQueue.getJobs([]);
-    const backupJobs = jobs
-      .filter((j) => j.name === QueueName.BACKUP_QUEUE && j.data.host === host.name)
-      .sort((j1, j2) => j2.timestamp - j1.timestamp);
-
-    if (backupJobs[0]) {
-      return await backupJobs[0].getState();
     }
     return undefined;
   }

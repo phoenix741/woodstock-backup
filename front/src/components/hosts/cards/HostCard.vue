@@ -81,7 +81,7 @@
 <script lang="ts" setup>
 import { defineProps, computed } from 'vue';
 import { useDevice } from '@/utils/devices';
-import { getAvailabilityColor, getColor, getState, toDateTime, toDuration } from '../hosts.utils';
+import { getAvailabilityColor, getState, getStateColor, toDateTime, toDuration } from '../hosts.utils';
 
 const props = defineProps<{
   deviceId: string;
@@ -103,5 +103,5 @@ const timeSinceLastBackup = computed(
 
 const state = computed(() => device.value && getState(device.value));
 
-const colorState = computed(() => state.value && getColor(state.value));
+const colorState = computed(() => state.value && getStateColor(state.value));
 </script>

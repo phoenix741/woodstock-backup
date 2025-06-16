@@ -3,6 +3,7 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import {
+  ApplicationConfigService,
   ApplicationLogger,
   BackupsService,
   CacheConfigService,
@@ -37,8 +38,9 @@ import { HostController } from './hosts/hosts.controller.js';
     },
     {
       provide: ApplicationLogger,
-      useFactory: (backupsService) => new ApplicationLogger('main', backupsService),
-      inject: [BackupsService],
+      useFactory: (applicationConfigService, backupsService) =>
+        new ApplicationLogger('main', applicationConfigService, backupsService),
+      inject: [ApplicationConfigService, BackupsService],
     },
   ],
 })

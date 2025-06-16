@@ -1,31 +1,72 @@
 use std::time::SystemTime;
 
-#[derive(Clone, Debug)]
-pub struct BackupProgression {
-    pub start_date: SystemTime,
-    pub start_transfer_date: Option<SystemTime>,
-    pub end_transfer_date: Option<SystemTime>,
-
-    pub compressed_file_size: u64,
-    pub new_compressed_file_size: u64,
-    pub modified_compressed_file_size: u64,
-
+#[derive(Default, Clone, Debug)]
+/// Represents the progression of a file list operation.
+pub struct FileListProgression {
+    /// The total size of the files.
     pub file_size: u64,
+
+    /// The size of new files.
     pub new_file_size: u64,
+    /// The size of modified files.
     pub modified_file_size: u64,
 
+    /// The count of new files.
     pub new_file_count: usize,
-    pub file_count: usize,
+    /// The count of modified files.
     pub modified_file_count: usize,
+    /// The count of removed files.
+    pub removed_file_count: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+/// Represents the progression of a backup operation.
+pub struct BackupProgression {
+    /// The start date of the backup.
+    pub start_date: SystemTime,
+    /// The start date of the transfer.
+    pub start_transfer_date: Option<SystemTime>,
+    /// The end date of the transfer.
+    pub end_transfer_date: Option<SystemTime>,
+
+    /// The total size of compressed files.
+    pub compressed_file_size: u64,
+    /// The size of new compressed files.
+    pub new_compressed_file_size: u64,
+    /// The size of modified compressed files.
+    pub modified_compressed_file_size: u64,
+
+    /// The total size of files.
+    pub file_size: u64,
+    /// The size of new files.
+    pub new_file_size: u64,
+    /// The size of modified files.
+    pub modified_file_size: u64,
+
+    /// The count of new files.
+    pub new_file_count: usize,
+    /// The total count of files.
+    pub file_count: usize,
+    /// The count of modified files.
+    pub modified_file_count: usize,
+    /// The count of removed files.
     pub removed_file_count: usize,
 
+    /// The count of errors encountered.
     pub error_count: usize,
 
+    /// The current progress value.
     pub progress_current: u64,
+    /// The maximum progress value.
     pub progress_max: u64,
 }
 
 impl BackupProgression {
+    /// Calculates the percentage of progress completed.
+    ///
+    /// # Returns
+    ///
+    /// * `f64` - The percentage of progress completed.
     #[must_use]
     pub fn percent(&self) -> f64 {
         if self.progress_max == 0 {
@@ -37,6 +78,11 @@ impl BackupProgression {
         per10_000 as f64 / 100.0
     }
 
+    /// Calculates the speed of the backup process in units per second.
+    ///
+    /// # Returns
+    ///
+    /// * `f64` - The speed of the backup process.
     #[must_use]
     pub fn speed(&self) -> f64 {
         let duration = match self.start_transfer_date {

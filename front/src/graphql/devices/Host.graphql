@@ -4,12 +4,11 @@ query Host($hostname: String!) {
     agentVersion
     lastBackup {
       agentVersion
-      completed
+      status
     }
     availibilityState
     timeSinceLastBackup
     dateToNextBackup
-    lastBackupState
     addresses
     configuration {
       operations {

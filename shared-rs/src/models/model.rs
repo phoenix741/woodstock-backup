@@ -1,3 +1,7 @@
+//! Model definitions for Woodstock shared library.
+//!
+//! This module contains the core data structures used as models in the Woodstock backup system.
+
 // ************ Schedule ************
 
 use std::collections::HashMap;
@@ -143,10 +147,43 @@ impl From<woodstock::config::HostConfiguration> for JsHostConfiguration {
 
 // ************ Backup ****************
 
+#[napi(string_enum)]
+pub enum JsBackupStatus {
+  InProgress,
+  Finishing,
+  Completed,
+  Aborted,
+  Failed,
+}
+
+impl From<woodstock::config::BackupStatus> for JsBackupStatus {
+  fn from(backup_status: woodstock::config::BackupStatus) -> Self {
+    match backup_status {
+      woodstock::config::BackupStatus::InProgress => Self::InProgress,
+      woodstock::config::BackupStatus::Finishing => Self::Finishing,
+      woodstock::config::BackupStatus::Completed => Self::Completed,
+      woodstock::config::BackupStatus::Aborted => Self::Aborted,
+      woodstock::config::BackupStatus::Failed => Self::Failed,
+    }
+  }
+}
+
+impl From<JsBackupStatus> for woodstock::config::BackupStatus {
+  fn from(backup_status: JsBackupStatus) -> Self {
+    match backup_status {
+      JsBackupStatus::InProgress => Self::InProgress,
+      JsBackupStatus::Finishing => Self::Finishing,
+      JsBackupStatus::Completed => Self::Completed,
+      JsBackupStatus::Aborted => Self::Aborted,
+      JsBackupStatus::Failed => Self::Failed,
+    }
+  }
+}
+
 #[napi(object)]
 pub struct JsBackup {
   pub number: u32,
-  pub completed: bool,
+  pub status: JsBackupStatus,
 
   pub start_date: i64,
   pub end_date: Option<i64>,
@@ -178,7 +215,7 @@ impl From<woodstock::config::Backup> for JsBackup {
   fn from(backup: woodstock::config::Backup) -> Self {
     Self {
       number: u32::try_from(backup.number).unwrap(),
-      completed: backup.completed,
+      status: backup.status.into(),
 
       start_date: i64::try_from(backup.start_date).unwrap_or_default(),
       end_date: backup

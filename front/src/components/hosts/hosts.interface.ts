@@ -1,5 +1,7 @@
+import type { DeviceBackupStatus } from './hosts.utils';
+
 export interface HostCountByState {
-  name: string;
+  name: DeviceBackupStatus;
   value: number;
 }
 

@@ -1,3 +1,4 @@
+//! Shared library for Woodstock projects.
 #![deny(clippy::all)]
 
 pub mod config;

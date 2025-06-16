@@ -32,40 +32,55 @@ use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 #[cfg(feature = "mdns")]
 use woodstock::client::resolve::MdnsResolveClient;
 
+/// Command-line interface options for the Woodstock client.
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
+    /// Optional path to the configuration directory.
     #[clap(long)]
     config_dir: Option<String>,
 
+    /// Optional subcommand to execute.
     #[command(subcommand)]
     subcommand: Option<Commands>,
 }
 
+/// Available subcommands for the Woodstock client.
 #[allow(clippy::enum_variant_names)]
 #[derive(Subcommand, PartialEq)]
 enum Commands {
+    /// Install the Woodstock client as a Windows service.
     #[cfg(windows)]
     InstallService,
 
+    /// Remove the Woodstock client Windows service.
     #[cfg(windows)]
     RemoveService,
 
+    /// Restart the Woodstock client Windows service.
     #[cfg(windows)]
     RestartService,
 
+    /// Run the Woodstock client as a Windows service.
     #[cfg(windows)]
     RunService,
 
+    /// Install the Windows Firewall rule for the client.
     #[cfg(windows)]
     InstallFwRule,
 
+    /// Remove the Windows Firewall rule for the client.
     #[cfg(windows)]
     RemoveFwRule,
 
+    /// Update the client to the latest version.
     SelfUpdate,
 }
 
+/// Start the Woodstock client main loop.
+///
+/// # Errors
+/// Returns an error if the client fails to start or encounters a runtime error.
 async fn start_client(
     config_dir: Option<String>,
     shutdown_signal: oneshot::Receiver<()>,
@@ -479,6 +494,10 @@ pub mod winserv {
     }
 }
 
+/// Update the Woodstock client to the latest version.
+///
+/// # Errors
+/// Returns an error if the update process fails.
 fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
     println!("Checking for updates...");
     info!("Checking for updates...");
@@ -530,6 +549,10 @@ fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
     Ok(())
 }
 
+/// Schedule weekly updates for the Woodstock client.
+///
+/// # Errors
+/// Returns an error if the update process fails.
 async fn schedule_weekly_updates<P: AsRef<Path>>(config_path: P, update_delay: u64) {
     let duration = Duration::from_secs(update_delay);
     let mut interval = interval_at(Instant::now() + duration, duration);

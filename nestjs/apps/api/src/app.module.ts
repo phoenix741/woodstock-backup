@@ -30,7 +30,6 @@ import { QueueController } from './queue/queue.controller.js';
 import { QueueResolver } from './queue/queue.resolver.js';
 import { QueueService } from './queue/queue.service.js';
 import { QueueUtils } from './queue/queue.utils.js';
-import { RefcntQueueService } from './queue/refcnt-queue.service.js';
 import { ServeStaticService } from './server/serve-static.service.js';
 import { ServerController } from './server/server.controller.js';
 import { ServerResolver } from './server/server.resolver.js';
@@ -89,7 +88,6 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     QueueResolver,
     QueueService,
     QueueUtils,
-    RefcntQueueService,
     ServerController,
     ServerResolver,
     ServerService,
@@ -101,8 +99,9 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     },
     {
       provide: ApplicationLogger,
-      useFactory: (backupsService) => new ApplicationLogger('main', backupsService),
-      inject: [BackupsService],
+      useFactory: (applicationConfigService, backupsService) =>
+        new ApplicationLogger('main', applicationConfigService, backupsService),
+      inject: [ApplicationConfigService, BackupsService],
     },
   ],
 })

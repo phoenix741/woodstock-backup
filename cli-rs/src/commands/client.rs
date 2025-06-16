@@ -1,15 +1,42 @@
+//! This module provides client-related commands for interacting with Woodstock backup clients.
+//!
+//! It includes functions for listing client files and reading chunk hashes from files, applying include/exclude rules and supporting various chunking algorithms.
+//!
+//! # Errors
+//!
+//! Functions in this module may return errors if configuration files are missing, corrupted, or if file operations fail.
+//!
+//! # Panics
+//!
+//! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
+
 use std::path::Path;
 
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
+    client::scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     config::{Configuration, Hosts},
-    scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     utils::path::{list_to_globset, vec_to_str},
     ChunkAlgorithm, ChunkHashRequest,
 };
 
+/// List all files for a given client share, applying include/exclude rules from the configuration.
+///
+/// # Arguments
+///
+/// * `share_path` - The name of the share to list files from.
+/// * `config_path` - The path to the configuration file for the client.
+/// * `config` - The loaded Woodstock configuration.
+///
+/// # Errors
+///
+/// Returns an error if the configuration file cannot be read, the share is not found, or if glob pattern compilation fails.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn list_client_files(
     share_path: &str,
     config_path: &str,
@@ -68,6 +95,24 @@ pub async fn list_client_files(
     Ok(())
 }
 
+/// Reads a chunk from a file and prints its hash information.
+///
+/// # Type Parameters
+///
+/// * `P` - A type that can be referenced as a string slice, representing the filename.
+///
+/// # Arguments
+///
+/// * `filename` - The path to the file to read the chunk from.
+/// * `algorithm` - The chunking algorithm to use for hashing.
+///
+/// # Errors
+///
+/// Returns an error if the chunk hash computation fails or if the file cannot be read.
+///
+/// # Panics
+///
+/// This function does not explicitly panic.
 pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P, algorithm: &str) -> Result<()> {
     let information = ChunkHashRequest {
         share_path: String::new(),

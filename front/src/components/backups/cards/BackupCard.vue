@@ -4,8 +4,8 @@
       <div>
         <span>Backup #{{ backup?.number }}</span>
 
-        <v-chip class="ml-2" :color="backup?.completed ? 'success' : 'warning'" size="small">
-          {{ backup?.completed ? 'Completed' : 'Incomplete' }}
+        <v-chip class="ml-2" :color="statusColor" size="small">
+          {{ backup?.status }}
         </v-chip>
       </div>
     </v-card-title>
@@ -34,13 +34,8 @@
       <!-- Errors -->
       <v-row>
         <v-col>
-          <v-alert
-            v-if="backup?.errorCount && backup.errorCount > 0"
-            type="error"
-            density="compact"
-            variant="tonal"
-            class="mb-2"
-          >
+          <v-alert v-if="backup?.errorCount && backup.errorCount > 0" type="error" density="compact" variant="tonal"
+            class="mb-2">
             {{ backup.errorCount }} error(s) detected
           </v-alert>
         </v-col>
@@ -102,7 +97,7 @@
 
 <script lang="ts" setup>
 import { defineProps, computed } from 'vue';
-import { useBackup } from '@/utils/backups';
+import { getBackupStatusColor, useBackup } from '@/utils/backups';
 import filesize from '@/utils/filesize';
 import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 
@@ -119,4 +114,6 @@ const duration = computed(() => {
   }
   return undefined;
 });
+
+const statusColor = computed(() => getBackupStatusColor(backup?.value?.status));
 </script>

@@ -1,12 +1,30 @@
-mod statistics;
+//! Statistics module.
+//!
+//! This module provides types and functions for managing and persisting backup pool statistics and history.
+
+/// Contains models for statistics data.
+mod model;
 
 use std::{path::Path, time::SystemTime};
 
-pub use statistics::*;
+pub use model::*;
 use tokio::fs::write;
 
 use eyre::Result;
 
+/// Reads the pool statistics from a YAML file.
+///
+/// # Arguments
+/// * `dirname` - The directory containing the statistics file.
+///
+/// # Returns
+///
+/// * `Ok(PoolStatistics)` if the statistics are successfully read.
+/// * `Err(eyre::Report)` if an error occurs during reading.
+///
+/// # Errors
+///
+/// Returns an error if the statistics file cannot be read or deserialized from YAML.
 pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics> {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("statistics.yml");
@@ -16,6 +34,21 @@ pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics> {
     Ok(statistics)
 }
 
+/// Writes the pool statistics to a YAML file and appends them to the history.
+///
+/// # Arguments
+/// * `statistics` - The pool statistics to write.
+/// * `dirname` - The directory to write the statistics file to.
+/// * `date` - The date of the statistics.
+///
+/// # Returns
+///
+/// * `Ok(())` if the statistics are successfully written.
+/// * `Err(eyre::Report)` if an error occurs during writing.
+///
+/// # Errors
+///
+/// Returns an error if the statistics file cannot be written or if appending to the history fails.
 pub async fn write_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,
@@ -31,6 +64,19 @@ pub async fn write_statistics(
     Ok(())
 }
 
+/// Loads the history of pool statistics from a YAML file.
+///
+/// # Arguments
+/// * `dirname` - The directory containing the history file.
+///
+/// # Returns
+///
+/// * `Ok(Vec<HistoricalPoolStatistics>)` if the history is successfully loaded.
+/// * `Err(eyre::Report)` if an error occurs during loading.
+///
+/// # Errors
+///
+/// Returns an error if the history file cannot be read or deserialized from YAML.
 pub async fn load_history(dirname: &Path) -> Result<Vec<HistoricalPoolStatistics>> {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("history.yml");
@@ -40,6 +86,21 @@ pub async fn load_history(dirname: &Path) -> Result<Vec<HistoricalPoolStatistics
     Ok(statistics)
 }
 
+/// Appends the current pool statistics to the history file.
+///
+/// # Arguments
+/// * `statistics` - The pool statistics to append.
+/// * `dirname` - The directory containing the history file.
+/// * `date` - The date of the statistics.
+///
+/// # Returns
+///
+/// * `Ok(())` if the statistics are successfully appended.
+/// * `Err(eyre::Report)` if an error occurs during appending.
+///
+/// # Errors
+///
+/// Returns an error if the history file cannot be read, written, or if serialization fails.
 pub async fn append_history_to_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,

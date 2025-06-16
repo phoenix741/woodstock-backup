@@ -1,85 +1,72 @@
-import { createUnionType, Field, ObjectType, registerEnumType } from '@nestjs/graphql';
-
-export enum EventType {
-  Backup,
-  Restore,
-  Delete,
-  RefcntChecked,
-  PoolChecked,
-  ChecksumChecked,
-  PoolCleaned,
-  HashConversion,
-}
-
-export enum EventStep {
-  Start,
-  End,
-}
-
-export enum EventSource {
-  User,
-  Woodstock,
-  Import,
-  Cli,
-}
-
-export enum EventStatus {
-  None,
-  Success,
-  ClientDisconnected,
-  ServerCrashed,
-  GenericError,
-}
+import { createUnionType, Field, Int, ObjectType, registerEnumType } from '@nestjs/graphql';
+import {
+  JsChunkAlgorithm,
+  JsEventBackupInformation,
+  JsEventPoolCleanedInformation,
+  JsEventPoolInformation,
+  JsEventSource,
+  JsEventStatus,
+  JsEventStep,
+  JsEventType,
+  JsHashConversionInformation,
+} from '@woodstock/shared-rs';
+import { Transform } from 'class-transformer';
 
 @ObjectType()
-export class EventBackupInformation {
+export class EventBackupInformation implements JsEventBackupInformation {
   hostname: string;
+  @Field(() => Int)
   number: number;
   sharePath: string[];
 
-  constructor(e: EventBackupInformation) {
+  constructor(e: JsEventBackupInformation) {
     Object.assign(this, e);
   }
 }
 
 @ObjectType()
-export class EventRefCountInformation {
+export class EventPoolInformation implements JsEventPoolInformation {
   fix: boolean;
-  count: number;
-  error: number;
-
-  constructor(e: EventRefCountInformation) {
-    Object.assign(this, e);
-  }
-}
-
-@ObjectType()
-export class EventPoolInformation {
-  fix: boolean;
+  @Field(() => Int)
+  refcount: number;
+  @Field(() => Int)
+  refcountError: number;
+  @Field(() => Int)
   inUnused: number;
+  @Field(() => Int)
   inRefcnt: number;
+  @Field(() => Int)
   inNothing: number;
+  @Field(() => Int)
   missing: number;
+  @Field(() => Int)
+  chunkCount: number;
+  @Field(() => Int)
+  chunkError: number;
 
-  constructor(e: EventPoolInformation) {
+  constructor(e: JsEventPoolInformation) {
     Object.assign(this, e);
   }
 }
 
 @ObjectType()
-export class EventPoolCleanedInformation {
-  size: number;
+export class EventPoolCleanedInformation implements JsEventPoolCleanedInformation {
+  @Transform((v) => BigInt(v.value))
+  @Field(() => BigInt)
+  size: bigint;
+  @Field(() => Int)
   count: number;
 
-  constructor(e: EventPoolCleanedInformation) {
+  constructor(e: JsEventPoolCleanedInformation) {
     Object.assign(this, e);
   }
 }
 
 @ObjectType()
-export class EventHashConversionInformation {
+export class EventHashConversionInformation implements JsHashConversionInformation {
+  @Field(() => Int)
   count: number;
-  algorithm: string;
+  algorithm: JsChunkAlgorithm;
 
   constructor(e: EventHashConversionInformation) {
     Object.assign(this, e);
@@ -91,7 +78,6 @@ export const EventInformation = createUnionType({
   types: () =>
     [
       EventBackupInformation,
-      EventRefCountInformation,
       EventPoolInformation,
       EventPoolCleanedInformation,
       EventHashConversionInformation,
@@ -101,12 +87,12 @@ export const EventInformation = createUnionType({
 @ObjectType()
 export class ApplicationEvent {
   uuid: string;
-  type: EventType;
-  step: EventStep;
-  source: EventSource;
+  type: JsEventType;
+  step: JsEventStep;
+  source: JsEventSource;
   timestamp: Date;
   errorMessages: string[];
-  status: EventStatus;
+  status: JsEventStatus;
 
   @Field(() => EventInformation)
   information?: typeof EventInformation;
@@ -116,7 +102,8 @@ export class ApplicationEvent {
   }
 }
 
-registerEnumType(EventType, { name: 'EventType' });
-registerEnumType(EventStep, { name: 'EventStep' });
-registerEnumType(EventSource, { name: 'EventSource' });
-registerEnumType(EventStatus, { name: 'EventStatus' });
+registerEnumType(JsEventType, { name: 'EventType' });
+registerEnumType(JsEventStep, { name: 'EventStep' });
+registerEnumType(JsEventSource, { name: 'EventSource' });
+registerEnumType(JsEventStatus, { name: 'EventStatus' });
+registerEnumType(JsChunkAlgorithm, { name: 'ChunkAlgorithm' });

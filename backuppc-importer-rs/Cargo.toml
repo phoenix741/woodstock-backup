@@ -23,7 +23,7 @@ log = { version = "^0.4", default-features = false, features = [
   "max_level_debug",
   "release_max_level_info",
 ] }
-lru = "^0.13"
+lru = "^0.14"
 sha3 = "^0.10"
 tokio = "^1.40"
 tokio-stream = "^0.1"

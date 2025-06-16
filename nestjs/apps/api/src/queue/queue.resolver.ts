@@ -1,19 +1,17 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
-import { Job, JobBackupData, QueueListInput, QueueName, RefcntJobData } from '@woodstock/shared';
+import { Job, JobBackupData, QueueListInput, QueueName, SchedulerConfigService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.dto.js';
 import { QueueUtils } from './queue.utils.js';
-import { SchedulerConfigService } from '@woodstock/shared';
 
 @Resolver()
 export class QueueResolver {
   constructor(
     @InjectQueue(QueueName.BACKUP_QUEUE) private backupQueue: Queue<JobBackupData>,
-    @InjectQueue(QueueName.REFCNT_QUEUE) private refcntQueue: Queue<RefcntJobData>,
     @Inject('BACKUP_QUEUE_PUB_SUB') private pubSub: PubSub,
     private scheduler: SchedulerConfigService,
     private queueUtils: QueueUtils,
@@ -21,7 +19,7 @@ export class QueueResolver {
 
   @Query(() => [Job])
   async queue(@Args('input', { type: () => QueueListInput }) input: QueueListInput): Promise<Job[]> {
-    const jobs = [...(await this.backupQueue.getJobs(input.states)), ...(await this.refcntQueue.getJobs(input.states))];
+    const jobs = [...(await this.backupQueue.getJobs(input.states))];
 
     return Promise.all(
       jobs
@@ -44,13 +42,12 @@ export class QueueResolver {
     }
 
     return {
-      waiting: (await this.backupQueue.getWaitingCount()) + (await this.refcntQueue.getWaitingCount()),
-      waitingChildren:
-        (await this.backupQueue.getWaitingChildrenCount()) + (await this.refcntQueue.getWaitingChildrenCount()),
-      active: (await this.backupQueue.getActiveCount()) + (await this.refcntQueue.getActiveCount()),
-      failed: (await this.backupQueue.getFailedCount()) + (await this.refcntQueue.getFailedCount()),
-      delayed: (await this.backupQueue.getDelayedCount()) + (await this.refcntQueue.getDelayedCount()),
-      completed: (await this.backupQueue.getCompletedCount()) + (await this.refcntQueue.getCompletedCount()),
+      waiting: await this.backupQueue.getWaitingCount(),
+      waitingChildren: await this.backupQueue.getWaitingChildrenCount(),
+      active: await this.backupQueue.getActiveCount(),
+      failed: await this.backupQueue.getFailedCount(),
+      delayed: await this.backupQueue.getDelayedCount(),
+      completed: await this.backupQueue.getCompletedCount(),
 
       lastExecution,
       nextWakeup,

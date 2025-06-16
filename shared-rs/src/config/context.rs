@@ -8,6 +8,7 @@ pub struct ContextInput {
 #[napi(js_name = "BackupContext")]
 #[derive(Clone)]
 pub struct JsBackupContext {
+  /// The backup context from the core Woodstock library.
   context: Context,
 }
 
