@@ -14,7 +14,6 @@ use uuid::Uuid;
 use crate::{
     config::{
         Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
-        SHA256_EMPTYSTRING,
     },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
@@ -22,6 +21,7 @@ use crate::{
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
+    utils::chunk_hasher::get_empty_hash,
     utils::thread::spawn_with_context,
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
@@ -653,7 +653,7 @@ impl<Clt: Client> BackupSave<Clt> {
         let chunk_count = file_manifest.chunk_count();
         if chunk_count == 0 {
             file_manifest.chunks = vec![];
-            file_manifest.hash = SHA256_EMPTYSTRING.to_vec();
+            file_manifest.hash = get_empty_hash(self.algorithm);
             return Ok((0, 0, 0));
         }
 
@@ -1069,7 +1069,7 @@ impl<Clt: Client> BackupSave<Clt> {
         let backups = Backups::new(&self.config);
 
         let mut refcnt = self.refcnt.lock().await;
-        refcnt.repair(&self.config.path.pool_path).await?;
+        refcnt.repair(&self.config.path.pool_path, self.algorithm).await?;
         refcnt.save_refcnt(&self.get_fake_date(), false).await?;
 
         let host_refcnt_file = backups.get_host_path(&self.hostname);
@@ -1078,6 +1078,7 @@ impl<Clt: Client> BackupSave<Clt> {
             &refcnt,
             &crate::pool::RefcntApplySens::Increase,
             &self.get_fake_date(),
+            self.algorithm,
         )
         .await?;
 

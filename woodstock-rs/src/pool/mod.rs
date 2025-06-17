@@ -236,7 +236,7 @@ pub async fn apply_pending_refcnt_operations(
         files_to_remove.push(path);
     }
 
-    pool_refcnt.repair(&pool_directory).await?;
+    pool_refcnt.repair(&pool_directory, config.chunk_algorithm).await?;
     pool_refcnt.save_refcnt(date, true).await?;
 
     // Remove all processed files
