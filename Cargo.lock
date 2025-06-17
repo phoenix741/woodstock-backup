@@ -710,15 +710,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam-channel"
-version = "0.5.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
-dependencies = [
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1492,7 +1483,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
 ]
 
 [[package]]
@@ -2861,7 +2851,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots",
  "windows-registry",
 ]
 
@@ -3356,17 +3345,6 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
-
-[[package]]
-name = "stream-cancel"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9fbf9bd71e4cf18d68a8a0951c0e5b7255920c0cd992c4ff51cddd6ef514a3"
-dependencies = [
- "futures-core",
- "pin-project",
- "tokio",
-]
 
 [[package]]
 name = "strsim"
@@ -4141,15 +4119,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "webpki-roots"
-version = "0.26.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2210b291f7ea53617fbafcc4939f10914214ec15aace5ba62293a668f322c5c9"
-dependencies = [
- "rustls-pki-types",
-]
-
-[[package]]
 name = "widestring"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4616,15 +4585,12 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
- "crossbeam-channel",
- "dirs",
  "dns-lookup",
  "eyre",
  "fs4",
  "futures",
  "globset",
  "hex",
- "hostname",
  "hyper-util",
  "jsonwebtoken",
  "lazy_static",
@@ -4636,10 +4602,8 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.9.0",
- "rayon",
  "redis",
  "reflink-copy",
- "reqwest",
  "rsa",
  "serde",
  "serde_json",
@@ -4648,7 +4612,6 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "sha3",
- "stream-cancel",
  "tempfile",
  "test-log",
  "tokio",
