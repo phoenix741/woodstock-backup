@@ -274,7 +274,7 @@ dependencies = [
  "rustversion",
  "serde",
  "sync_wrapper",
- "tower",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
 ]
@@ -916,6 +916,22 @@ dependencies = [
  "libc",
  "socket2",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "e2e-tests"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "futures",
+ "hyper-util",
+ "log",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tower 0.4.13",
+ "woodstock-client-rs",
+ "woodstock-rs",
 ]
 
 [[package]]
@@ -3710,7 +3726,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-stream",
- "tower",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -3728,6 +3744,21 @@ dependencies = [
  "prost-types",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tower"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -3767,6 +3798,7 @@ version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
 dependencies = [
+ "log",
  "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
@@ -4535,21 +4567,41 @@ dependencies = [
  "async-stream",
  "clap",
  "color-eyre",
+ "dirs",
  "env_logger",
  "eyre",
+ "futures",
+ "globset",
+ "hex",
+ "hostname",
+ "if-addrs",
+ "jsonwebtoken",
+ "lazy_static",
+ "libc",
  "log",
+ "mdns-sd",
  "multi_log",
+ "nix 0.30.1",
+ "posix-acl",
+ "rand 0.9.0",
  "reqwest",
  "self_update",
  "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "shlex",
  "simple-logging",
  "tokio",
+ "tokio-stream",
  "tonic",
+ "uuid",
  "windows 0.61.1",
  "windows-service",
  "windows-sys 0.59.0",
  "windows_exe_info",
  "woodstock-rs",
+ "xattr",
 ]
 
 [[package]]
@@ -4574,17 +4626,13 @@ dependencies = [
  "hex",
  "hostname",
  "hyper-util",
- "if-addrs",
  "jsonwebtoken",
  "lazy_static",
- "libc",
  "libm",
  "log",
  "lru 0.14.0",
  "mdns-sd",
- "nix 0.30.1",
  "percent-encoding",
- "posix-acl",
  "prost",
  "prost-build",
  "rand 0.9.0",
@@ -4600,7 +4648,6 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "sha3",
- "shlex",
  "stream-cancel",
  "tempfile",
  "test-log",
@@ -4609,9 +4656,8 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-build",
- "tower",
+ "tower 0.5.2",
  "uuid",
- "xattr",
 ]
 
 [[package]]

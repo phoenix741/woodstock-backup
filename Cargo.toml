@@ -5,6 +5,7 @@ members = [
   "client-rs",
   "shared-rs",
   "woodstock-rs",
+  "e2e-tests",
 ]
 resolver = "2"
 

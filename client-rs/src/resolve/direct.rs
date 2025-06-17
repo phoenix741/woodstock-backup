@@ -9,7 +9,7 @@ use serde_json::json;
 use tokio::{sync::Mutex, task::AbortHandle};
 
 use super::ResolveClient;
-use crate::client::config::ClientConfig;
+use crate::config::ClientConfig;
 
 /// Represents an IPv4 address with its netmask.
 #[derive(Serialize, Debug)]

@@ -7,9 +7,9 @@
 use eyre::Result;
 use std::path::Path;
 
-use crate::FileManifest;
-use crate::FileManifestStat;
-use crate::FileManifestType;
+use woodstock::FileManifest;
+use woodstock::FileManifestStat;
+use woodstock::FileManifestType;
 use std::os::windows::fs::MetadataExt;
 
 /// Windows file attribute constant for directory.

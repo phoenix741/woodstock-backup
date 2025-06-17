@@ -30,7 +30,6 @@ use log::debug;
 use log::error;
 use log::info;
 use tokio::sync::mpsc;
-use woodstock::client::config::ClientConfig;
 use woodstock::config::BackupStatus;
 use woodstock::config::Configuration;
 use woodstock::config::GlobalConfiguration;
@@ -55,6 +54,10 @@ struct BackupDefinition {
     pub start_time: u64,
     /// The size of the backup in bytes.
     pub size: u64,
+}
+
+fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 /// Lists all Woodstock backups, excluding those matching the provided patterns.
@@ -188,7 +191,7 @@ async fn launch_backup(
         &GlobalConfiguration,
     );
     client.set_fake_date(UNIX_EPOCH.checked_add(Duration::from_secs(backup.start_time)));
-    client.set_agent_version(ClientConfig::version()).await;
+    client.set_agent_version(version()).await;
 
     backup_bar.set_message("Create backup directory");
     backup_bar.tick();
@@ -329,7 +332,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Write version
     term.write_line(&format!(
         "`BackupPC` to Woodstock migration tool v{}",
-        woodstock::config::Configuration::version()
+        version()
     ))?;
 
     // Display path used to make the migration

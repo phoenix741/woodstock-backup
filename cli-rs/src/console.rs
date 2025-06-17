@@ -36,13 +36,10 @@ use eyre::Result;
 
 #[cfg(all(unix, feature = "fuse_unix"))]
 use commands::mount::{mount, MountOption};
-use woodstock::ChunkAlgorithm;
 
-use crate::commands::client::list_client_files;
 use crate::commands::pool::{check_compression, clean_unused_pool, verify_all};
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
-use commands::client::read_chunk_from_file;
 use woodstock::config::{Context, GlobalConfiguration};
 use woodstock::pool::apply_pending_refcnt_operations;
 
@@ -128,33 +125,6 @@ enum Commands {
 
         /// The target file manifest for comparison.
         file_manifest_target: String,
-    },
-
-    /// List directory like the client will do on the share directory.
-    ///
-    /// The scan is made on the computer where the command is run but the config
-    /// will be take in the `CONFIG_DIRECTORY` (like on server).
-    ///
-    /// This command can be used for debugging purpose.
-    ///
-    /// For DEBUG purpose only.
-    ListDirectory {
-        /// Config path.
-        config_path: String,
-
-        /// The share path to scan.
-        share_path: String,
-    },
-
-    /// Read the file and return the list of hash of the file.
-    ///
-    /// For DEBUG purpose only.
-    ReadFileChunk {
-        /// The path to the file to read.
-        file_name: String,
-
-        /// The algorithm to use.
-        algorithm: Option<String>,
     },
 
     /// Resolve the hostname using the cache.
@@ -271,23 +241,6 @@ async fn main() -> Result<()> {
                 .await
                 .expect("Failed to compare file manifest");
         }
-        Commands::ListDirectory {
-            share_path,
-            config_path,
-        } => list_client_files(&share_path, &config_path, &GlobalConfiguration)
-            .await
-            .expect("Failed to list files"),
-        Commands::ReadFileChunk {
-            file_name,
-            algorithm,
-        } => read_chunk_from_file(
-            &file_name,
-            algorithm
-                .as_deref()
-                .unwrap_or(ChunkAlgorithm::Blake3.as_str_name()),
-        )
-        .await
-        .expect("Failed to read chunk from file"),
         Commands::ResolveHost { hostname } => {
             resolve_mdns(&GlobalConfiguration, &hostname)
                 .await

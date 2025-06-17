@@ -12,17 +12,14 @@ use tonic::{
 };
 use tower::service_fn;
 use woodstock::{
-    client::{
-        config::{ClientConfig, ResolutionMode},
-        server::WoodstockClient,
-    },
-    file_chunk, refresh_cache_request,
-    utils::encryption::create_authentification_token,
+    file_chunk, refresh_cache_request, utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient,
-    woodstock_client_service_server::WoodstockClientServiceServer,
-    AuthenticateRequest, ChunkAlgorithm, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest,
-    FileManifest, RefreshCacheRequest, Share,
+    woodstock_client_service_server::WoodstockClientServiceServer, AuthenticateRequest,
+    ChunkAlgorithm, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
+    RefreshCacheRequest, Share,
 };
+use woodstock_client_rs::config::{ClientConfig, ResolutionMode};
+use woodstock_client_rs::server::WoodstockClient;
 
 async fn server_and_client_stub() -> (
     impl Future<Output = ()>,
@@ -194,11 +191,11 @@ async fn test_client_execute_command() {
         stdout.sort_unstable();
         let stdout = stdout.join("\n");
 
-        // Assert result is error
+        // Assert result is success - adapt to e2e-tests directory content
         let result_stdout = if cfg!(unix) {
-            "Cargo.toml\nbenches\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+            "Cargo.toml\ndata\nlib.rs\nsrc\ntests"
         } else {
-            ".gitignore\n.vscode\nCargo.toml\nbuild.rs\ndata\nsrc\ntests\nwoodstock.proto"
+            "Cargo.toml\ndata\nlib.rs\nsrc\ntests"
         };
         assert_eq!(result.get_ref().code, 0);
         assert_eq!(stdout, result_stdout);
@@ -258,7 +255,7 @@ async fn test_client_download_file_list() {
 
         let result = result.collect::<Result<Vec<_>, _>>().await.unwrap();
 
-        assert!(result.len() > 50);
+        assert!(result.len() > 5); // Adjust for e2e-tests directory content
     };
 
     // Wait for completion, when the client request future completes
@@ -324,7 +321,7 @@ async fn test_client_get_chunk_hash() {
             count += 1;
         }
 
-        assert!(count > 50);
+        assert!(count > 5); // Adjust for e2e-tests directory content
     };
 
     // Wait for completion, when the client request future completes
@@ -379,6 +376,7 @@ async fn test_client_get_chunk() {
                 share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
                 chunks_id: Vec::new(),
+                algorithm: ChunkAlgorithm::Blake3 as i32,
             };
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
 
@@ -410,7 +408,7 @@ async fn test_client_get_chunk() {
             count += 1;
         }
 
-        assert!(count > 50);
+        assert!(count > 5); // Adjust for e2e-tests directory content
     };
 
     // Wait for completion, when the client request future completes

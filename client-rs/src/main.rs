@@ -22,15 +22,15 @@ use tokio::task::spawn_blocking;
 use tokio::time::{interval_at, Instant};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
-
-use woodstock::client::config::{get_config_path, read_config, ResolutionMode};
-
-use woodstock::client::resolve::{DirectResolveClient, ResolveClient};
-use woodstock::client::server::WoodstockClient;
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
+use woodstock_client_rs::config::{get_config_path, read_config, ResolutionMode};
+
+use woodstock_client_rs::resolve::{DirectResolveClient, ResolveClient};
+use woodstock_client_rs::server::WoodstockClient;
+
 #[cfg(feature = "mdns")]
-use woodstock::client::resolve::MdnsResolveClient;
+use woodstock_client_rs::resolve::MdnsResolveClient;
 
 /// Command-line interface options for the Woodstock client.
 #[derive(Parser)]

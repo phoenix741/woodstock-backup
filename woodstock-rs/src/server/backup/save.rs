@@ -12,9 +12,7 @@ use tokio::sync::{mpsc, Mutex};
 use uuid::Uuid;
 
 use crate::{
-    config::{
-        Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
-    },
+    config::{Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Field},
     pool::{add_refcnt_to_pool, PoolChunkInformation, PoolChunkWrapper, Refcnt},
@@ -680,6 +678,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         .iter()
                         .map(|x| u64::try_from(*x).unwrap_or_default())
                         .collect(),
+                    algorithm: self.algorithm as i32,
                 },
                 tx,
             )
@@ -1069,7 +1068,9 @@ impl<Clt: Client> BackupSave<Clt> {
         let backups = Backups::new(&self.config);
 
         let mut refcnt = self.refcnt.lock().await;
-        refcnt.repair(&self.config.path.pool_path, self.algorithm).await?;
+        refcnt
+            .repair(&self.config.path.pool_path, self.algorithm)
+            .await?;
         refcnt.save_refcnt(&self.get_fake_date(), false).await?;
 
         let host_refcnt_file = backups.get_host_path(&self.hostname);

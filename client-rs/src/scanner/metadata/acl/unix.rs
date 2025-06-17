@@ -5,9 +5,9 @@
 /// It uses the `posix_acl` crate to interface with the underlying ACL system.
 use std::path::Path;
 
-use crate::{FileManifestAcl, FileManifestAclQualifier};
 use eyre::Result;
 use posix_acl::{PosixACL, Qualifier};
+use woodstock::{FileManifestAcl, FileManifestAclQualifier};
 
 /// Reads the Access Control Lists for a file on Unix systems.
 ///
@@ -84,8 +84,8 @@ pub fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
 /// rather than creating an entirely new ACL list. This helps preserve any system-specific
 /// ACL entries that might not be part of the saved ACLs.
 pub fn restore_acl(file: &Path, acls: &[FileManifestAcl]) -> Result<()> {
-    use crate::woodstock::FileManifestAclQualifier;
     use posix_acl::{PosixACL, Qualifier};
+    use woodstock::FileManifestAclQualifier;
 
     let mut acls_writer: PosixACL = PosixACL::read_acl(file)?;
 

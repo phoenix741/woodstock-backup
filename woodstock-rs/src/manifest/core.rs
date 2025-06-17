@@ -378,7 +378,11 @@ mod tests {
     async fn test_compact() {
         let _clean_up = CleanUp;
 
-        copy("./data/test.journal", "./data/test-compact.journal").unwrap();
+        copy(
+            "../e2e-tests/data/test.journal",
+            "./data/test-compact.journal",
+        )
+        .unwrap();
 
         let path = std::path::Path::new("./data");
         let manifest = Manifest::new("test-compact", path);

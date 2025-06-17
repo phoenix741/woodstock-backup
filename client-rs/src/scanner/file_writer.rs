@@ -7,9 +7,9 @@
 use eyre::Result;
 use std::fs::OpenOptions;
 
-use crate::{
+use woodstock::{
     utils::path::vec_to_path,
-    woodstock::{FileManifest, FileManifestType},
+    {FileManifest, FileManifestType},
 };
 
 use super::metadata::{
@@ -20,7 +20,7 @@ use super::metadata::{
 ///
 /// This function restores a file based on the provided manifest, recreating all of its
 /// attributes including file type, permissions, extended attributes, and access control lists.
-/// It handles different file types including regular files, directories, symlinks, and 
+/// It handles different file types including regular files, directories, symlinks, and
 /// special device files.
 ///
 /// # Arguments
@@ -60,10 +60,10 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
             mknode(file_manifest)?;
         }
 
-        crate::FileManifestType::Directory => {
+        woodstock::FileManifestType::Directory => {
             std::fs::create_dir_all(&path)?;
         }
-        crate::FileManifestType::Symlink => {
+        woodstock::FileManifestType::Symlink => {
             let symlink = vec_to_path(&file_manifest.symlink);
             create_symlink(&path, &symlink)?;
         }

@@ -11,9 +11,9 @@ use std::{
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::client::config::ClientConfig;
-use crate::utils::encryption;
+use crate::config::ClientConfig;
 use eyre::{eyre, Result};
+use woodstock::utils::encryption;
 
 #[derive(Debug, Serialize, Deserialize)]
 /// Represents the JWT claims structure used for authentication.

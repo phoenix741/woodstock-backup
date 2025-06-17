@@ -7,7 +7,7 @@
 /// Extended attributes on Unix systems are name:value pairs associated with filesystem
 /// objects (files, directories, symlinks, etc.) that can be used to store arbitrary
 /// metadata not interpreted by the filesystem itself.
-use crate::FileManifestXAttr;
+use woodstock::FileManifestXAttr;
 use eyre::Result;
 use std::ffi::OsString;
 use std::fs::File;

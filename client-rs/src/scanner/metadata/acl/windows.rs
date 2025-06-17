@@ -3,7 +3,7 @@
 /// This module provides stub implementations for ACL operations on Windows systems,
 /// or when the 'acl' feature is disabled. On Windows, the implementations are empty
 /// placeholders that perform no actual ACL operations.
-use crate::FileManifestAcl;
+use woodstock::FileManifestAcl;
 use eyre::Result;
 use std::path::Path;
 

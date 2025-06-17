@@ -163,7 +163,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_file() {
         let mut reader = ProtobufReader::<woodstock::FileManifestJournalEntry>::new(
-            "./data/home.filelist",
+            "../e2e-tests/data/home.filelist",
             true,
         )
         .await
@@ -179,7 +179,7 @@ mod tests {
     #[tokio::test]
     async fn test_iterator() {
         let mut iter = ProtobufReader::<woodstock::FileManifestJournalEntry>::new(
-            "./data/home.filelist",
+            "../e2e-tests/data/home.filelist",
             true,
         )
         .await

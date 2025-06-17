@@ -6,7 +6,7 @@
 /// since Windows uses a different mechanism (alternate data streams) for similar
 /// functionality.
 
-use crate::FileManifestXAttr;
+use woodstock::FileManifestXAttr;
 use eyre::Result;
 use std::path::Path;
 

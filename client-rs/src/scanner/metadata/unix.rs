@@ -10,9 +10,9 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use crate::FileManifest;
-use crate::FileManifestStat;
-use crate::FileManifestType;
+use woodstock::FileManifest;
+use woodstock::FileManifestStat;
+use woodstock::FileManifestType;
 
 /// Creates a `FileManifestStat` structure from a file's metadata on Unix systems.
 ///

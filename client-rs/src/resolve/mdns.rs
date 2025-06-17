@@ -3,9 +3,9 @@ use log::{error, info};
 use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
+use woodstock::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX};
 
-use crate::client::config::ClientConfig;
-use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX};
+use crate::config::ClientConfig;
 
 use super::ResolveClient;
 

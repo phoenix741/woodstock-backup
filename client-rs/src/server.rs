@@ -9,26 +9,25 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
+use woodstock::ChunkInformation;
 
-use crate::client::scanner::create_file_from_manifest;
-use crate::utils::path::path_to_vec;
-use crate::woodstock::{
-    refresh_cache_request, woodstock_client_service_server::WoodstockClientService,
-    AuthenticateReply, AuthenticateRequest, Empty as EmptyProto, EntryState, EntryType,
-    ExecuteCommandReply, ExecuteCommandRequest, FileManifestJournalEntry,
+use crate::authentification::Service as AuthService;
+use crate::config::ClientConfig;
+use crate::scanner::create_file_from_manifest;
+use crate::scanner::get_files_with_hash;
+use crate::scanner::{calculate_chunk_hash_future, read_chunk};
+use crate::{execute_command::execute_command, scanner::CreateManifestOptions};
+use woodstock::utils::path::path_to_vec;
+use woodstock::{manifest::FileManifestLight, PingRequest};
+use woodstock::{manifest::IndexManifest, ChunkHashRequest};
+use woodstock::{
+    refresh_cache_request, restore_file_request,
+    woodstock_client_service_server::WoodstockClientService, AuthenticateReply,
+    AuthenticateRequest, ChunkHashReply, Empty as EmptyProto, EntryState, EntryType,
+    ExecuteCommandReply, ExecuteCommandRequest, FileChunk, FileManifest, FileManifestJournalEntry,
+    RefreshCacheRequest, RestoreFileReply, RestoreFileRequest,
 };
-use crate::{client::authentification::Service as AuthService, ChunkInformation};
-use crate::{client::config::ClientConfig, FileChunk};
-use crate::{client::exexcute_command::execute_command, client::scanner::CreateManifestOptions};
-use crate::{client::scanner::get_files_with_hash, ChunkHashReply};
-use crate::{
-    client::scanner::{calculate_chunk_hash_future, read_chunk},
-    RefreshCacheRequest,
-};
-use crate::{manifest::FileManifestLight, PingRequest};
-use crate::{manifest::IndexManifest, ChunkHashRequest};
-use crate::{restore_file_request, FileManifest, RestoreFileReply, RestoreFileRequest};
-use crate::{
+use woodstock::{
     utils::path::{list_to_globset, vec_to_str},
     Share,
 };

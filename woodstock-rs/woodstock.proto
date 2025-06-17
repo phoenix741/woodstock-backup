@@ -231,6 +231,7 @@ message ChunkInformation {
   bytes filename = 2;
   // If empty the whole file is requested
   repeated uint64 chunksId = 3;
+  ChunkAlgorithm algorithm = 4;
 }
 
 message FileChunkData {

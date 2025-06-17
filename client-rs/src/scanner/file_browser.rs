@@ -13,9 +13,9 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::utils::path::path_to_vec;
-use crate::woodstock::FileManifest;
-use crate::{EntryState, EntryType, FileManifestJournalEntry};
+use woodstock::utils::path::path_to_vec;
+use woodstock::FileManifest;
+use woodstock::{EntryState, EntryType, FileManifestJournalEntry};
 
 use lazy_static::lazy_static;
 
@@ -388,11 +388,11 @@ pub fn get_files<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::path::{list_to_globset, vec_to_path};
+    use woodstock::utils::path::{list_to_globset, vec_to_path};
 
     #[tokio::test]
     async fn test_get_files() {
-        let dir_path = Path::new("./data");
+        let dir_path = Path::new("../e2e-tests/data");
 
         let includes = list_to_globset(&["*.pem"]).unwrap();
         let excludes = list_to_globset(&[]).unwrap();

@@ -12,10 +12,7 @@ maintainer-scripts = "debian/"
 systemd-units = { enable = true }
 
 [features]
-default = ["acl", "xattr", "mdns"]
-
-acl = ["dep:posix-acl"]
-xattr = ["dep:xattr"]
+default = ["mdns"]
 mdns = ["dep:mdns-sd"]
 
 [lib]
@@ -42,10 +39,8 @@ globset = "^0.4"
 hex = { version = "^0.4", features = ["serde"] }
 hostname = "^0.4"
 hyper-util = "0.1.9"
-if-addrs = "0.13.3"
 jsonwebtoken = "^9.3"
 lazy_static = "^1.5"
-libc = "0.2.161"
 log = { version = "^0.4", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
 lru = "^0.14"
 mdns-sd = { version = "^0.13", optional = true }
@@ -64,7 +59,6 @@ serde_yaml = "^0.9"
 sha2 = "^0.10"
 sha3 = { version = "^0.10", features = ["asm"] }
 blake3 = { version = "1.8.1", features = ["rayon", "mmap"] }
-shlex = { version = "^1.3" }
 stream-cancel = "^0.8"
 tempfile = "^3"
 tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
@@ -75,10 +69,6 @@ uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 reflink-copy = "0.1.26"
 fs4 = {version = "0.13.1", features = ["tokio"] }
 
-[target.'cfg(target_os = "linux")'.dependencies]
-nix = "^0.30"
-xattr = { version = "^1.3", optional = true }
-posix-acl = { version = "^1.2", optional = true }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libm = "^0.2"

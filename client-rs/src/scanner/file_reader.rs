@@ -5,7 +5,6 @@
 /// with the file browser to discover files and then processes their content for backup.
 use async_stream::stream;
 use async_stream::try_stream;
-use blake3::Hasher;
 use futures::pin_mut;
 use futures::Stream;
 use futures::StreamExt;
@@ -19,22 +18,22 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
 use super::file_browser::get_files;
 use super::CreateManifestOptions;
-use crate::config::BUFFER_SIZE;
-use crate::config::CHUNK_SIZE;
-use crate::config::CHUNK_SIZE_U64;
-use crate::manifest::IndexManifest;
-use crate::manifest::PathManifest;
-use crate::utils::chunk_hasher::create_chunk_hasher;
-use crate::utils::path::vec_to_path;
-use crate::woodstock::ChunkInformation;
-use crate::woodstock::FileChunk;
-use crate::woodstock::{
+use woodstock::config::BUFFER_SIZE;
+use woodstock::config::CHUNK_SIZE;
+use woodstock::config::CHUNK_SIZE_U64;
+use woodstock::manifest::IndexManifest;
+use woodstock::manifest::PathManifest;
+use woodstock::utils::chunk_hasher::create_chunk_hasher;
+use woodstock::utils::path::vec_to_path;
+use woodstock::ChunkAlgorithm;
+use woodstock::ChunkHashReply;
+use woodstock::ChunkHashRequest;
+use woodstock::ChunkInformation;
+use woodstock::FileChunk;
+use woodstock::{
     file_chunk, EntryType, FileChunkData, FileChunkEndOfFile, FileChunkFooter, FileChunkHeader,
     FileManifest, FileManifestJournalEntry,
 };
-use crate::ChunkAlgorithm;
-use crate::ChunkHashReply;
-use crate::ChunkHashRequest;
 
 /// Retrieves a stream of `FileManifestJournalEntry` for files with hash.
 ///
@@ -268,6 +267,8 @@ pub fn read_chunk(
     let mut chunks = chunk.chunks_id.clone();
     chunks.sort_unstable();
 
+    let algorithm = chunk.algorithm();
+
     debug!("Reading file {}", path.display());
 
     try_stream!({
@@ -290,7 +291,7 @@ pub fn read_chunk(
         let mut reader = BufReader::new(file);
         let mut buffer = vec![0; BUFFER_SIZE];
 
-        let mut file_hasher = Hasher::new();
+        let mut file_hasher = create_chunk_hasher(algorithm);
 
         for chunk in &chunks {
             let position = chunk * CHUNK_SIZE_U64;
@@ -304,7 +305,7 @@ pub fn read_chunk(
                 })),
             };
 
-            let mut chunk_hasher = Hasher::new();
+            let mut chunk_hasher = create_chunk_hasher(algorithm);
 
             loop {
                 if remaining == 0 {
@@ -329,14 +330,14 @@ pub fn read_chunk(
                 };
             }
 
-            let chunk_hash = chunk_hasher.finalize().as_bytes().to_vec();
+            let chunk_hash = chunk_hasher.finalize();
 
             yield FileChunk {
                 field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
             };
         }
 
-        let hash = file_hasher.finalize().as_bytes().to_vec();
+        let hash = file_hasher.finalize();
 
         if usize::try_from(chunk_count).unwrap_or_default() == chunks.len() {
             yield FileChunk {

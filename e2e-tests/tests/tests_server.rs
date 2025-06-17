@@ -9,17 +9,16 @@ use tokio::{
 };
 use tonic::transport::{Endpoint, Server, Uri};
 use tower::service_fn;
+use woodstock_client_rs::config::{ClientConfig, ResolutionMode};
+use woodstock_client_rs::server::WoodstockClient;
 use woodstock::{
-    client::{
-        config::{ClientConfig, ResolutionMode},
-        server::WoodstockClient,
-    },
     config::{BackupStatus, Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
     server::{backup::save::BackupSave, client::grpc::BackupGrpcClient},
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
     ChunkAlgorithm, Share,
 };
+use log;
 
 fn create_context() -> Context {
     Context {

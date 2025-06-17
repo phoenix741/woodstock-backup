@@ -311,12 +311,7 @@ pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        client::scanner::{get_files, CreateManifestOptions},
-        proto::ProtobufReader,
-        utils::path::list_to_globset,
-        FileManifestJournalEntry,
-    };
+    use crate::{proto::ProtobufReader, FileManifestJournalEntry};
     use eyre::Result;
     use futures::StreamExt;
     use std::fs::remove_file;
@@ -338,18 +333,25 @@ mod tests {
             filename: "./data/home.filelist.test",
         };
 
-        {
-            let share_path = std::env::current_dir()?;
-            let includes = list_to_globset(&[])?;
-            let excludes = list_to_globset(&["target"])?;
-            let options = CreateManifestOptions {
-                with_acl: cfg!(unix),
-                with_xattr: cfg!(unix),
-            };
+        use crate::EntryState;
+        use crate::EntryType;
+        use crate::FileManifestJournalEntry;
+        use futures::stream;
 
-            let files = get_files(&share_path, &includes, &excludes, &options);
-            save_file("./data/home.filelist.test", files, false).await?;
-        };
+        // Génère un stream de 100 FileManifestJournalEntry factices (avec valeurs minimales)
+        let fake_entries = (0..100).map(|_| FileManifestJournalEntry {
+            r#type: EntryType::Add as i32,
+            manifest: None,
+            state: EntryState::Metadata as i32,
+            state_messages: vec![],
+            xfer_start: 0,
+            xfer_calculation: 0,
+            xfer_duration: 0,
+            xfer_check: 0,
+        });
+        let fake_stream = stream::iter(fake_entries);
+
+        save_file("./data/home.filelist.test", fake_stream, false).await?;
 
         {
             let mut messages =
@@ -363,7 +365,7 @@ mod tests {
                 count += 1;
             }
 
-            assert!(count > 50);
+            assert_eq!(count, 100);
         }
 
         Ok(())
@@ -376,10 +378,12 @@ mod tests {
         };
 
         {
-            let mut messages =
-                ProtobufReader::<FileManifestJournalEntry>::new("./data/home.filelist", true)
-                    .await
-                    .unwrap();
+            let mut messages = ProtobufReader::<FileManifestJournalEntry>::new(
+                "../e2e-tests/data/home.filelist",
+                true,
+            )
+            .await
+            .unwrap();
             let messages = messages.into_stream().filter_map(|x| async move {
                 match x {
                     Ok(x) => Some(x),

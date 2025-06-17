@@ -16,11 +16,12 @@ use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    client::scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions},
     config::{Configuration, Hosts},
     utils::path::{list_to_globset, vec_to_str},
     ChunkAlgorithm, ChunkHashRequest,
 };
+
+use woodstock_client_rs::scanner::{calculate_chunk_hash_future, get_files, CreateManifestOptions};
 
 /// List all files for a given client share, applying include/exclude rules from the configuration.
 ///
@@ -73,7 +74,7 @@ pub async fn list_client_files(
                     share_path,
                     &includes,
                     &excludes,
-                    &CreateManifestOptions {
+                    &&CreateManifestOptions {
                         with_acl: false,
                         with_xattr: false,
                     },

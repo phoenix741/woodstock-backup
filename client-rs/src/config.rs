@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use eyre::Result;
 
-use crate::config::DEFAULT_PORT;
+use woodstock::config::DEFAULT_PORT;
 
 /// Number of seconds in a day, used for the default update check interval.
 const DAYLY_UPDATE: u64 = 24 * 3600;
