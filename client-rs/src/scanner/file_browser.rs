@@ -151,12 +151,12 @@ fn is_file_authorized(file: &Path, includes: &GlobSet, excludes: &GlobSet) -> bo
 ///
 /// If metadata, extended attributes, or ACLs cannot be read, the function will still
 /// return a valid entry but with the appropriate error state and messages set.
-fn create_manifest_from_file(
-    share_path: &Path,
+fn create_manifest_from_file<P: AsRef<Path>>(
+    share_path: P,
     entry: PathEntryWithError,
     options: &CreateManifestOptions,
 ) -> FileManifestJournalEntry {
-    let file = share_path.join(&entry.path);
+    let file = share_path.as_ref().join(&entry.path);
     let mut state = entry.state;
     let mut state_messages = entry.state_messages;
 
@@ -333,12 +333,12 @@ async fn one_level(
 /// # Returns
 ///
 /// A stream that yields `PathEntryWithError` instances for each file and directory found.
-fn get_files_recursive(
-    share_path: &Path,
+fn get_files_recursive<P: AsRef<Path>>(
+    share_path: P,
     includes: &GlobSet,
     excludes: &GlobSet,
 ) -> impl Stream<Item = PathEntryWithError> + Send + 'static {
-    let share_path = share_path.to_path_buf();
+    let share_path = share_path.as_ref().to_path_buf();
     let includes = includes.clone();
     let excludes = excludes.clone();
 
@@ -369,18 +369,21 @@ fn get_files_recursive(
 ///
 /// A stream of `FileManifest`.
 ///
-pub fn get_files<'a>(
-    share_path: &'a Path,
+pub fn get_files<'a, P: Into<PathBuf>>(
+    share_path: P,
     includes: &'a GlobSet,
     excludes: &'a GlobSet,
     options: &'a CreateManifestOptions,
 ) -> impl Stream<Item = FileManifestJournalEntry> + 'a {
+    let share_path = share_path.into();
     stream!({
-        let files = get_files_recursive(share_path, includes, excludes);
+        let share_path_ref: &Path = share_path.as_ref();
+
+        let files = get_files_recursive(share_path_ref, includes, excludes);
         pin_mut!(files);
 
         while let Some(entry) = files.next().await {
-            yield create_manifest_from_file(share_path, entry, options);
+            yield create_manifest_from_file(share_path_ref, entry, options);
         }
     })
 }

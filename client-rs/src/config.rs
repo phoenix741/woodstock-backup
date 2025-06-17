@@ -66,6 +66,10 @@ pub struct ClientConfig {
     #[serde(default)]
     pub disable_restauration: bool,
 
+    #[serde(default)]
+    /// List of path allowed to the program to read (to limit access to the filesystem)
+    pub allowed_paths: Vec<PathBuf>,
+
     /// If extended attributes should be save on linux platform (default: false)
     #[serde(default)]
     pub xattr: bool,
@@ -85,6 +89,10 @@ pub struct ClientConfig {
     /// Log directory
     #[serde(default)]
     pub log_directory: Option<PathBuf>,
+
+    /// Will the program try to create snapshots on the filesystem
+    #[serde(default = "ClientConfig::default_snapshot")]
+    pub snapshot: bool,
 }
 
 impl ClientConfig {
@@ -155,6 +163,16 @@ impl ClientConfig {
     pub fn default_update_delay() -> u64 {
         DAYLY_UPDATE
     }
+
+    #[must_use]
+    /// Returns whether the client should create snapshots by default.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` by default.
+    pub fn default_snapshot() -> bool {
+        true
+    }
 }
 
 impl Default for ClientConfig {
@@ -169,6 +187,7 @@ impl Default for ClientConfig {
             max_backup_seconds: ClientConfig::default_max_backup_seconds(),
             resolution_mode: ResolutionMode::default(),
             disable_restauration: false,
+            allowed_paths: Vec::new(),
             mdns_interfaces: None,
             server: None,
             xattr: false,
@@ -176,6 +195,7 @@ impl Default for ClientConfig {
             auto_update: ClientConfig::default_automatic_update(),
             update_delay: ClientConfig::default_update_delay(),
             log_directory: None,
+            snapshot: ClientConfig::default_snapshot(),
         }
     }
 }

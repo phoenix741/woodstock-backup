@@ -122,7 +122,15 @@ pub async fn read_chunk_from_file<P: AsRef<str>>(filename: P, algorithm: &str) -
             .ok_or_else(|| eyre::eyre!("Invalid algorithm name"))? as i32,
     };
     let result = calculate_chunk_hash_future(&information).await;
-    println!("Number of chunks: {}", result.chunks.len());
-    println!("File hash: {:?}", hex::encode(result.hash));
-    Ok(())
+    match result {
+        Ok(result) => {
+            println!("Number of chunks: {}", result.chunks.len());
+            println!("File hash: {:?}", hex::encode(result.hash));
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("Error calculating chunk hash: {}", err);
+            Err(err.into())
+        }
+    }
 }

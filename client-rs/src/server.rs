@@ -13,10 +13,10 @@ use woodstock::ChunkInformation;
 
 use crate::authentification::Service as AuthService;
 use crate::config::ClientConfig;
+use crate::execute_command::execute_command;
 use crate::scanner::create_file_from_manifest;
-use crate::scanner::get_files_with_hash;
-use crate::scanner::{calculate_chunk_hash_future, read_chunk};
-use crate::{execute_command::execute_command, scanner::CreateManifestOptions};
+use crate::scanner::CreateManifestOptions;
+use crate::storage::accessor::FileSystemAccessor;
 use woodstock::utils::path::path_to_vec;
 use woodstock::{manifest::FileManifestLight, PingRequest};
 use woodstock::{manifest::IndexManifest, ChunkHashRequest};
@@ -41,6 +41,8 @@ pub struct WoodstockClient {
     authentification_service: Arc<RwLock<AuthService>>,
     /// Options for creating file manifests.
     create_manifest_options: CreateManifestOptions,
+    /// File system accessor for backup operations.
+    fs_accessor: Arc<RwLock<FileSystemAccessor>>,
 }
 
 impl WoodstockClient {
@@ -65,6 +67,7 @@ impl WoodstockClient {
                 with_acl: config.acl,
                 with_xattr: config.xattr,
             },
+            fs_accessor: Arc::new(RwLock::new(FileSystemAccessor::new())),
         }
     }
 
@@ -530,6 +533,15 @@ impl WoodstockClientService for WoodstockClient {
         let share = share.as_ref().unwrap().clone();
 
         debug!("Launch backup for share: {}", share.share_path);
+        {
+            let mut fs_accessor = self.fs_accessor.write().await;
+            if let Err(err) = fs_accessor.add_share_path(&share.share_path).await {
+                error!(
+                    "Failed to create a snapshot for {}: {}",
+                    share.share_path, err
+                );
+            }
+        }
 
         let includes = vec_to_str(&share.includes);
         let includes = list_to_globset(&includes)
@@ -539,13 +551,15 @@ impl WoodstockClientService for WoodstockClient {
             .map_err(|err| tonic::Status::invalid_argument(err.to_string()))?;
 
         let create_manifest_options = self.create_manifest_options.clone();
+        let fs_accessor = self.fs_accessor.clone();
 
         let (tx, rx) = mpsc::channel(100_000);
         tokio::spawn(async move {
             // Add and modify file
             {
+                let fs_accessor = fs_accessor.read().await;
                 let share_path = Path::new(&share.share_path);
-                let files = get_files_with_hash(
+                let files = fs_accessor.get_files_with_hash(
                     &mut index,
                     share_path,
                     &includes,
@@ -610,9 +624,20 @@ impl WoodstockClientService for WoodstockClient {
 
         let chunk = request.get_ref();
 
-        let reply = calculate_chunk_hash_future(chunk).await;
+        let reply = self
+            .fs_accessor
+            .read()
+            .await
+            .calculate_chunk_hash_future(chunk.clone())
+            .await;
 
-        Ok(Response::new(reply))
+        match reply {
+            Ok(reply) => Ok(Response::new(reply)),
+            Err(err) => {
+                error!("Failed to get chunk hash: {:?}", err);
+                Err(tonic::Status::invalid_argument(err.to_string()))
+            }
+        }
     }
 
     type GetChunkStream =
@@ -635,9 +660,12 @@ impl WoodstockClientService for WoodstockClient {
 
         self.check_context(request.metadata()).await?;
 
-        let chunk = request.get_ref();
+        let fs_accessor = self.fs_accessor.read().await;
+        let chunk = request.get_ref().clone();
 
-        let replies = read_chunk(chunk).map_err(|f| tonic::Status::invalid_argument(f.to_string()));
+        let replies = fs_accessor
+            .read_chunk(chunk)
+            .map_err(|f| tonic::Status::invalid_argument(f.to_string()));
 
         Ok(Response::new(Box::pin(replies) as Self::GetChunkStream))
     }
@@ -656,6 +684,13 @@ impl WoodstockClientService for WoodstockClient {
         request: tonic::Request<EmptyProto>,
     ) -> std::result::Result<tonic::Response<EmptyProto>, tonic::Status> {
         debug!("Close backup");
+
+        self.fs_accessor
+            .write()
+            .await
+            .cleanup_all_snapshots()
+            .await
+            .map_err(|err| tonic::Status::internal(err.to_string()))?;
 
         let session_id = self.check_context(request.metadata()).await?;
 

@@ -5,14 +5,16 @@
 /// with the file browser to discover files and then processes their content for backup.
 use async_stream::stream;
 use async_stream::try_stream;
+use eyre::Result;
 use futures::pin_mut;
 use futures::Stream;
 use futures::StreamExt;
 use globset::GlobSet;
-use log::{debug, error, info};
+use log::{debug, info};
 use std::cmp::min;
 use std::io::Read;
-use std::{error::Error, path::Path};
+use std::path::Path;
+use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
@@ -51,17 +53,18 @@ use woodstock::{
 ///
 /// A stream of `FileManifestJournalEntry`.
 ///
-pub fn get_files_with_hash<'a, T: PathManifest>(
+pub fn get_files_with_hash<'a, P: Into<PathBuf>, T: PathManifest>(
     index: &'a mut IndexManifest<T>,
-    share_path: &'a Path,
+    share_path: P,
     includes: &'a GlobSet,
     excludes: &'a GlobSet,
     options: &'a CreateManifestOptions,
 ) -> impl Stream<Item = FileManifestJournalEntry> + 'a {
+    let share_path = share_path.into();
     debug!("Scanning files in {}", share_path.display());
 
+    let files = get_files(share_path, includes, excludes, options);
     stream!({
-        let files = get_files(share_path, includes, excludes, options);
         pin_mut!(files);
 
         while let Some(mut journal_entry) = files.next().await {
@@ -147,25 +150,14 @@ fn is_modified<T: PathManifest>(index: &IndexManifest<T>, manifest: &FileManifes
 /// # Panics
 ///
 /// This function will panic if the `manifest` future resolves to an error. Ensure that the manifest is properly initialized and does not encounter runtime errors during execution.
-pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHashReply {
+pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> Result<ChunkHashReply> {
     let request = request.clone();
     let manifest = tokio::task::spawn_blocking(move || {
         let path = Path::new(&request.share_path);
         let path = path.join(vec_to_path(&request.filename));
         debug!("Calculating chunk hash for {}", &path.display());
 
-        let manifest = caculate_chunk_hash(&path, request.algorithm());
-
-        match manifest {
-            Ok(manifest) => manifest,
-            Err(e) => {
-                error!("Can't read the file file {}: {e}", path.display());
-                ChunkHashReply {
-                    hash: Vec::new(),
-                    chunks: Vec::new(),
-                }
-            }
-        }
+        caculate_chunk_hash(&path, request.algorithm())
     });
 
     manifest.await.unwrap()
@@ -196,7 +188,7 @@ pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> ChunkHas
 fn caculate_chunk_hash<P: AsRef<Path>>(
     file: P,
     algorithm: ChunkAlgorithm,
-) -> Result<ChunkHashReply, Box<dyn Error>> {
+) -> Result<ChunkHashReply> {
     info!("Calculating chunk hash for {}", file.as_ref().display());
 
     let mut file_hasher = create_chunk_hasher(algorithm);
@@ -260,7 +252,7 @@ fn caculate_chunk_hash<P: AsRef<Path>>(
 /// May panic if chunk index calculations overflow, though this is highly unlikely
 /// with normal file sizes.
 pub fn read_chunk(
-    chunk: &ChunkInformation,
+    chunk: ChunkInformation,
 ) -> impl Stream<Item = Result<FileChunk, std::io::Error>> {
     let path = Path::new(&chunk.share_path);
     let path = path.join(vec_to_path(&chunk.filename));

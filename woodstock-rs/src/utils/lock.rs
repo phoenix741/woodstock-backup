@@ -830,7 +830,7 @@ mod tests {
     #[test(tokio::test)]
     async fn test_pool_lock_shared_exclusive_incompatibility() {
         // Create an exclusive lock
-        let path = Path::new("./data/test_pool_lock_exclusive_incompatibility");
+        let path = Path::new("./data/test_pool_lock_shared_exclusive_incompatibility");
         // Create directory if it doesn't exist
         std::fs::create_dir_all(path).ok();
 
