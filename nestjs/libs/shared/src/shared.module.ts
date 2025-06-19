@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { CoreBackupsService, CoreClientResolver, CoreFilesService, CoreHostsService } from '@woodstock/shared-rs';
 import { CertificateService } from './authentification';
 import { JobService } from './backuping';
-import { BackupsService, HostsService, LockService } from './backups';
+import { BackupsService, HostsService } from './backups';
 import { PingService } from './commands/ping.service';
 import { ResolveService } from './commands/resolve.service';
 import { ApplicationConfigService, SchedulerConfigService } from './config';
@@ -26,7 +26,6 @@ const providers = [
   FilesService,
   HostsService,
   JobService,
-  LockService,
   PingService,
   PoolStatisticsService,
   QueueTasksService,
