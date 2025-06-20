@@ -1,4 +1,4 @@
-import { Injectable, LoggerService } from '@nestjs/common';
+import { Injectable, LoggerService, Logger as NestLogger } from '@nestjs/common';
 import { mkdirSync } from 'fs';
 import * as logform from 'logform';
 import { join } from 'path';
@@ -9,6 +9,8 @@ import { BackupsService } from '../backups';
 
 import 'winston-daily-rotate-file';
 import { ApplicationConfigService } from '../config';
+import { LogContext, useRustLogger } from '@woodstock/shared-rs';
+import { loggerCallback } from './console.logger';
 
 const { combine, timestamp, printf, colorize } = format;
 
@@ -98,8 +100,6 @@ export class ApplicationLogger implements LoggerService {
         ? this.backupsService.getLogDirectory(hostname, backupNumber ?? 0)
         : this.config.jobPath;
 
-    console.log('destinationDirectory', destinationDirectory);
-
     mkdirSync(destinationDirectory, { recursive: true });
     const logger = createLogger({
       level: process.env.LOG_LEVEL || 'info',
@@ -134,11 +134,26 @@ export class ApplicationLogger implements LoggerService {
     return this.#globalLogger;
   }
 
-  useLogger<R, TArgs extends any[]>(options: LogStorage, callback: (...args: TArgs) => R, ...args: TArgs): R {
+  useLogger<R extends object, TArgs extends any[]>(
+    options: LogStorage,
+    callback: (context: LogContext, ...args: TArgs) => R,
+    ...args: TArgs
+  ): R | Promise<R> {
+    const context = new LogContext();
+    console.log('Using logger with options:', context.toString(), options);
     return logAsyncLocalStorage.run(
       options,
       (...args) => {
-        return callback(...args);
+        const logger = new NestLogger('JobLogger');
+        return useRustLogger(
+          context,
+          async () =>
+            (await callback(context, ...args)) ??
+            {
+              /* Mandatory because napi-rs can't manage unknown as threadsafe return type */
+            },
+          loggerCallback(logger),
+        );
       },
       ...args,
     );

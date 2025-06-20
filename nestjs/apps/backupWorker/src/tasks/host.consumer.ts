@@ -105,7 +105,7 @@ export class HostConsumer extends WorkerHost {
 
       await this.applicationLogger.useLogger(
         { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'backup' },
-        async () => {
+        async (context) => {
           this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
           if (!backupTask.ip) {
             backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
@@ -121,7 +121,7 @@ export class HostConsumer extends WorkerHost {
             job.updateData(backupTask);
           }
 
-          const states$ = await this.backupService.execute(backupTask.host, backupTask.ip, backupTask.number ?? 0);
+          const states$ = this.backupService.execute(context, backupTask.host, backupTask.ip, backupTask.number ?? 0);
           const lastProgress = await this.queueTaskService.processJobData(job, states$);
           if (lastProgress.errorState) {
             throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${lastProgress.errorMessage}`);
@@ -159,7 +159,7 @@ export class HostConsumer extends WorkerHost {
 
       await this.applicationLogger.useLogger(
         { jobId: jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'restore' },
-        async () => {
+        async (context) => {
           this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
           if (!backupTask.ip) {
             const ip = await this.pingService.pingFromConfig(backupTask.host, config);
@@ -177,7 +177,8 @@ export class HostConsumer extends WorkerHost {
             job.updateData(backupTask);
           }
 
-          const states$ = await this.restoreService.execute(
+          const states$ = this.restoreService.execute(
+            context,
             backupTask.host,
             backupTask.ip,
             backupTask.number ?? 0,
@@ -208,13 +209,13 @@ export class HostConsumer extends WorkerHost {
 
       await this.applicationLogger.useLogger(
         { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'remove' },
-        async () => {
+        async (context) => {
           if (!backupTask.startDate) {
             backupTask.startDate = Date.now();
             job.updateData(backupTask);
           }
 
-          const states$ = await this.removeService.execute(backupTask.host, backupTask.number ?? 0);
+          const states$ = await this.removeService.execute(context, backupTask.host, backupTask.number ?? 0);
           const lastProgress = await this.queueTaskService.processJobData(job, states$);
           if (lastProgress.errorState) {
             throw new LaunchBackupError(
@@ -239,8 +240,8 @@ export class HostConsumer extends WorkerHost {
     try {
       const backupTask = job.data;
 
-      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async () => {
-        const states$ = this.fsckService.execute(backupTask.dryRun, backupTask.verifyChunks);
+      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async (context) => {
+        const states$ = this.fsckService.execute(context, backupTask.dryRun, backupTask.verifyChunks);
         const lastProgress = await this.queueTaskService.processJobData(job, states$);
         if (lastProgress.errorState) {
           throw new LaunchBackupError(`Pool check failed with error ${lastProgress.errorMessage}`);
@@ -262,8 +263,8 @@ export class HostConsumer extends WorkerHost {
     try {
       const taskData = job.data;
 
-      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async () => {
-        const states$ = this.cleanupService.execute(taskData.target);
+      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async (context) => {
+        const states$ = this.cleanupService.execute(context, taskData.target);
         const lastProgress = await this.queueTaskService.processJobData(job, states$);
         if (lastProgress.errorState) {
           throw new LaunchBackupError(`Pool check failed with error ${lastProgress.errorMessage}`);

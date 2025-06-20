@@ -13,6 +13,7 @@ use crate::{
     config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::append_events,
     pool::Refcnt,
+    utils::thread::spawn_with_context,
     woodstock::event::Information,
     Event, EventPoolCleanedInformation, EventSource, EventStatus, EventStep, EventType, PoolUnused,
 };
@@ -175,7 +176,7 @@ impl PoolCleaner {
 
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<Option<PoolUnused>>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
+        let progress_thread = spawn_with_context(async move {
             let mut count = 0;
             while let Some(unused) = internal_rx.recv().await {
                 let compressed_size = unused

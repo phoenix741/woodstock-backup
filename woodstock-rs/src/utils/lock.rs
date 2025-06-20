@@ -10,6 +10,8 @@ use uuid::Uuid;
 // Add new imports for atomic operations
 use fs4::tokio::AsyncFileExt;
 
+use crate::utils::thread::spawn_with_context;
+
 /// Type of lock for the pool
 #[derive(Clone, Copy, PartialEq, Debug, ::prost::Enumeration)]
 pub enum LockType {
@@ -523,7 +525,7 @@ fn update_lock_file_thread(
     let lock_file = lock_file.to_path_buf();
     let lock_uuid = lock_uuid.to_string();
 
-    let handle = tokio::spawn(async move {
+    let handle = spawn_with_context(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(update_interval)).await;
             debug!("Update lock file timestamp for UUID {}", lock_uuid);
@@ -700,7 +702,7 @@ mod tests {
         // wait 40 seconds to be sure that the first lock is still active
         // and drop the first lock, the second lock should release 5 secondes after
         let path2 = path.to_path_buf();
-        let handle = tokio::spawn(async move {
+        let handle = spawn_with_context(async move {
             let lock2 = PoolLock::new_with_name(&path2, "test_pool_lock_blocked_2");
             let result = lock2.lock().await;
             assert!(result.is_ok());
@@ -800,7 +802,7 @@ mod tests {
         // wait 40 seconds to be sure that the first lock is still active
         // and drop the first lock, the second lock should release 5 secondes after
         let path2 = path.to_path_buf();
-        let handle = tokio::spawn(async move {
+        let handle = spawn_with_context(async move {
             let lock2 = PoolLock::new_with_name(&path2, "test_pool_lock_blocked_2");
             let result = lock2.lock_exclusive().await;
             assert!(result.is_ok());
@@ -842,7 +844,7 @@ mod tests {
         // wait 40 seconds to be sure that the first lock is still active
         // and drop the first lock, the second lock should release 5 secondes after
         let path2 = path.to_path_buf();
-        let handle = tokio::spawn(async move {
+        let handle = spawn_with_context(async move {
             let lock2 = PoolLock::new_with_name(&path2, "test_pool_lock_blocked_2");
             let result = lock2.lock_exclusive().await;
             assert!(result.is_ok());

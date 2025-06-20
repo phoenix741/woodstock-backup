@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { BackupsService } from '@woodstock/shared';
-import { generateContext, JsBackupRemoveService, JsRemoveState } from '@woodstock/shared-rs';
+import { generateContext, JsBackupRemoveService, JsRemoveState, LogContext } from '@woodstock/shared-rs';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class RemoveMachineService {
   constructor(private backupsService: BackupsService) {}
 
-  execute(hostname: string, backupNumber: number, abort?: AbortSignal): Observable<JsRemoveState> {
+  execute(
+    logContext: LogContext,
+    hostname: string,
+    backupNumber: number,
+    abort?: AbortSignal,
+  ): Observable<JsRemoveState> {
     const context = generateContext({
       username: undefined,
+      logContext,
     });
     const service = JsBackupRemoveService.createService(hostname, backupNumber, context);
 

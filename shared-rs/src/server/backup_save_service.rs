@@ -7,22 +7,21 @@ use napi::{
 use woodstock::{
   config::{Context as WoodstockContext, GlobalConfiguration, DEFAULT_CHANNEL_BUFFER_SIZE},
   server::{
-    backup::save_machine::SaveBackupMachine,
-    backup::save_state::{
-      BackupExecutionState, BackupMachineCommandResult as WoodstockBackupMachineCommandResult,
-      BackupState, ErrorState, ExecuteCommandExecutionState, ExecuteCommandState,
-      ShareExecutionState, ShareState,
+    backup::{
+      save_machine::SaveBackupMachine,
+      save_state::{
+        BackupExecutionState, BackupMachineCommandResult as WoodstockBackupMachineCommandResult,
+        BackupState, ErrorState, ExecuteCommandExecutionState, ExecuteCommandState,
+        ShareExecutionState, ShareState,
+      },
     },
     client::grpc::BackupGrpcClient,
     progression::FileListProgression,
   },
+  utils::thread::spawn_with_context_id,
 };
 
-use crate::{
-  config::context::JsBackupContext,
-  log::{LogBackupContext, LOG_CONTEXT},
-  models::JsExecuteCommandOperation,
-};
+use crate::{config::context::JsBackupContext, log::LogContext, models::JsExecuteCommandOperation};
 
 use super::{AbortHandle, JsBackupProgression};
 
@@ -279,6 +278,8 @@ pub struct JsBackupSaveService {
   backup_number: usize,
   /// The Woodstock context for configuration and state management.
   context: WoodstockContext,
+  /// The log context used for restore logging
+  log_context: LogContext,
 }
 
 #[napi]
@@ -294,12 +295,13 @@ impl JsBackupSaveService {
   ///
   /// # Errors
   /// Returns an error if the backup number cannot be converted to `usize`.
-  pub async fn create_service(
+  pub fn create_service(
     hostname: String,
     ip: String,
     backup_number: u32,
     context: &JsBackupContext,
   ) -> Result<Self> {
+    let log_context: LogContext = context.into();
     let context: WoodstockContext = context.into();
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
@@ -309,6 +311,7 @@ impl JsBackupSaveService {
       hostname,
       backup_number: backup_number_usize,
       context,
+      log_context,
     })
   }
 
@@ -345,116 +348,102 @@ impl JsBackupSaveService {
     let tsfn: ThreadsafeFunction<JsBackupSaveMessage, ErrorStrategy::Fatal> =
       callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
-    let log_hostname = self.hostname.clone();
-    let log_backup_number = self.backup_number as u32;
-
     let hostname = self.hostname.clone();
     let ip = self.ip.clone();
     let backup_number_usize = self.backup_number;
     let context = self.context.clone();
     let config = &GlobalConfiguration;
 
-    let handle = tokio::spawn(async move {
-      LOG_CONTEXT
-        .scope(
-          LogBackupContext {
-            hostname: log_hostname,
-            backup_number: log_backup_number,
+    let tsfn_clone = tsfn.clone();
+    let (state_tx, mut state_rx) =
+      tokio::sync::mpsc::channel::<BackupState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+
+    let progress_listener = tokio::spawn(async move {
+      while let Some(state) = state_rx.recv().await {
+        let js_state: JsBackupState = state.into();
+        tsfn_clone.call(
+          JsBackupSaveMessage {
+            progress: Some(js_state),
+            error: None,
+            complete: false,
           },
-          async {
-            let (state_tx, mut state_rx) =
-              tokio::sync::mpsc::channel::<BackupState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+        );
+      }
+    });
 
-            let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, config).await else {
-              tsfn.call(
-                JsBackupSaveMessage {
-                  progress: None,
-                  error: Some("Can't create gRPC client".to_string()),
-                  complete: false,
-                },
-                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-              );
-              return;
-            };
-
-            let Ok(mut machine) = SaveBackupMachine::new(
-              grpc_client,
-              &hostname,
-              backup_number_usize,
-              &context,
-              config,
-              Some(state_tx),
-            )
-            .await
-            else {
-              tsfn.call(
-                JsBackupSaveMessage {
-                  progress: None,
-                  error: Some("Failed to create SaveBackupMachine".to_string()),
-                  complete: false,
-                },
-                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-              );
-              return;
-            };
-
-            let tsfn_clone = tsfn.clone();
-
-            let progress_listener = tokio::spawn(async move {
-              while let Some(state) = state_rx.recv().await {
-                let js_state: JsBackupState = state.into();
-                tsfn_clone.call(
-                  JsBackupSaveMessage {
-                    progress: Some(js_state),
-                    error: None,
-                    complete: false,
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-                );
-              }
-            });
-
-            let result = machine.execute().await;
-
-            drop(machine);
-
-            if let Err(e) = progress_listener.await {
-              error!("Backup status listener task panicked: {:?}", e);
-              tsfn.call(
-                JsBackupSaveMessage {
-                  progress: None,
-                  error: Some(format!("Backup status listener task failed: {:?}", e)),
-                  complete: false,
-                },
-                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-              );
-            }
-
-            match result {
-              Ok(()) => {
-                tsfn.call(
-                  JsBackupSaveMessage {
-                    progress: None, // Final state already sent by listener if it was the last message
-                    error: None,
-                    complete: true,
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                );
-              }
-              Err(e) => {
-                tsfn.call(
-                  JsBackupSaveMessage {
-                    progress: None,
-                    error: Some(format!("Machine execution failed: {}", e)),
-                    complete: false, // Or some failed status if applicable
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                );
-              }
-            }
+    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+      let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, config).await else {
+        tsfn.call(
+          JsBackupSaveMessage {
+            progress: None,
+            error: Some("Can't create gRPC client".to_string()),
+            complete: false,
           },
-        )
-        .await;
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+        return;
+      };
+
+      let Ok(mut machine) = SaveBackupMachine::new(
+        grpc_client,
+        &hostname,
+        backup_number_usize,
+        &context,
+        config,
+        Some(state_tx),
+      )
+      .await
+      else {
+        tsfn.call(
+          JsBackupSaveMessage {
+            progress: None,
+            error: Some("Failed to create SaveBackupMachine".to_string()),
+            complete: false,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+        return;
+      };
+
+      let result = machine.execute().await;
+
+      drop(machine);
+
+      if let Err(e) = progress_listener.await {
+        error!("Backup status listener task panicked: {:?}", e);
+        tsfn.call(
+          JsBackupSaveMessage {
+            progress: None,
+            error: Some(format!("Backup status listener task failed: {:?}", e)),
+            complete: false,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+      }
+
+      match result {
+        Ok(()) => {
+          tsfn.call(
+            JsBackupSaveMessage {
+              progress: None, // Final state already sent by listener if it was the last message
+              error: None,
+              complete: true,
+            },
+            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+          );
+        }
+        Err(e) => {
+          tsfn.call(
+            JsBackupSaveMessage {
+              progress: None,
+              error: Some(format!("Machine execution failed: {}", e)),
+              complete: false, // Or some failed status if applicable
+            },
+            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+          );
+        }
+      }
     });
 
     Ok(AbortHandle::new(handle))

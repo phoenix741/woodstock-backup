@@ -1,62 +1,37 @@
 import { Logger } from '@nestjs/common';
-import { JsLogLevel, initLog } from '@woodstock/shared-rs';
+import { JsBackupLogMessage, JsLogLevel, initLog } from '@woodstock/shared-rs';
 
-export function initializeLog() {
-  const logger = new Logger('SharedLogged');
-  initLog((msg) => {
+export function loggerCallback(logger: Logger) {
+  return (msg: JsBackupLogMessage) => {
     if (msg.progress) {
+      const logMessage = {
+        message: msg.progress.message,
+      };
+
       switch (msg.progress.level) {
         case JsLogLevel.Debug:
-          logger.debug(
-            {
-              message: msg.progress.message,
-              hostname: msg.progress.hostname,
-              backupNumber: msg.progress.backupNumber,
-            },
-            msg.progress.context,
-          );
+          logger.debug(logMessage, msg.progress.context);
           break;
         case JsLogLevel.Trace:
-          logger.verbose(
-            {
-              message: msg.progress.message,
-              hostname: msg.progress.hostname,
-              backupNumber: msg.progress.backupNumber,
-            },
-            msg.progress.context,
-          );
+          logger.verbose(logMessage, msg.progress.context);
           break;
         case JsLogLevel.Info:
-          logger.log(
-            {
-              message: msg.progress.message,
-              hostname: msg.progress.hostname,
-              backupNumber: msg.progress.backupNumber,
-            },
-            msg.progress.context,
-          );
+          logger.log(logMessage, msg.progress.context);
           break;
         case JsLogLevel.Warn:
-          logger.warn(
-            {
-              message: msg.progress.message,
-              hostname: msg.progress.hostname,
-              backupNumber: msg.progress.backupNumber,
-            },
-            msg.progress.context,
-          );
+          logger.warn(logMessage, msg.progress.context);
           break;
         case JsLogLevel.Error:
-          logger.error(
-            {
-              message: msg.progress.message,
-              hostname: msg.progress.hostname,
-              backupNumber: msg.progress.backupNumber,
-            },
-            msg.progress.context,
-          );
+          logger.error(logMessage, msg.progress.context);
           break;
       }
     }
-  });
+  };
+}
+
+export function initializeLog() {
+  const logger = new Logger('SharedLogged');
+
+  // This captures the current AsyncLocalStorage context and preserves it
+  initLog(loggerCallback(logger));
 }

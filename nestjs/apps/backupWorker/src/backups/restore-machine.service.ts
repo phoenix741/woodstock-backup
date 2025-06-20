@@ -1,24 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { BackupsService } from '@woodstock/shared';
-import { generateContext, JsBackupRestoreService, JsRestoreState, JsShareSelection } from '@woodstock/shared-rs';
+import {
+  generateContext,
+  JsBackupRestoreService,
+  JsRestoreState,
+  JsShareSelection,
+  LogContext,
+} from '@woodstock/shared-rs';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class RestoreMachineService {
   constructor(private backupsService: BackupsService) {}
 
-  async execute(
+  execute(
+    logContext: LogContext,
     hostname: string,
     ip: string,
     backupNumber: number,
     destinationDirectory: string,
     selections: JsShareSelection[],
     abort?: AbortSignal,
-  ): Promise<Observable<JsRestoreState>> {
+  ): Observable<JsRestoreState> {
     const context = generateContext({
       username: undefined,
+      logContext,
     });
-    const service = await JsBackupRestoreService.createService(hostname, ip, backupNumber, context);
+    const service = JsBackupRestoreService.createService(hostname, ip, backupNumber, context);
 
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};

@@ -20,7 +20,10 @@ use crate::{
     events::append_events,
     restore_file_request,
     server::progression::BackupProgression,
-    utils::path::{path_to_vec, vec_to_path},
+    utils::{
+        path::{path_to_vec, vec_to_path},
+        thread::spawn_with_context,
+    },
     Event, EventBackupInformation, EventSource, EventStatus, EventStep, EventType,
     RestoreFileRequest,
 };
@@ -71,7 +74,7 @@ impl<Clt: Client> BackupRestore<Clt> {
             backups.get_backup_destination_directory(hostname, backup_number);
 
         info!(
-            "Initialize backup client for restauration {hostname}/{backup_number} in {destination_directory:?}"
+            "Initialize client for restauration {hostname}/{backup_number} in {destination_directory:?}"
         );
         let uuid = Uuid::new_v4();
         let uuid = uuid.as_bytes().to_vec();
@@ -225,7 +228,7 @@ impl<Clt: Client> BackupRestore<Clt> {
 
         let (tx, rx) = tokio::sync::mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(async move {
+        spawn_with_context(async move {
             let entries = manifest.read_manifest_entries();
             pin_mut!(entries);
 

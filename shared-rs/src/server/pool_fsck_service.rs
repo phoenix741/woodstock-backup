@@ -14,10 +14,13 @@ use woodstock::{
       UnusedProgression as InnerUnusedProgression,
     },
   },
+  utils::thread::{spawn_with_context, spawn_with_context_id},
   EventSource,
 };
 
-use crate::{events::JsEventSource, server::AbortHandle};
+use crate::{
+  config::context::JsBackupContext, events::JsEventSource, log::LogContext, server::AbortHandle,
+};
 
 // --- JS-friendly Enums ---
 #[napi(string_enum)]
@@ -187,21 +190,27 @@ pub struct PoolFsckMessage {
 pub struct JsPoolFsckService {
   /// The configuration used for pool fsck operations.
   config: Configuration,
-}
-
-impl Default for JsPoolFsckService {
-  fn default() -> Self {
-    Self::new()
-  }
+  /// The log context used for restore logging
+  log_context: LogContext,
 }
 
 #[napi]
 impl JsPoolFsckService {
-  #[napi(constructor)]
-  pub fn new() -> Self {
-    Self {
+  #[napi(factory)]
+  /// Creates a new `JsPoolFsckService` instance.
+  ///
+  /// # Arguments
+  /// * `context` - The Woodstock backup context.
+  ///
+  /// # Errors
+  /// Returns an error if the backup number cannot be converted to `usize`.
+  pub fn create_service(context: &JsBackupContext) -> Result<Self> {
+    let log_context: LogContext = context.into();
+
+    Ok(Self {
       config: GlobalConfiguration.clone(),
-    }
+      log_context,
+    })
   }
 
   #[napi]
@@ -235,7 +244,7 @@ impl JsPoolFsckService {
 
     // Task to listen for state changes and send them as 'progress'
     let tsfn_clone_listener = tsfn.clone();
-    let listener_handle = tokio::spawn(async move {
+    let listener_handle = spawn_with_context(async move {
       while let Some(state) = state_rx.recv().await {
         tsfn_clone_listener.call(
           PoolFsckMessage {
@@ -250,7 +259,7 @@ impl JsPoolFsckService {
 
     // Main task to run the FsckMachine
     let tsfn_clone_task = tsfn.clone();
-    let handle = tokio::spawn(async move {
+    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
       let machine = FsckMachine::new(
         &config,
         event_source,

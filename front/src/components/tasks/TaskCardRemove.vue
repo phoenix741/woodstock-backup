@@ -17,15 +17,15 @@ import AbstractTaskCard from './AbstractTaskCard.vue';
 
 const { data, progress } = defineProps<{
   data: JobRemoveDataFragment;
-  progress: RemoveTaskStateFragment;
+  progress: RemoveTaskStateFragment | undefined | null;
 }>();
 
 const title = computed(() => `Remove Backup ${data.host} #${data.number}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
 
-const hasError = computed(() => progress.removeErrorState !== null);
+const hasError = computed(() => progress?.removeErrorState !== null && progress?.removeErrorState !== undefined);
 
 const globalProgress = computed(() => {
-  switch (progress.removeExecutionState) {
+  switch (progress?.removeExecutionState) {
     case RemoveExecutionState.Waiting:
       return 5;
     case RemoveExecutionState.AddReferencesToPool:
@@ -44,7 +44,7 @@ const globalProgress = computed(() => {
 const globalProgressText = computed((): string => {
   if (!progress) return 'Loading...';
 
-  switch (progress.removeExecutionState) {
+  switch (progress?.removeExecutionState) {
     case RemoveExecutionState.Waiting:
       return 'Waiting to start removal...';
     case RemoveExecutionState.AddReferencesToPool:
@@ -64,7 +64,7 @@ const errorMessage = computed(() => {
   const errors = [];
 
   // The error state uses the same RemoveExecutionState enum to indicate which phase failed
-  switch (progress.removeErrorState) {
+  switch (progress?.removeErrorState) {
     case RemoveErrorState.AddReferencesToPoolError:
       errors.push('Failed to add references to pool');
       break;
@@ -77,7 +77,7 @@ const errorMessage = computed(() => {
     default:
       errors.push('Unknown error occurred during removal');
   }
-  if (progress.removeErrorMessage) {
+  if (progress?.removeErrorMessage) {
     errors.push(progress.removeErrorMessage);
   }
 

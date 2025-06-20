@@ -22,6 +22,7 @@ use crate::{
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
+    utils::thread::spawn_with_context,
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
     RefreshCacheRequest, Share,
@@ -93,7 +94,7 @@ impl<Clt: Client> BackupSave<Clt> {
             backups.get_backup_destination_directory(hostname, backup_number);
 
         info!(
-            "Initialize backup client for {hostname}/{backup_number} in {destination_directory:?}"
+            "Initialize client for backup {hostname}/{backup_number} in {destination_directory:?}"
         );
         let uuid = Uuid::new_v4();
         let uuid = uuid.as_bytes().to_vec();
@@ -804,7 +805,7 @@ impl<Clt: Client> BackupSave<Clt> {
             mpsc::channel::<PoolChunkInformation>(DEFAULT_CHANNEL_BUFFER_SIZE);
         let progression_clone = progression.clone();
 
-        let chunk_task = tokio::spawn(async move {
+        let chunk_task = spawn_with_context(async move {
             while let Some(chunk) = chunk_rx.recv().await {
                 let mut local_prog = progression_clone.lock().await;
                 local_prog.progress_current += chunk.size;
