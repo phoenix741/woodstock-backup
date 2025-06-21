@@ -1,3 +1,12 @@
+# [2.0.0-alpha.42](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.41...v2.0.0-alpha.42) (2025-06-21)
+
+
+### Bug Fixes
+
+* 🐛 first fix of rust logger. ([59069e6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/59069e616d857e7d56da387b9ec342e067528ec2))
+* 🐛 remove redlock that cause backup crash ([3547654](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/35476549a1cf7655563b9357147f9556eaf2a0c3))
+* 🩹 do not log error for empty file hash in refcnt repair (issue [#91](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/91)) ([26dfdb9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/26dfdb9279179ee00109013a20147bf01782526c))
+
 # [2.0.0-alpha.41](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.40...v2.0.0-alpha.41) (2025-06-16)
 
 
