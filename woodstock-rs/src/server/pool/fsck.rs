@@ -12,6 +12,7 @@ use crate::{
         check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
         FsckUnusedCount, PoolChunkWrapper, Refcnt,
     },
+    utils::thread::spawn_with_context,
     woodstock::event::Information,
     Event, EventPoolInformation, EventSource, EventStatus, EventStep, EventType,
 };
@@ -235,7 +236,7 @@ impl PoolFsck {
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
+        let progress_thread = spawn_with_context(async move {
             while let Some(progress) = internal_rx.recv().await {
                 if let Some(tx) = &progress_tx {
                     if let Err(e) = tx.send(progress).await {
@@ -366,7 +367,7 @@ impl PoolFsck {
         info!("Starting unused files verification");
 
         let (internal_tx, mut internal_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
+        let progress_thread = spawn_with_context(async move {
             while let Some(p) = internal_rx.recv().await {
                 if let Some(tx) = &progress_tx {
                     if let Err(e) = tx.send(p).await {
@@ -434,7 +435,7 @@ impl PoolFsck {
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
+        let progress_thread = spawn_with_context(async move {
             while let Some(progress) = internal_rx.recv().await {
                 if let Some(tx) = &progress_tx {
                     if let Err(e) = tx.send(progress).await {

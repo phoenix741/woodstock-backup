@@ -20,3 +20,5 @@ pub mod files;
 pub mod lock;
 /// Provides utilities for path manipulation.
 pub mod path;
+/// Provides utilities for thread management.
+pub mod thread;

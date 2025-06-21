@@ -4,13 +4,13 @@ import { Job, JobState, Queue } from 'bullmq';
 import * as cronParser from 'cron-parser';
 
 import { JsBackupStatus } from '@woodstock/shared-rs';
-import { BackupsService, HostsService, LockService } from '../backups';
+import { BackupsService, HostsService } from '../backups';
 import { PingService } from '../commands';
 import { SchedulerConfigService } from '../config';
 import { QueueName } from '../queue';
 import { BackupQueueData, JobBackupData, JobRemoveData, JobRestoreData } from './backuping.dto';
 
-const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'waiting', 'waiting-children'];
+const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'];
 
 export const LOCK_TIMEOUT = 60_000;
 
@@ -20,7 +20,6 @@ export class JobService extends QueueEventsHost {
 
   constructor(
     @InjectQueue(QueueName.BACKUP_QUEUE) private hostsQueue: Queue<BackupQueueData>,
-    private lockService: LockService,
     private hostsService: HostsService,
     private backupsService: BackupsService,
     private schedulerConfigService: SchedulerConfigService,
@@ -76,42 +75,21 @@ export class JobService extends QueueEventsHost {
     return interval.next().toDate();
   }
 
-  #getJobKey(job: Job<BackupQueueData>): string {
-    const jobData = job.data as JobBackupData | JobRestoreData | JobRemoveData;
-    if (jobData.host) {
-      return jobData.host;
+  #getJobKey(job: Job<JobBackupData>): string {
+    if (job.data.host) {
+      return job.data.host;
     }
     return 'application_level';
   }
 
-  /**
-   * Lock the job during it's execution
-   * @param job The job to lock
-   * @param routine The code to execute
-   * @returns A value to return
-   */
-  using<T>(job: Job<BackupQueueData>, routine: (signal: AbortSignal) => Promise<T>): Promise<T> {
-    return this.lockService.using([this.#getJobKey(job)], LOCK_TIMEOUT, routine);
-  }
-
-  /**
-   * Check if the job is locked
-   * @param job The job to check
-   * @returns A boolean to indicate if the value is locked
-   */
-  async isLocked(job: Job<BackupQueueData> | string): Promise<boolean> {
-    if (typeof job === 'string') {
-      return await this.lockService.isLocked([job]);
-    }
-    return await this.lockService.isLocked([this.#getJobKey(job)]);
-  }
-
   async isBackupRunning(host: string, jobId?: string): Promise<boolean> {
     const runningJob = await this.hostsQueue.getJobs(RUN_JOB_STATE);
-    const runningJobForHost = runningJob.find((b) => this.#getJobKey(b) === host && b.id !== jobId);
+    const runningJobForHost = runningJob.find(
+      (b) => b.name === 'backup' && this.#getJobKey(b as Job<JobBackupData>) === host && b.id !== jobId,
+    );
     if (runningJobForHost) {
       this.logger.debug(
-        `A job is already running for ${host}: ${runningJobForHost.id}/${
+        `A backup job is already running for ${host}: ${runningJobForHost.id}/${
           runningJobForHost.name
         }/${await runningJobForHost.getState()}`,
       );
@@ -135,13 +113,6 @@ export class JobService extends QueueEventsHost {
   async shouldBackupHost(host: string, jobId?: string, force = false): Promise<boolean> {
     // Have already backup
     if (await this.isBackupRunning(host, jobId)) {
-      return false;
-    }
-
-    // Lock
-    const isLocked = await this.isLocked(host);
-    if (isLocked) {
-      this.logger.warn(`A job is already running for ${host}, but is not in the queue`);
       return false;
     }
 

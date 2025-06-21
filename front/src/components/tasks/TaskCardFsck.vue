@@ -4,11 +4,11 @@
     <template #tags>
       <v-chip v-if="progress?.refcntProgression" size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-counter</v-icon>
-        {{ toNumber(progress.unusedProgression.inRefcnt) }} refcnt
+        {{ toNumber(progress?.unusedProgression?.inRefcnt) }} refcnt
       </v-chip>
       <v-chip v-if="progress?.unusedProgression" size="small" class="ma-1" color="green" variant="outlined">
         <v-icon start size="small">mdi-delete</v-icon>
-        {{ toNumber(progress.unusedProgression.inUnused) }} unused
+        {{ toNumber(progress?.unusedProgression?.inUnused) }} unused
       </v-chip>
       <v-chip v-if="totalErrorCount > 0" size="small" class="ma-1" color="error" variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
@@ -38,16 +38,16 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-counter</v-icon>
-                  {{ toNumber(progress.refcntProgression.progressCurrent) }} / {{
-                    toNumber(progress.refcntProgression.progressMax) }} items
+                  {{ toNumber(progress?.refcntProgression?.progressCurrent) }} / {{
+                    toNumber(progress?.refcntProgression?.progressMax) }} items
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-database</v-icon>
-                  {{ toNumber(progress.refcntProgression.totalCount) }} total
+                  {{ toNumber(progress?.refcntProgression?.totalCount) }} total
                 </span>
-                <span v-if="progress.refcntProgression.errorCount > 0" class="mr-4 text-error">
+                <span v-if="progress?.refcntProgression?.errorCount > 0" class="mr-4 text-error">
                   <v-icon size="small">mdi-alert</v-icon>
-                  {{ toNumber(progress.refcntProgression.errorCount) }} errors
+                  {{ toNumber(progress?.refcntProgression?.errorCount) }} errors
                 </span>
               </div>
             </div>
@@ -61,24 +61,24 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-delete</v-icon>
-                  {{ toNumber(progress.unusedProgression.progressCurrent) }} / {{
-                    toNumber(progress.unusedProgression.progressMax) }} items
+                  {{ toNumber(progress?.unusedProgression?.progressCurrent) }} / {{
+                    toNumber(progress?.unusedProgression?.progressMax) }} items
                 </span>
-                <span v-if="progress.unusedProgression.missing > 0" class="mr-4 text-error">
+                <span v-if="progress?.unusedProgression?.missing > 0" class="mr-4 text-error">
                   <v-icon size="small">mdi-help-circle</v-icon>
-                  {{ toNumber(progress.unusedProgression.missing) }} missing
+                  {{ toNumber(progress?.unusedProgression?.missing) }} missing
                 </span>
-                <span v-if="progress.unusedProgression.inNothing > 0" class="mr-4 text-warning">
+                <span v-if="progress?.unusedProgression?.inNothing > 0" class="mr-4 text-warning">
                   <v-icon size="small">mdi-circle-outline</v-icon>
-                  {{ toNumber(progress.unusedProgression.inNothing) }} neither in refcnt or unused
+                  {{ toNumber(progress?.unusedProgression?.inNothing) }} neither in refcnt or unused
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-counter</v-icon>
-                  {{ toNumber(progress.unusedProgression.inRefcnt) }} in refcnt
+                  {{ toNumber(progress?.unusedProgression?.inRefcnt) }} in refcnt
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-delete</v-icon>
-                  {{ toNumber(progress.unusedProgression.inUnused) }} in unused
+                  {{ toNumber(progress?.unusedProgression?.inUnused) }} in unused
                 </span>
               </div>
             </div>
@@ -92,16 +92,16 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-cube</v-icon>
-                  {{ toNumber(progress.chunkProgression.progressCurrent) }} / {{
-                    toNumber(progress.chunkProgression.progressMax) }} chunks
+                  {{ toNumber(progress?.chunkProgression?.progressCurrent) }} / {{
+                    toNumber(progress?.chunkProgression?.progressMax) }} chunks
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-database</v-icon>
-                  {{ toNumber(progress.chunkProgression.totalCount) }} total
+                  {{ toNumber(progress?.chunkProgression?.totalCount) }} total
                 </span>
-                <span v-if="progress.chunkProgression.errorCount > 0" class="mr-4 text-error">
+                <span v-if="progress?.chunkProgression?.errorCount > 0" class="mr-4 text-error">
                   <v-icon size="small">mdi-alert</v-icon>
-                  {{ toNumber(progress.chunkProgression.errorCount) }} corrupted
+                  {{ toNumber(progress?.chunkProgression?.errorCount) }} corrupted
                 </span>
               </div>
             </div>
@@ -120,7 +120,7 @@ import { toNumber, toPercent } from '../hosts/hosts.utils';
 
 const { data, progress } = defineProps<{
   data: JobFsckDataFragment;
-  progress: FsckTaskStateFragment;
+  progress: FsckTaskStateFragment | undefined | null;
 }>();
 
 const title = computed(() => {
@@ -135,7 +135,7 @@ const subtitle = computed(() => {
     return 'Filesystem check failed with error';
   }
 
-  switch (progress.fsckExecutionState) {
+  switch (progress?.fsckExecutionState) {
     case FsckExecutionState.Waiting:
       return 'Waiting to start filesystem check';
     case FsckExecutionState.Initialization:
@@ -156,12 +156,12 @@ const subtitle = computed(() => {
 });
 
 const progressPercent = computed(() => {
-  const progressMax = (progress.refcntProgression?.progressMax ?? 0) +
-    (progress.unusedProgression?.progressMax ?? 0) +
-    (progress.chunkProgression?.progressMax ?? 0);
-  const progressCurrent = (progress.refcntProgression?.progressCurrent ?? 0) +
-    (progress.unusedProgression?.progressCurrent ?? 0) +
-    (progress.chunkProgression?.progressCurrent ?? 0);
+  const progressMax = (progress?.refcntProgression?.progressMax ?? 0) +
+    (progress?.unusedProgression?.progressMax ?? 0) +
+    (progress?.chunkProgression?.progressMax ?? 0);
+  const progressCurrent = (progress?.refcntProgression?.progressCurrent ?? 0) +
+    (progress?.unusedProgression?.progressCurrent ?? 0) +
+    (progress?.chunkProgression?.progressCurrent ?? 0);
 
   return progressMax > 0
     ? (progressCurrent / progressMax) * 100
@@ -169,24 +169,24 @@ const progressPercent = computed(() => {
 });
 
 const refcntProgressionPercent = computed(() => {
-  if (!progress.refcntProgression) return 0;
+  if (!progress?.refcntProgression) return 0;
   return (progress.refcntProgression.progressCurrent / progress.refcntProgression.progressMax) * 100;
 });
 
 const unusedProgressionPercent = computed(() => {
-  if (!progress.unusedProgression) return 0;
+  if (!progress?.unusedProgression) return 0;
   return (progress.unusedProgression.progressCurrent / progress.unusedProgression.progressMax) * 100;
 });
 
 const chunkProgressionPercent = computed(() => {
-  if (!progress.chunkProgression) return 0;
+  if (!progress?.chunkProgression) return 0;
   return (progress.chunkProgression.progressCurrent / progress.chunkProgression.progressMax) * 100;
 });
 
 const progressMessage = computed(() => {
   if (!progress) return '';
 
-  switch (progress.fsckExecutionState) {
+  switch (progress?.fsckExecutionState) {
     case FsckExecutionState.Initialization:
       return ' - Scanning pool structure';
     case FsckExecutionState.ApplyingRefcnt:
@@ -205,7 +205,7 @@ const progressMessage = computed(() => {
 const errorMessage = computed(() => {
   const message = [];
 
-  switch (progress.fsckErrorState) {
+  switch (progress?.fsckErrorState) {
     case FsckErrorState.InitializationError:
       message.push('Failed to initialize filesystem check');
       break;
@@ -225,22 +225,22 @@ const errorMessage = computed(() => {
     default:
       message.push('Unknown filesystem check error occurred');
   }
-  if (progress.fsckErrorMessage) {
+  if (progress?.fsckErrorMessage) {
     message.push(progress.fsckErrorMessage);
   }
 
   return message.join(' - ');
 });
 
-const hasError = computed(() => progress.fsckErrorState !== null);
+const hasError = computed(() => progress?.fsckErrorState !== null && progress?.fsckErrorState !== undefined);
 
 const totalErrorCount = computed((): number => {
   if (!progress) return 0;
 
-  return (progress.refcntProgression?.errorCount ?? 0) +
-    (progress.unusedProgression?.missing ?? 0) +
-    (progress.unusedProgression?.inNothing ?? 0) +
-    (progress.chunkProgression?.errorCount ?? 0);
+  return (progress?.refcntProgression?.errorCount ?? 0) +
+    (progress?.unusedProgression?.missing ?? 0) +
+    (progress?.unusedProgression?.inNothing ?? 0) +
+    (progress?.chunkProgression?.errorCount ?? 0);
 });
 
 </script>

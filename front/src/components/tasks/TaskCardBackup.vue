@@ -1,28 +1,30 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="executionStateMessage" icon="cloud-download"
-    :progress-percent="progress.backupProgress?.percent ?? 0" :progress-message="progressMessage"
-    :error-message="errorMessage" :backup-error-state="!!progress.backupErrorState">
+    :progress-percent="progress?.backupProgress?.percent ?? 0" :progress-message="progressMessage"
+    :error-message="errorMessage" :backup-error-state="!!progress?.backupErrorState">
     <template #tags>
       <v-chip size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-file-multiple</v-icon>
-        {{ toNumber((progress.backupProgress?.newFileCount ?? 0) + (progress.backupProgress?.modifiedFileCount ?? 0)) }}
+        {{ toNumber((progress?.backupProgress?.newFileCount ?? 0) + (progress?.backupProgress?.modifiedFileCount ?? 0))
+        }}
         files
       </v-chip>
       <v-chip size="small" class="ma-1" color="green" variant="outlined">
         <v-icon start size="small">mdi-harddisk</v-icon>
-        {{ filesize((progress.backupProgress?.newFileSize ?? 0) + (progress.backupProgress?.modifiedFileSize ?? 0)) }}
+        {{ filesize((progress?.backupProgress?.newFileSize ?? 0n) + (progress?.backupProgress?.modifiedFileSize ?? 0n))
+        }}
       </v-chip>
       <v-chip size="small" class="ma-1" color="orange" variant="outlined">
         <v-icon start size="small">mdi-zip-box</v-icon>
-        {{ filesize((progress.backupProgress?.newCompressedFileSize ?? 0) +
-          (progress.backupProgress?.modifiedCompressedFileSize ?? 0)) }}
+        {{ filesize((progress?.backupProgress?.newCompressedFileSize ?? 0n) +
+          (progress?.backupProgress?.modifiedCompressedFileSize ?? 0n)) }}
       </v-chip>
-      <v-chip v-if="progress.backupProgress?.errorCount ?? 0 > 0" size="small" class="ma-1" color="error"
+      <v-chip v-if="progress?.backupProgress?.errorCount ?? 0 > 0" size="small" class="ma-1" color="error"
         variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ toNumber(progress.backupProgress.errorCount) }} errors
+        {{ toNumber(progress?.backupProgress?.errorCount) }} errors
       </v-chip>
-      <v-chip v-if="progress.backupErrorState" size="small" class="ma-1" color="error" variant="flat">
+      <v-chip v-if="progress?.backupErrorState" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
         FAILED
       </v-chip>
@@ -31,7 +33,7 @@
     <template #details>
       <v-container>
         <!-- Pre-Commands -->
-        <v-row v-if="progress.preCommandStates?.length" class="mb-4">
+        <v-row v-if="progress?.preCommandStates?.length" class="mb-4">
           <v-col cols="12">
             <h4 class="text-subtitle-2 mb-2">
               <v-icon size="small" class="mr-2">mdi-play-circle</v-icon>
@@ -47,7 +49,7 @@
         </v-row>
 
         <!-- Shares Progress -->
-        <v-row v-if="progress.shareStates?.length" class="mb-4">
+        <v-row v-if="progress?.shareStates?.length" class="mb-4">
           <v-col cols="12">
             <h4 class="text-subtitle-2 mb-3">
               <v-icon size="small" class="mr-2">mdi-folder-multiple</v-icon>
@@ -159,7 +161,7 @@
         </v-row>
 
         <!-- Post-Commands -->
-        <v-row v-if="progress.postCommandStates?.length">
+        <v-row v-if="progress?.postCommandStates?.length">
           <v-col cols="12">
             <h4 class="text-subtitle-2 mb-2">
               <v-icon size="small" class="mr-2">mdi-stop-circle</v-icon>
@@ -188,21 +190,21 @@ import AbstractTaskCard from './AbstractTaskCard.vue';
 
 const { data, progress } = defineProps<{
   data: JobBackupDataFragment;
-  progress: BackupTaskStateFragment;
+  progress: BackupTaskStateFragment | undefined | null;
 }>();
 
 const title = computed(() => `Backup ${data.host}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
 
 const progressMessage = computed(() => {
-  if (progress.backupProgress?.speed > 0) {
-    return `${filesize(progress.backupProgress?.speed)}/s`;
+  if ((progress?.backupProgress?.speed ?? 0) > 0) {
+    return `${filesize(progress?.backupProgress?.speed ?? 0)}/s`;
   }
   return '';
 });
 
 const errorMessage = computed(() => {
   const errors = [];
-  if (progress.backupErrorState) {
+  if (progress?.backupErrorState) {
     switch (progress.backupErrorState) {
       case BackupErrorState.AuthenticationError:
         errors.push('Authentication failed');
@@ -230,14 +232,14 @@ const errorMessage = computed(() => {
         errors.push('Unknown error occurred');
     }
   }
-  if (progress.backupErrorMessage) {
+  if (progress?.backupErrorMessage) {
     errors.push(progress.backupErrorMessage);
   }
   return errors.join(' - ');
 });
 
 const executionStateMessage = computed(() => {
-  switch (progress.backupExecutionState) {
+  switch (progress?.backupExecutionState) {
     case BackupExecutionState.DownloadChunks:
       return 'Downloading chunks...';
     case BackupExecutionState.DownloadFileList:

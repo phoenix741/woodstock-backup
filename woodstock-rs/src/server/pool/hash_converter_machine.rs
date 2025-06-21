@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use crate::{
     config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
     server::pool::convert_state::ConvertState,
-    utils::lock::PoolLock,
+    utils::{lock::PoolLock, thread::spawn_with_context},
     EventSource,
 };
 
@@ -138,7 +138,7 @@ impl HashConverterMachine {
         let convert_state_clone = self.convert_state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
+        let progress_task = spawn_with_context(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut convert_state = convert_state_clone.lock().await;
                 convert_state.process_conversion_progress(progress);

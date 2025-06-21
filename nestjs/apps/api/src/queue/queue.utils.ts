@@ -39,7 +39,10 @@ export class QueueUtils {
     }
   }
 
-  #getJobProgress(job: Bull.Job<BackupQueueData>): BackupProgressData {
+  #getJobProgress(job: Bull.Job<BackupQueueData>): BackupProgressData | undefined {
+    if (!job.progress) {
+      return undefined;
+    }
     switch (job.name) {
       case 'backup':
         return this.queueTasksService.deserializeBackupTask(job.progress as object, BackupTaskState);

@@ -89,60 +89,53 @@ export class HostConsumer extends WorkerHost {
     }
 
     const jobId = job.id ?? 'unknown_jobid';
-    await this.jobService.using(job, async (signal) => {
-      this.#logger.debug(`Update the config - JOB ID = ${job.id}`);
-      const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
+    this.#logger.debug(`Update the config - JOB ID = ${job.id}`);
+    const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
 
-      try {
-        const backupTask = job.data;
+    try {
+      const backupTask = job.data;
 
-        await this.backupsService.invalidateBackup(backupTask.host);
+      await this.backupsService.invalidateBackup(backupTask.host);
 
-        this.#logger.debug(`Get the next backup number - JOB ID = ${job.id}`);
-        if (backupTask.number === undefined) {
-          Object.assign(backupTask, await this.jobService.getNextBackup(backupTask.host));
-          job.updateData(backupTask);
-        }
-
-        return this.applicationLogger.useLogger(
-          { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'backup' },
-          async () => {
-            this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
-            if (!backupTask.ip) {
-              backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
-              if (!backupTask.ip) {
-                throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
-              }
-              job.updateData(backupTask);
-            }
-
-            this.#logger.debug(`Define the start date - JOB ID = ${job.id}`);
-            if (!backupTask.startDate) {
-              backupTask.startDate = Date.now();
-              job.updateData(backupTask);
-            }
-
-            const states$ = await this.backupService.execute(
-              backupTask.host,
-              backupTask.ip,
-              backupTask.number ?? 0,
-              signal,
-            );
-            const lastProgress = await this.queueTaskService.processJobData(job, states$);
-            if (lastProgress.errorState) {
-              throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${lastProgress.errorMessage}`);
-            }
-          },
-        );
-      } catch (err) {
-        this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
-        throw err;
-      } finally {
-        await this.backupsService.invalidateBackup(job.data.host);
-
-        this.applicationLogger.closeLogger(jobId);
+      this.#logger.debug(`Get the next backup number - JOB ID = ${job.id}`);
+      if (backupTask.number === undefined) {
+        Object.assign(backupTask, await this.jobService.getNextBackup(backupTask.host));
+        job.updateData(backupTask);
       }
-    });
+
+      await this.applicationLogger.useLogger(
+        { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'backup' },
+        async (context) => {
+          this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
+          if (!backupTask.ip) {
+            backupTask.ip = await this.pingService.pingFromConfig(backupTask.host, config);
+            if (!backupTask.ip) {
+              throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
+            }
+            job.updateData(backupTask);
+          }
+
+          this.#logger.debug(`Define the start date - JOB ID = ${job.id}`);
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
+
+          const states$ = this.backupService.execute(context, backupTask.host, backupTask.ip, backupTask.number ?? 0);
+          const lastProgress = await this.queueTaskService.processJobData(job, states$);
+          if (lastProgress.errorState) {
+            throw new LaunchBackupError(`Backup failed for ${job.data.host} with state ${lastProgress.errorMessage}`);
+          }
+        },
+      );
+    } catch (err) {
+      this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
+      throw err;
+    } finally {
+      await this.backupsService.invalidateBackup(job.data.host);
+
+      this.applicationLogger.closeLogger(jobId);
+    }
     this.#logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
   }
 
@@ -158,56 +151,52 @@ export class HostConsumer extends WorkerHost {
     }
 
     const jobId = job.id ?? 'unknown_jobid';
-    await this.jobService.using(job, async (signal) => {
-      this.#logger.debug(`Update the config - JOB ID = ${job.id}`);
-      const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
+    this.#logger.debug(`Update the config - JOB ID = ${job.id}`);
+    const config = await this.hostConsumerUtilService.updateBackupTaskConfig(job);
 
-      try {
-        const backupTask = job.data;
+    try {
+      const backupTask = job.data;
 
-        return this.applicationLogger.useLogger(
-          { jobId: jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'restore' },
-          async () => {
-            this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
-            if (!backupTask.ip) {
-              const ip = await this.pingService.pingFromConfig(backupTask.host, config);
-              if (!ip) {
-                throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
-              }
-              backupTask.ip = ip;
-
-              job.updateData(backupTask);
+      await this.applicationLogger.useLogger(
+        { jobId: jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'restore' },
+        async (context) => {
+          this.#logger.debug(`Resolve IP - JOB ID = ${job.id}`);
+          if (!backupTask.ip) {
+            const ip = await this.pingService.pingFromConfig(backupTask.host, config);
+            if (!ip) {
+              throw new BadGatewayException(`Can't find IP for host ${backupTask.host}`);
             }
+            backupTask.ip = ip;
 
-            this.#logger.debug(`Define the start date - JOB ID = ${job.id}`);
-            if (!backupTask.startDate) {
-              backupTask.startDate = Date.now();
-              job.updateData(backupTask);
-            }
+            job.updateData(backupTask);
+          }
 
-            const states$ = await this.restoreService.execute(
-              backupTask.host,
-              backupTask.ip,
-              backupTask.number ?? 0,
-              backupTask.destinationDirectory,
-              backupTask.files,
-              signal,
-            );
-            const lastProgress = await this.queueTaskService.processJobData(job, states$);
-            if (lastProgress.errorState) {
-              throw new LaunchBackupError(
-                `Restore failed for ${job.data.host} with state ${lastProgress.errorMessage}`,
-              );
-            }
-          },
-        );
-      } catch (err) {
-        this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
-        throw err;
-      } finally {
-        this.applicationLogger.closeLogger(jobId);
-      }
-    });
+          this.#logger.debug(`Define the start date - JOB ID = ${job.id}`);
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
+
+          const states$ = this.restoreService.execute(
+            context,
+            backupTask.host,
+            backupTask.ip,
+            backupTask.number ?? 0,
+            backupTask.destinationDirectory,
+            backupTask.files,
+          );
+          const lastProgress = await this.queueTaskService.processJobData(job, states$);
+          if (lastProgress.errorState) {
+            throw new LaunchBackupError(`Restore failed for ${job.data.host} with state ${lastProgress.errorMessage}`);
+          }
+        },
+      );
+    } catch (err) {
+      this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
+      throw err;
+    } finally {
+      this.applicationLogger.closeLogger(jobId);
+    }
     this.#logger.debug(`END: Of backup of the host ${job.data.host} - JOB ID = ${job.id}`);
   }
 
@@ -215,35 +204,33 @@ export class HostConsumer extends WorkerHost {
     this.#logger.debug(`START: Remove ${job.data.host} backup number ${job.data.number} - JOB ID = ${job.id}`);
 
     const jobId = job.id ?? 'unknown_jobid';
-    await this.jobService.using(job, async (signal) => {
-      try {
-        const backupTask = job.data;
+    try {
+      const backupTask = job.data;
 
-        return this.applicationLogger.useLogger(
-          { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'remove' },
-          async () => {
-            if (!backupTask.startDate) {
-              backupTask.startDate = Date.now();
-              job.updateData(backupTask);
-            }
+      await this.applicationLogger.useLogger(
+        { jobId, hostname: backupTask.host, backupNumber: backupTask.number ?? -1, operation: 'remove' },
+        async (context) => {
+          if (!backupTask.startDate) {
+            backupTask.startDate = Date.now();
+            job.updateData(backupTask);
+          }
 
-            const states$ = await this.removeService.execute(backupTask.host, backupTask.number ?? 0, signal);
-            const lastProgress = await this.queueTaskService.processJobData(job, states$);
-            if (lastProgress.errorState) {
-              throw new LaunchBackupError(
-                `Remove operation failed for ${job.data.host} with state ${lastProgress.errorMessage}`,
-              );
-            }
-          },
-        );
-      } catch (err) {
-        this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
-        throw err;
-      } finally {
-        this.applicationLogger.closeLogger(jobId);
-        this.#logger.log(`[END] Removing backup ${job.data.number} of ${job.data.host} done`);
-      }
-    });
+          const states$ = await this.removeService.execute(context, backupTask.host, backupTask.number ?? 0);
+          const lastProgress = await this.queueTaskService.processJobData(job, states$);
+          if (lastProgress.errorState) {
+            throw new LaunchBackupError(
+              `Remove operation failed for ${job.data.host} with state ${lastProgress.errorMessage}`,
+            );
+          }
+        },
+      );
+    } catch (err) {
+      this.#logger.error(`END: Job for ${job.data.host} failed with error: ${err.message} - JOB ID = ${job.id}`, err);
+      throw err;
+    } finally {
+      this.applicationLogger.closeLogger(jobId);
+      this.#logger.log(`[END] Removing backup ${job.data.number} of ${job.data.host} done`);
+    }
   }
 
   async #processFsck(job: Job<JobFsckData>): Promise<void> {
@@ -253,8 +240,8 @@ export class HostConsumer extends WorkerHost {
     try {
       const backupTask = job.data;
 
-      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async () => {
-        const states$ = this.fsckService.execute(backupTask.dryRun, backupTask.verifyChunks);
+      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async (context) => {
+        const states$ = this.fsckService.execute(context, backupTask.dryRun, backupTask.verifyChunks);
         const lastProgress = await this.queueTaskService.processJobData(job, states$);
         if (lastProgress.errorState) {
           throw new LaunchBackupError(`Pool check failed with error ${lastProgress.errorMessage}`);
@@ -276,8 +263,8 @@ export class HostConsumer extends WorkerHost {
     try {
       const taskData = job.data;
 
-      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async () => {
-        const states$ = this.cleanupService.execute(taskData.target);
+      await this.applicationLogger.useLogger({ jobId, operation: 'refcnt' }, async (context) => {
+        const states$ = this.cleanupService.execute(context, taskData.target);
         const lastProgress = await this.queueTaskService.processJobData(job, states$);
         if (lastProgress.errorState) {
           throw new LaunchBackupError(`Pool check failed with error ${lastProgress.errorMessage}`);

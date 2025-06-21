@@ -10,7 +10,9 @@ use napi::{
   threadsafe_function::{ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction},
   Error, JsFunction, Result,
 };
-use woodstock::{config::GlobalConfiguration, events::read_events, Event};
+use woodstock::{
+  config::GlobalConfiguration, events::read_events, utils::thread::spawn_with_context, Event,
+};
 
 #[napi]
 /// List events between two dates and return them via a callback.
@@ -44,7 +46,7 @@ pub fn list_events(
     .map_err(|e| Error::from_reason(format!("Can't parse end date {e:?}").to_string()))?;
 
   let tsfn = tsfn.clone();
-  tokio::spawn(async move {
+  spawn_with_context(async move {
     // Read events from the file
     let events = read_events(events, start_date, end_date)
       .await

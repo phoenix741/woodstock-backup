@@ -6,7 +6,10 @@ use napi::{
   },
   Error, JsFunction, Result,
 };
-use woodstock::config::{Backups, GlobalConfiguration};
+use woodstock::{
+  config::{Backups, GlobalConfiguration},
+  utils::thread::spawn_with_context,
+};
 
 use crate::{models::JsBackup, server::AbortHandle};
 
@@ -108,7 +111,7 @@ impl JsBackupsService {
       .backups
       .get_manifest(&hostname, backup_number as usize, &share_path);
 
-    let handle = tokio::spawn(async move {
+    let handle = spawn_with_context(async move {
       let messages = manifest.read_log_entries();
       pin_mut!(messages);
 

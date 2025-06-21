@@ -7,18 +7,14 @@ use woodstock::{
   server::{
     backup::{
       restore_machine::RestoreBackupMachine,
-      restore_state::ErrorState,
-      restore_state::{RestoreExecutionState, RestoreState},
+      restore_state::{ErrorState, RestoreExecutionState, RestoreState},
     },
     client::grpc::BackupGrpcClient,
   },
+  utils::thread::{spawn_with_context, spawn_with_context_id},
 };
 
-use crate::{
-  config::context::JsBackupContext,
-  log::{LogBackupContext, LOG_CONTEXT},
-  server::abort_handle::AbortHandle,
-};
+use crate::{config::context::JsBackupContext, log::LogContext, server::abort_handle::AbortHandle};
 
 use super::JsBackupProgression;
 
@@ -124,6 +120,8 @@ pub struct JsBackupRestoreService {
   backup_number: usize,
   /// The Woodstock context for configuration and state management.
   context: WoodstockContext,
+  /// The log context used for restore logging
+  log_context: LogContext,
 }
 
 #[napi]
@@ -139,12 +137,13 @@ impl JsBackupRestoreService {
   /// # Errors
   /// Returns an error if the backup number cannot be converted to `usize`.
   #[napi(factory)]
-  pub async fn create_service(
+  pub fn create_service(
     hostname: String,
     ip: String,
     backup_number: u32,
     context: &JsBackupContext,
   ) -> Result<Self> {
+    let log_context: LogContext = context.into();
     let context: WoodstockContext = context.into();
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
@@ -154,6 +153,7 @@ impl JsBackupRestoreService {
       ip,
       backup_number: backup_number_usize,
       context,
+      log_context,
     })
   }
 
@@ -195,117 +195,106 @@ impl JsBackupRestoreService {
     let tsfn: ThreadsafeFunction<JsRestoreCallbackMessage, ErrorStrategy::Fatal> =
       callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
-    let log_hostname = self.hostname.clone();
-    let log_backup_number = self.backup_number as u32;
-
     let hostname = self.hostname.clone();
     let backup_number_usize = self.backup_number;
     let woodstock_context = self.context.clone();
     let ip = self.ip.clone();
 
-    let handle = tokio::spawn(async move {
-      LOG_CONTEXT
-        .scope(
-          LogBackupContext {
-            hostname: log_hostname,
-            backup_number: log_backup_number,
+    let tsfn_clone_for_state_update = tsfn.clone();
+
+    let (tx_state, mut rx_state) =
+      tokio::sync::mpsc::channel::<RestoreState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+
+    let state_update_task = spawn_with_context(async move {
+      while let Some(state) = rx_state.recv().await {
+        let js_state: JsRestoreState = state.into();
+        tsfn_clone_for_state_update.call(
+          JsRestoreCallbackMessage {
+            state: Some(js_state),
+            error: None,
+            complete: false,
           },
-          async {
-            let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, &GlobalConfiguration).await
-            else {
-              tsfn.call(
-                JsRestoreCallbackMessage {
-                  state: None,
-                  error: Some("Failed to create gRPC client".to_string()),
-                  complete: true,
-                },
-                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-              );
-              return;
-            };
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
+        );
+      }
+    });
 
-            let (tx_state, mut rx_state) =
-            tokio::sync::mpsc::channel::<RestoreState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+      let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, &GlobalConfiguration).await
+      else {
+        tsfn.call(
+          JsRestoreCallbackMessage {
+            state: None,
+            error: Some("Failed to create gRPC client".to_string()),
+            complete: true,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+        return;
+      };
 
+      let Ok(mut machine) = RestoreBackupMachine::new(
+        grpc_client,
+        &hostname,
+        backup_number_usize,
+        &woodstock_context,
+        &GlobalConfiguration,
+        Some(tx_state),
+      )
+      .await
+      .map_err(|e| Error::from_reason(format!("Can't create RestoreBackupMachine: {}", e))) else {
+        tsfn.call(
+          JsRestoreCallbackMessage {
+            state: None,
+            error: Some("Failed to create RestoreBackupMachine".to_string()),
+            complete: true,
+          },
+          napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+        );
+        return;
+      };
 
-            let Ok(mut machine) = RestoreBackupMachine::new(
-              grpc_client,
-              &hostname,
-              backup_number_usize,
-              &woodstock_context,
-              &GlobalConfiguration,
-              Some(tx_state),
-            )
-            .await
-            .map_err(|e| Error::from_reason(format!("Can't create RestoreBackupMachine: {}", e))) else {
-              tsfn.call(
-                JsRestoreCallbackMessage {
-                  state: None,
-                  error: Some("Failed to create RestoreBackupMachine".to_string()),
-                  complete: true,
-                },
-                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-              );
-              return;
-            };
-
-            let tsfn_clone_for_state_update = tsfn.clone();
-
-            let state_update_task = tokio::spawn(async move {
-              while let Some(state) = rx_state.recv().await {
-                let js_state: JsRestoreState = state.into();
-                tsfn_clone_for_state_update.call(
-                  JsRestoreCallbackMessage {
-                    state: Some(js_state),
-                    error: None,
-                    complete: false,
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::NonBlocking,
-                );
-              }
-            });
-
-            // Convert JsShareSelection to ShareSelection<&str, &str>
-            let share_selection_native = share_selection.iter().map(|sel| {
-                woodstock::server::backup::restore_machine::ShareSelection {
-                    share: sel.share.as_str(),
-                    selection: sel.selection.iter().map(|s| s.as_str()).collect::<Vec<_>>()
-                }
-            }).collect::<Vec<_>>();
-
-            let result = machine
-              .execute(&destination_directory, &share_selection_native)
-              .await;
-
-            drop(machine);
-
-            let _ = state_update_task.await;
-
-            match result {
-              Ok(()) => {
-                tsfn.call(
-                  JsRestoreCallbackMessage {
-                    state: None,
-                    error: None,
-                    complete: true,
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                );
-              }
-              Err(e) => {
-                tsfn.call(
-                  JsRestoreCallbackMessage {
-                    state: None,
-                    error: Some(e.to_string()),
-                    complete: true,
-                  },
-                  napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                );
-              }
-            }
+      // Convert JsShareSelection to ShareSelection<&str, &str>
+      let share_selection_native = share_selection
+        .iter()
+        .map(
+          |sel| woodstock::server::backup::restore_machine::ShareSelection {
+            share: sel.share.as_str(),
+            selection: sel.selection.iter().map(|s| s.as_str()).collect::<Vec<_>>(),
           },
         )
-        .await
+        .collect::<Vec<_>>();
+
+      let result = machine
+        .execute(&destination_directory, &share_selection_native)
+        .await;
+
+      drop(machine);
+
+      let _ = state_update_task.await;
+
+      match result {
+        Ok(()) => {
+          tsfn.call(
+            JsRestoreCallbackMessage {
+              state: None,
+              error: None,
+              complete: true,
+            },
+            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+          );
+        }
+        Err(e) => {
+          tsfn.call(
+            JsRestoreCallbackMessage {
+              state: None,
+              error: Some(e.to_string()),
+              complete: true,
+            },
+            napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+          );
+        }
+      }
     });
 
     Ok(AbortHandle::new(handle))

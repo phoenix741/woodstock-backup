@@ -1,21 +1,21 @@
 <template>
-  <template v-if="job.name === 'backup' && backupData && backupProgress">
+  <template v-if="job.name === 'backup' && backupData">
     <TaskCardBackup :data="backupData" :progress="backupProgress">
     </TaskCardBackup>
   </template>
-  <template v-else-if="job.name === 'restore' && restoreData && restoreProgress">
+  <template v-else-if="job.name === 'restore' && restoreData">
     <TaskCardRestore :data="restoreData" :progress="restoreProgress">
     </TaskCardRestore>
   </template>
-  <template v-else-if="job.name === 'remove_backup' && removeData && removeProgress">
+  <template v-else-if="job.name === 'remove_backup' && removeData">
     <TaskCardRemove :data="removeData" :progress="removeProgress">
     </TaskCardRemove>
   </template>
-  <template v-else-if="job.name === 'fsck' && fsckData && fsckProgress">
+  <template v-else-if="job.name === 'fsck' && fsckData">
     <TaskCardFsck :data="fsckData" :progress="fsckProgress">
     </TaskCardFsck>
   </template>
-  <template v-else-if="job.name === 'cleanup_refcnt' && cleanupData && cleanupProgress">
+  <template v-else-if="job.name === 'cleanup_refcnt' && cleanupData">
     <TaskCardCleanup :data="cleanupData" :progress="cleanupProgress">
     </TaskCardCleanup>
   </template>

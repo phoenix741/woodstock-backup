@@ -33,7 +33,7 @@ import filesize from '@/utils/filesize';
 
 const { data, progress } = defineProps<{
   data: JobCleanupDataFragment;
-  progress: CleanerTaskStateFragment;
+  progress: CleanerTaskStateFragment | undefined | null;
 }>();
 
 const title = computed(() => `Pool Cleanup ${data.target ? `- ${data.target}` : ''}`);
@@ -43,7 +43,7 @@ const subtitle = computed(() => {
     return 'Cleanup failed with error';
   }
 
-  switch (progress.cleanerExecutionState) {
+  switch (progress?.cleanerExecutionState) {
     case CleanerExecutionState.Waiting:
       return 'Waiting in queue';
     case CleanerExecutionState.Initialization:
@@ -60,12 +60,12 @@ const subtitle = computed(() => {
 });
 
 const progressPercent = computed(() => {
-  if (progress.cleanerExecutionState === CleanerExecutionState.Completed) {
+  if (progress?.cleanerExecutionState === CleanerExecutionState.Completed) {
     return 100;
   }
 
-  if ((progress.cleanerProgress?.progressMax ?? 0) > 0) {
-    return (progress.cleanerProgress.progressCurrent / progress.cleanerProgress.progressMax) * 100;
+  if ((progress?.cleanerProgress?.progressMax ?? 0) > 0) {
+    return ((progress?.cleanerProgress?.progressCurrent ?? 0) / (progress?.cleanerProgress?.progressMax ?? 1) * 100);
   }
   return 0;
 });
@@ -92,7 +92,7 @@ const progressMessage = computed(() => {
 const errorMessage = computed(() => {
   const message = [];
 
-  switch (progress.cleanerErrorState) {
+  switch (progress?.cleanerErrorState) {
     case CleanerErrorState.InitializationError:
       message.push('Failed to initialize cleanup process');
       break;
@@ -107,13 +107,13 @@ const errorMessage = computed(() => {
       message.push('Unknown cleanup error occurred');
       break;
   }
-  if (progress.cleanerErrorMessage) {
+  if (progress?.cleanerErrorMessage) {
     message.push(progress.cleanerErrorMessage);
   }
 
   return message.join(' - ');
 });
 
-const hasError = computed(() => !!progress.cleanerErrorState || !!progress.cleanerErrorMessage);
+const hasError = computed(() => !!progress?.cleanerErrorState || !!progress?.cleanerErrorMessage);
 
 </script>

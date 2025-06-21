@@ -9,13 +9,10 @@ use woodstock::{
     remove_machine::RemoveBackupMachine,
     remove_state::{ErrorState as WoodstockErrorState, RemoveExecutionState, RemoveState},
   },
+  utils::thread::spawn_with_context_id,
 };
 
-use crate::{
-  config::context::JsBackupContext,
-  log::{LogBackupContext, LOG_CONTEXT},
-  server::abort_handle::AbortHandle,
-};
+use crate::{config::context::JsBackupContext, log::LogContext, server::abort_handle::AbortHandle};
 
 #[napi(string_enum)]
 pub enum JsRemoveExecutionState {
@@ -103,6 +100,8 @@ pub struct JsBackupRemoveService {
   backup_number: usize,
   /// Woodstock context for the backup operation.
   woodstock_context: WoodstockContext,
+  /// The log context used for restore logging
+  log_context: LogContext,
 }
 
 #[napi]
@@ -119,12 +118,14 @@ impl JsBackupRemoveService {
   ) -> Result<Self> {
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
+    let log_context: LogContext = context.into();
     let woodstock_context = WoodstockContext::from(context);
 
     Ok(Self {
       hostname,
       backup_number: backup_number_usize,
       woodstock_context,
+      log_context,
     })
   }
 
@@ -140,87 +141,70 @@ impl JsBackupRemoveService {
     let tsfn: ThreadsafeFunction<JsRemoveCallbackMessage, ErrorStrategy::Fatal> =
       callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
-    let log_hostname = self.hostname.clone();
-    let log_backup_number = self.backup_number as u32;
-
     let hostname_clone = self.hostname.clone();
     let backup_number_clone = self.backup_number;
     let woodstock_context_clone = self.woodstock_context.clone();
     let config_for_machine = &GlobalConfiguration;
 
-    let handle = tokio::spawn(async move {
-      LOG_CONTEXT
-        .scope(
-          LogBackupContext {
-            hostname: log_hostname,
-            backup_number: log_backup_number,
+    let (tx_state, mut rx_state) =
+      tokio::sync::mpsc::channel::<RemoveState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+    let tsfn_clone_for_state_update = tsfn.clone();
+    let state_update_task = tokio::spawn(async move {
+      while let Some(state) = rx_state.recv().await {
+        let js_state: JsRemoveState = state.into();
+        let _ = tsfn_clone_for_state_update.call(
+          JsRemoveCallbackMessage {
+            state: Some(js_state),
+            error: None,
+            complete: false,
           },
-          async {
-            let (tx_state, mut rx_state) =
-              tokio::sync::mpsc::channel::<RemoveState>(DEFAULT_CHANNEL_BUFFER_SIZE);
+          ThreadsafeFunctionCallMode::NonBlocking,
+        );
+      }
+    });
 
-            let mut machine = RemoveBackupMachine::new(
-              &hostname_clone,
-              backup_number_clone,
-              &woodstock_context_clone,
-              config_for_machine,
-              Some(tx_state),
-            );
+    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+      let mut machine = RemoveBackupMachine::new(
+        &hostname_clone,
+        backup_number_clone,
+        &woodstock_context_clone,
+        config_for_machine,
+        Some(tx_state),
+      );
 
-            let tsfn_clone_for_state_update = tsfn.clone();
-            let state_update_task = tokio::spawn(async move {
-              while let Some(state) = rx_state.recv().await {
-                let js_state: JsRemoveState = state.into();
-                let call_result = tsfn_clone_for_state_update.call(
-                  JsRemoveCallbackMessage {
-                    state: Some(js_state),
-                    error: None,
-                    complete: false,
-                  },
-                  ThreadsafeFunctionCallMode::NonBlocking,
-                );
-                if call_result != Status::Ok {
-                  error!("Failed to send state update to JS: {:?}", call_result);
-                }
-              }
-            });
+      let result = machine.execute().await;
 
-            let result = machine.execute().await;
+      drop(machine);
+      let _ = state_update_task.await;
 
-            drop(machine);
-            let _ = state_update_task.await;
-
-            match result {
-              Ok(()) => {
-                let call_result = tsfn.call(
-                  JsRemoveCallbackMessage {
-                    state: None,
-                    error: None,
-                    complete: true,
-                  },
-                  ThreadsafeFunctionCallMode::Blocking,
-                );
-                if call_result != Status::Ok {
-                  error!("Failed to call completion callback: {:?}", call_result);
-                }
-              }
-              Err(e) => {
-                let call_result = tsfn.call(
-                  JsRemoveCallbackMessage {
-                    state: None,
-                    error: Some(e.to_string()),
-                    complete: true,
-                  },
-                  ThreadsafeFunctionCallMode::Blocking,
-                );
-                if call_result != Status::Ok {
-                  error!("Failed to call error callback: {:?}", call_result);
-                }
-              }
-            }
-          },
-        )
-        .await;
+      match result {
+        Ok(()) => {
+          let call_result = tsfn.call(
+            JsRemoveCallbackMessage {
+              state: None,
+              error: None,
+              complete: true,
+            },
+            ThreadsafeFunctionCallMode::Blocking,
+          );
+          if call_result != Status::Ok {
+            error!("Failed to call completion callback: {:?}", call_result);
+          }
+        }
+        Err(e) => {
+          let call_result = tsfn.call(
+            JsRemoveCallbackMessage {
+              state: None,
+              error: Some(e.to_string()),
+              complete: true,
+            },
+            ThreadsafeFunctionCallMode::Blocking,
+          );
+          if call_result != Status::Ok {
+            error!("Failed to call error callback: {:?}", call_result);
+          }
+        }
+      }
     });
 
     Ok(AbortHandle::new(handle))

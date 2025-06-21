@@ -1,4 +1,4 @@
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -16,8 +16,9 @@ use crate::proto::CompressedWriter;
 use crate::proto::ProtobufWriter;
 use crate::statistics::write_statistics;
 use crate::statistics::PoolStatistics;
+use crate::utils::chunk_hasher::is_empty_hash;
 use crate::PoolUnused;
-use crate::{proto::ProtobufReader, PoolRefCount};
+use crate::{proto::ProtobufReader, ChunkAlgorithm, PoolRefCount};
 use eyre::Result;
 
 use super::PoolChunkWrapper;
@@ -317,7 +318,7 @@ impl Refcnt {
     /// * `refcnt` - The source [`Refcnt`] instance to apply.
     /// * `sens` - The sensitivity (increase or decrease) for applying reference counts.
     /// * `date` - The current system time for logging purposes.
-    /// * `config` - Reference to the Woodstock [`Configuration`] struct.
+    /// * `algorithm` - The chunk algorithm used to identify empty file hashes.
     ///
     /// # Returns
     ///
@@ -332,12 +333,13 @@ impl Refcnt {
         refcnt: &Refcnt,
         sens: &RefcntApplySens,
         date: &SystemTime,
+        algorithm: ChunkAlgorithm,
     ) -> Result<Self> {
         let mut new_refcnt = Refcnt::load_refcnt_from_path(path).await?;
 
         debug!("Apply refcnt from {:?}", refcnt.path);
         new_refcnt.apply_all(&refcnt, sens);
-        new_refcnt.repair(&path).await?;
+        new_refcnt.repair(&path, algorithm).await?;
         new_refcnt.save_refcnt(date, false).await?;
 
         Ok(new_refcnt)
@@ -547,10 +549,12 @@ impl Refcnt {
     /// This method iterates through all reference count entries and checks for missing
     /// size or compressed_size information. When these values are zero, it reads the
     /// actual chunk information from the pool and updates the reference count entry.
+    /// For empty file hashes, no chunk information is expected and the entry is skipped.
     ///
     /// # Arguments
     ///
     /// * `pool_path` - The root directory of the pool where chunk files are stored.
+    /// * `algorithm` - The chunk algorithm used to identify empty file hashes.
     ///
     /// # Returns
     ///
@@ -562,7 +566,7 @@ impl Refcnt {
     /// Returns an error if:
     /// * Chunk information cannot be read from the pool
     /// * I/O operations fail during chunk inspection
-    pub async fn repair(&mut self, pool_path: &Path) -> Result<()> {
+    pub async fn repair(&mut self, pool_path: &Path, algorithm: ChunkAlgorithm) -> Result<()> {
         debug!("Read chunk informations for {:?}", self.refcnt_path);
         // For each value check chunk informations
         for (sha256_pool_refcnt, pool_refcnt) in &mut self.index {
@@ -570,11 +574,27 @@ impl Refcnt {
                 let wrapper = PoolChunkWrapper::new(pool_path, Some(sha256_pool_refcnt));
                 let hash_str = wrapper.get_hash_str().as_ref().map_or("None", |v| v);
 
-                error!("Missing size or compressed size for {}", hash_str);
+                // Check if this is an empty file hash - this is normal and expected
+                if is_empty_hash(sha256_pool_refcnt, algorithm) {
+                    debug!(
+                        "Empty file hash detected, skipping metadata check: {}",
+                        hash_str
+                    );
+                    continue;
+                }
+
+                warn!(
+                    "Missing size or compressed size for non-empty hash: {}",
+                    hash_str
+                );
 
                 if let Ok(informations) = wrapper.chunk_information().await {
                     pool_refcnt.size = informations.size;
                     pool_refcnt.compressed_size = informations.compressed_size;
+                    info!(
+                        "Repaired metadata for {}: size={}, compressed_size={}",
+                        hash_str, informations.size, informations.compressed_size
+                    );
                 } else {
                     error!("Cannot read chunk information for {}", hash_str);
                 }
@@ -798,18 +818,42 @@ mod tests {
         // Add all refcnt to the pool
         let now = SystemTime::now();
         let pool_path = Path::new("./data/pool_refcnt");
-        Refcnt::apply_all_from(pool_path, &refcnt1, &RefcntApplySens::Increase, &now)
-            .await
-            .unwrap();
-        Refcnt::apply_all_from(pool_path, &refcnt2, &RefcntApplySens::Increase, &now)
-            .await
-            .unwrap();
-        Refcnt::apply_all_from(pool_path, &refcnt3, &RefcntApplySens::Increase, &now)
-            .await
-            .unwrap();
-        Refcnt::apply_all_from(pool_path, &refcnt4, &RefcntApplySens::Increase, &now)
-            .await
-            .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt1,
+            &RefcntApplySens::Increase,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt2,
+            &RefcntApplySens::Increase,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt3,
+            &RefcntApplySens::Increase,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
+        Refcnt::apply_all_from(
+            pool_path,
+            &refcnt4,
+            &RefcntApplySens::Increase,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
 
         // Load refcnt from the pool
         let mut pool_refcnt = Refcnt::new(pool_path);
@@ -860,9 +904,15 @@ mod tests {
             ]
         );
 
-        let pool = Refcnt::apply_all_from(pool_path, &refcnt2, &RefcntApplySens::Decrease, &now)
-            .await
-            .unwrap();
+        let pool = Refcnt::apply_all_from(
+            pool_path,
+            &refcnt2,
+            &RefcntApplySens::Decrease,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
         let mut pool_refcnt_values = pool.index.values().collect::<Vec<&PoolRefCount>>();
         pool_refcnt_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
 
@@ -908,9 +958,15 @@ mod tests {
             ]
         );
 
-        let pool = Refcnt::apply_all_from(pool_path, &refcnt3, &RefcntApplySens::Decrease, &now)
-            .await
-            .unwrap();
+        let pool = Refcnt::apply_all_from(
+            pool_path,
+            &refcnt3,
+            &RefcntApplySens::Decrease,
+            &now,
+            ChunkAlgorithm::Blake3,
+        )
+        .await
+        .unwrap();
         let mut pool_refcnt_values = pool.index.values().collect::<Vec<&PoolRefCount>>();
         pool_refcnt_values.sort_by(|a, b| a.sha256.cmp(&b.sha256));
 

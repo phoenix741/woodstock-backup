@@ -15,10 +15,13 @@ use woodstock::{
       ErrorState as InnerCleanerErrorState,
     },
   },
+  utils::thread::spawn_with_context_id,
   EventPoolCleanedInformation, EventSource,
 };
 
-use crate::{events::JsEventSource, server::AbortHandle};
+use crate::{
+  config::context::JsBackupContext, events::JsEventSource, log::LogContext, server::AbortHandle,
+};
 
 // --- JS-friendly Enums ---
 #[napi(string_enum)]
@@ -142,21 +145,27 @@ pub struct PoolCleanerMessage {
 pub struct JsPoolCleanerService {
   /// The configuration used for pool cleaning operations.
   config: Configuration,
-}
-
-impl Default for JsPoolCleanerService {
-  fn default() -> Self {
-    Self::new()
-  }
+  /// The log context used for restore logging
+  log_context: LogContext,
 }
 
 #[napi]
 impl JsPoolCleanerService {
-  #[napi(constructor)]
-  pub fn new() -> Self {
-    Self {
+  #[napi(factory)]
+  /// Creates a new `JsPoolCleanerService` instance.
+  ///
+  /// # Arguments
+  /// * `context` - The Woodstock backup context.
+  ///
+  /// # Errors
+  /// Returns an error if the backup number cannot be converted to `usize`.
+  pub fn create_service(context: &JsBackupContext) -> Result<Self> {
+    let log_context: LogContext = context.into();
+
+    Ok(Self {
       config: GlobalConfiguration.clone(),
-    }
+      log_context,
+    })
   }
 
   #[napi]
@@ -202,7 +211,7 @@ impl JsPoolCleanerService {
     });
 
     let tsfn_clone_task = tsfn.clone();
-    let handle = tokio::spawn(async move {
+    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
       let machine = PoolCleanerMachine::new(&config, target_path, event_source, Some(state_tx));
       let machine_result = machine.execute().await;
 

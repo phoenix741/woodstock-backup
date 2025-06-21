@@ -10,7 +10,7 @@ use crate::{
         HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     server::{client::Client, progression::BackupProgression},
-    utils::lock::PoolLock,
+    utils::{lock::PoolLock, thread::spawn_with_context},
     Share,
 };
 
@@ -317,7 +317,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         let state_tx_clone = self.state_tx.clone();
         let progression_state = self.progression_state.clone();
 
-        let file_list_task = tokio::spawn(async move {
+        let file_list_task = spawn_with_context(async move {
             while let Some(progress) = file_rx.recv().await {
                 let mut progression_state = progression_state.lock().await;
                 progression_state.process_synchronize_file_list_progress(&share_path, &progress);
@@ -422,7 +422,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         let share_path_clone = share_path.to_string();
         let state_tx_clone = self.state_tx.clone();
 
-        let backup_task = tokio::spawn(async move {
+        let backup_task = spawn_with_context(async move {
             while let Some(progress) = backup_rx.recv().await {
                 let mut progression_state = progression_state_clone.lock().await;
                 progression_state.process_backup_progress(&share_path_clone, &progress);

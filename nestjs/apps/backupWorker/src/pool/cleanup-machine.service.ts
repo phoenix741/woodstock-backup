@@ -1,11 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { CorePoolCleanerService, JsCleanerStatusUpdate, JsEventSource } from '@woodstock/shared-rs';
+import {
+  CorePoolCleanerService,
+  generateContext,
+  JsCleanerStatusUpdate,
+  JsEventSource,
+  LogContext,
+} from '@woodstock/shared-rs';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class CleanupMachineService {
-  execute(target?: string, abort?: AbortSignal): Observable<JsCleanerStatusUpdate> {
-    const service = new CorePoolCleanerService();
+  execute(logContext: LogContext, target?: string, abort?: AbortSignal): Observable<JsCleanerStatusUpdate> {
+    const context = generateContext({
+      username: undefined,
+      logContext,
+    });
+    const service = CorePoolCleanerService.createService(context);
 
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};
