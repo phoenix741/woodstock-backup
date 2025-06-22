@@ -1,3 +1,10 @@
+# [2.0.0-alpha.43](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.42...v2.0.0-alpha.43) (2025-06-22)
+
+
+### Performance Improvements
+
+* ⚡️ increase performance of search-chunk by checking REFCNT before checking manifest ([8e6e1b0](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8e6e1b079749a208828a6040a6cd1e36d0ae3d5d))
+
 # [2.0.0-alpha.42](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.41...v2.0.0-alpha.42) (2025-06-21)
 
 
