@@ -23,7 +23,7 @@ use std::{
 use futures::{pin_mut, StreamExt};
 use woodstock::{
     config::{Backups, Configuration, Hosts, BUFFER_SIZE},
-    pool::PoolChunkWrapper,
+    pool::{PoolChunkWrapper, Refcnt},
 };
 
 /// Reads and prints the content of a chunk from the backup pool, decompressing it if necessary.
@@ -92,8 +92,27 @@ pub async fn search_chunk(config: &Configuration, chunk: &str) -> Result<(), Box
 
     let hosts = hosts_config.list_hosts().await.unwrap_or_default();
     for host in hosts {
+        {
+            // Heuristic, check if the chunk is in the host's refcnt
+            let refcnt_path = backups_config.get_host_path(&host);
+            let refcnt = Refcnt::load_refcnt_from_path(refcnt_path).await?;
+            if refcnt.get_refcnt(&chunk).is_none() {
+                continue;
+            }
+        }
+
         let backups = backups_config.get_backups(&host).await;
         for backup in backups {
+            {
+                // Heuristic, check if the chunk is in the backup's refcnt
+                let refcnt_path =
+                    backups_config.get_backup_destination_directory(&host, backup.number);
+                let refcnt = Refcnt::load_refcnt_from_path(refcnt_path).await?;
+                if refcnt.get_refcnt(&chunk).is_none() {
+                    continue;
+                }
+            }
+
             let manifests = backups_config.get_manifests(&host, backup.number).await;
 
             for manifest in manifests {
@@ -108,7 +127,7 @@ pub async fn search_chunk(config: &Configuration, chunk: &str) -> Result<(), Box
                     let found = entry.chunks.iter().filter(|c| chunk.eq(*c)).count();
                     if found > 0 {
                         term.write_line(&std::format!(
-                            "{} Chunk found in backup of host {}/{}/{:?}",
+                            "{} chunk(s) found: {}/{}/{:?}",
                             found,
                             host,
                             backup.number,
