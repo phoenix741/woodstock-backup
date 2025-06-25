@@ -34,6 +34,47 @@ pub struct SaveBackupMachine<Clt: Client> {
 }
 
 impl<Clt: Client> SaveBackupMachine<Clt> {
+       /// Creates a new instance of `SaveBackupMachine`.
+    ///
+    /// # Arguments
+    /// * `client` - The client used for saving backups.
+    /// * `hostname` - The hostname of the backup to save.
+    /// * `backup_number` - The backup number to save.
+    /// * `host_configuration` - The configuration for the host being backed up.
+    /// * `ctxt` - The context containing the event source.
+    /// * `config` - The configuration for the backup system.
+    /// * `state_tx` - An optional channel for sending state updates.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(SaveBackupMachine)` - A new instance of `SaveBackupMachine`.
+    /// * `Err(eyre::Report)` if an error occurs during initialization.
+    ///
+    /// # Errors
+    /// This function returns an error if the initialization fails.
+    pub fn new_from_host_configuration(
+        client: Clt,
+        hostname: &str,
+        backup_number: usize,
+        host_configuration: HostConfiguration,
+        ctxt: &Context,
+        config: &Configuration,
+        state_tx: Option<mpsc::Sender<BackupState>>,
+    ) -> Self {
+        let client = BackupSave::new(client, hostname, backup_number, ctxt, config);
+        let progression_state = BackupState::from_configuration(&host_configuration);
+
+        Self {
+            config: config.clone(),
+
+            client,
+            host_configuration,
+
+            progression_state: Arc::new(Mutex::new(progression_state)),
+            state_tx,
+        }
+    }
+
     /// Creates a new instance of `SaveBackupMachine`.
     ///
     /// # Arguments
@@ -59,21 +100,18 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         config: &Configuration,
         state_tx: Option<mpsc::Sender<BackupState>>,
     ) -> Result<Self> {
-        let client = BackupSave::new(client, hostname, backup_number, ctxt, config);
-
         let hosts = Hosts::new(config);
         let host_configuration = hosts.get_host(hostname).await?;
-        let progression_state = BackupState::from_configuration(&host_configuration);
 
-        Ok(Self {
-            config: config.clone(),
-
+        Ok(Self::new_from_host_configuration(
             client,
+            hostname,
+            backup_number,
             host_configuration,
-
-            progression_state: Arc::new(Mutex::new(progression_state)),
+            ctxt,
+            config,
             state_tx,
-        })
+        ))
     }
 
     /// Sends the current progression state to the state channel.

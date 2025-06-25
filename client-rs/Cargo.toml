@@ -27,17 +27,27 @@ mdns = ["woodstock-rs/mdns"]
 name = "ws_client_daemon"
 path = "src/client_daemon.rs"
 
+[[bin]]
+name = "ws_standalone"
+path = "src/standalone.rs"
+
 [dependencies]
 async-stream = "^0.3"
+async-trait = "^0.1"
 clap = { version = "^4.5", features = ["derive"] }
 color-eyre = "^0.6"
 env_logger = "^0.11"
 eyre = "^0.6"
+futures = "^0.3"
+globset = "^0.4"
+indicatif = "0.17.11"
 log = { version = "^0.4", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
 multi_log = "^0.1"
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"] }
 self_update = { git= "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease", features = ["archive-zip", "compression-zip-deflate"] }
 semver = "^1.0"
+serde = { version = "^1.0", features = ["derive"] }
+serde_yaml = "0.9.34"
 simple-logging = "^2.0"
 tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread", "signal"] }
 tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
