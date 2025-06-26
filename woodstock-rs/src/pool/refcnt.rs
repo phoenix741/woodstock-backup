@@ -378,6 +378,7 @@ impl Refcnt {
         } else {
             info!("No refcnt file found at {:?}", self.refcnt_path);
         }
+        debug!("Refcnt loaded from {:?}", self.refcnt_path);
     }
 
     /// Loads unused chunks from disk.
@@ -412,6 +413,7 @@ impl Refcnt {
                 }
             }
         }
+        debug!("Unused chunks loaded from {:?}", self.unused_path);
     }
 
     /// Removes unused files from the pool.

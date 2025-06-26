@@ -143,7 +143,7 @@ impl ConfigurationPath {
 
         let config_path_pool_algorithm = pool_path.join("algorithm");
 
-        let pool_refcnt_path = pool_path.join("refcnt");
+        let pool_refcnt_path = pool_path.join("pending");
 
         Self {
             backup_path,

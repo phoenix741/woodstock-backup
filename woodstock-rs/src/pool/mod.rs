@@ -185,8 +185,11 @@ pub async fn apply_pending_refcnt_operations(
         .await?;
 
     // Load global REFCNT and UNUSED once
+    info!("Loading global REFCNT from path: {}", pool_refcnt_path.display());
     let mut pool_refcnt = Refcnt::load_refcnt_from_path(pool_directory).await?;
 
+
+    debug!("Search in directory {} for refcnt to apply", pool_refcnt_path.display());
     let Ok(mut dir) = read_dir(pool_refcnt_path).await else {
         info!("No pending refcnt operations found.");
         return Ok(());
@@ -197,6 +200,7 @@ pub async fn apply_pending_refcnt_operations(
 
     // Collect all .add and .remove files separately
     while let Some(entry) = dir.next_entry().await? {
+        debug!("Refcnt file found: {:?}", entry.path());
         let path = entry.path();
         let Some(extension) = path.extension().and_then(|s| s.to_str()) else {
             continue;
@@ -210,7 +214,7 @@ pub async fn apply_pending_refcnt_operations(
     }
 
     if add_files.is_empty() && remove_files.is_empty() {
-        debug!("No pending refcnt operations found.");
+        info!("No pending refcnt operations found.");
         return Ok(());
     }
 
