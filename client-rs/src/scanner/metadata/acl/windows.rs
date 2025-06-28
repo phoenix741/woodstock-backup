@@ -1,11 +1,11 @@
+use eyre::Result;
+use std::path::Path;
 /// Windows implementation for ACL operations.
 ///
 /// This module provides stub implementations for ACL operations on Windows systems,
 /// or when the 'acl' feature is disabled. On Windows, the implementations are empty
 /// placeholders that perform no actual ACL operations.
 use woodstock::FileManifestAcl;
-use eyre::Result;
-use std::path::Path;
 
 /// Reads the Access Control Lists for a file on Windows.
 ///

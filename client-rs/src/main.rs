@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use eyre::Result;
-use log::{debug, error, info, LevelFilter};
+use log::{debug, error, info};
 use self_update::cargo_crate_version;
 use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
@@ -24,10 +24,17 @@ use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
 
+// Platform-specific logging imports
+#[cfg(windows)]
+use winlog;
+
 use woodstock_client_rs::config::{get_config_path, read_config, ResolutionMode};
 
 use woodstock_client_rs::resolve::{DirectResolveClient, ResolveClient};
 use woodstock_client_rs::server::WoodstockClient;
+
+#[cfg(windows)]
+const WINLOG_NAME: &str = "Woodstock Backup";
 
 #[cfg(feature = "mdns")]
 use woodstock_client_rs::resolve::MdnsResolveClient;
@@ -94,19 +101,25 @@ async fn start_client(
 
     if config.auto_update {
         let config_path_update = config_path.clone();
-        let config_path = config_path.clone();
-        let _ = spawn_blocking(move || {
-            if let Err(err) = update(config_path, true) {
-                error!("Failed to update: {}", err);
-            }
-        })
-        .await;
+        let config_path_clone = config_path.clone();
 
-        // Démarrer la tâche de mise à jour hebdomadaire
-        tokio::spawn(schedule_weekly_updates(
-            config_path_update,
-            config.update_delay,
-        ));
+        info!("Auto-update is enabled, checking for updates...");
+        let update_result = spawn_blocking(move || update(config_path_clone, true)).await;
+
+        match update_result {
+            Ok(Ok(())) => info!("Initial update check completed successfully"),
+            Ok(Err(err)) => error!("Failed to check for updates: {}", err),
+            Err(err) => error!("Update task panicked: {:?}", err),
+        }
+
+        // Start weekly update task
+        info!(
+            "Starting weekly update scheduler with delay: {} seconds",
+            config.update_delay
+        );
+        tokio::spawn(async move {
+            schedule_weekly_updates(config_path_update, config.update_delay).await;
+        });
     }
 
     let root_ca = config_path.join("rootCA.pem");
@@ -115,13 +128,18 @@ async fn start_client(
     let private_https_key = config_path.join(format!("{}_https.key", config.hostname));
     let public_https_key = config_path.join(format!("{}_https.pem", config.hostname));
 
-    let root_ca = std::fs::read_to_string(root_ca).expect("Failed to read rootCA.pem");
-    let public_key = std::fs::read_to_string(public_key).expect("Failed to public key");
-    let private_key = std::fs::read_to_string(private_key).expect("Failed to private key");
-    let public_https_key =
-        std::fs::read_to_string(&public_https_key).expect("Failed to read public https key");
-    let private_https_key =
-        std::fs::read_to_string(&private_https_key).expect("Failed to read private https key");
+    info!(
+        "Reading certificates from config directory: {}",
+        config_path.display()
+    );
+
+    let root_ca = std::fs::read_to_string(&root_ca)?;
+    let public_key = std::fs::read_to_string(&public_key)?;
+    let private_key = std::fs::read_to_string(&private_key)?;
+    let public_https_key = std::fs::read_to_string(&public_https_key)?;
+    let private_https_key = std::fs::read_to_string(&private_https_key)?;
+
+    info!("All certificates loaded successfully");
 
     let addr = config.bind.parse()?;
     let woodstock_client = WoodstockClient::new(std::path::Path::new(&config_path), &config);
@@ -131,9 +149,11 @@ async fn start_client(
 
     // Concat private_https_key, \n and public_https_key
     let https_pem = format!("{private_https_key}\n{public_https_key}");
-    let https_identity =
-        reqwest::Identity::from_pem(https_pem.as_bytes()).expect("Can't read https identity");
+    let https_identity = reqwest::Identity::from_pem(https_pem.as_bytes())
+        .map_err(|e| eyre::eyre!("Failed to create HTTPS identity: {}", e))?;
     let root_ca = reqwest::Certificate::from_pem(root_ca.as_bytes())?;
+
+    info!("TLS configuration completed successfully");
 
     let server = Server::builder()
         // TODO: Mutualisation with grpc_client
@@ -155,32 +175,54 @@ async fn start_client(
     match config.resolution_mode {
         #[cfg(feature = "mdns")]
         ResolutionMode::Mdns => {
-            info!("mDNS is enabled");
-            daemon = Some(Box::new(MdnsResolveClient::new(config.clone()).await?));
+            info!("Initializing mDNS resolver...");
+            match MdnsResolveClient::new(config.clone()).await {
+                Ok(client) => {
+                    info!("mDNS resolver initialized successfully");
+                    daemon = Some(Box::new(client));
+                }
+                Err(e) => {
+                    error!("Failed to initialize mDNS resolver: {}", e);
+                    return Err(e);
+                }
+            }
         }
         ResolutionMode::Direct => {
             if config.server.is_none() {
                 error!("Direct resolution requires a server address");
                 return Err(eyre::eyre!("Direct resolution requires a server address"));
             }
-            daemon = Some(Box::new(
-                DirectResolveClient::new(config.clone(), https_identity, root_ca).await?,
-            ));
-            info!("Direct resolution is enabled");
+            info!("Initializing direct resolver...");
+            match DirectResolveClient::new(config.clone(), https_identity, root_ca).await {
+                Ok(client) => {
+                    info!("Direct resolver initialized successfully");
+                    daemon = Some(Box::new(client));
+                }
+                Err(e) => {
+                    error!("Failed to initialize direct resolver: {}", e);
+                    return Err(e);
+                }
+            }
         }
         ResolutionMode::None => {
-            info!("mDNS is disabled");
+            info!("No resolver configured (resolution disabled)");
         }
     }
 
     server
         .serve_with_shutdown(addr, async {
+            info!("Waiting for shutdown signal...");
             shutdown_signal.await.ok();
+
+            info!("Shutdown signal received - beginning graceful shutdown");
+
             if let Some(daemon) = daemon {
+                info!("Shutting down daemon resolver...");
                 daemon.shutdown().await;
+                info!("Daemon resolver shutdown complete");
             }
 
-            info!("Graceful context shutdown");
+            info!("Graceful context shutdown complete");
         })
         .await?;
 
@@ -297,13 +339,24 @@ pub mod winserv {
         let args = Cli::parse();
         let config_dir = args.config_dir;
 
-        info!("Starting service ");
+        info!(
+            "Starting Woodstock service with config_dir: {:?}",
+            config_dir
+        );
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                error!("Failed to create Tokio runtime: {:?}", e);
+                return;
+            }
+        };
+
         rt.block_on(async {
             if let Err(e) = run_service(config_dir).await {
-                // Handle the error, by logging or something.
-                error!("Error: {:?}", e);
+                error!("Service error: {:?}", e);
+            } else {
+                info!("Service completed successfully");
             }
         });
     }
@@ -320,46 +373,84 @@ pub mod winserv {
                 match control_event {
                     // Notifies a service to report its current status information to the service
                     // control manager. Always return NoError even if not implemented.
-                    ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+                    ServiceControl::Interrogate => {
+                        info!("Service control: Interrogate received");
+                        ServiceControlHandlerResult::NoError
+                    }
 
                     // Handle stop
                     ServiceControl::Stop => {
+                        info!("Service control: Stop signal received - initiating shutdown");
                         if let Ok(mut signal_tx) = signal_tx.lock() {
                             if let Some(signal_tx) = signal_tx.take() {
-                                info!("Stop signal received");
-                                signal_tx.send(()).unwrap();
+                                info!("Sending shutdown signal to main service");
+                                if let Err(e) = signal_tx.send(()) {
+                                    error!("Failed to send shutdown signal: {:?}", e);
+                                } else {
+                                    info!("Shutdown signal sent successfully");
+                                }
+                            } else {
+                                info!("Shutdown signal already sent");
                             }
+                        } else {
+                            error!("Failed to acquire lock on shutdown signal sender");
                         }
 
                         ServiceControlHandlerResult::NoError
                     }
 
-                    _ => ServiceControlHandlerResult::NotImplemented,
+                    ServiceControl::Shutdown => {
+                        info!("Service control: Shutdown signal received");
+                        if let Ok(mut signal_tx) = signal_tx.lock() {
+                            if let Some(signal_tx) = signal_tx.take() {
+                                info!("Sending shutdown signal to main service (shutdown)");
+                                let _ = signal_tx.send(());
+                            }
+                        }
+                        ServiceControlHandlerResult::NoError
+                    }
+
+                    ServiceControl::Pause => {
+                        info!("Service control: Pause received (not implemented)");
+                        ServiceControlHandlerResult::NotImplemented
+                    }
+
+                    ServiceControl::Continue => {
+                        info!("Service control: Continue received (not implemented)");
+                        ServiceControlHandlerResult::NotImplemented
+                    }
+
+                    other => {
+                        info!(
+                            "Service control: Unknown control event received: {:?}",
+                            other
+                        );
+                        ServiceControlHandlerResult::NotImplemented
+                    }
                 }
             }
         };
 
-        // Register system service event handler.
-        // The returned status handle should be used to report service status changes to the system.
+        info!("Registering service control handler...");
         let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
 
-        // Tell the system that service is running
+        info!("Setting service status to Running...");
         status_handle.set_service_status(ServiceStatus {
             service_type: SERVICE_TYPE,
             current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::STOP,
+            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
             exit_code: ServiceExitCode::Win32(0),
             checkpoint: 0,
             wait_hint: Duration::default(),
             process_id: None,
         })?;
 
-        // For demo purposes this service sends a UDP packet once a second.
+        info!("Service is now running, starting main client...");
 
         // TRAITEMENT
         start_client(config_dir, signal_rx).await?;
 
-        // Tell the system that service has stopped.
+        info!("Main client stopped, setting service status to Stopped...");
         status_handle.set_service_status(ServiceStatus {
             service_type: SERVICE_TYPE,
             current_state: ServiceState::Stopped,
@@ -370,6 +461,7 @@ pub mod winserv {
             process_id: None,
         })?;
 
+        info!("Service has been marked as stopped");
         Ok(())
     }
 
@@ -556,10 +648,18 @@ fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
 async fn schedule_weekly_updates<P: AsRef<Path>>(config_path: P, update_delay: u64) {
     let duration = Duration::from_secs(update_delay);
     let mut interval = interval_at(Instant::now() + duration, duration);
+    info!(
+        "Weekly update scheduler started with interval of {} seconds",
+        update_delay
+    );
+
     loop {
         interval.tick().await;
+        info!("Running scheduled update check...");
         if let Err(err) = update(config_path.as_ref(), true) {
-            println!("Failed to update: {err}");
+            error!("Scheduled update failed: {}", err);
+        } else {
+            info!("Scheduled update completed successfully");
         }
     }
 }
@@ -572,30 +672,27 @@ async fn main() -> Result<()> {
 
     let config_path = args.config_dir.as_ref().map(PathBuf::from);
     let config_path = config_path.unwrap_or_else(get_config_path);
+
+    // Initialize platform-specific logging first
+    setup_platform_logging(&config_path)?;
+
     let config_yml = config_path.join("config.yaml");
     let config = read_config(config_yml).expect("Failed to read config");
-
-    let log_path = config
-        .log_directory
-        .unwrap_or_else(|| config_path.clone())
-        .join("client.log");
-
-    simple_logging::log_to_file(log_path, LevelFilter::Info).expect("can't log to file");
-    // env_logger::builder()
-    //     .filter_level(LevelFilter::Debug)
-    //     .init();
+    info!("Woodstock client started for: {}", config.hostname);
 
     match args.subcommand {
         #[cfg(windows)]
         Some(Commands::InstallService) => {
             winfirewall::add_firewall_rule(&config.bind)?;
             winserv::install_service(args.config_dir)?;
+            winlog::register(WINLOG_NAME);
         }
 
         #[cfg(windows)]
         Some(Commands::RemoveService) => {
             winfirewall::remove_firewall_rule()?;
             winserv::uninstall_service()?;
+            winlog::deregister(WINLOG_NAME);
         }
 
         #[cfg(windows)]
@@ -644,5 +741,70 @@ async fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Common logging format configuration
+#[cfg(not(windows))]
+fn create_log_dispatch() -> fern::Dispatch {
+    use chrono;
+    use LevelFilter;
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] [{}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(LevelFilter::Info)
+}
+
+/// Platform-specific logging configuration following OS best practices
+#[cfg(windows)]
+fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+    // For Windows service, use Windows Event Log only
+    match winlog::init(WINLOG_NAME) {
+        Ok(()) => {
+            println!("Windows Event Log initialized for service");
+            info!("Woodstock Client Service started - logging to Windows Event Log");
+        }
+        Err(e) => {
+            eprintln!("Failed to initialize Windows Event Log: {}", e);
+
+            return Err(eyre::eyre!("Failed to initialize Windows Event Log: {}", e));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+    // For Linux systemd services, prefer stdout/stderr which systemd
+    // automatically redirects to journald with proper metadata
+    // Users can view logs with: journalctl -u woodstock-client -f
+
+    create_log_dispatch()
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to initialize logging");
+
+    info!(
+        "Linux systemd logging initialized - use 'journalctl -u woodstock-client -f' to view logs"
+    );
+    Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+    // Fallback for other platforms
+    create_log_dispatch()
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to initialize logging");
     Ok(())
 }

@@ -3,14 +3,13 @@
 /// This module provides implementation for reading, creating, and restoring file system
 /// metadata on Windows platforms. It handles Windows-specific file attributes and
 /// converts Windows time formats to Unix time for compatibility.
-
 use eyre::Result;
 use std::path::Path;
 
+use std::os::windows::fs::MetadataExt;
 use woodstock::FileManifest;
 use woodstock::FileManifestStat;
 use woodstock::FileManifestType;
-use std::os::windows::fs::MetadataExt;
 
 /// Windows file attribute constant for directory.
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 16u32;

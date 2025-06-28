@@ -1,3 +1,5 @@
+use eyre::Result;
+use std::path::Path;
 /// Windows implementation for extended attributes operations.
 ///
 /// This module provides stub implementations for extended attributes operations
@@ -5,10 +7,7 @@
 /// the implementations are empty placeholders that perform no actual operations
 /// since Windows uses a different mechanism (alternate data streams) for similar
 /// functionality.
-
 use woodstock::FileManifestXAttr;
-use eyre::Result;
-use std::path::Path;
 
 /// Reads the extended attributes for a file on Windows.
 ///

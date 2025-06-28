@@ -1,3 +1,7 @@
+use eyre::Result;
+use std::ffi::OsString;
+use std::fs::File;
+use std::path::Path;
 /// Unix implementation for extended attributes operations.
 ///
 /// This module provides concrete implementations for reading and restoring
@@ -8,10 +12,6 @@
 /// objects (files, directories, symlinks, etc.) that can be used to store arbitrary
 /// metadata not interpreted by the filesystem itself.
 use woodstock::FileManifestXAttr;
-use eyre::Result;
-use std::ffi::OsString;
-use std::fs::File;
-use std::path::Path;
 use xattr::FileExt;
 
 /// Reads the extended attributes for a file on Unix systems.
