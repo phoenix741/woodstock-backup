@@ -748,7 +748,7 @@ async fn main() -> Result<()> {
 #[cfg(not(windows))]
 fn create_log_dispatch() -> fern::Dispatch {
     use chrono;
-    use LevelFilter;
+    use log::LevelFilter;
 
     fern::Dispatch::new()
         .format(|out, message, record| {

@@ -1,16 +1,15 @@
 use hyper_util::rt::TokioIo;
-use std::path::PathBuf;
+use std::{path::PathBuf, vec};
 
 use eyre::Result;
 use futures::Future;
+use log;
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
 };
 use tonic::transport::{Endpoint, Server, Uri};
 use tower::service_fn;
-use woodstock_client_rs::config::{ClientConfig, ResolutionMode};
-use woodstock_client_rs::server::WoodstockClient;
 use woodstock::{
     config::{BackupStatus, Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
     server::{backup::save::BackupSave, client::grpc::BackupGrpcClient},
@@ -18,7 +17,8 @@ use woodstock::{
     woodstock_client_service_server::WoodstockClientServiceServer,
     ChunkAlgorithm, Share,
 };
-use log;
+use woodstock_client_rs::config::{ClientConfig, ResolutionMode};
+use woodstock_client_rs::server::WoodstockClient;
 
 fn create_context() -> Context {
     Context {
@@ -69,6 +69,8 @@ async fn server_and_client_stub(
         auto_update: false,
         log_directory: Some(PathBuf::from("./data")),
         update_delay: 1000,
+        allowed_paths: vec![PathBuf::from("./data/server")],
+        snapshot: false,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);

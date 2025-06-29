@@ -42,6 +42,8 @@ async fn server_and_client_stub() -> (
         auto_update: false,
         log_directory: Some(PathBuf::from("./data")),
         update_delay: 1000,
+        allowed_paths: vec![PathBuf::from("./data/server")],
+        snapshot: false,
     };
 
     let woodstock_client = WoodstockClient::new(config_path, &config);
