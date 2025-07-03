@@ -9,7 +9,7 @@ use crate::{
         BackupOperation, BackupStatus, Configuration, Context, ExecuteCommandOperation,
         HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
     },
-    server::{client::Client, progression::BackupProgression},
+    server::client::Client,
     utils::{lock::PoolLock, thread::spawn_with_context},
     Share,
 };
@@ -608,15 +608,6 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
 
         self.send_progres().await;
         Ok(())
-    }
-
-    /// Returns the current backup progression.
-    ///
-    /// # Returns
-    ///
-    /// * `BackupProgression` - The current backup progression.
-    pub async fn progress(&self) -> BackupProgression {
-        self.client.progress().await
     }
 
     /// Exécute le processus de sauvegarde avec notification des états via un canal mpsc

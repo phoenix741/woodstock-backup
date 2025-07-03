@@ -844,10 +844,13 @@ impl<Clt: Client> BackupSave<Clt> {
             if !is_remove && !is_special_file && !is_error {
                 if let Some(file_manifest) = file_manifest_journal_entry.manifest.as_mut() {
                     // TODO: Parrallellise to download CHUNK_SIZE manifest max at the same time
-                    let chunk_tx_clone = internal_chunk_tx.clone();
-
                     let file_manifest = self
-                        .download_manifest_chunk(share_path, file_manifest, is_add, &chunk_tx_clone)
+                        .download_manifest_chunk(
+                            share_path,
+                            file_manifest,
+                            is_add,
+                            &internal_chunk_tx,
+                        )
                         .await;
 
                     match file_manifest {
