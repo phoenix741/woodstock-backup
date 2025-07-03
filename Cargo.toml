@@ -29,6 +29,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+#debug = true
 
 [workspace.metadata.cross.build]
 pre-build = ["apt-get install -y protobuf-compiler"]

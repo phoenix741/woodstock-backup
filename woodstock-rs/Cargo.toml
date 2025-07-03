@@ -24,7 +24,7 @@ name = "benchmark"
 harness = false
 
 [dependencies]
-async-compression = { version = "^0.4", features = ["zlib", "tokio"] }
+async-compression = { version = "^0.4", features = ["zlib", "zstd", "tokio"] }
 async-stream = "^0.3"
 async-walkdir = "^2.0"
 base64 = "^0.22"
@@ -38,13 +38,17 @@ hex = { version = "^0.4", features = ["serde"] }
 hyper-util = "0.1.9"
 jsonwebtoken = "^9.3"
 lazy_static = "^1.5"
-log = { version = "^0.4", default-features = false, features = ["std", "max_level_debug", "release_max_level_info"] }
+log = { version = "^0.4", default-features = false, features = [
+  "std",
+  "max_level_debug",
+  "release_max_level_info",
+] }
 lru = "^0.14"
 mdns-sd = { version = "^0.13", optional = true }
 percent-encoding = "^2.3"
 prost = "^0.13"
 rand = "^0.9"
-redis = { version = "0.31.0", features = ["aio", "tokio-comp"]}
+redis = { version = "0.31.0", features = ["aio", "tokio-comp"] }
 rsa = "^0.9"
 serde = { version = "^1.0", features = ["derive"] }
 serde_json = "1.0.133"
@@ -56,13 +60,14 @@ sha3 = { version = "^0.10", features = ["asm"] }
 blake3 = { version = "1.8.1", features = ["rayon", "mmap"] }
 tempfile = "^3"
 tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
-tokio-stream =  "^0.1"
+tokio-stream = "^0.1"
 tokio-util = "0.7"
 tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
 uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 reflink-copy = "0.1.26"
-fs4 = {version = "0.13.1", features = ["tokio"] }
+fs4 = { version = "0.13.1", features = ["tokio"] }
 rustls = "0.23.28"
+flate2 = { version = "1.1.2", default-features = false, features = ["zlib-rs"] }
 
 
 [target.'cfg(target_env = "musl")'.dependencies]
@@ -70,7 +75,7 @@ libm = "^0.2"
 
 [dev-dependencies]
 test-log = "^0.2"
-tokio-stream =  { version = "^0.1", features = ["net"] }
+tokio-stream = { version = "^0.1", features = ["net"] }
 tower = { version = "^0.5" }
 criterion = { version = "^0.5", features = ["html_reports"] }
 
