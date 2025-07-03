@@ -17,6 +17,7 @@ use crate::proto::ProtobufWriter;
 use crate::statistics::write_statistics;
 use crate::statistics::PoolStatistics;
 use crate::utils::chunk_hasher::is_empty_hash;
+use crate::utils::compression::CompressionFormat;
 use crate::PoolUnused;
 use crate::{proto::ProtobufReader, ChunkAlgorithm, PoolRefCount};
 use eyre::Result;
@@ -334,13 +335,16 @@ impl Refcnt {
         sens: &RefcntApplySens,
         date: &SystemTime,
         algorithm: ChunkAlgorithm,
+        compression_format: CompressionFormat,
     ) -> Result<Self> {
         let mut new_refcnt = Refcnt::load_refcnt_from_path(path).await?;
 
         debug!("Apply refcnt from {:?}", refcnt.path);
         new_refcnt.apply_all(&refcnt, sens);
         new_refcnt.repair(&path, algorithm).await?;
-        new_refcnt.save_refcnt(date, false).await?;
+        new_refcnt
+            .save_refcnt(date, false, compression_format)
+            .await?;
 
         Ok(new_refcnt)
     }
@@ -619,11 +623,17 @@ impl Refcnt {
     /// # Errors
     ///
     /// Returns an error if the save operation fails due to I/O issues.
-    pub async fn save_refcnt(&self, date: &SystemTime, with_unused: bool) -> Result<()> {
+    pub async fn save_refcnt(
+        &self,
+        date: &SystemTime,
+        with_unused: bool,
+        compression_format: CompressionFormat,
+    ) -> Result<()> {
         debug!("Save refcnt in {:?}", self.refcnt_path);
         let mut refcnt_writer = ProtobufWriter::<CompressedWriter, PoolRefCount>::new_compressed(
             &self.refcnt_path,
             true,
+            compression_format,
         )
         .await?;
         let mut unused_writer = if with_unused && self.unused_path.is_some() {
@@ -631,6 +641,7 @@ impl Refcnt {
                 ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
                     self.unused_path.as_ref().unwrap(),
                     true,
+                    compression_format,
                 )
                 .await?,
             )
@@ -824,6 +835,7 @@ mod tests {
             &RefcntApplySens::Increase,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();
@@ -833,6 +845,7 @@ mod tests {
             &RefcntApplySens::Increase,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();
@@ -842,6 +855,7 @@ mod tests {
             &RefcntApplySens::Increase,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();
@@ -851,6 +865,7 @@ mod tests {
             &RefcntApplySens::Increase,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();
@@ -910,6 +925,7 @@ mod tests {
             &RefcntApplySens::Decrease,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();
@@ -964,6 +980,7 @@ mod tests {
             &RefcntApplySens::Decrease,
             &now,
             ChunkAlgorithm::Blake3,
+            CompressionFormat::Zstd,
         )
         .await
         .unwrap();

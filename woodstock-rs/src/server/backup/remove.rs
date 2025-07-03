@@ -6,6 +6,7 @@ use crate::{
     config::{Backups, Configuration, Context},
     events::create_event_backup_remove,
     pool::{remove_refcnt_to_pool, Refcnt, RefcntApplySens},
+    utils::compression::CompressionFormat,
     ChunkAlgorithm, EventSource,
 };
 
@@ -20,6 +21,8 @@ pub struct BackupRemove {
     config: Configuration,
     /// The chunk algorithm used for hash processing.
     algorithm: ChunkAlgorithm,
+    /// The compression format used for the backup.
+    compression_format: CompressionFormat,
 }
 
 impl BackupRemove {
@@ -55,6 +58,7 @@ impl BackupRemove {
             source: ctxt.source,
             config: config.clone(),
             algorithm: config.chunk_algorithm,
+            compression_format: config.compression_format,
         }
     }
 
@@ -112,6 +116,7 @@ impl BackupRemove {
             &RefcntApplySens::Decrease,
             &SystemTime::now(),
             self.algorithm,
+            self.compression_format,
         )
         .await?;
 

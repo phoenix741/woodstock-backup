@@ -1,4 +1,3 @@
-use async_compression::tokio::write::ZlibEncoder;
 use eyre::Result;
 use futures::StreamExt;
 use futures::{pin_mut, Stream};
@@ -12,10 +11,12 @@ use tokio::{
     io::{AsyncWrite, AsyncWriteExt, BufWriter},
 };
 
+use crate::utils::compression::{CompressionFormat, WoodstockCompressionWriter};
+
 /// Uncompressed protobuf writer type alias.
 pub type UnCompressedWriter = BufWriter<File>;
 /// Compressed protobuf writer type alias.
-pub type CompressedWriter = ZlibEncoder<BufWriter<File>>;
+pub type CompressedWriter = WoodstockCompressionWriter<File>;
 
 /// Creates a new file for writing, optionally using atomic writes.
 ///
@@ -85,7 +86,7 @@ async fn open_file<P: AsRef<Path>>(path: P) -> Result<(BufWriter<File>, Option<P
 ///
 /// # Generics
 ///
-/// * `W` - The writer type. This can be a buffered file writer (`BufWriter<File>`) for uncompressed output, or a zlib encoder (`ZlibEncoder<BufWriter<File>>`) for compressed output.
+/// * `W` - The writer type. This can be a buffered file writer (`BufWriter<File>`) for uncompressed output, or a zstd encoder (`ZstdEncoder<BufWriter<File>>`) for compressed output.
 /// * `T` - The protobuf message type to write. Must implement the `prost::Message` trait.
 ///
 /// The writer supports both compressed and uncompressed formats:
@@ -181,11 +182,15 @@ where
     ///
     /// # Errors
     /// Returns an error if the file cannot be created.
-    pub async fn new_compressed<P: AsRef<Path>>(path: P, is_atomic: bool) -> Result<Self> {
+    pub async fn new_compressed<P: AsRef<Path>>(
+        path: P,
+        is_atomic: bool,
+        compression_format: CompressionFormat,
+    ) -> Result<Self> {
         let (writer, temp_path) = create_file(&path, is_atomic).await?;
         let path = path.as_ref();
 
-        let writer = ZlibEncoder::new(writer); // Compression activée
+        let writer = WoodstockCompressionWriter::new(writer, compression_format); // Compression activée
 
         Ok(Self {
             writer,
@@ -254,7 +259,7 @@ where
     /// # Errors
     /// Returns an error if flushing or renaming fails.
     pub async fn flush(&mut self) -> Result<()> {
-        // If ZLibEncoder
+        // If ZstdEncoder
         self.writer.shutdown().await?;
 
         // If the file is atomic, the temporary file will be renamed to the target file.
@@ -283,6 +288,7 @@ pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
     path: P,
     source: impl Stream<Item = T>,
     is_atomic: bool,
+    compression_format: CompressionFormat,
 ) -> Result<()> {
     info!(
         "Saving file to {:?} (is_atomic = {is_atomic})",
@@ -290,7 +296,8 @@ pub async fn save_file<T: Message + Default, P: AsRef<Path>>(
     );
 
     let mut writer =
-        ProtobufWriter::<CompressedWriter, T>::new_compressed(&path, is_atomic).await?;
+        ProtobufWriter::<CompressedWriter, T>::new_compressed(&path, is_atomic, compression_format)
+            .await?;
     pin_mut!(source);
 
     while let Some(message) = source.next().await {
@@ -351,7 +358,13 @@ mod tests {
         });
         let fake_stream = stream::iter(fake_entries);
 
-        save_file("./data/home.filelist.test", fake_stream, false).await?;
+        save_file(
+            "./data/home.filelist.test",
+            fake_stream,
+            false,
+            CompressionFormat::Zstd,
+        )
+        .await?;
 
         {
             let mut messages =
@@ -391,9 +404,14 @@ mod tests {
                 }
             });
 
-            save_file("./data/home.filelist.copy", messages, true)
-                .await
-                .unwrap();
+            save_file(
+                "./data/home.filelist.copy",
+                messages,
+                true,
+                CompressionFormat::Zstd,
+            )
+            .await
+            .unwrap();
         }
 
         {

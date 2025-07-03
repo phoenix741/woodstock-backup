@@ -30,6 +30,8 @@ pub struct PoolChunkInformation {
     pub size: u64,
     #[prost(uint64, tag = "3")]
     pub compressed_size: u64,
+    #[prost(uint32, tag = "4")]
+    pub format: u32,
 }
 
 impl PoolChunkInformation {

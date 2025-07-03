@@ -19,8 +19,9 @@ use crate::{
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
-    utils::chunk_hasher::get_empty_hash,
-    utils::thread::spawn_with_context,
+    utils::{
+        chunk_hasher::get_empty_hash, compression::CompressionFormat, thread::spawn_with_context,
+    },
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
     RefreshCacheRequest, Share,
@@ -62,6 +63,8 @@ pub struct BackupSave<Clt: Client> {
     /// Specifies the algorithm used for chunking data during the backup.
     /// This determines how data is divided into smaller chunks for storage.
     algorithm: ChunkAlgorithm,
+    /// Compression format of saved files
+    compression_format: CompressionFormat,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -110,6 +113,7 @@ impl<Clt: Client> BackupSave<Clt> {
             source: ctxt.source,
             config: config.clone(),
             algorithm: config.chunk_algorithm,
+            compression_format: config.compression_format,
             fake_date: None,
         }
     }
@@ -443,7 +447,9 @@ impl<Clt: Client> BackupSave<Clt> {
             }
         });
 
-        let result = manifest.save_filelist_entries(response).await;
+        let result = manifest
+            .save_filelist_entries(response, self.compression_format)
+            .await;
 
         info!(
             "Download file list for {:?} completed (result = {})",
@@ -511,7 +517,9 @@ impl<Clt: Client> BackupSave<Clt> {
                     debug!("Download chunk {}", current_chunk_id);
 
                     let wrapper = PoolChunkWrapper::new(pool_path, None);
-                    let writer = wrapper.writer(self.algorithm).await?;
+                    let writer = wrapper
+                        .writer(self.algorithm, self.compression_format)
+                        .await?;
 
                     current_chunk = Some((wrapper, writer));
                 }
@@ -532,7 +540,9 @@ impl<Clt: Client> BackupSave<Clt> {
                     debug!("Download chunk footer {}", current_chunk_id);
 
                     if let Some((mut wrapper, mut writer)) = current_chunk.take() {
-                        let chunk_information = writer.shutdown(&mut wrapper, &filename).await?;
+                        let chunk_information = writer
+                            .shutdown(&mut wrapper, &filename, self.compression_format)
+                            .await?;
                         if let Err(e) = tx.send(chunk_information.clone()).await {
                             error!("Failed to send chunk information: {}", e);
                         }
@@ -700,6 +710,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         sha256: vec![],
                         size: 0,
                         compressed_size: 0,
+                        format: 0,
                     },
                 );
             }
@@ -822,6 +833,7 @@ impl<Clt: Client> BackupSave<Clt> {
             ProtobufWriter::<CompressedWriter, FileManifestJournalEntry>::new_compressed(
                 &manifest.journal_path,
                 false,
+                self.compression_format,
             )
             .await?;
         let file_list = manifest.read_filelist_entries();
@@ -1023,27 +1035,30 @@ impl<Clt: Client> BackupSave<Clt> {
         let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
 
         manifest
-            .compact(&|manifest| async {
-                let mut progression = self.progression.lock().await;
-                progression.file_count += 1;
-                progression.file_size += manifest.size();
-                progression.compressed_file_size += manifest.compressed_size();
+            .compact(
+                &|manifest| async {
+                    let mut progression = self.progression.lock().await;
+                    progression.file_count += 1;
+                    progression.file_size += manifest.size();
+                    progression.compressed_file_size += manifest.compressed_size();
 
-                let mut refcnt = self.refcnt.lock().await;
-                for sha256 in &manifest.chunks {
-                    refcnt.apply(
-                        &PoolRefCount {
-                            sha256: sha256.clone(),
-                            ref_count: 1,
-                            size: 0,
-                            compressed_size: 0,
-                        },
-                        &crate::pool::RefcntApplySens::Increase,
-                    );
-                }
+                    let mut refcnt = self.refcnt.lock().await;
+                    for sha256 in &manifest.chunks {
+                        refcnt.apply(
+                            &PoolRefCount {
+                                sha256: sha256.clone(),
+                                ref_count: 1,
+                                size: 0,
+                                compressed_size: 0,
+                            },
+                            &crate::pool::RefcntApplySens::Increase,
+                        );
+                    }
 
-                Some(manifest)
-            })
+                    Some(manifest)
+                },
+                self.compression_format,
+            )
             .await?;
 
         backups
@@ -1074,7 +1089,9 @@ impl<Clt: Client> BackupSave<Clt> {
         refcnt
             .repair(&self.config.path.pool_path, self.algorithm)
             .await?;
-        refcnt.save_refcnt(&self.get_fake_date(), false).await?;
+        refcnt
+            .save_refcnt(&self.get_fake_date(), false, self.compression_format)
+            .await?;
 
         let host_refcnt_file = backups.get_host_path(&self.hostname);
         Refcnt::apply_all_from(
@@ -1083,6 +1100,7 @@ impl<Clt: Client> BackupSave<Clt> {
             &crate::pool::RefcntApplySens::Increase,
             &self.get_fake_date(),
             self.algorithm,
+            self.compression_format,
         )
         .await?;
 

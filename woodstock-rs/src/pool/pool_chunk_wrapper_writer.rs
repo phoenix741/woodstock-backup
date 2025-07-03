@@ -1,4 +1,3 @@
-use async_compression::tokio::write::ZlibEncoder;
 use log::{debug, error, warn};
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, metadata, rename, File};
@@ -6,6 +5,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::config::CHUNK_SIZE;
 use crate::utils::chunk_hasher::{create_chunk_hasher, ChunkHasher};
+use crate::utils::compression::{CompressionFormat, WoodstockCompressionWriter};
 use crate::utils::path::vec_to_path;
 use crate::ChunkAlgorithm;
 use eyre::Result;
@@ -38,7 +38,7 @@ use super::{get_temp_chunk_path, PoolChunkInformation, PoolChunkWrapper};
 /// - [`PoolChunkWrapper`], [`PoolChunkInformation`]: For chunk management and metadata
 pub struct PoolChunkWriter {
     /// The compressed file being written.
-    file: ZlibEncoder<tokio::io::BufWriter<File>>,
+    file: WoodstockCompressionWriter<File>,
 
     /// The uncompressed size of the data being written.
     uncompressed_size: usize,
@@ -65,7 +65,11 @@ impl PoolChunkWriter {
     /// # Errors
     ///
     /// Returns an error if the file cannot be created or the directory cannot be created.
-    pub async fn new(pool_path: &Path, algorithm: ChunkAlgorithm) -> Result<PoolChunkWriter> {
+    pub async fn new(
+        pool_path: &Path,
+        algorithm: ChunkAlgorithm,
+        compression_format: CompressionFormat,
+    ) -> Result<PoolChunkWriter> {
         let tempfilename = get_temp_chunk_path(pool_path);
         if let Some(path) = tempfilename.parent() {
             create_dir_all(path).await?;
@@ -73,7 +77,7 @@ impl PoolChunkWriter {
 
         let file = File::create(&tempfilename).await?;
         let file = tokio::io::BufWriter::new(file);
-        let file = ZlibEncoder::new(file);
+        let file = WoodstockCompressionWriter::new(file, compression_format);
 
         Ok(PoolChunkWriter {
             file,
@@ -126,6 +130,7 @@ impl PoolChunkWriter {
         &mut self,
         wrapper: &mut PoolChunkWrapper,
         debug_filename: &[u8],
+        compression_format: CompressionFormat,
     ) -> Result<PoolChunkInformation> {
         self.file.shutdown().await?;
 
@@ -177,6 +182,7 @@ impl PoolChunkWriter {
                 size: u64::try_from(self.uncompressed_size)?,
                 compressed_size: metadata.len(),
                 sha256: file_hash.clone(),
+                format: compression_format as u32,
             };
 
             let chunk_path = wrapper.chunk_path();

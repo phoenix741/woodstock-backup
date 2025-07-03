@@ -13,6 +13,7 @@ use tower::service_fn;
 use woodstock::{
     config::{BackupStatus, Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
     server::{backup::save::BackupSave, client::grpc::BackupGrpcClient},
+    utils::compression::CompressionFormat,
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer,
     ChunkAlgorithm, Share,
@@ -44,6 +45,7 @@ fn create_config() -> Configuration {
         log_level: log::Level::Warn,
         cache_size: 1,
         chunk_algorithm: ChunkAlgorithm::Blake3,
+        compression_format: CompressionFormat::Zstd,
     }
 }
 

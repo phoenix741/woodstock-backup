@@ -198,7 +198,9 @@ async fn main() -> Result<()> {
         }
 
         Commands::GetChunk { chunk } => {
-            read_chunk(&GlobalConfiguration.path.pool_path, &chunk).expect("Failed to read chunk");
+            read_chunk(&GlobalConfiguration.path.pool_path, &chunk)
+                .await
+                .expect("Failed to read chunk");
         }
         Commands::SearchChunk { chunk } => {
             search_chunk(&GlobalConfiguration, &chunk)

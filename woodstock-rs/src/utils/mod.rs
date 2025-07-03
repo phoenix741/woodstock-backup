@@ -12,6 +12,8 @@
 
 /// Provides functionality for hashing data chunks.
 pub mod chunk_hasher;
+/// Provides utililties for compress / uncompress
+pub mod compression;
 /// Handles encryption and decryption operations.
 pub mod encryption;
 /// Contains file manipulation utilities.

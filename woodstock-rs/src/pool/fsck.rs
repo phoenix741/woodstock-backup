@@ -121,8 +121,12 @@ pub async fn check_backup_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}/{backup_number}");
-        new_refcnt.repair(&config.path.pool_path, config.chunk_algorithm).await?;
-        new_refcnt.save_refcnt(&SystemTime::now(), false).await?;
+        new_refcnt
+            .repair(&config.path.pool_path, config.chunk_algorithm)
+            .await?;
+        new_refcnt
+            .save_refcnt(&SystemTime::now(), false, config.compression_format)
+            .await?;
     }
 
     Ok(FsckCount {
@@ -166,8 +170,12 @@ pub async fn check_host_integrity(
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for {hostname}");
-        new_refcnt.repair(&config.path.pool_path, config.chunk_algorithm).await?;
-        new_refcnt.save_refcnt(&SystemTime::now(), false).await?;
+        new_refcnt
+            .repair(&config.path.pool_path, config.chunk_algorithm)
+            .await?;
+        new_refcnt
+            .save_refcnt(&SystemTime::now(), false, config.compression_format)
+            .await?;
     }
 
     Ok(FsckCount {
@@ -203,8 +211,12 @@ pub async fn check_pool_integrity(dry_run: bool, config: &Configuration) -> Resu
 
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for pool");
-        new_refcnt.repair(&config.path.pool_path, config.chunk_algorithm).await?;
-        new_refcnt.save_refcnt(&SystemTime::now(), true).await?;
+        new_refcnt
+            .repair(&config.path.pool_path, config.chunk_algorithm)
+            .await?;
+        new_refcnt
+            .save_refcnt(&SystemTime::now(), true, config.compression_format)
+            .await?;
     }
 
     Ok(FsckCount {
@@ -311,7 +323,9 @@ pub async fn check_unused(
     }
 
     if !dry_run {
-        pool_refcnt.save_refcnt(&SystemTime::now(), true).await?;
+        pool_refcnt
+            .save_refcnt(&SystemTime::now(), true, config.compression_format)
+            .await?;
     }
 
     Ok(count)

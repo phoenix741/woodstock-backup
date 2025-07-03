@@ -5,6 +5,7 @@
 //! # Modules
 //!
 //! - `convertion`: Commands for data conversion and migration.
+//! - `convert_compression`: Commands for compression format conversion.
 //! - `file_manifest`: File manifest comparison and management.
 //! - `pool`: Pool management commands.
 //! - `read_chunk`: Chunk reading and searching utilities.

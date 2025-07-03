@@ -48,6 +48,7 @@ use futures::{Future, StreamExt};
 use tokio::fs::{remove_file, rename};
 
 use crate::proto::ProtobufReader;
+use crate::utils::compression::CompressionFormat;
 use crate::{proto::save_file, EntryState, FileManifest, FileManifestJournalEntry, PoolRefCount};
 
 use super::IndexManifest;
@@ -237,8 +238,9 @@ impl Manifest {
     pub async fn save_filelist_entries(
         &self,
         source: impl Stream<Item = FileManifestJournalEntry>,
+        compression_format: CompressionFormat,
     ) -> Result<()> {
-        save_file(&self.file_list_path, source, false).await
+        save_file(&self.file_list_path, source, false, compression_format).await
     }
 
     /// Loads the index manifest by applying all manifest and journal entries.
@@ -295,7 +297,11 @@ impl Manifest {
     ///
     /// * `Fut` - The future returned by the mapping callback.
     /// * `F` - The mapping callback type.
-    pub async fn compact<Fut, F>(&self, mapping_callback: &F) -> Result<()>
+    pub async fn compact<Fut, F>(
+        &self,
+        mapping_callback: &F,
+        compression_format: CompressionFormat,
+    ) -> Result<()>
     where
         F: Fn(FileManifest) -> Fut,
         Fut: Future<Output = Option<FileManifest>>,
@@ -305,7 +311,7 @@ impl Manifest {
             .filter_map(|message| async { mapping_callback(message).await });
         pin_mut!(all_messages);
 
-        save_file(&self.new_path, all_messages, false).await?;
+        save_file(&self.new_path, all_messages, false, compression_format).await?;
 
         let _ = rename(&self.journal_path, &self.log_path).await;
         let _ = remove_file(&self.file_list_path).await;
@@ -387,7 +393,10 @@ mod tests {
         let path = std::path::Path::new("./data");
         let manifest = Manifest::new("test-compact", path);
 
-        manifest.compact(&|m| async { Some(m) }).await.unwrap();
+        manifest
+            .compact(&|m| async { Some(m) }, CompressionFormat::Zstd)
+            .await
+            .unwrap();
 
         let mut manifest_st =
             ProtobufReader::<FileManifest>::new("./data/test-compact.manifest", true)

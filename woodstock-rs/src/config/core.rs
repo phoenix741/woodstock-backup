@@ -31,7 +31,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{utils::chunk_hasher::DEFAULT_CHUNK_ALGORITHM, ChunkAlgorithm, EventSource};
+use crate::{
+    utils::{chunk_hasher::DEFAULT_CHUNK_ALGORITHM, compression::CompressionFormat},
+    ChunkAlgorithm, EventSource,
+};
 
 #[derive(Clone, Debug)]
 /// Holds all filesystem paths used by the Woodstock backup system.
@@ -227,6 +230,7 @@ pub struct Configuration {
     pub log_level: Level,
     pub cache_size: usize,
     pub chunk_algorithm: ChunkAlgorithm,
+    pub compression_format: CompressionFormat,
 }
 
 impl Configuration {
@@ -358,10 +362,16 @@ impl Default for Configuration {
             warn!("Chunk algorithm in file is different from the one in environment variable");
         }
 
+        let compression_format = env::var("COMPRESSION_FORMAT")
+            .ok()
+            .and_then(|format| CompressionFormat::try_from(format.as_str()).ok())
+            .unwrap_or(CompressionFormat::Zstd);
+
         info!(
-            "Using chunk algorithm: {} (wanted: {})",
+            "Using chunk algorithm: {} (wanted: {}), compression: {}",
             chunk_algorithm.as_str_name(),
-            wanted_chunk_algorithm.as_str_name()
+            wanted_chunk_algorithm.as_str_name(),
+            compression_format
         );
 
         Self {
@@ -370,6 +380,7 @@ impl Default for Configuration {
             log_level,
             cache_size,
             chunk_algorithm,
+            compression_format,
         }
     }
 }
