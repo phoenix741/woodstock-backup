@@ -13,7 +13,7 @@ use crate::{
     manifest::Manifest,
     pool::{ConvertHashLink, PoolChunkWrapper, Refcnt, RefcntApplySens},
     proto::{save_file, ProtobufReader, ProtobufWriter, UnCompressedWriter},
-    utils::files::copy_files,
+    utils::{compression::CompressionFormat, files::copy_files},
     woodstock::event::Information,
     Event, EventSource, EventStatus, EventStep, EventType, HashConversionInformation, PoolRefCount,
 };
@@ -250,6 +250,7 @@ impl PoolConvert {
         chunks_map: &HashMap<Vec<u8>, Vec<u8>>,
         source_path: P1,
         destination_path: P2,
+        compression_format: CompressionFormat,
     ) -> Result<()> {
         let mut refcnt = Refcnt::new(source_path);
         refcnt.load_refcnt(false).await;
@@ -278,7 +279,9 @@ impl PoolConvert {
             }
         }
 
-        new_refcnt.save_refcnt(&SystemTime::now(), true).await?;
+        new_refcnt
+            .save_refcnt(&SystemTime::now(), true, compression_format)
+            .await?;
 
         Ok(())
     }
@@ -344,6 +347,7 @@ impl PoolConvert {
             &chunks_map,
             &self.config.path.pool_path,
             &new_config.path.pool_path,
+            self.config.compression_format,
         )
         .await?;
 
@@ -398,7 +402,13 @@ impl PoolConvert {
             replace_chunks(&mut message.chunks, chunks_map);
             message
         });
-        save_file(&destination_manifest.manifest_path, all_messages, false).await?;
+        save_file(
+            &destination_manifest.manifest_path,
+            all_messages,
+            false,
+            self.config.compression_format,
+        )
+        .await?;
 
         // Process log entries
         let all_messages = manifest.read_log_entries().map(|message| {
@@ -408,7 +418,13 @@ impl PoolConvert {
             }
             message
         });
-        save_file(&destination_manifest.log_path, all_messages, false).await?;
+        save_file(
+            &destination_manifest.log_path,
+            all_messages,
+            false,
+            self.config.compression_format,
+        )
+        .await?;
 
         Ok(())
     }
@@ -471,6 +487,7 @@ impl PoolConvert {
                         &chunks_map,
                         &backups_service.get_backup_destination_directory(&host, backup.number),
                         &new_backups_service.get_backup_destination_directory(&host, backup.number),
+                        new_config.compression_format,
                     )
                     .await?;
 
@@ -497,6 +514,7 @@ impl PoolConvert {
                 &chunks_map,
                 &backups_service.get_host_path(&host),
                 &new_backups_service.get_host_path(&host),
+                self.config.compression_format,
             )
             .await?;
 

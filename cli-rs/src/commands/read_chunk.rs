@@ -11,19 +11,19 @@
 //! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
 
 use console::Term;
-use flate2::bufread::ZlibDecoder;
 use log::info;
 use std::{
     error::Error,
-    fs::File,
-    io::{stdout, BufReader, Read, Write},
+    io::{stdout, Write},
     path::Path,
 };
+use tokio::io::AsyncReadExt;
 
 use futures::{pin_mut, StreamExt};
 use woodstock::{
     config::{Backups, Configuration, Hosts, BUFFER_SIZE},
     pool::{PoolChunkWrapper, Refcnt},
+    utils::compression::WoodstockCompressionReader,
 };
 
 /// Reads and prints the content of a chunk from the backup pool, decompressing it if necessary.
@@ -40,7 +40,7 @@ use woodstock::{
 /// # Panics
 ///
 /// This function may panic if writing to stdout fails.
-pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
+pub async fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     let chunk = hex::decode(chunk)?;
     let chunk = PoolChunkWrapper::new(pool_path, Some(&chunk));
 
@@ -51,13 +51,13 @@ pub fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
     let chunk_path = chunk.chunk_path();
 
     // Read all the chunk content
-    let file = File::open(chunk_path)?;
-    let file = BufReader::new(file);
-    let mut file = ZlibDecoder::new(file);
+    let file = tokio::fs::File::open(chunk_path).await?;
+    let file = tokio::io::BufReader::new(file);
+    let mut file = WoodstockCompressionReader::new(file);
 
     let mut buffer = vec![0; BUFFER_SIZE];
     loop {
-        let read = file.read(&mut buffer)?;
+        let read = file.read(&mut buffer).await?;
         if read == 0 {
             break;
         }

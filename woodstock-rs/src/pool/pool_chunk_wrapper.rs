@@ -1,4 +1,3 @@
-use async_compression::tokio::bufread::ZlibDecoder;
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
 use log::{debug, error, warn};
@@ -9,9 +8,9 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
 };
 
-use crate::config::BUFFER_SIZE;
-use crate::utils::chunk_hasher::create_chunk_hasher;
+use crate::utils::{chunk_hasher::create_chunk_hasher, compression::CompressionFormat};
 use crate::ChunkAlgorithm;
+use crate::{config::BUFFER_SIZE, utils::compression::WoodstockCompressionReader};
 use reflink_copy::reflink;
 
 use super::{
@@ -252,7 +251,7 @@ impl PoolChunkWrapper {
     async fn calculate_chunk_hash(&self, chunk_algorithm: ChunkAlgorithm) -> Result<Vec<u8>> {
         let file = File::open(self.chunk_path()).await?;
         let file = tokio::io::BufReader::new(file);
-        let mut file = ZlibDecoder::new(file);
+        let mut file = WoodstockCompressionReader::new(file);
         let mut hasher = create_chunk_hasher(chunk_algorithm);
 
         let mut buffer = vec![0u8; BUFFER_SIZE];
@@ -316,9 +315,13 @@ impl PoolChunkWrapper {
     /// # Errors
     ///
     /// Returns an error if the writer cannot be created due to I/O issues.
-    pub async fn writer(&self, chunk_algorithm: ChunkAlgorithm) -> Result<PoolChunkWriter> {
+    pub async fn writer(
+        &self,
+        chunk_algorithm: ChunkAlgorithm,
+        compression_format: CompressionFormat,
+    ) -> Result<PoolChunkWriter> {
         let pool_path = self.pool_path.clone();
-        PoolChunkWriter::new(&pool_path, chunk_algorithm).await
+        PoolChunkWriter::new(&pool_path, chunk_algorithm, compression_format).await
     }
 
     /// Writes data to the chunk and finalizes it.
@@ -342,8 +345,9 @@ impl PoolChunkWrapper {
         data: impl Stream<Item = Result<Vec<u8>>>,
         debug_filename: &[u8],
         chunk_algorithm: ChunkAlgorithm,
+        compression_format: CompressionFormat,
     ) -> Result<PoolChunkInformation> {
-        let mut writer = self.writer(chunk_algorithm).await?;
+        let mut writer = self.writer(chunk_algorithm, compression_format).await?;
 
         pin_mut!(data);
 
@@ -359,7 +363,9 @@ impl PoolChunkWrapper {
                 }
             };
         }
-        let chunk_information = writer.shutdown(self, debug_filename).await?;
+        let chunk_information = writer
+            .shutdown(self, debug_filename, compression_format)
+            .await?;
 
         Ok(chunk_information)
     }

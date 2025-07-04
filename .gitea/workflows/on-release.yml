@@ -83,7 +83,7 @@ jobs:
           cache: "npm"
 
       - name: Unit test (release)
-        run: cargo test --release -- --nocapture
+        run: cargo test -- --nocapture
         env:
           RUST_LOG: debug
 

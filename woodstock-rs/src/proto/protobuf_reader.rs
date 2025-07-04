@@ -1,6 +1,5 @@
 use std::{io, path::Path, pin::Pin};
 
-use async_compression::tokio::bufread::ZlibDecoder;
 use futures::stream::unfold;
 use futures::Stream;
 use prost::Message;
@@ -9,6 +8,8 @@ use tokio::{
     fs::File,
     io::{AsyncRead, BufReader},
 };
+
+use crate::utils::compression::WoodstockCompressionReader;
 
 /// A reader for protobuf files.
 ///
@@ -40,7 +41,7 @@ impl<T: Message + Default> ProtobufReader<T> {
     pub async fn new<P: AsRef<Path>>(path: P, compress: bool) -> io::Result<Self> {
         let file = File::open(path).await?;
         let reader: Pin<Box<dyn AsyncRead + Send + Sync>> = if compress {
-            Box::pin(ZlibDecoder::new(BufReader::new(file)))
+            Box::pin(WoodstockCompressionReader::new(BufReader::new(file)))
         } else {
             Box::pin(BufReader::new(file))
         };
@@ -163,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn test_load_file() {
         let mut reader = ProtobufReader::<woodstock::FileManifestJournalEntry>::new(
-            "./data/home.filelist",
+            "../e2e-tests/data/home.filelist",
             true,
         )
         .await
@@ -179,7 +180,7 @@ mod tests {
     #[tokio::test]
     async fn test_iterator() {
         let mut iter = ProtobufReader::<woodstock::FileManifestJournalEntry>::new(
-            "./data/home.filelist",
+            "../e2e-tests/data/home.filelist",
             true,
         )
         .await

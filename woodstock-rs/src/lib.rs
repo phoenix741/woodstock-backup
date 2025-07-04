@@ -16,7 +16,6 @@
 //!
 //! The crate is organized into several modules, each responsible for a specific aspect of the backup system:
 //!
-//! * `client` - Handles client-side operations, including authentication and file scanning
 //! * `server` - Implements server-side functionality for managing backups
 //! * `proto` - Contains protocol buffer definitions for gRPC communication
 //! * `utils` - Provides utility functions and helpers
@@ -25,8 +24,6 @@
 //! ## Usage
 //!
 //! To use this crate, include it in your `Cargo.toml` and import the necessary modules in your Rust code. Refer to the module-level documentation for detailed usage examples.
-
-pub mod client;
 
 pub mod pool;
 pub mod view;

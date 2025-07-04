@@ -4,8 +4,8 @@
 //!
 //! # Modules
 //!
-//! - `client`: Client-related commands for interacting with backup clients.
 //! - `convertion`: Commands for data conversion and migration.
+//! - `convert_compression`: Commands for compression format conversion.
 //! - `file_manifest`: File manifest comparison and management.
 //! - `pool`: Pool management commands.
 //! - `read_chunk`: Chunk reading and searching utilities.
@@ -13,7 +13,6 @@
 //! - `resolve`: Network and mDNS resolution commands.
 //! - `mount`: (Unix only) FUSE-based mounting commands.
 
-pub mod client;
 pub mod convertion;
 pub mod file_manifest;
 pub mod pool;
