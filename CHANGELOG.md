@@ -1,3 +1,10 @@
+# [2.0.0-alpha.45](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.44...v2.0.0-alpha.45) (2025-07-05)
+
+
+### Bug Fixes
+
+* 🚑️ fix rustls that crash ([c2a4fff](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c2a4fffeae90b9f0d7c0ba3a9e9aea8325ab0aeb))
+
 # [2.0.0-alpha.44](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.43...v2.0.0-alpha.44) (2025-07-05)
 
 
