@@ -73,11 +73,20 @@ tempfile = "^3"
 tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
 tokio-stream = "^0.1"
 tokio-util = "0.7"
-tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
+ring = { version = "0.17" }
+rustls = { version = "0.23", features = [
+  "ring",
+  "logging",
+  "tls12",
+], default-features = false }
+tonic = { version = "^0.13", features = [
+  "tls-ring",
+  "tls-webpki-roots",
+  "gzip",
+] }
 uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 reflink-copy = "0.1.26"
 fs4 = { version = "0.13.1", features = ["tokio"] }
-rustls = "0.23.28"
 
 
 [target.'cfg(target_env = "musl")'.dependencies]

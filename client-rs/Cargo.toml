@@ -79,7 +79,9 @@ tokio = { version = "^1.40", features = [
     "process",
 ] }
 tokio-stream = "^0.1"
-tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
+ring = { version = "0.17" }
+rustls = { version = "0.23", features = ["ring","logging","tls12"], default-features = false }
+tonic = { version = "^0.13", features = ["tls-ring", "tls-webpki-roots", "gzip"] }
 uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 woodstock-rs = { path = "../woodstock-rs", default-features = false }
 tempfile = "3.20.0"
