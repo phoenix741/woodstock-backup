@@ -1061,7 +1061,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "e2e-tests"
-version = "0.1.0"
+version = "2.0.0-alpha.44"
 dependencies = [
  "eyre",
  "futures",
@@ -4858,7 +4858,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-cli-rs"
-version = "2.0.0-alpha.43"
+version = "2.0.0-alpha.44"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -4887,7 +4887,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-client-rs"
-version = "2.0.0-alpha.43"
+version = "2.0.0-alpha.44"
 dependencies = [
  "async-stream",
  "chrono",
@@ -4935,7 +4935,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-rs"
-version = "2.0.0-alpha.42"
+version = "2.0.0-alpha.44"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -4986,7 +4986,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock_shared-rs"
-version = "2.0.0-alpha.43"
+version = "2.0.0-alpha.44"
 dependencies = [
  "chrono",
  "futures-util",
@@ -5016,7 +5016,7 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 
 [[package]]
 name = "ws_backuppc_importer"
-version = "2.0.0-alpha.42"
+version = "2.0.0-alpha.44"
 dependencies = [
  "async-stream",
  "async-trait",

@@ -1,3 +1,17 @@
+# [2.0.0-alpha.44](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.43...v2.0.0-alpha.44) (2025-07-05)
+
+
+### Features
+
+* ✨ add the snapshot capability to the client (only btrfs) ([4747bc7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4747bc7bed7e961e0123a1ab50197741f3d94d09))
+* ✨ remplace zlib by zstd as default compression format ([a5a33ea](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/a5a33eaee6369f73e190456017253a47d3e77588))
+* 🔊 update log for better error handling ([78db36e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/78db36e817b3ae61b6a6765301daa0a55244eab7))
+
+
+### Performance Improvements
+
+* change zlib dependence to ensure better performance ([02a3fc2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/02a3fc2d7abb8b9242abfb4737fa3877bad2d123))
+
 # [2.0.0-alpha.43](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.42...v2.0.0-alpha.43) (2025-06-22)
 
 
