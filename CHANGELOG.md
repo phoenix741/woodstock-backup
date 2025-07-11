@@ -1,3 +1,10 @@
+# [2.0.0-alpha.46](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.45...v2.0.0-alpha.46) (2025-07-11)
+
+
+### Features
+
+* ajout d'une analyse des dependances avec trivy et dtrack ([e05ff70](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e05ff7028f72a3d2eeeb13d4073c4c1d833c870b))
+
 # [2.0.0-alpha.45](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.44...v2.0.0-alpha.45) (2025-07-05)
 
 
