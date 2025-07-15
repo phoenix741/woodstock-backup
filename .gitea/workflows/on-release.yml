@@ -117,6 +117,7 @@ jobs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && contains(fromJson('["master", "main", "alpha", "beta", "develop"]'), github.ref_name)
     steps:
       - name: Install dependencies
         run: |
@@ -150,7 +151,8 @@ jobs:
           serverHostname: "dtrack-api.shadoware.org"
           apiKey: ${{ secrets.DTRACK_APIKEY }}
           projectName: "Woodstock backup"
-          projectVersion: ${{ needs.prerelease.outputs.next_version || steps.extract_branch.outputs.branch }}
+          projectVersion: ${{ steps.extract_branch.outputs.branch }}
+          projectTags: "woodstock-${{ needs.prerelease.outputs.next_version || '' }}"
           bomFilename: "dependency-results.cdx.json"
           autoCreate: true
 
