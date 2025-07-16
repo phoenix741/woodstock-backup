@@ -83,8 +83,8 @@ COPY nestjs/ /src/nestjs/
 RUN npm run buildall
 
 #
-# -------- Build back -------
-FROM ${DEBIAN_VERSION} AS client
+# -------- Build client -------
+FROM debian:$DEBIAN_VERSION AS client
 
 RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
   apk add --no-cache acl; \

@@ -13,7 +13,7 @@ services:
       args:
         - RUST_VERSION=1
         - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=debian:12-slim
+        - DEBIAN_VERSION=12-slim
     image: phoenix741/woodstock-backup:develop
     ports:
       - 3000:3000
@@ -39,7 +39,7 @@ services:
       args:
         - RUST_VERSION=1
         - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=debian:12-slim
+        - DEBIAN_VERSION=12-slim
       target: client
     image: phoenix741/woodstock-backup-client:develop
     ports:

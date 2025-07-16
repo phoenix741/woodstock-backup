@@ -479,6 +479,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{matrix.node_version}}
+            DEBIAN_VERSION=12-slim
             FEATURES=${{matrix.features}}
 
       - name: Build Website Docker Image
