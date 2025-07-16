@@ -1,4 +1,5 @@
 use dirs::config_dir;
+use log::warn;
 use log::{debug, info};
 use rand::RngCore;
 use serde::Deserialize;
@@ -215,14 +216,28 @@ impl Default for ClientConfig {
 /// An error is returned if the file cannot be read or parsed.
 ///
 pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig> {
-    debug!(
+    info!(
         "Reading client configuration from file: {:?}",
         path.as_ref().display()
     );
 
     // If the file does not exist, return the default configuration
     if !path.as_ref().exists() {
-        return Ok(ClientConfig::default());
+        // Try deserialize from env
+        let res = serde_env::from_env_with_prefix("WS_CLIENT");
+        return match res {
+            Ok(config) => {
+                info!("Client configuration loaded from environment variables");
+                Ok(config)
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to load client configuration from environment: {}",
+                    e
+                );
+                Ok(ClientConfig::default())
+            }
+        };
     }
 
     let mut file = File::open(path)?;

@@ -45,9 +45,12 @@ services:
     ports:
       - 3657:3657
     environment:
+      - CLIENT_PATH=/config
+      - WS_CLIENT_PASSWORD=password
+      - WS_CLIENT_SERVER=https://192.168.101.3:8443
       - LOG_LEVEL=debug
     volumes:
-      - "client_storage:/etc/woodstock"
+      - "client_storage:/config"
 
   # woodstock_client:
   #   image: phoenix741/woodstock-backup:develop

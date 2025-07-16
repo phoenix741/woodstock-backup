@@ -86,6 +86,7 @@ uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
 woodstock-rs = { path = "../woodstock-rs", default-features = false }
 tempfile = "3.20.0"
 chrono = "0.4.41"
+serde-env = "0.2.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nix = { version = "^0.30", features = ["fs"] }

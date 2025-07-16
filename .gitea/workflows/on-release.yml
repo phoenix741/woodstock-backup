@@ -392,7 +392,7 @@ jobs:
         id: version
         run: echo ::set-output name=version::$(node -p "require('./package.json').version")
 
-      - name: Get metadata to tag container image
+      - name: Get metadata to tag server container image
         if: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta
@@ -406,7 +406,21 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
             type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
 
-      - name: Get metadata to tag container image
+      - name: Get metadata to tag client container image
+        if: github.event_name == 'push'
+        uses: https://github.com/docker/metadata-action@v4
+        id: meta-client
+        with:
+          context: git
+          # Liste des images Docker à utiliser comme base pour les tags
+          images: |
+            phoenix741/woodstock-backup-client
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+
+      - name: Get metadata to tag website container image
         if: github.event_name == 'push'
         uses: https://github.com/docker/metadata-action@v4
         id: meta-website
@@ -438,6 +452,25 @@ jobs:
           file: Dockerfile
           context: .
           load: true
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            RUST_VERSION=${{matrix.rust_version}}
+            NODE_VERSION=${{matrix.node_version}}
+            FEATURES=${{matrix.features}}
+
+      - name: Build Client Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: Dockerfile
+          context: .
+          load: true
+          target: client
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

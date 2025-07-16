@@ -989,7 +989,7 @@ dependencies = [
 
 [[package]]
 name = "e2e-tests"
-version = "2.0.0-alpha.47"
+version = "0.1.0"
 dependencies = [
  "eyre",
  "futures",
@@ -3245,6 +3245,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-env"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d13536c0c431652192b75c7d5afa83dedae98f91d7e687ff30a009e9d15284fb"
+dependencies = [
+ "anyhow",
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4802,6 +4812,7 @@ dependencies = [
  "self_update",
  "semver",
  "serde",
+ "serde-env",
  "serde_json",
  "serde_yaml",
  "shlex",
