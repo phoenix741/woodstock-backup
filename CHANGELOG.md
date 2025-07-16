@@ -1,3 +1,10 @@
+# [2.0.0-alpha.47](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.46...v2.0.0-alpha.47) (2025-07-16)
+
+
+### Bug Fixes
+
+* update the dtrack only for valid branch ([062c238](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/062c238168b794ff7e3903e831eee54321e619b5))
+
 # [2.0.0-alpha.46](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.45...v2.0.0-alpha.46) (2025-07-11)
 
 
