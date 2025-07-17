@@ -1,3 +1,10 @@
+# [2.0.0-alpha.49](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.48...v2.0.0-alpha.49) (2025-07-17)
+
+
+### Features
+
+* ✨ client can have is config set by environment variable ([6fdbe8e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/6fdbe8ed794027eb2ebf559a29c60843c4ffbb55))
+
 # [2.0.0-alpha.48](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.47...v2.0.0-alpha.48) (2025-07-17)
 
 
