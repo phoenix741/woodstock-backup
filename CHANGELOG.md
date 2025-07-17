@@ -1,3 +1,10 @@
+# [2.0.0-alpha.50](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.49...v2.0.0-alpha.50) (2025-07-17)
+
+
+### Bug Fixes
+
+* fix client image not created ([4be9b75](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4be9b75e9bc1079b252c3f116144483709d537ea))
+
 # [2.0.0-alpha.49](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.48...v2.0.0-alpha.49) (2025-07-17)
 
 
