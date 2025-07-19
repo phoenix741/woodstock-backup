@@ -1,3 +1,10 @@
+# [2.0.0-alpha.51](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.50...v2.0.0-alpha.51) (2025-07-19)
+
+
+### Bug Fixes
+
+* ♻️ use a sandboxed worker for backup ([e259778](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e259778235777d10de84a8c348949ebfe887d869))
+
 # [2.0.0-alpha.50](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.49...v2.0.0-alpha.50) (2025-07-17)
 
 
