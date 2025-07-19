@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import {
-  ApplicationConfigService,
   ApplicationLogger,
-  BackupsService,
   CacheConfigService,
   ConfigProviderModule,
   SharedModule,

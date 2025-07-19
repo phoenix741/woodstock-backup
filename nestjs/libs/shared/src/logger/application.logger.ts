@@ -4,10 +4,7 @@ import * as logform from 'logform';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
 
-import { BackupsService } from '../backups';
-
 import 'winston-daily-rotate-file';
-import { ApplicationConfigService } from '../config';
 
 const { combine, timestamp, printf, colorize } = format;
 

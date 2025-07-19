@@ -23,7 +23,7 @@ export class PingService {
           return address;
         }
       }
-    } catch (err) {
+    } catch {
       this.logger.debug(`Can't find an ip for the host ${hostname}`);
     }
   }
@@ -31,7 +31,7 @@ export class PingService {
   async ping(ip: string, hostname: string): Promise<boolean> {
     try {
       return await grpcPing(ip, hostname);
-    } catch (err) {
+    } catch {
       return false;
     }
   }

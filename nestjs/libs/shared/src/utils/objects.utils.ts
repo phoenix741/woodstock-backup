@@ -1,5 +1,5 @@
 export function compactArray<T>(obj: Array<T>): Array<T> {
-  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+   
   return obj.filter((v) => !(v === undefined || v === null)).map((v) => compact(v as any));
 }
 
