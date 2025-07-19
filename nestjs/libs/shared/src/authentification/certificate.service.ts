@@ -55,7 +55,7 @@ export class CertificateService {
   #createCertificate(
     host: string,
     server: boolean,
-    rootCA?: { privateKey: PKI.PrivateKey; certificate: PKI.Certificate },
+    rootCA?: { privateKey: PKI.rsa.PrivateKey; certificate: PKI.Certificate },
   ): { privateKey: string; publicKey: string } {
     // generate a keypair and create an X.509v3 certificate
     const keys = pki.rsa.generateKeyPair(2048);
@@ -160,7 +160,7 @@ export class CertificateService {
 
   #createHttpsCertificate(
     hostname: string,
-    rootCA: { privateKey: PKI.PrivateKey; certificate: PKI.Certificate },
+    rootCA: { privateKey: PKI.rsa.PrivateKey; certificate: PKI.Certificate },
   ): { privateKey: string; publicKey: string } {
     // generate a keypair and create an X.509v3 certificate
     const keys = pki.rsa.generateKeyPair(2048);

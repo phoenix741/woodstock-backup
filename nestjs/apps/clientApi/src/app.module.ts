@@ -3,18 +3,16 @@ import { Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import {
-  ApplicationConfigService,
   ApplicationLogger,
-  BackupsService,
   CacheConfigService,
   CertificateService,
   ConfigProviderModule,
   SharedModule,
   initializeLog,
 } from '@woodstock/shared';
-import { PubSub } from 'graphql-subscriptions';
 import { ClientCertificateStrategy } from './auth/client-strategy.service.js';
 import { HostController } from './hosts/hosts.controller.js';
+import { PubSub } from 'graphql-subscriptions';
 
 @Module({
   imports: [

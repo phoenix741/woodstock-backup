@@ -6,9 +6,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import {
-  ApplicationConfigService,
   ApplicationLogger,
-  BackupsService,
   CacheConfigService,
   CertificateService,
   ConfigProviderModule,
@@ -16,7 +14,6 @@ import {
   initializeLog,
 } from '@woodstock/shared';
 import { generateRsaKey } from '@woodstock/shared-rs';
-import { PubSub } from 'graphql-subscriptions';
 import { BackupsFilesController } from './backups/backups-files.controller.js';
 import { BackupsFilesService } from './backups/backups-files.service.js';
 import { BackupController } from './backups/backups.controller.js';
@@ -38,6 +35,7 @@ import { PrometheusController } from './stats/prometheus.controller.js';
 import { PrometheusService } from './stats/prometheus.service.js';
 import { StatsResolver } from './stats/stats.resolver.js';
 import { BigIntScalar } from './utils/bigint.scalar.js';
+import { PubSub } from 'graphql-subscriptions';
 
 @Module({
   imports: [
@@ -52,11 +50,11 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       fieldResolverEnhancers: ['interceptors'],
-      installSubscriptionHandlers: true,
       autoSchemaFile: true,
       buildSchemaOptions: {
         dateScalarMode: 'isoDate',
       },
+      installSubscriptionHandlers: true,
     }),
     ServeStaticModule.forRootAsync({
       useClass: ServeStaticService,

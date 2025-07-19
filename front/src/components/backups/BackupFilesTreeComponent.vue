@@ -17,7 +17,6 @@
 
 <script setup lang="ts">
 import { useBackupsBrowse } from '../../utils/backups';
-import { VTreeview } from 'vuetify/labs/VTreeview';
 import { computed, ref, watch } from 'vue';
 import { unmangle } from '../../utils/file';
 import { useApolloClient } from '@vue/apollo-composable';

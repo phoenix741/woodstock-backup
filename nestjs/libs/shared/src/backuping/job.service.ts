@@ -1,14 +1,14 @@
 import { InjectQueue, QueueEventsHost } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, JobState, Queue } from 'bullmq';
-import * as cronParser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 
 import { JsBackupStatus } from '@woodstock/shared-rs';
 import { BackupsService, HostsService } from '../backups';
 import { PingService } from '../commands';
 import { SchedulerConfigService } from '../config';
 import { QueueName } from '../queue';
-import { BackupQueueData, JobBackupData, JobRemoveData, JobRestoreData } from './backuping.dto';
+import { BackupQueueData, JobBackupData } from './backuping.dto';
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'];
 
@@ -66,7 +66,7 @@ export class JobService extends QueueEventsHost {
     const date = new Date(Date.now() + timeToNextBackup);
 
     const schedulerConfig = await this.schedulerConfigService.getScheduler();
-    const interval = cronParser.parseExpression(schedulerConfig.wakeupSchedule!, {
+    const interval = CronExpressionParser.parse(schedulerConfig.wakeupSchedule!, {
       currentDate: date,
     });
 

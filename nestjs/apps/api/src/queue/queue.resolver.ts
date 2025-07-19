@@ -3,7 +3,7 @@ import { Inject } from '@nestjs/common';
 import { Args, Int, Query, Resolver, Subscription } from '@nestjs/graphql';
 import { Job, JobBackupData, QueueListInput, QueueName, SchedulerConfigService } from '@woodstock/shared';
 import { Queue } from 'bullmq';
-import * as cronParser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import { PubSub } from 'graphql-subscriptions';
 import { QueueStats } from './queue.dto.js';
 import { QueueUtils } from './queue.utils.js';
@@ -36,7 +36,7 @@ export class QueueResolver {
     let lastExecution: number | undefined;
     let nextWakeup: number | undefined;
     if (scheduler.wakeupSchedule) {
-      const interval = cronParser.parseExpression(scheduler.wakeupSchedule);
+      const interval = CronExpressionParser.parse(scheduler.wakeupSchedule);
       lastExecution = interval.prev().toDate().getTime();
       nextWakeup = interval.next().toDate().getTime();
     }
@@ -56,21 +56,21 @@ export class QueueResolver {
 
   @Subscription(() => Job)
   jobUpdated(): AsyncIterator<{ jobUpdated: Job }> {
-    return this.pubSub.asyncIterator('jobUpdated');
+    return this.pubSub.asyncIterableIterator('jobUpdated');
   }
 
   @Subscription(() => Int)
   jobWaiting(): AsyncIterator<{ jobWaiting: number }> {
-    return this.pubSub.asyncIterator('jobWaiting');
+    return this.pubSub.asyncIterableIterator('jobWaiting');
   }
 
   @Subscription(() => Job)
   jobFailed(): AsyncIterator<{ jobUpdated: Job }> {
-    return this.pubSub.asyncIterator('jobFailed');
+    return this.pubSub.asyncIterableIterator('jobFailed');
   }
 
   @Subscription(() => Job)
   jobRemoved(): AsyncIterator<{ jobUpdated: Job }> {
-    return this.pubSub.asyncIterator('jobRemoved');
+    return this.pubSub.asyncIterableIterator('jobRemoved');
   }
 }
