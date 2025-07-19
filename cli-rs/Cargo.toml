@@ -26,33 +26,29 @@ name = "ws_restore"
 path = "src/wsrestore.rs"
 
 [dependencies]
-async-stream = "^0.3"
-clap = { version = "^4.5", features = ["derive"] }
-color-eyre = "^0.6"
-console = "^0.15"
-env_logger = "^0.11"
-eyre = "^0.6"
-async-compression = { version = "^0.4", features = ["tokio", "zstd", "zlib"] }
-futures = "^0.3"
-hex = { version = "^0.4", features = ["serde"] }
-indicatif = "^0.17"
-log = { version = "^0.4", default-features = false, features = [
-  "std",
-  "max_level_debug",
-  "release_max_level_info",
-] }
+async-stream = { workspace = true }
+clap = { workspace = true }
+color-eyre = { workspace = true }
+console = { workspace = true }
+env_logger = { workspace = true }
+eyre = { workspace = true }
+async-compression = { workspace = true }
+futures = { workspace = true }
+hex = { workspace = true }
+indicatif = { workspace = true }
+log = { workspace = true }
 multi_log = "^0.1"
-serde = { version = "^1.0", features = ["derive"] }
-serde_json = "^1.0"
-tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
-tokio-util = "^0.7"
-tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
-woodstock-rs = { path = "../woodstock-rs", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tonic = { workspace = true }
+woodstock-rs = { workspace = true }
 
 # Fuse dependencies
 [target.'cfg(unix)'.dependencies]
-lru = { version = "^0.14", optional = true }
+lru = { workspace = true, optional = true }
 twox-hash = { version = "^2.1", optional = true }
 libc = { version = "^0.2", optional = true }
 fuser = { version = "0.15", optional = true }
-rand = { version = "^0.9", optional = true }
+rand = { workspace = true, optional = true }

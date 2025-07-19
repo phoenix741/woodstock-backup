@@ -28,63 +28,44 @@ name = "compression_benchmark"
 harness = false
 
 [dependencies]
-async-compression = { version = "^0.4", features = [
-  "zstd",
-  "zlib",
-  "brotli",
-  "lzma",
-  "xz",
-  "tokio",
-] }
-async-stream = "^0.3"
-async-walkdir = "^2.0"
-base64 = "^0.22"
-bytes = "^1.7"
-chrono = "0.4.38"
+async-compression = { workspace = true }
+async-stream = { workspace = true }
+async-walkdir = "^2.1"
+base64 = { workspace = true }
+bytes = "^1.10"
+chrono = { workspace = true }
 dns-lookup = "^2.0"
-eyre = "^0.6"
-futures = "^0.3"
-globset = "^0.4"
-hex = { version = "^0.4", features = ["serde"] }
-hyper-util = "0.1.9"
+eyre = { workspace = true }
+futures = { workspace = true }
+globset = { workspace = true }
+hex = { workspace = true }
+hyper-util = "0.1.15"
 jsonwebtoken = "^9.3"
-lazy_static = "^1.5"
-log = { version = "^0.4", default-features = false, features = [
-  "std",
-  "max_level_debug",
-  "release_max_level_info",
-] }
-lru = "^0.14"
+lazy_static = { workspace = true }
+log = { workspace = true }
+lru = { workspace = true }
 mdns-sd = { version = "^0.13", optional = true }
 percent-encoding = "^2.3"
 prost = "^0.13"
-rand = "^0.9"
-redis = { version = "0.31.0", features = ["aio", "tokio-comp"] }
+rand = { workspace = true }
+redis = { version = "0.32.4", features = ["aio", "tokio-comp"] }
 rsa = "^0.9"
-serde = { version = "^1.0", features = ["derive"] }
-serde_json = "1.0.133"
+serde = { workspace = true }
+serde_json = { workspace = true }
 serde_path_serializer = "^1.0"
-serde_with = { version = "^3.9", features = ["hex", "base64"] }
-serde_yaml = "^0.9"
-sha2 = "^0.10"
-sha3 = { version = "^0.10", features = ["asm"] }
-blake3 = { version = "1.8.1", features = ["rayon", "mmap"] }
-tempfile = "^3"
-tokio = { version = "^1.40", features = ["fs", "macros", "rt-multi-thread"] }
-tokio-stream = "^0.1"
-tokio-util = "0.7"
-ring = { version = "0.17" }
-rustls = { version = "0.23", features = [
-  "ring",
-  "logging",
-  "tls12",
-], default-features = false }
-tonic = { version = "^0.13", features = [
-  "tls-ring",
-  "tls-webpki-roots",
-  "gzip",
-] }
-uuid = { version = "^1.10", features = ["v4", "fast-rng", "macro-diagnostics"] }
+serde_with = { version = "^3.14", features = ["hex", "base64"] }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true, features = ["asm"] }
+blake3 = { workspace = true, features = ["rayon", "mmap"] }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+ring = { workspace = true }
+rustls = { workspace = true }
+tonic = { workspace = true }
+uuid = { workspace = true }
 reflink-copy = "0.1.26"
 fs4 = { version = "0.13.1", features = ["tokio"] }
 

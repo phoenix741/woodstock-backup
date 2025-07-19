@@ -9,11 +9,11 @@ woodstock-client-rs = { path = "../client-rs" }
 
 eyre = "^0.6"
 futures = "^0.3"
-tokio = { version = "^1.40", features = ["macros", "rt-multi-thread", "fs"] }
+tokio = { version = "^1.46", features = ["macros", "rt-multi-thread", "fs"] }
 tokio-stream = "^0.1"
 hyper-util = "^0.1"
 log = "^0.4"
-tower = { version = "^0.4", features = ["util"] }
+tower = { version = "^0.5", features = ["util"] }
 tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
 tempfile = "3.20.0"
 

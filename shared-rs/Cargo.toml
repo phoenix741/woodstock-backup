@@ -9,26 +9,22 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-chrono = "0.4.38"
+chrono = { workspace = true }
 futures-util = "^0.3"
-lazy_static = "1.5.0"
-log = { version = "^0.4", default-features = false, features = [
-  "std",
-  "max_level_debug",
-  "release_max_level_info",
-] }
+lazy_static = { workspace = true }
+log = { workspace = true }
 napi = { version = "^2.16", default-features = false, features = [
   "napi8",
   "tokio_rt",
   "serde-json",
 ] }
 napi-derive = "^2.16"
-serde = "1.0.219"
-serde_json = "1.0.140"
-tokio = "^1.40"
-uuid = { version = "^1.10", features = ["v4"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
-woodstock-rs = { path = "../woodstock-rs", default-features = false }
+woodstock-rs = { workspace = true }
 
 [build-dependencies]
-napi-build = "^2.1"
+napi-build = "^2.2"

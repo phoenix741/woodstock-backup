@@ -9,6 +9,84 @@ members = [
 ]
 resolver = "2"
 
+[workspace.dependencies]
+# Common async runtime and utilities
+tokio = { version = "^1.46", features = ["fs", "macros", "rt-multi-thread"] }
+futures = "^0.3"
+async-stream = "^0.3"
+tokio-stream = "^0.1"
+tokio-util = "^0.7"
+
+# Serialization
+serde = { version = "^1.0", features = ["derive"] }
+serde_json = "^1.0"
+serde_yaml = "^0.9"
+
+# Logging
+log = { version = "^0.4", default-features = false, features = [
+  "std",
+  "max_level_debug",
+  "release_max_level_info",
+] }
+env_logger = "^0.11"
+
+# Error handling
+eyre = "^0.6"
+color-eyre = "^0.6"
+
+# Networking and gRPC
+tonic = { version = "^0.13", features = [
+  "tls-ring",
+  "tls-webpki-roots",
+  "gzip",
+] }
+
+# Utilities
+uuid = { version = "^1.17", features = ["v4", "fast-rng", "macro-diagnostics"] }
+hex = { version = "^0.4", features = ["serde"] }
+chrono = "^0.4"
+lazy_static = "^1.5"
+rand = "^0.9"
+lru = "^0.16"
+
+# CLI and console
+clap = { version = "^4.5", features = ["derive"] }
+console = "^0.16"
+indicatif = "^0.18"
+
+# Cryptography and hashing
+ring = "0.17"
+rustls = { version = "0.23", features = [
+  "ring",
+  "logging",
+  "tls12",
+], default-features = false }
+sha2 = "^0.10"
+sha3 = "^0.10"
+blake3 = "1.8.2"
+
+# Compression
+async-compression = { version = "^0.4", features = [
+  "tokio",
+  "zstd",
+  "zlib",
+  "brotli",
+  "lzma",
+  "xz",
+] }
+
+# File system
+tempfile = "^3"
+
+# Globbing
+globset = "^0.4"
+
+# Base64 encoding
+base64 = "^0.22"
+
+# Internal dependencies
+woodstock-rs = { path = "woodstock-rs", default-features = false }
+
 [profile.dev.package.flate2]
 opt-level = 3
 
