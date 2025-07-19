@@ -12,7 +12,7 @@ use napi::{
 use tokio::{io::AsyncReadExt, sync::Mutex};
 use woodstock::{
   config::{GlobalConfiguration, BUFFER_SIZE},
-  utils::{path::vec_to_path, thread::spawn_with_context},
+  utils::path::vec_to_path,
   view::WoodstockView,
   FileManifest,
 };
@@ -195,7 +195,7 @@ impl JsFilesService {
     };
     let pool_path = self.pool_path.clone();
 
-    spawn_with_context(async move {
+    tokio::spawn(async move {
       let reader = manifest.open_from_pool(&pool_path);
       pin_mut!(reader);
 

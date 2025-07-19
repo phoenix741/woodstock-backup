@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, Mutex};
 use crate::{
     config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
     pool::{apply_pending_refcnt_operations, FsckUnusedCount},
-    utils::{lock::PoolLock, thread::spawn_with_context},
+    utils::lock::PoolLock,
     EventPoolInformation, EventSource,
 };
 
@@ -177,7 +177,7 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = spawn_with_context(async move {
+        let progress_task = tokio::spawn(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut state = state_clone.lock().await;
                 state.process_verify_refcnt_progress(&progress);
@@ -239,7 +239,7 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = spawn_with_context(async move {
+        let progress_task = tokio::spawn(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut state = state_clone.lock().await;
                 state.process_verify_unused_progress(&progress);
@@ -299,7 +299,7 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = spawn_with_context(async move {
+        let progress_task = tokio::spawn(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut state = state_clone.lock().await;
                 state.process_verify_chunk_progress(&progress);

@@ -1,23 +1,16 @@
 import { CacheModule } from '@nestjs/cache-manager';
-import { Module, OnApplicationBootstrap } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.js';
-import {
-  ApplicationConfigService,
-  ApplicationLogger,
-  BackupsService,
-  CacheConfigService,
-  ConfigProviderModule,
-  SharedModule,
-  initializeLog,
-} from '@woodstock/shared';
-import { HostConsumer } from './tasks/host.consumer.js';
-import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
+import { CacheConfigService, ConfigProviderModule, SharedModule } from '@woodstock/shared';
+import { BackupLogger } from './backup.logger.js';
 import { BackupMachineService } from './backups/backup-machine.service.js';
-import { RestoreMachineService } from './backups/restore-machine.service.js';
 import { RemoveMachineService } from './backups/remove-machine.service.js';
+import { RestoreMachineService } from './backups/restore-machine.service.js';
 import { CleanupMachineService } from './pool/cleanup-machine.service.js';
 import { FsckMachineService } from './pool/fsck-machine.service.js';
+import { HostConsumer } from './tasks/host.consumer.js';
+import { HostConsumerUtilService } from './utils/host-consumer-util.service.js';
 
 @Module({
   imports: [
@@ -39,16 +32,7 @@ import { FsckMachineService } from './pool/fsck-machine.service.js';
     RemoveMachineService,
     CleanupMachineService,
     FsckMachineService,
-    {
-      provide: ApplicationLogger,
-      useFactory: (applicationConfigService, backupsService) =>
-        new ApplicationLogger('backup', applicationConfigService, backupsService),
-      inject: [ApplicationConfigService, BackupsService],
-    },
+    BackupLogger,
   ],
 })
-export class AppModule implements OnApplicationBootstrap {
-  async onApplicationBootstrap() {
-    await initializeLog();
-  }
-}
+export class AppModule {}

@@ -3,7 +3,6 @@ use napi::{Error, Result};
 use woodstock::{
   config::{GlobalConfiguration, DEFAULT_PORT},
   server::resolve::SocketAddrResolver,
-  utils::thread::spawn_with_context,
 };
 
 use super::AbortHandle;
@@ -67,7 +66,7 @@ impl CoreClientResolver {
   pub fn listen(&self) -> Result<AbortHandle> {
     let resolver = self.resolver.clone();
 
-    let handle = spawn_with_context(async move {
+    let handle = tokio::spawn(async move {
       let _ = resolver.listen().await;
     });
 

@@ -5,9 +5,7 @@ use log::error;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::{
-    config::Configuration,
-    pool::apply_pending_refcnt_operations,
-    utils::{lock::PoolLock, thread::spawn_with_context},
+    config::Configuration, pool::apply_pending_refcnt_operations, utils::lock::PoolLock,
     EventPoolCleanedInformation, EventSource,
 };
 
@@ -156,7 +154,7 @@ impl PoolCleanerMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = spawn_with_context(async move {
+        let progress_task = tokio::spawn(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut state = state_clone.lock().await;
                 state.process_cleaning_progress(

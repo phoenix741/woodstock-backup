@@ -2,6 +2,7 @@ use napi::{
   threadsafe_function::{ErrorStrategy, ThreadsafeFunction},
   Error, JsFunction, Result,
 };
+use tokio::spawn;
 use woodstock::{
   config::{Context as WoodstockContext, GlobalConfiguration, DEFAULT_CHANNEL_BUFFER_SIZE},
   server::{
@@ -11,10 +12,9 @@ use woodstock::{
     },
     client::grpc::BackupGrpcClient,
   },
-  utils::thread::{spawn_with_context, spawn_with_context_id},
 };
 
-use crate::{config::context::JsBackupContext, log::LogContext, server::abort_handle::AbortHandle};
+use crate::{config::context::JsBackupContext, server::abort_handle::AbortHandle};
 
 use super::JsBackupProgression;
 
@@ -120,8 +120,6 @@ pub struct JsBackupRestoreService {
   backup_number: usize,
   /// The Woodstock context for configuration and state management.
   context: WoodstockContext,
-  /// The log context used for restore logging
-  log_context: LogContext,
 }
 
 #[napi]
@@ -143,7 +141,6 @@ impl JsBackupRestoreService {
     backup_number: u32,
     context: &JsBackupContext,
   ) -> Result<Self> {
-    let log_context: LogContext = context.into();
     let context: WoodstockContext = context.into();
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
@@ -153,7 +150,6 @@ impl JsBackupRestoreService {
       ip,
       backup_number: backup_number_usize,
       context,
-      log_context,
     })
   }
 
@@ -205,7 +201,7 @@ impl JsBackupRestoreService {
     let (tx_state, mut rx_state) =
       tokio::sync::mpsc::channel::<RestoreState>(DEFAULT_CHANNEL_BUFFER_SIZE);
 
-    let state_update_task = spawn_with_context(async move {
+    let state_update_task = tokio::spawn(async move {
       while let Some(state) = rx_state.recv().await {
         let js_state: JsRestoreState = state.into();
         tsfn_clone_for_state_update.call(
@@ -219,7 +215,7 @@ impl JsBackupRestoreService {
       }
     });
 
-    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+    let handle = spawn(async move {
       let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, &GlobalConfiguration).await
       else {
         tsfn.call(

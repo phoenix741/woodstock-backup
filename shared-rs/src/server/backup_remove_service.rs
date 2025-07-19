@@ -3,16 +3,16 @@ use napi::{
   threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode},
   Error, JsFunction, Result, Status,
 };
+use tokio::spawn;
 use woodstock::{
   config::{Context as WoodstockContext, GlobalConfiguration, DEFAULT_CHANNEL_BUFFER_SIZE},
   server::backup::{
     remove_machine::RemoveBackupMachine,
     remove_state::{ErrorState as WoodstockErrorState, RemoveExecutionState, RemoveState},
   },
-  utils::thread::spawn_with_context_id,
 };
 
-use crate::{config::context::JsBackupContext, log::LogContext, server::abort_handle::AbortHandle};
+use crate::{config::context::JsBackupContext, server::abort_handle::AbortHandle};
 
 #[napi(string_enum)]
 pub enum JsRemoveExecutionState {
@@ -100,8 +100,6 @@ pub struct JsBackupRemoveService {
   backup_number: usize,
   /// Woodstock context for the backup operation.
   woodstock_context: WoodstockContext,
-  /// The log context used for restore logging
-  log_context: LogContext,
 }
 
 #[napi]
@@ -118,14 +116,12 @@ impl JsBackupRemoveService {
   ) -> Result<Self> {
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
-    let log_context: LogContext = context.into();
     let woodstock_context = WoodstockContext::from(context);
 
     Ok(Self {
       hostname,
       backup_number: backup_number_usize,
       woodstock_context,
-      log_context,
     })
   }
 
@@ -163,7 +159,7 @@ impl JsBackupRemoveService {
       }
     });
 
-    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+    let handle = spawn(async move {
       let mut machine = RemoveBackupMachine::new(
         &hostname_clone,
         backup_number_clone,

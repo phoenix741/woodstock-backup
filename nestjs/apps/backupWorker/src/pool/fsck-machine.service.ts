@@ -1,26 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CorePoolFsckService,
-  generateContext,
-  JsEventSource,
-  JsFsckStatusUpdate,
-  LogContext,
-} from '@woodstock/shared-rs';
+import { CorePoolFsckService, JsEventSource, JsFsckStatusUpdate } from '@woodstock/shared-rs';
 import { Observable } from 'rxjs';
 
 @Injectable()
 export class FsckMachineService {
-  execute(
-    logContext: LogContext,
-    dryRun: boolean,
-    verifyChunks: boolean,
-    abort?: AbortSignal,
-  ): Observable<JsFsckStatusUpdate> {
-    const context = generateContext({
-      username: undefined,
-      logContext,
-    });
-    const service = CorePoolFsckService.createService(context);
+  execute(dryRun: boolean, verifyChunks: boolean, abort?: AbortSignal): Observable<JsFsckStatusUpdate> {
+    const service = CorePoolFsckService.createService();
 
     return new Observable((observer) => {
       let abortMethod: () => void = () => {};

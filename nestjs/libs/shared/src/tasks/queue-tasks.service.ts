@@ -1,11 +1,14 @@
 import { Injectable, Type } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { SandboxedJob } from 'bullmq';
 import { instanceToPlain, plainToInstance } from 'class-transformer';
 import { concatMap, lastValueFrom, Observable, throttleTime } from 'rxjs';
 
 @Injectable()
 export class QueueTasksService {
-  async processJobData<JobData, Context>(job: Job<JobData>, observable$: Observable<Context>): Promise<Context> {
+  async processJobData<JobData, Context>(
+    job: SandboxedJob<JobData>,
+    observable$: Observable<Context>,
+  ): Promise<Context> {
     const lastValue = await lastValueFrom(
       observable$.pipe(
         throttleTime(1000, undefined, { leading: true, trailing: true }),

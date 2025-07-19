@@ -1,6 +1,6 @@
-use log::error;
+use log::{error, info};
 use napi::{
-  bindgen_prelude::BigInt,
+  bindgen_prelude::{spawn, BigInt},
   threadsafe_function::{ErrorStrategy, ThreadsafeFunction},
   Error, JsFunction, Result,
 };
@@ -18,10 +18,9 @@ use woodstock::{
     client::grpc::BackupGrpcClient,
     progression::FileListProgression,
   },
-  utils::thread::spawn_with_context_id,
 };
 
-use crate::{config::context::JsBackupContext, log::LogContext, models::JsExecuteCommandOperation};
+use crate::{config::context::JsBackupContext, models::JsExecuteCommandOperation};
 
 use super::{AbortHandle, JsBackupProgression};
 
@@ -278,8 +277,6 @@ pub struct JsBackupSaveService {
   backup_number: usize,
   /// The Woodstock context for configuration and state management.
   context: WoodstockContext,
-  /// The log context used for restore logging
-  log_context: LogContext,
 }
 
 #[napi]
@@ -301,7 +298,6 @@ impl JsBackupSaveService {
     backup_number: u32,
     context: &JsBackupContext,
   ) -> Result<Self> {
-    let log_context: LogContext = context.into();
     let context: WoodstockContext = context.into();
     let backup_number_usize = usize::try_from(backup_number)
       .map_err(|_| Error::from_reason("Backup number is too large".to_string()))?;
@@ -311,7 +307,6 @@ impl JsBackupSaveService {
       hostname,
       backup_number: backup_number_usize,
       context,
-      log_context,
     })
   }
 
@@ -345,6 +340,8 @@ impl JsBackupSaveService {
     &self,
     #[napi(ts_arg_type = "(result: JsBackupSaveMessage) => void")] callback: JsFunction,
   ) -> Result<AbortHandle> {
+    info!("Starting backup save for {} at {}", self.hostname, self.ip);
+
     let tsfn: ThreadsafeFunction<JsBackupSaveMessage, ErrorStrategy::Fatal> =
       callback.create_threadsafe_function(0, |ctx| Ok(vec![ctx.value]))?;
 
@@ -372,7 +369,7 @@ impl JsBackupSaveService {
       }
     });
 
-    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+    let handle = spawn(async move {
       let Ok(grpc_client) = BackupGrpcClient::new(&hostname, &ip, config).await else {
         tsfn.call(
           JsBackupSaveMessage {

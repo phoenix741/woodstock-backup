@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { HostConfiguration, HostsService, JobBackupData } from '@woodstock/shared';
-import { Job } from 'bullmq';
+import { Job, SandboxedJob } from 'bullmq';
 
 @Injectable()
 export class HostConsumerUtilService {
   constructor(private hostsService: HostsService) {}
 
-  async updateBackupTaskConfig(job: Job<JobBackupData>): Promise<HostConfiguration> {
+  async updateBackupTaskConfig(job: SandboxedJob<JobBackupData>): Promise<HostConfiguration> {
     const backupTask = job.data;
 
     if (!backupTask.config) {

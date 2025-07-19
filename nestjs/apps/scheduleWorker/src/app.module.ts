@@ -31,9 +31,7 @@ import { IORedisOptions } from '@nestjs/microservices/external/redis.interface.j
     StatsService,
     {
       provide: ApplicationLogger,
-      useFactory: (applicationConfigService, backupsService) =>
-        new ApplicationLogger('stats', applicationConfigService, backupsService),
-      inject: [ApplicationConfigService, BackupsService],
+      useFactory: () => new ApplicationLogger('stats'),
     },
   ],
 })

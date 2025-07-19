@@ -75,7 +75,7 @@ export class BackupController {
     @Query('tailable', ParseBoolPipe) tailable: boolean,
     @Res() res: Response,
   ): void {
-    const filename = join(this.applicationConfig.hostPath, name, '' + number, `backup.log`);
+    const filename = join(this.backupsService.getLogDirectory(name, number ?? 0), `backup.log`);
     if (tailable) {
       tailLog(filename, res);
     } else {

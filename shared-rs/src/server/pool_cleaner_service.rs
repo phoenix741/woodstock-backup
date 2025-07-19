@@ -4,7 +4,7 @@ use napi::{
   JsFunction,
 };
 use std::path::PathBuf;
-use tokio::sync::mpsc;
+use tokio::{spawn, sync::mpsc};
 use woodstock::{
   config::{Configuration, GlobalConfiguration, DEFAULT_CHANNEL_BUFFER_SIZE},
   server::pool::{
@@ -15,13 +15,10 @@ use woodstock::{
       ErrorState as InnerCleanerErrorState,
     },
   },
-  utils::thread::spawn_with_context_id,
   EventPoolCleanedInformation, EventSource,
 };
 
-use crate::{
-  config::context::JsBackupContext, events::JsEventSource, log::LogContext, server::AbortHandle,
-};
+use crate::{events::JsEventSource, server::AbortHandle};
 
 // --- JS-friendly Enums ---
 #[napi(string_enum)]
@@ -145,8 +142,6 @@ pub struct PoolCleanerMessage {
 pub struct JsPoolCleanerService {
   /// The configuration used for pool cleaning operations.
   config: Configuration,
-  /// The log context used for restore logging
-  log_context: LogContext,
 }
 
 #[napi]
@@ -159,12 +154,9 @@ impl JsPoolCleanerService {
   ///
   /// # Errors
   /// Returns an error if the backup number cannot be converted to `usize`.
-  pub fn create_service(context: &JsBackupContext) -> Result<Self> {
-    let log_context: LogContext = context.into();
-
+  pub fn create_service() -> Result<Self> {
     Ok(Self {
       config: GlobalConfiguration.clone(),
-      log_context,
     })
   }
 
@@ -211,7 +203,7 @@ impl JsPoolCleanerService {
     });
 
     let tsfn_clone_task = tsfn.clone();
-    let handle = spawn_with_context_id(self.log_context.get_id(), async move {
+    let handle = spawn(async move {
       let machine = PoolCleanerMachine::new(&config, target_path, event_source, Some(state_tx));
       let machine_result = machine.execute().await;
 

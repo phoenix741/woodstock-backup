@@ -5,6 +5,9 @@ module.exports = [
     cwd: '/app/nestjs',
     exec_mode: 'cluster',
     instances: parseInt(process.env.API_INSTANCES ?? '1'),
+    env: {
+      MAX_BACKUP_TASK: 1,
+    },
   },
   {
     script: 'apps/clientApi/main.js',
@@ -12,15 +15,6 @@ module.exports = [
     cwd: '/app/nestjs',
     exec_mode: 'cluster',
     instances: parseInt(process.env.API_INSTANCES ?? '1'),
-  },
-  {
-    script: 'apps/backupWorker/main.js',
-    name: 'backupWorker',
-    cwd: '/app/nestjs',
-    instances: parseInt(process.env.BACKUP_WORKER_INSTANCES || '1'),
-    env: {
-      MAX_BACKUP_TASK: 1,
-    },
   },
   {
     script: 'apps/scheduleWorker/main.js',

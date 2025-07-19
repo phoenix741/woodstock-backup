@@ -38,9 +38,7 @@ import { HostController } from './hosts/hosts.controller.js';
     },
     {
       provide: ApplicationLogger,
-      useFactory: (applicationConfigService, backupsService) =>
-        new ApplicationLogger('main', applicationConfigService, backupsService),
-      inject: [ApplicationConfigService, BackupsService],
+      useFactory: () => new ApplicationLogger('main'),
     },
   ],
 })

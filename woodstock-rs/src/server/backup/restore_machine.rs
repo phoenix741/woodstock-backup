@@ -7,7 +7,6 @@ use tokio::sync::{mpsc, Mutex};
 use crate::{
     config::{Configuration, Context, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     server::{client::Client, progression::BackupProgression},
-    utils::thread::spawn_with_context,
 };
 
 use super::{restore::BackupRestore, restore_state::RestoreState};
@@ -198,7 +197,7 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         let state_tx_clone = self.state_tx.clone();
         let share_clone = share.to_string();
 
-        let restore_task = spawn_with_context(async move {
+        let restore_task = tokio::spawn(async move {
             while let Some(progress) = progress_rx.recv().await {
                 let mut progression_state_clone = progression_state_clone.lock().await;
                 progression_state_clone.process_restore_progress(&share_clone, &progress);

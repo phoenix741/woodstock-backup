@@ -1,15 +1,13 @@
+import 'winston-daily-rotate-file';
+
 import { Injectable, LoggerService } from '@nestjs/common';
 import { mkdirSync } from 'fs';
 import * as logform from 'logform';
 import { join } from 'path';
 import { createLogger, format, Logger, transports } from 'winston';
+import { ApplicationConfigService, BackupsService } from '@woodstock/shared';
 
-import { BackupsService } from '../backups';
-
-import 'winston-daily-rotate-file';
-import { ApplicationConfigService } from '../config';
-
-const { combine, timestamp, printf, colorize } = format;
+const { combine, timestamp, printf } = format;
 
 function padString(value: string | undefined) {
   if (value === undefined) {
@@ -34,50 +32,42 @@ export interface LogStorage {
 }
 
 @Injectable()
-export class ApplicationLogger implements LoggerService {
+export class BackupLogger implements LoggerService {
   #logger: Logger;
 
-  constructor(readonly worker: string) {
-    this.#logger = this.#createGlobalLogger(worker);
-  }
+  constructor(
+    private config: ApplicationConfigService,
+    private backupsService: BackupsService,
+  ) {}
 
-  #createGlobalLogger(worker: string): Logger {
-    const logPath = join(process.env.BACKUP_PATH || '', 'logs');
-    mkdirSync(logPath, { recursive: true });
+  #createLogger(jobId: string, operation?: string, hostname?: string, backupNumber?: number) {
+    const hostPath = hostname && backupNumber && operation !== 'remove';
+    const destinationDirectory = hostPath
+      ? this.backupsService.getLogDirectory(hostname, backupNumber ?? 0)
+      : this.config.jobPath;
 
-    const options = {
-      datePattern: 'YYYY-MM-DD',
-      zippedArchive: true,
-      maxSize: '2m', // Config
-      maxFiles: '31d', // Config
-      createSymlink: true,
-    };
+    const filename = hostPath ? `${operation}.log` : `${jobId}-${operation}.log`;
+    const errorFilename = hostPath ? `${operation}-error.log` : `${jobId}-${operation}-error.log`;
 
+    mkdirSync(destinationDirectory, { recursive: true });
     return createLogger({
       level: process.env.LOG_LEVEL || 'info',
       format: combine(timestamp(), applicationFormat),
       transports: [
-        new transports.Console({
-          format: combine(colorize({ all: true }), timestamp(), applicationFormat),
+        new transports.File({
+          filename: join(destinationDirectory, errorFilename),
+          level: 'error',
         }),
-        new transports.DailyRotateFile({
-          filename: join(logPath, `application-${worker}-%DATE%.log`),
-          symlinkName: `application-${worker}.log`,
-          ...options,
-        }),
-      ],
-      exceptionHandlers: [
-        new transports.Console({
-          format: combine(colorize({ all: true }), timestamp(), applicationFormat),
-        }),
-        new transports.DailyRotateFile({
-          filename: join(logPath, `application-${worker}-%DATE%.log`),
-          symlinkName: `application-${worker}.log`,
-          ...options,
+        new transports.File({
+          filename: join(destinationDirectory, filename),
         }),
       ],
-      //exitOnError: false,
     });
+  }
+
+  updateLogger(jobId: string, operation?: string, hostname?: string, backupNumber?: number) {
+    this.#logger?.close();
+    this.#logger = this.#createLogger(jobId, operation, hostname, backupNumber);
   }
 
   log(message: string | Record<string, unknown>, context?: string): void {

@@ -22,7 +22,6 @@ use crate::{
     server::progression::BackupProgression,
     utils::{
         path::{path_to_vec, vec_to_path},
-        thread::spawn_with_context,
     },
     Event, EventBackupInformation, EventSource, EventStatus, EventStep, EventType,
     RestoreFileRequest,
@@ -228,7 +227,7 @@ impl<Clt: Client> BackupRestore<Clt> {
 
         let (tx, rx) = tokio::sync::mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
 
-        spawn_with_context(async move {
+        tokio::spawn(async move {
             let entries = manifest.read_manifest_entries();
             pin_mut!(entries);
 

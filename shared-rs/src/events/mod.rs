@@ -11,7 +11,7 @@ use napi::{
   Error, JsFunction, Result,
 };
 use woodstock::{
-  config::GlobalConfiguration, events::read_events, utils::thread::spawn_with_context, Event,
+  config::GlobalConfiguration, events::read_events, Event,
 };
 
 #[napi]
@@ -46,7 +46,7 @@ pub fn list_events(
     .map_err(|e| Error::from_reason(format!("Can't parse end date {e:?}").to_string()))?;
 
   let tsfn = tsfn.clone();
-  spawn_with_context(async move {
+  tokio::spawn(async move {
     // Read events from the file
     let events = read_events(events, start_date, end_date)
       .await

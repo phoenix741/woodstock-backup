@@ -12,8 +12,6 @@ import { BackupQueueData, JobBackupData, JobRemoveData, JobRestoreData } from '.
 
 const RUN_JOB_STATE: JobState[] = ['active', 'delayed', 'prioritized', 'waiting', 'waiting-children'];
 
-export const LOCK_TIMEOUT = 60_000;
-
 @Injectable()
 export class JobService extends QueueEventsHost {
   private logger = new Logger(JobService.name);

@@ -99,16 +99,13 @@ import { BigIntScalar } from './utils/bigint.scalar.js';
     },
     {
       provide: ApplicationLogger,
-      useFactory: (applicationConfigService, backupsService) =>
-        new ApplicationLogger('main', applicationConfigService, backupsService),
-      inject: [ApplicationConfigService, BackupsService],
+      useFactory: () => new ApplicationLogger('main'),
     },
   ],
 })
 export class AppModule implements OnApplicationBootstrap {
   constructor(
     private readonly serverService: ServerService,
-    private readonly config: ApplicationConfigService,
     private readonly certificateService: CertificateService,
   ) {}
 
