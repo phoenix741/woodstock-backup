@@ -47,7 +47,7 @@ import { useBackupRestore } from '@/utils/backups_restore';
 
 const props = defineProps<{
   deviceId: string;
-  backupNumber: number;
+  backupId: string;
   sharePath: string;
   path: string;
 }>();
@@ -58,7 +58,7 @@ const destinationPath = ref('/');
 const { restoreBackup } = useBackupRestore();
 
 async function restore() {
-  await restoreBackup(props.deviceId, props.backupNumber, props.sharePath, props.path, destinationPath.value);
+  await restoreBackup(props.deviceId, props.backupId, props.sharePath, props.path, destinationPath.value);
   dialog.value = false;
 }
 </script>

@@ -1,6 +1,9 @@
 //! Restore utility for Woodstock CLI.
 
+mod backup_resolver;
+
 use std::cell::RefCell;
+use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,20 +12,46 @@ use tokio::sync::mpsc;
 use clap::Parser;
 use console::Emoji;
 use console::Term;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use indicatif::ProgressBar;
 use indicatif::ProgressDrawTarget;
 use indicatif::ProgressStyle;
-use log::error;
+use tracing::error;
+use woodstock::config::Backups;
+use woodstock::config::Configuration;
 use woodstock::config::Context;
-use woodstock::config::GlobalConfiguration;
 use woodstock::config::Hosts;
+use woodstock::config::Scheduler;
 use woodstock::config::DEFAULT_CHANNEL_BUFFER_SIZE;
+use woodstock::config::GLOBAL_CONFIGURATION;
 use woodstock::server::backup::restore_machine::RestoreBackupMachine;
 use woodstock::server::backup::restore_machine::ShareSelection;
 use woodstock::server::backup::restore_state::RestoreExecutionState;
 use woodstock::server::backup::restore_state::RestoreState;
 use woodstock::server::client::grpc::BackupGrpcClient;
+
+use crate::backup_resolver::resolve_backup_id;
+
+/// Shared state for the `BackupPC` importer application.
+struct ServiceState {
+    pub config: Arc<Configuration>,
+    pub hosts: Arc<Hosts>,
+    pub backups: Arc<Backups>,
+}
+
+impl Default for ServiceState {
+    fn default() -> Self {
+        let config = Arc::new(GLOBAL_CONFIGURATION.clone());
+        let scheduler = Arc::new(Scheduler::new(config.clone()));
+        let hosts = Arc::new(Hosts::new(config.clone(), scheduler));
+        let backups = Arc::new(Backups::new(config.clone()));
+        ServiceState {
+            config,
+            hosts,
+            backups,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -34,8 +63,8 @@ struct Cli {
     /// The ip used to authenticate
     ip: String,
 
-    /// The backup number
-    backup_number: usize,
+    /// The backup identifier (UUID or sequential number)
+    backup_id: String,
 
     /// Share path
     share: String,
@@ -76,15 +105,20 @@ fn message_from_state(state: &RestoreExecutionState) -> String {
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let term = Term::stdout();
 
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&GlobalConfiguration);
-    let host_configuration = hosts.get_host(&args.hostname).await?;
+    let state = ServiceState::default();
+
+    // Resolve backup_id: accepts UUID or sequential number
+    let (backup_uuid, _backup_number) =
+        resolve_backup_id(&args.backup_id, &args.hostname, &state.backups).await?;
+
+    let host_configuration = state.hosts.get_host(&args.hostname).await?;
 
     let default_path = PathBuf::from("/");
     let destination_directory = args
@@ -101,7 +135,11 @@ async fn main() -> Result<()> {
         &args.hostname, host_configuration.addresses,
     ))?;
 
-    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &GlobalConfiguration).await?;
+    let addr = args
+        .ip
+        .parse::<SocketAddr>()
+        .wrap_err("Invalid IP address for restore")?;
+    let grpc_client = BackupGrpcClient::new(&args.hostname, &addr, state.config.clone()).await?;
 
     let previous_execution_state = RefCell::new(RestoreExecutionState::Waiting);
     let (tx, mut rx) = mpsc::channel::<RestoreState>(DEFAULT_CHANNEL_BUFFER_SIZE);
@@ -111,6 +149,7 @@ async fn main() -> Result<()> {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% ({bytes_per_sec}) ETA: {eta}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
 
@@ -147,10 +186,12 @@ async fn main() -> Result<()> {
     let mut client = RestoreBackupMachine::new(
         grpc_client,
         &args.hostname,
-        args.backup_number,
+        backup_uuid,
         &context,
-        &GlobalConfiguration,
         Some(tx),
+        state.config.clone(),
+        state.hosts.clone(),
+        state.backups.clone(),
     )
     .await?;
 

@@ -1,27 +1,42 @@
 import type { HostCountByState } from '@/components/hosts/hosts.interface';
-import { getState, type DeviceBackupStatus } from '@/components/hosts/hosts.utils';
+import { getState, getStateKey, type DeviceBackupStatus } from '@/components/hosts/hosts.utils';
 import { graphql } from '@/generated';
 import { HostDocument, HostsDocument } from '@/generated/graphql';
 import { useMutation, useQuery } from '@vue/apollo-composable';
 import { computed } from 'vue';
 
+/**
+ * Composable for managing devices/hosts data
+ */
 export function useDevices() {
-  const { result: devices, loading: isDeviceFetching } = useQuery(HostsDocument);
+  const { result: devices, loading: isDeviceFetching } = useQuery(HostsDocument, null, {
+    // Lightweight refresh to detect host additions/removals
+    pollInterval: 30000,
+    fetchPolicy: 'cache-and-network',
+  });
 
+  /**
+   * Count devices by their backup status state
+   * Groups devices with the same state together
+   */
   const devicesByState = computed<HostCountByState[]>(() => {
-    const stateCount: Record<DeviceBackupStatus, number> =
-      devices.value?.hosts.reduce(
-        (acc, device) => {
-          const state = getState(device);
-          acc[state] = (acc[state] || 0) + 1;
-          return acc;
-        },
-        {} as Record<DeviceBackupStatus, number>,
-      ) || ({} as Record<DeviceBackupStatus, number>);
+    const stateCount: Map<string, { state: DeviceBackupStatus; count: number }> = new Map();
 
-    return Object.entries(stateCount).map(([name, value]) => ({
-      name: name as DeviceBackupStatus,
-      value,
+    devices.value?.hosts.forEach((device) => {
+      const state = getState(device);
+      const key = getStateKey(state);
+
+      const existing = stateCount.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        stateCount.set(key, { state, count: 1 });
+      }
+    });
+
+    return Array.from(stateCount.values()).map(({ state, count }) => ({
+      name: state,
+      value: count,
     }));
   });
 
@@ -29,7 +44,7 @@ export function useDevices() {
     graphql(/* GraphQL */ `
       mutation clearCache {
         clearCache {
-          void
+          id
         }
       }
     `),
@@ -45,10 +60,20 @@ export function useDevices() {
   };
 }
 
+/**
+ * Composable for fetching a single device by hostname
+ */
 export function useDevice(hostname: string) {
-  const { result, loading: isDeviceFetching } = useQuery(HostDocument, {
-    hostname,
-  });
+  const { result, loading: isDeviceFetching } = useQuery(
+    HostDocument,
+    { hostname },
+    {
+      // 15s polling: availabilityState and timeSinceLastBackup are computed server-side,
+      // not event-driven — polling is the only reliable option
+      pollInterval: 15000,
+      fetchPolicy: 'cache-and-network',
+    },
+  );
 
   const device = computed(() => result.value?.host);
 

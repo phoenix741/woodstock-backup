@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::mpsc;
 
 use eyre::Result;
-use log::error;
+use tracing::{error, Instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -28,7 +28,7 @@ pub struct PoolProgression {
 #[derive(Clone)]
 pub struct PoolCleaner {
     /// The configuration used by the pool cleaner to determine cleaning parameters and behavior.
-    config: Configuration,
+    config: Arc<Configuration>,
 }
 
 impl PoolCleaner {
@@ -41,10 +41,8 @@ impl PoolCleaner {
     ///
     /// A new instance of `PoolCleaner`.
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
-        PoolCleaner {
-            config: config.clone(),
-        }
+    pub fn new(config: Arc<Configuration>) -> Self {
+        PoolCleaner { config }
     }
 
     /// Creates a start event for the pool cleaning process.
@@ -67,7 +65,7 @@ impl PoolCleaner {
 
         let event = Event {
             id: id.to_vec(),
-            r#type: event_type as i32,
+            event_type: event_type as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -80,7 +78,7 @@ impl PoolCleaner {
             information: None,
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(id.to_vec())
     }
@@ -104,7 +102,7 @@ impl PoolCleaner {
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
-            r#type: EventType::PoolCleaned as i32,
+            event_type: EventType::PoolCleaned as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -117,7 +115,7 @@ impl PoolCleaner {
             information: Some(Information::PoolCleaned(information)),
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -175,35 +173,38 @@ impl PoolCleaner {
 
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<Option<PoolUnused>>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
-            let mut count = 0;
-            while let Some(unused) = internal_rx.recv().await {
-                let compressed_size = unused
-                    .clone()
-                    .map(|f| f.compressed_size)
-                    .unwrap_or_default();
-                let size = unused.clone().map(|f| f.size).unwrap_or_default();
+        let progress_thread = tokio::spawn(
+            async move {
+                let mut count = 0;
+                while let Some(unused) = internal_rx.recv().await {
+                    let compressed_size = unused
+                        .clone()
+                        .map(|f| f.compressed_size)
+                        .unwrap_or_default();
+                    let size = unused.clone().map(|f| f.size).unwrap_or_default();
 
-                total_compressed_size_progress.fetch_add(compressed_size, Ordering::SeqCst);
-                total_size.fetch_add(size, Ordering::SeqCst);
-                count += 1;
+                    total_compressed_size_progress.fetch_add(compressed_size, Ordering::SeqCst);
+                    total_size.fetch_add(size, Ordering::SeqCst);
+                    count += 1;
 
-                if let Some(tx) = &progress_tx {
-                    if let Err(e) = tx
-                        .send(PoolProgression {
-                            progress_current: count,
-                            file_count: total,
-                            file_size: total_size.load(Ordering::SeqCst),
-                            compressed_file_size: total_compressed_size_progress
-                                .load(Ordering::SeqCst),
-                        })
-                        .await
-                    {
-                        error!("Failed to send unused files cleanup progress: {}", e);
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx
+                            .send(PoolProgression {
+                                progress_current: count,
+                                file_count: total,
+                                file_size: total_size.load(Ordering::SeqCst),
+                                compressed_file_size: total_compressed_size_progress
+                                    .load(Ordering::SeqCst),
+                            })
+                            .await
+                        {
+                            error!("Failed to send unused files cleanup progress: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         refcnt
             .remove_unused_files(&self.config.path.pool_path, target, internal_tx)

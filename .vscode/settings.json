@@ -9,9 +9,14 @@
       "napi"
     ]
   },
-  "github.copilot.chat.codeGeneration.instructions": [
-    {
-      "file": ".github/copilot-instructions.md",
-    }
-  ]
+  // we try to make semantic highlighting look good
+  "editor.semanticHighlighting.enabled": true,
+  // prevent VSCode from modifying the terminal colors
+  "terminal.integrated.minimumContrastRatio": 1,
+  // make the window's titlebar use the workbench colors
+  "window.titleBarStyle": "custom",
+  // applicable if you use Go, this is an opt-in flag!
+  "gopls": {
+    "ui.semanticTokens": true,
+  },
 }

@@ -11,6 +11,7 @@
 
 pub mod backup;
 pub mod client;
+pub mod job;
 pub mod pool;
 pub mod progression;
 pub mod resolve;

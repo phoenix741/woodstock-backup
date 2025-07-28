@@ -1,11 +1,12 @@
-use std::{path::PathBuf, sync::Arc, time::SystemTime};
+use std::{path::PathBuf, sync::Arc};
 
+use chrono::Local;
 use eyre::Result;
-use log::error;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{error, warn, Instrument};
 
 use crate::{
-    config::Configuration, pool::apply_pending_refcnt_operations, utils::lock::PoolLock,
+    config::Configuration, pool::PoolManager, utils::lock_redis::PoolLockRedis,
     EventPoolCleanedInformation, EventSource,
 };
 
@@ -15,7 +16,7 @@ use super::{
 
 pub struct PoolCleanerMachine {
     /// The configuration for the pool cleaner.
-    config: Configuration,
+    config: Arc<Configuration>,
     /// The `PoolCleaner` instance responsible for performing cleaning operations on the storage pool.
     cleaner: PoolCleaner,
     /// Optional target path specifying where the cleaning operation should be applied.
@@ -42,16 +43,16 @@ impl PoolCleanerMachine {
     /// A new instance of `PoolCleanerMachine`.
     #[must_use]
     pub fn new(
-        config: &Configuration,
         target: Option<PathBuf>,
         source: EventSource,
         state_tx: Option<mpsc::Sender<CleanerState>>,
+        config: Arc<Configuration>,
     ) -> Self {
-        let cleaner = PoolCleaner::new(config);
+        let cleaner = PoolCleaner::new(config.clone());
         let state = CleanerState::new();
 
         Self {
-            config: config.clone(),
+            config,
             cleaner,
             target,
             source,
@@ -92,8 +93,10 @@ impl PoolCleanerMachine {
         }
         self.send_state().await;
 
-        let current_time = SystemTime::now();
-        let result = apply_pending_refcnt_operations(&self.config, &current_time).await;
+        let current_time = Local::now();
+        let result = PoolManager::new(self.config.clone())
+            .apply_pending(&current_time)
+            .await;
 
         {
             let mut state = self.state.lock().await;
@@ -154,23 +157,26 @@ impl PoolCleanerMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut state = state_clone.lock().await;
-                state.process_cleaning_progress(
-                    progress.progress_current,
-                    progress.file_size,
-                    progress.compressed_file_size,
-                );
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_cleaning_progress(
+                        progress.progress_current,
+                        progress.file_size,
+                        progress.compressed_file_size,
+                    );
 
-                // Send the updated state
-                if let Some(tx) = &state_tx_clone {
-                    if let Err(e) = tx.send(state.clone()).await {
-                        error!("Failed to send state update during cleaning: {}", e);
+                    // Send the updated state
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!("Failed to send state update during cleaning: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Execute the cleaning
         let result = self
@@ -188,34 +194,83 @@ impl PoolCleanerMachine {
             state.process_cleaning_result(result)
         };
         self.send_state().await;
+
         result
     }
 
-    /// Executes the entire cleaning process, including initialization and cleaning.
+    /// Inner cleaning work, runs after the exclusive lock is acquired.
     ///
-    /// # Returns
-    ///
-    /// * `Ok(EventPoolCleanedInformation)` if the process succeeds.
-    /// * `Err(eyre::Report)` if an error occurs during the process.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if any step of the process fails.
-    pub async fn execute(&self) -> Result<EventPoolCleanedInformation> {
-        // Apply pending refcnt operations
+    /// Separated from `execute()` so the latter can wrap this in a `tokio::select!`
+    /// against the lock's cancellation token.
+    async fn run_cleaner_core(&self) -> Result<CleanerState> {
+        // Apply pending refcnt operations (protected by EXCLUSIVE lock)
         self.apply_refcnt_operations().await?;
-
-        let _lock = PoolLock::new_with_name(&self.config.path.pool_path, "execute_cleaning")
-            .lock_exclusive()
-            .await?;
 
         // Initialize
         self.init_cleaning().await?;
 
         // Execute the cleaning
-        let result = self.execute_cleaning().await?;
+        let _ = self.execute_cleaning().await?;
 
-        Ok(result)
+        let state = {
+            let state = self.state.lock().await;
+            state.clone()
+        };
+
+        Ok(state)
+    }
+
+    /// Executes the entire cleaning process, including initialization and cleaning.
+    ///
+    /// Acquires an exclusive Redis lock on the pool, then runs the cleaner via
+    /// `run_cleaner_core()` wrapped in a `tokio::select!` against the lock's
+    /// cancellation token. If the lock heartbeat stops (e.g. the host goes to
+    /// sleep and the Redis TTL expires), the token fires and the cleaner aborts
+    /// immediately with an error rather than running concurrently with a
+    /// re-enqueued duplicate job.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(CleanerState)` if the process succeeds.
+    /// * `Err(eyre::Report)` if an error occurs or the lock is lost mid-run.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any step of the process fails, or if the
+    /// exclusive Redis lock is lost during execution.
+    pub async fn execute(&self) -> Result<CleanerState> {
+        // SAFETY CHECK: Verify pool is not dirty before proceeding
+        PoolManager::new(self.config.clone())
+            .assert_clean("pool cleanup")
+            .await?;
+
+        // Acquire EXCLUSIVE lock BEFORE applying refcnt operations.
+        // This prevents race conditions with concurrent backups.
+        let redis_url = self.config.redis_url();
+        let lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &self.config.path.pool_path,
+            "execute_cleaning",
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
+
+        let cancel_token = lock.cancellation_token().clone();
+
+        tokio::select! {
+            biased;
+            res = self.run_cleaner_core() => res,
+            _ = cancel_token.cancelled() => {
+                warn!(
+                    "Cleanup aborted: Redis lock was lost for pool {:?} (host likely suspended during sleep)",
+                    self.config.path.pool_path
+                );
+                Err(eyre::eyre!(
+                    "Cleanup aborted: Redis lock lost (process was likely suspended during sleep)"
+                ))
+            }
+        }
     }
 
     /// Retrieves the current state of the pool cleaner.

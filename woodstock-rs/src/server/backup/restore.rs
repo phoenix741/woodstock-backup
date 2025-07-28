@@ -1,16 +1,11 @@
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
-use log::{error, info};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::SystemTime,
-};
+use std::{collections::HashMap, path::Path, sync::Arc, time::SystemTime};
 use tokio::{
     io::AsyncReadExt,
     sync::{mpsc, Mutex},
 };
+use tracing::{error, info, Instrument};
 use uuid::Uuid;
 
 use super::super::client::Client;
@@ -20,9 +15,7 @@ use crate::{
     events::append_events,
     restore_file_request,
     server::progression::BackupProgression,
-    utils::{
-        path::{path_to_vec, vec_to_path},
-    },
+    utils::path::{path_to_vec, vec_to_path},
     Event, EventBackupInformation, EventSource, EventStatus, EventStep, EventType,
     RestoreFileRequest,
 };
@@ -34,18 +27,19 @@ pub struct BackupRestore<Clt: Client> {
     client: Clt,
     /// The hostname associated with the restore operation.
     hostname: String,
-    /// The ID of the current backup being restored.
-    current_backup_id: usize,
+    /// The UUID v7 identifier of the backup being restored.
+    backup_id: Uuid,
     /// A map tracking the maximum progress for each task.
     progress_max: Arc<Mutex<HashMap<String, u64>>>,
     /// The progression state of the restore operation.
     progression: Arc<Mutex<BackupProgression>>,
     /// The source of events for the restore operation.
     source: EventSource,
+
     /// The configuration for the restore operation.
-    config: Configuration,
-    /// The path to the storage pool.
-    pool_path: PathBuf,
+    config: Arc<Configuration>,
+    /// The backups configuration.
+    backups: Arc<Backups>,
 }
 
 impl<Clt: Client> BackupRestore<Clt> {
@@ -54,7 +48,8 @@ impl<Clt: Client> BackupRestore<Clt> {
     /// # Arguments
     /// * `client` - The client used for restoration.
     /// * `hostname` - The hostname of the backup to restore.
-    /// * `backup_number` - The backup number to restore.
+    /// * `backup_id` - The UUID v7 identifier of the backup to restore.
+    /// * `backup_number` - The sequential display number of the backup.
     /// * `ctxt` - The context containing the event source.
     /// * `config` - The configuration for the backup system.
     ///
@@ -64,16 +59,16 @@ impl<Clt: Client> BackupRestore<Clt> {
     pub fn new(
         client: Clt,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         ctxt: &Context,
-        config: &Configuration,
+
+        config: Arc<Configuration>,
+        backups: Arc<Backups>,
     ) -> Self {
-        let backups = Backups::new(config);
-        let destination_directory =
-            backups.get_backup_destination_directory(hostname, backup_number);
+        let destination_directory = backups.get_backup_destination_directory(hostname, backup_id);
 
         info!(
-            "Initialize client for restauration {hostname}/{backup_number} in {destination_directory:?}"
+            "Initialize client for restauration {hostname}/{backup_id} in {destination_directory:?}"
         );
         let uuid = Uuid::new_v4();
         let uuid = uuid.as_bytes().to_vec();
@@ -82,12 +77,12 @@ impl<Clt: Client> BackupRestore<Clt> {
             uuid,
             client,
             hostname: hostname.to_string(),
-            current_backup_id: backup_number,
+            backup_id,
             progress_max: Arc::new(Mutex::new(HashMap::new())),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
             source: ctxt.source,
-            config: config.clone(),
-            pool_path: config.path.pool_path.clone(),
+            config,
+            backups,
         }
     }
 
@@ -98,6 +93,15 @@ impl<Clt: Client> BackupRestore<Clt> {
     /// The current `BackupProgression` state.
     pub async fn progress(&self) -> BackupProgression {
         *self.progression.lock().await
+    }
+
+    /// Fetches the sequential backup number from backup.yml.
+    async fn backup_number(&self) -> usize {
+        self.backups
+            .get_backup(&self.hostname, self.backup_id)
+            .await
+            .map(|b| b.number)
+            .unwrap_or(0)
     }
 
     /// Authenticates the client with the provided password.
@@ -141,10 +145,9 @@ impl<Clt: Client> BackupRestore<Clt> {
         selection: &[P],
     ) -> Result<u64> {
         let hostname = self.hostname.clone();
-        let current_backup_id = self.current_backup_id;
+        let backup_id = self.backup_id;
 
-        let backups = Backups::new(&self.config);
-        let manifest = backups.get_manifest(&hostname, current_backup_id, share);
+        let manifest = self.backups.get_manifest(&hostname, backup_id, share);
 
         let selection = selection
             .iter()
@@ -202,12 +205,11 @@ impl<Clt: Client> BackupRestore<Clt> {
     ) -> Result<()> {
         info!("Restore backup to {:?}", destination_directory.as_ref());
 
-        let pool_path = self.pool_path.clone();
+        let pool_path = self.config.path.pool_path.clone();
         let hostname = self.hostname.clone();
-        let current_backup_id = self.current_backup_id;
+        let backup_id = self.backup_id;
 
-        let backups = Backups::new(&self.config);
-        let manifest = backups.get_manifest(&hostname, current_backup_id, share);
+        let manifest = self.backups.get_manifest(&hostname, backup_id, share);
 
         let destination_directory = destination_directory.as_ref().to_path_buf();
         let selection = selection
@@ -227,73 +229,76 @@ impl<Clt: Client> BackupRestore<Clt> {
 
         let (tx, rx) = tokio::sync::mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(async move {
-            let entries = manifest.read_manifest_entries();
-            pin_mut!(entries);
+        tokio::spawn(
+            async move {
+                let entries = manifest.read_manifest_entries();
+                pin_mut!(entries);
 
-            while let Some(mut entry) = entries.next().await {
-                // Check if the entry is on the selection list
-                let path = entry.path();
-                if !selection.iter().any(|p| path.starts_with(p)) {
-                    continue;
-                }
+                while let Some(mut entry) = entries.next().await {
+                    // Check if the entry is on the selection list
+                    let path = entry.path();
+                    if !selection.iter().any(|p| path.starts_with(p)) {
+                        continue;
+                    }
 
-                // If continue then prefix the path with the destination directory
-                let destination = destination_directory.join(path);
+                    // If continue then prefix the path with the destination directory
+                    let destination = destination_directory.join(path);
 
-                entry.path = path_to_vec(&destination);
+                    entry.path = path_to_vec(&destination);
 
-                info!("Restore file: {:?}", entry.path());
+                    info!("Restore file: {:?}", entry.path());
 
-                // Send it to the client for restoration by creating a stream
-                if let Err(err) = tx
-                    .send(RestoreFileRequest {
-                        request: Some(restore_file_request::Request::Manifest(entry.clone())),
-                    })
-                    .await
-                {
-                    error!("Failed to send restore request: {}", err);
-                    break;
-                }
+                    // Send it to the client for restoration by creating a stream
+                    if let Err(err) = tx
+                        .send(RestoreFileRequest {
+                            request: Some(restore_file_request::Request::Manifest(entry.clone())),
+                        })
+                        .await
+                    {
+                        error!("Failed to send restore request: {}", err);
+                        break;
+                    }
 
-                if entry.is_regular_file() {
-                    let reader = entry.open_from_pool(&pool_path);
-                    pin_mut!(reader);
+                    if entry.is_regular_file() {
+                        let reader = entry.open_from_pool(&pool_path);
+                        pin_mut!(reader);
 
-                    let mut buffer = vec![0; BUFFER_SIZE];
-                    while let Ok(size) = reader.read(&mut buffer).await {
-                        if size == 0 {
-                            break;
-                        }
+                        let mut buffer = vec![0; BUFFER_SIZE];
+                        while let Ok(size) = reader.read(&mut buffer).await {
+                            if size == 0 {
+                                break;
+                            }
 
-                        if let Err(err) = tx
-                            .send(RestoreFileRequest {
-                                request: Some(restore_file_request::Request::Chunk(
-                                    buffer[..size].to_vec(),
-                                )),
-                            })
-                            .await
-                        {
-                            error!("Failed to send restore request: {}", err);
-                            break;
+                            if let Err(err) = tx
+                                .send(RestoreFileRequest {
+                                    request: Some(restore_file_request::Request::Chunk(
+                                        buffer[..size].to_vec(),
+                                    )),
+                                })
+                                .await
+                            {
+                                error!("Failed to send restore request: {}", err);
+                                break;
+                            }
                         }
                     }
-                }
 
-                {
-                    let mut local_progression = local_progression.lock().await;
-                    local_progression.progress_current += entry.size();
-                    local_progression.file_size += entry.size();
-                    local_progression.file_count += 1;
+                    {
+                        let mut local_progression = local_progression.lock().await;
+                        local_progression.progress_current += entry.size();
+                        local_progression.file_size += entry.size();
+                        local_progression.file_count += 1;
 
-                    if let Some(chunk_tx) = &chunk_tx {
-                        if let Err(e) = chunk_tx.send(*local_progression).await {
-                            error!("Failed to send file progression: {}", e);
+                        if let Some(chunk_tx) = &chunk_tx {
+                            if let Err(e) = chunk_tx.send(*local_progression).await {
+                                error!("Failed to send file progression: {}", e);
+                            }
                         }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         let responses = self
             .client
@@ -368,7 +373,7 @@ impl<Clt: Client> BackupRestore<Clt> {
     pub async fn create_event_restore_start(&self, shares: &[&str]) -> Result<()> {
         let event = Event {
             id: self.uuid.clone(),
-            r#type: EventType::Restore as i32,
+            event_type: EventType::Restore as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -380,12 +385,13 @@ impl<Clt: Client> BackupRestore<Clt> {
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
-                number: self.current_backup_id as u64,
+                number: self.backup_number().await as u64,
                 share_path: shares.iter().map(|s| (*s).to_string()).collect(),
+                id: self.backup_id.to_string(),
             })),
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -410,7 +416,7 @@ impl<Clt: Client> BackupRestore<Clt> {
     ) -> Result<()> {
         let event = Event {
             id: self.uuid.clone(),
-            r#type: EventType::Restore as i32,
+            event_type: EventType::Restore as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -422,12 +428,13 @@ impl<Clt: Client> BackupRestore<Clt> {
 
             information: Some(Information::Backup(EventBackupInformation {
                 hostname: self.hostname.clone(),
-                number: self.current_backup_id as u64,
+                number: self.backup_number().await as u64,
                 share_path: shares.iter().map(|s| (*s).to_string()).collect(),
+                id: self.backup_id.to_string(),
             })),
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }

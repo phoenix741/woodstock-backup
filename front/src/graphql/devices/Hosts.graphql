@@ -1,3 +1,5 @@
+#import "./backups/FragmentBackupStatus.graphql"
+
 query Hosts {
   hosts {
     name
@@ -5,7 +7,9 @@ query Hosts {
       number
       startDate
       fileSize
-      status
+      status {
+        ...BackupStatusFields
+      }
       agentVersion
     }
     agentVersion

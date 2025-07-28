@@ -1,16 +1,16 @@
+use std::future::Future;
 use std::{collections::HashMap, ffi::OsString, io::Error, sync::Arc};
 
 use async_stream::{stream, try_stream};
-use async_trait::async_trait;
 use backuppc_pool_reader::{
     decode_attribut::{FileAttributes, FileType},
     view::BackupPC,
 };
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
-use log::{debug, error};
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::{debug, error};
 use woodstock::{
     config::{BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64},
     file_chunk,
@@ -88,7 +88,7 @@ fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManif
             group_id: file.gid,
             size: file.size,
             mode: u32::from(file.mode),
-            r#type: match file.type_ {
+            file_type: match file.type_ {
                 FileType::File | FileType::Hardlink => FileManifestType::RegularFile,
                 FileType::Symlink => FileManifestType::Symlink,
                 FileType::Chardev => FileManifestType::CharacterDevice,
@@ -152,7 +152,7 @@ impl BackupPCClient {
         &self,
         path: Vec<Vec<u8>>,
         to_visit: &mut Vec<Vec<Vec<u8>>>,
-    ) -> Result<Vec<FileManifest>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<FileManifest>> {
         let path_join = vec_to_path(&path.join(&b'/'));
         debug!("Visit {:?}", path_join.display());
 
@@ -162,7 +162,7 @@ impl BackupPCClient {
             .collect::<Vec<&[u8]>>();
 
         let mut view = self.view.lock().await;
-        let dir = view.list(ref_path)?;
+        let dir = view.list(ref_path).map_err(|e| eyre::eyre!("{e}"))?;
         debug!("Found {} files", dir.len());
 
         let mut files = Vec::new();
@@ -254,8 +254,8 @@ impl BackupPCClient {
         let mut refresh_index = refresh_index.lock().await;
 
         while let Some(request) = stream.next().await {
-            match request.field {
-                Some(refresh_cache_request::Field::Header(header)) => {
+            match request.payload {
+                Some(refresh_cache_request::Payload::Header(header)) => {
                     debug!("Received header: {:?}", header);
                     if share.is_some() {
                         error!("Header already defined");
@@ -264,7 +264,7 @@ impl BackupPCClient {
 
                     share = Some(header);
                 }
-                Some(refresh_cache_request::Field::FileManifest(manifest)) => {
+                Some(refresh_cache_request::Payload::FileManifest(manifest)) => {
                     debug!("Received file manifest for : {:?}", manifest.path());
 
                     refresh_index.add(FileManifestBackupPC::from(manifest));
@@ -276,11 +276,13 @@ impl BackupPCClient {
         }
 
         debug!("Start downloading file list");
-        if share.is_none() {
-            error!("Share must be defined");
-        }
-
-        let share = share.unwrap();
+        let Some(share) = share else {
+            error!("Share must be defined — RefreshCacheRequest missing SharePath, returning empty stream");
+            // SAFETY: We cannot return early from an `impl Stream` function without boxing both branches.
+            // In practice this path is never reached: the BackupPC protocol always provides a share.
+            // The error! log above ensures the problem is visible before the expect() panic.
+            panic!("Invariant violation: RefreshCacheRequest must contain a SharePath field");
+        };
         let share_path = osstr_to_vec(&OsString::from(&share.share_path));
 
         let add_index = index.clone();
@@ -309,7 +311,7 @@ impl BackupPCClient {
                     }
 
                     return Some(FileManifestJournalEntry {
-                        r#type: EntryType::Modify as i32,
+                        entry_type: EntryType::Modify as i32,
                         manifest: Some(manifest),
 
                         state: EntryState::Metadata as i32,
@@ -319,11 +321,13 @@ impl BackupPCClient {
                         xfer_calculation: 0,
                         xfer_duration: 0,
                         xfer_check: 0,
+                        chunk_sizes: vec![],
+                        chunk_compressed_sizes: vec![],
                     });
                 }
 
                 Some(FileManifestJournalEntry {
-                    r#type: EntryType::Add as i32,
+                    entry_type: EntryType::Add as i32,
                     manifest: Some(manifest),
 
                     state: EntryState::Metadata as i32,
@@ -333,6 +337,8 @@ impl BackupPCClient {
                     xfer_calculation: 0,
                     xfer_duration: 0,
                     xfer_check: 0,
+                    chunk_sizes: vec![],
+                    chunk_compressed_sizes: vec![],
                 })
             }
         });
@@ -351,7 +357,7 @@ impl BackupPCClient {
 
                 debug!("Detect file {:?} to remove", file.path());
                 yield FileManifestJournalEntry {
-                    r#type: EntryType::Remove as i32,
+                    entry_type: EntryType::Remove as i32,
                     manifest: Some(FileManifest {
                         path: file.manifest.path.clone(),
                         ..Default::default()
@@ -364,6 +370,8 @@ impl BackupPCClient {
                     xfer_calculation: 0,
                     xfer_duration: 0,
                     xfer_check: 0,
+                    chunk_sizes: vec![],
+                    chunk_compressed_sizes: vec![],
                 };
             }
         });
@@ -372,18 +380,23 @@ impl BackupPCClient {
     }
 }
 
-#[async_trait]
 impl Client for BackupPCClient {
-    async fn ping(&self) -> Result<bool> {
-        Ok(true)
+    fn ping(&self) -> impl Future<Output = Result<bool>> + Send {
+        async move { Ok(true) }
     }
 
-    async fn authenticate(&self, _password: &str) -> Result<AuthenticateReply> {
-        unimplemented!("No authentication required for BackupPCClient");
+    fn authenticate(
+        &self,
+        _password: &str,
+    ) -> impl Future<Output = Result<AuthenticateReply>> + Send {
+        async move { unimplemented!("No authentication required for BackupPCClient") }
     }
 
-    async fn execute_command(&self, _command: &str) -> Result<ExecuteCommandReply> {
-        unimplemented!("No command available for import");
+    fn execute_command(
+        &self,
+        _command: &str,
+    ) -> impl Future<Output = Result<ExecuteCommandReply>> + Send {
+        async move { unimplemented!("No command available for import") }
     }
 
     fn synchronize_file_list(
@@ -410,57 +423,64 @@ impl Client for BackupPCClient {
         ReceiverStream::new(rx)
     }
 
-    async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply> {
+    fn get_chunk_hash(
+        &self,
+        request: ChunkHashRequest,
+    ) -> impl Future<Output = Result<ChunkHashReply>> + Send {
         let number = self.number;
-        let number = number.to_string();
-        let number = number.as_bytes();
-        let hostname = self.hostname.as_bytes();
+        let hostname = self.hostname.clone();
         let view = self.view.clone();
 
-        let share_path = str_to_vec(&request.share_path);
-        let share_path = share_path
-            .split(|&c| c == b'/')
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
-        let filename = request
-            .filename
-            .split(|&c| c == b'/')
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>();
+        async move {
+            let number = number.to_string();
+            let number = number.as_bytes();
+            let hostname = hostname.as_bytes();
 
-        let mut path = vec![hostname, number];
-        path.extend(share_path);
-        path.extend(filename);
-        debug!("Calculate chunk for file {:?}", &path);
+            let share_path = str_to_vec(&request.share_path);
+            let share_path = share_path
+                .split(|&c| c == b'/')
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>();
+            let filename = request
+                .filename
+                .split(|&c| c == b'/')
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>();
 
-        let mut view = view.lock().await;
-        let mut file = view
-            .read_file(&path)
-            .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
+            let mut path = vec![hostname, number];
+            path.extend(share_path);
+            path.extend(filename);
+            debug!("Calculate chunk for file {:?}", &path);
 
-        let mut file_hasher = create_chunk_hasher(request.algorithm());
-        let mut chunk_hasher = create_chunk_hasher(request.algorithm());
-        let mut chunks = Vec::<Vec<u8>>::new();
+            let mut view = view.lock().await;
+            let mut file = view
+                .read_file(&path)
+                .map_err(|e| Error::new(std::io::ErrorKind::Other, format!("{e}")))?;
 
-        let mut buf = vec![0; CHUNK_SIZE];
+            let mut file_hasher = create_chunk_hasher(request.algorithm());
+            let mut chunk_hasher = create_chunk_hasher(request.algorithm());
+            let mut chunks = Vec::<Vec<u8>>::new();
 
-        loop {
-            let read = file.read(&mut buf)?;
-            if read == 0 {
-                break;
+            let mut buf = vec![0; CHUNK_SIZE];
+
+            loop {
+                let read = file.read(&mut buf)?;
+                if read == 0 {
+                    break;
+                }
+
+                chunk_hasher.update(&buf[..read]);
+                file_hasher.update(&buf[..read]);
+
+                let chunk_hash = chunk_hasher.finalize();
+                chunks.push(chunk_hash);
+                chunk_hasher = create_chunk_hasher(request.algorithm());
             }
 
-            chunk_hasher.update(&buf[..read]);
-            file_hasher.update(&buf[..read]);
+            let hash = file_hasher.finalize();
 
-            let chunk_hash = chunk_hasher.finalize();
-            chunks.push(chunk_hash);
-            chunk_hasher = create_chunk_hasher(request.algorithm());
+            Ok(ChunkHashReply { chunks, hash })
         }
-
-        let hash = file_hasher.finalize();
-
-        Ok(ChunkHashReply { chunks, hash })
     }
 
     fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
@@ -509,7 +529,9 @@ impl Client for BackupPCClient {
                         debug!("Send footer for chunk {path:?}:{chunk_id}");
                         let chunk_hash = chunk_hasher.finalize().clone();
                         yield FileChunk {
-                            field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
+                            payload: Some(file_chunk::Payload::Footer(FileChunkFooter {
+                                chunk_hash,
+                            })),
                         };
                         chunk_hasher = create_chunk_hasher(algorithm);
                     }
@@ -520,7 +542,9 @@ impl Client for BackupPCClient {
                     if send_chunk {
                         debug!("Send chunk for chunk {path:?}:{chunk_id}");
                         yield FileChunk {
-                            field: Some(file_chunk::Field::Header(FileChunkHeader { chunk_id })),
+                            payload: Some(file_chunk::Payload::Header(FileChunkHeader {
+                                chunk_id,
+                            })),
                         };
                     }
                 }
@@ -534,7 +558,7 @@ impl Client for BackupPCClient {
                     file_hasher.update(&buf[..read]);
 
                     yield FileChunk {
-                        field: Some(file_chunk::Field::Data(FileChunkData {
+                        payload: Some(file_chunk::Payload::Data(FileChunkData {
                             data: buf[..read].to_vec(),
                         })),
                     };
@@ -551,7 +575,7 @@ impl Client for BackupPCClient {
                 debug!("Send footer for chunk {path:?}:{chunk_id} last");
                 let chunk_hash = chunk_hasher.finalize();
                 yield FileChunk {
-                    field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
+                    payload: Some(file_chunk::Payload::Footer(FileChunkFooter { chunk_hash })),
                 };
             }
 
@@ -560,7 +584,7 @@ impl Client for BackupPCClient {
             debug!("Send EOF for {path:?}");
             if chunks.is_empty() || usize::try_from(chunk_id).unwrap_or_default() == chunks.len() {
                 yield FileChunk {
-                    field: Some(file_chunk::Field::Eof(FileChunkEndOfFile { hash })),
+                    payload: Some(file_chunk::Payload::Eof(FileChunkEndOfFile { hash })),
                 };
             }
         })
@@ -573,7 +597,7 @@ impl Client for BackupPCClient {
         futures::stream::empty()
     }
 
-    async fn close(&self) -> Result<()> {
-        Ok(())
+    fn close(&self) -> impl Future<Output = Result<()>> + Send {
+        async move { Ok(()) }
     }
 }

@@ -1,6 +1,4 @@
 use dirs::config_dir;
-use log::warn;
-use log::{debug, info};
 use rand::RngCore;
 use serde::Deserialize;
 use std::default::Default;
@@ -9,6 +7,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
+use tracing::warn;
+use tracing::{debug, info};
 
 use eyre::Result;
 
@@ -244,7 +244,7 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let config: ClientConfig = serde_yaml::from_str(&contents)?;
+    let config: ClientConfig = serde_yaml_ng::from_str(&contents)?;
 
     info!("Client configuration loaded successfully");
 

@@ -15,9 +15,17 @@ const httpLink = createHttpLink({
 });
 
 const wsLink = new WebSocketLink({
-  uri: `ws://${location.host}/graphql`,
+  uri: `ws://${location.host}/graphql/ws`,
   options: {
+    // Do not open the connection until a subscription is active
+    lazy: true,
     reconnect: true,
+    // Retry limit with exponential backoff capped at 30s
+    reconnectionAttempts: 10,
+    timeout: 30000,
+    connectionCallback: (error) => {
+      if (error) console.warn('[WS] Connection failed:', error);
+    },
   },
 });
 
@@ -51,7 +59,7 @@ const cache = new InMemoryCache({
         keyFields: ['name'],
       },
       Job: {
-        keyFields: ['id'],
+        keyFields: ['jobId'],
       },
     },
     scalarTypePolicies,
@@ -62,7 +70,8 @@ const cache = new InMemoryCache({
 const apolloClient = new ApolloClient({
   link,
   cache,
-  connectToDevTools: true,
+  // Only serialize cache to DevTools in development
+  connectToDevTools: import.meta.env.DEV,
 });
 
 export default {

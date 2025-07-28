@@ -1,7 +1,7 @@
 <template>
   <v-sheet rounded="lg">
-    <v-expansion-panels>
-      <v-expansion-panel :hide-actions="!$slots.details" :readonly="!$slots.details">
+    <v-expansion-panels v-model="localExpanded">
+      <v-expansion-panel :value="0" :hide-actions="!$slots.details" :readonly="!$slots.details">
         <v-expansion-panel-title>
           <v-container>
             <v-row no-gutters>
@@ -50,8 +50,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
-import { defineProps } from 'vue';
+import { computed, ref } from 'vue';
 import { toPercent } from '@/components/hosts/hosts.utils';
 
 const props = defineProps<{
@@ -62,7 +61,12 @@ const props = defineProps<{
   progressMessage?: string;
   errorMessage?: string;
   backupErrorState?: boolean;
+  /** If true, the panel is expanded on mount (e.g. running task). */
+  expanded?: boolean;
 }>();
+
+// Initialized from prop but allows user interaction afterwards
+const localExpanded = ref<number | undefined>(props.expanded ? 0 : undefined);
 
 const progressColor = computed(() => {
   if (props.backupErrorState) {

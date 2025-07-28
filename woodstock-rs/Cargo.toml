@@ -34,27 +34,26 @@ async-walkdir = "^2.1"
 base64 = { workspace = true }
 bytes = "^1.10"
 chrono = { workspace = true }
-dns-lookup = "^2.0"
+dns-lookup = "^3.0"
 eyre = { workspace = true }
 futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
-hyper-util = "0.1.15"
-jsonwebtoken = "^9.3"
-lazy_static = { workspace = true }
-log = { workspace = true }
+hyper-util = { workspace = true }
+jsonwebtoken = { workspace = true }
 lru = { workspace = true }
-mdns-sd = { version = "^0.13", optional = true }
+tracing = { workspace = true }
+mdns-sd = { workspace = true, optional = true }
 percent-encoding = "^2.3"
-prost = "^0.13"
+prost = "^0.14"
 rand = { workspace = true }
-redis = { version = "0.32.4", features = ["aio", "tokio-comp"] }
+redis = { workspace = true, features = ["aio", "tokio-comp"] }
 rsa = "^0.9"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_serializer = "^1.0"
 serde_with = { version = "^3.14", features = ["hex", "base64"] }
-serde_yaml = { workspace = true }
+serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true, features = ["asm"] }
 blake3 = { workspace = true, features = ["rayon", "mmap"] }
@@ -65,9 +64,14 @@ tokio-util = { workspace = true }
 ring = { workspace = true }
 rustls = { workspace = true }
 tonic = { workspace = true }
+tonic-prost = "^0.14"
 uuid = { workspace = true }
 reflink-copy = "0.1.26"
 fs4 = { version = "0.13.1", features = ["tokio"] }
+rayon = { version = "1.10" }
+libc = "0.2"
+sysinfo = { workspace = true }
+cron = "0.15.0"
 
 
 [target.'cfg(target_env = "musl")'.dependencies]
@@ -77,8 +81,8 @@ libm = "^0.2"
 test-log = "^0.2"
 tokio-stream = { version = "^0.1", features = ["net"] }
 tower = { version = "^0.5" }
-criterion = { version = "^0.5", features = ["html_reports"] }
+criterion = { version = "^0.7", features = ["html_reports"] }
 
 [build-dependencies]
-prost-build = "^0.13"
-tonic-build = "^0.13"
+prost-build = "^0.14"
+tonic-prost-build = "^0.14"

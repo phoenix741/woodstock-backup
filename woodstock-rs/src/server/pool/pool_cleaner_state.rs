@@ -1,9 +1,10 @@
 use eyre::Result;
-use log::{error, info};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::EventPoolCleanedInformation;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
     ApplyingRefcntError(String),
     InitializationError(String),
@@ -11,7 +12,7 @@ pub enum ErrorState {
     Unknown(String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CleanerExecutionState {
     Waiting,
     ApplyingRefcnt,
@@ -20,7 +21,7 @@ pub enum CleanerExecutionState {
     Completed,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 /// Represents the progression state of the pool cleaning process.
 pub struct CleanerProgression {
     /// The maximum progress value.
@@ -33,7 +34,7 @@ pub struct CleanerProgression {
     pub compressed_file_size: u64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// Represents the state of the pool cleaner.
 pub struct CleanerState {
     /// The current execution state of the cleaner.

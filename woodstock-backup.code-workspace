@@ -1,16 +1,10 @@
 {
   "folders": [
     {
-      "path": "nestjs"
-    },
-    {
       "path": "front"
     },
     {
       "path": "docs/website"
-    },
-    {
-      "path": "shared-rs"
     }
   ],
   "settings": {

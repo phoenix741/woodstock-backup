@@ -10,15 +10,14 @@
 //!
 //! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
 
-use std::sync::Arc;
-
 use console::Term;
 use eyre::Result;
-use log::info;
 use tokio::select;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use woodstock::{config::Configuration, server::resolve::SocketAddrResolver};
+use tracing::info;
+
+use crate::commands::CliServiceState;
 
 /// Resolves the given hostname using mDNS and prints its network addresses.
 ///
@@ -34,13 +33,15 @@ use woodstock::{config::Configuration, server::resolve::SocketAddrResolver};
 /// # Panics
 ///
 /// This function does not explicitly panic.
-pub async fn resolve_mdns(config: &Configuration, hostname: &str) -> Result<()> {
+pub async fn resolve_mdns(state: CliServiceState, hostname: &str) -> Result<()> {
     let term = Term::stdout();
-
-    let resolver = Arc::new(SocketAddrResolver::new(config)?);
 
     let token = CancellationToken::new();
     let cloned_token = token.clone();
+
+    let Some(resolver) = state.resolver else {
+        return Err(eyre::eyre!("mDNS resolver is not configured"));
+    };
 
     let listener = resolver.clone();
     let handle = tokio::spawn(async move {

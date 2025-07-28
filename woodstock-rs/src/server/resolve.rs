@@ -1,3 +1,4 @@
+use crate::config::DNS_RESOLVE_TIMEOUT_SEC;
 #[cfg(feature = "mdns")]
 use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX, MDNS_TIMEOUT_MSEC};
 #[cfg(feature = "mdns")]
@@ -5,7 +6,6 @@ use mdns_sd::{HostnameResolutionEvent, ServiceDaemon, ServiceEvent, ServiceInfo}
 
 use dns_lookup::lookup_host;
 use eyre::Result;
-use log::{debug, info};
 use redis::{
     from_redis_value, AsyncCommands, FromRedisValue, RedisError, RedisResult, ToRedisArgs, Value,
 };
@@ -14,9 +14,10 @@ use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
 };
-use tokio::{net::TcpStream, time::timeout};
+use tokio::{net::TcpStream, task::spawn_blocking, time::timeout};
+use tracing::{debug, info};
 
-use crate::config::{Configuration, REDIS_WOODSTOCK_KEY_DNS};
+use crate::config::REDIS_WOODSTOCK_KEY_DNS;
 
 /// The interval in seconds for direct DNS update checks.
 const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
@@ -90,7 +91,30 @@ async fn is_reachables(ips: Vec<IpAddr>, port: u16) -> Vec<IpAddr> {
 /// * `Vec<IpAddr>` - A list of resolved IP addresses.
 #[must_use]
 pub fn resolve_dns(hostname: &str) -> Vec<IpAddr> {
-    lookup_host(hostname).ok().unwrap_or_default()
+    match lookup_host(hostname) {
+        Ok(iter) => iter.collect::<Vec<IpAddr>>(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Asynchronously resolves a hostname to a list of IP addresses without blocking Tokio workers.
+///
+/// Internally uses the synchronous `dns_lookup::lookup_host` executed via `spawn_blocking`.
+pub async fn resolve_dns_async(hostname: &str) -> Vec<IpAddr> {
+    let host = hostname.to_string();
+    // Optional timeout to avoid indefinitely stuck DNS resolution
+    match timeout(
+        Duration::from_secs(DNS_RESOLVE_TIMEOUT_SEC),
+        spawn_blocking(move || resolve_dns(&host)),
+    )
+    .await
+    {
+        Ok(join_res) => match join_res {
+            Ok(ips) => ips,
+            Err(_) => Vec::new(),
+        },
+        Err(_) => Vec::new(),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -152,7 +176,8 @@ impl ToRedisArgs for SocketAddrInformation {
 /// The resolver will use the `mdns_sd` to listen for mDNS responses in continue, and will provide
 /// a method to get the resolved `SocketAddr` if available.
 ///
-/// If not available, the resolver will use the `tokio::net::lookup_host` to resolve the hostname
+/// If not available, the resolver will resolve DNS asynchronously via `spawn_blocking` around
+/// the synchronous `dns_lookup::lookup_host` to avoid blocking the Tokio runtime.
 #[derive(Clone)]
 pub struct SocketAddrResolver {
     #[cfg(feature = "mdns")]
@@ -181,11 +206,7 @@ impl SocketAddrResolver {
     /// # Panics
     ///
     /// This function will panic if the Redis client cannot be created from the provided URL (unwrap is used).
-    pub fn new(config: &Configuration) -> Result<Self> {
-        let redis_url = format!("redis://{}:{}", config.redis.host, config.redis.port);
-        info!("Connect to Redis URL for DNS resolution: {}", redis_url);
-
-        let client = redis::Client::open(redis_url).unwrap();
+    pub fn new(client: redis::Client) -> Result<Self> {
         Ok(Self {
             #[cfg(feature = "mdns")]
             mdns: ServiceDaemon::new()?,
@@ -320,8 +341,9 @@ impl SocketAddrResolver {
                 }
             }
 
-            info!("Resolve hostname with dns: {}", hostname);
-            resolve_dns(hostname)
+            info!("Resolve hostname with dns (spawn_blocking): {}", hostname);
+            resolve_dns_async(hostname)
+                .await
                 .iter()
                 .map(|ip| SocketAddr::new(*ip, default_port))
                 .collect()
@@ -343,35 +365,43 @@ impl SocketAddrResolver {
     pub async fn listen(&self) -> Result<()> {
         #[cfg(feature = "mdns")]
         {
-            use log::{error, info};
+            use tracing::{error, info};
 
             let receiver = self.mdns.browse(MDNS_SERVICE_NAME)?;
 
-            while let Ok(event) = receiver.recv() {
-                match event {
-                    ServiceEvent::SearchStarted(service_type) => {
-                        info!("Search started: {service_type}");
-                    }
-                    ServiceEvent::SearchStopped(service_type) => {
-                        info!("Search stopped: {service_type}");
-                    }
-                    ServiceEvent::ServiceFound(service_type, full_name) => {
-                        info!("Service found: {service_type} {full_name}");
-                    }
-                    ServiceEvent::ServiceResolved(info) => {
-                        info!("Service resolved: {:?}", info.get_fullname());
-                        if let Err(err) = self.update_host(&info).await {
-                            error!("Error while updating host: {:?}", err);
+            // Use async receive to avoid blocking a Tokio worker thread.
+            loop {
+                match receiver.recv_async().await {
+                    Ok(event) => match event {
+                        ServiceEvent::SearchStarted(service_type) => {
+                            info!("Search started: {service_type}");
                         }
-                    }
-                    ServiceEvent::ServiceRemoved(service_type, full_name) => {
-                        info!("Service removed: {service_type} {full_name}");
-                        if service_type == MDNS_SERVICE_NAME {
-                            let hostname = full_name.trim_end_matches(MDNS_SUFFIX);
-                            if let Err(err) = self.update_online_status(hostname, false).await {
+                        ServiceEvent::SearchStopped(service_type) => {
+                            info!("Search stopped: {service_type}");
+                        }
+                        ServiceEvent::ServiceFound(service_type, full_name) => {
+                            info!("Service found: {service_type} {full_name}");
+                        }
+                        ServiceEvent::ServiceResolved(info) => {
+                            info!("Service resolved: {:?}", info.get_fullname());
+                            if let Err(err) = self.update_host(&info).await {
                                 error!("Error while updating host: {:?}", err);
                             }
                         }
+                        ServiceEvent::ServiceRemoved(service_type, full_name) => {
+                            if service_type == MDNS_SERVICE_NAME {
+                                info!("Service removed: {service_type} {full_name}");
+                                let hostname = full_name.trim_end_matches(MDNS_SUFFIX);
+                                if let Err(err) = self.update_online_status(hostname, false).await {
+                                    error!("Error while updating host: {:?}", err);
+                                }
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        // Channel closed or errored; log and exit the listener loop gracefully.
+                        error!("mDNS browse channel error/closed: {err}");
+                        break;
                     }
                 }
             }

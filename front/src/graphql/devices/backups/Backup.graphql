@@ -1,9 +1,13 @@
-query Backup($hostname: String!, $number: Int!) {
-  backup(hostname: $hostname, number: $number) {
+#import "./FragmentBackupStatus.graphql"
+
+query Backup($hostname: String!, $id: String!) {
+  backup(hostname: $hostname, id: $id) {
     id
 
     number
-    status
+    status {
+      ...BackupStatusFields
+    }
 
     startDate
     endDate

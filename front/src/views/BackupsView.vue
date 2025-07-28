@@ -15,9 +15,10 @@
         <v-sheet rounded="lg">
           <v-data-table show-select v-model="selection" v-model:items-per-page="itemsPerPage" :headers="headers"
             :items="backupsDataTable" :loading="isFetching" :sort-by="[{ key: 'number', order: 'desc' }]"
-            loading-title="Loading... Please wait" item-value="number" class="elevation-1" @click:row="navigateTo">
+            loading-title="Loading... Please wait" item-value="id" class="elevation-1" @click:row="navigateTo">
             <template v-slot:[`item.number`]="{ item }">{{ item.number }}</template>
-            <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate * 1000) }}</template>
+            <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate) }}</template>
+            <template v-slot:[`item.duration`]="{ item }">{{ toDuration(item.duration) }}</template>
             <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize)
               }})</template>
             <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.newFileCount) }} ({{
@@ -34,7 +35,7 @@
               <v-progress-circular v-if="!item.endDate" indeterminate color="primary" width="20"
                 size="20"></v-progress-circular>
 
-              <v-chip :color="item.statusColor" size="small" label :text="item.status"> </v-chip>
+              <v-chip :color="item.statusColor" size="small" label :text="getBackupStatusText(item.status)"> </v-chip>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -42,7 +43,7 @@
                   <BackupDownload :device-id="deviceId"></BackupDownload>
                 </div>
                 <div class="text-right pa-2">
-                  <BackupDelete :device-id="deviceId" :backup-numbers="selection ?? []"></BackupDelete>
+                  <BackupDelete :device-id="deviceId" :backup-ids="selection ?? []"></BackupDelete>
                   <BackupCreate :device-id="deviceId"></BackupCreate>
                 </div>
               </div>
@@ -63,10 +64,11 @@ import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { type VDataTable } from 'vuetify/components';
 
-import { getBackupStatusColor, useBackups } from '../utils/backups';
+import { getBackupStatusColor, getBackupStatusText, useBackups } from '../utils/backups';
 import BackupCreate from './dialogs/BackupCreate.vue';
 import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
+import { toDate } from 'date-fns';
 
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
@@ -102,20 +104,24 @@ const headers: ReadonlyHeaders = [
 const { backups, isFetching } = useBackups(deviceId);
 
 const backupsDataTable = computed(() => {
-  return backups.value?.map((backup) => ({
-    duration: backup.endDate && toDuration((backup.endDate - backup.startDate) * 1000),
-    statusColor: getBackupStatusColor(backup.status),
-    ...backup,
-  }));
+  return backups.value?.map((backup) => {
+    const endDate = toDate(backup.endDate ? backup.endDate : Date.now());
+    const startDate = toDate(backup.startDate);
+    return {
+      duration: (endDate.getTime() - startDate.getTime()),
+      statusColor: getBackupStatusColor(backup.status),
+      ...backup,
+    };
+  });
 });
 
-const selection = ref<number[]>([]);
+const selection = ref<string[]>([]);
 
 function toErrorCountColor(errorCount: number): string {
   return errorCount > 0 ? 'error' : 'success';
 }
 
 function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknown> }) {
-  router.push(`/backups/${deviceId}/${item.number}`);
+  router.push(`/backups/${deviceId}/${item.id}`);
 }
 </script>

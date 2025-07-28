@@ -1,18 +1,49 @@
 use eyre::Result;
-use log::error;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
-    config::{Configuration, Context},
-    utils::lock::PoolLock,
+    config::{Backups, Configuration, Context, RemovingStatus},
+    utils::lock_redis::PoolLockRedis,
 };
 
 use super::{remove::BackupRemove, remove_state::RemoveState};
 
+/// Represents the execution phase of the removal state machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemovalPhase {
+    /// Add refcnt to pool for removal
+    AddRefcntToPool,
+    /// Remove refcnt from host
+    RemoveRefcnt,
+    /// Remove backup files
+    RemoveBackup,
+    /// Removal process completed
+    Finished,
+}
+
+impl RemovalPhase {
+    /// Determines the next phase to execute based on the current backup status.
+    fn from_status(status: &crate::config::BackupStatus) -> Self {
+        match status {
+            crate::config::BackupStatus::Removing(RemovingStatus::ToRemoveInPool) => {
+                Self::AddRefcntToPool
+            }
+            crate::config::BackupStatus::Removing(RemovingStatus::RemoveFromHost) => {
+                Self::RemoveRefcnt
+            }
+            crate::config::BackupStatus::Removing(RemovingStatus::ToRemove) => Self::RemoveBackup,
+            // Default: start from beginning
+            _ => Self::AddRefcntToPool,
+        }
+    }
+}
+
 pub struct RemoveBackupMachine {
     /// The configuration for the backup removal machine.
-    config: Configuration,
+    config: Arc<Configuration>,
 
     /// The client responsible for backup removal operations.
     client: BackupRemove,
@@ -20,6 +51,15 @@ pub struct RemoveBackupMachine {
     progression_state: Arc<Mutex<RemoveState>>,
     /// An optional channel for sending state updates.
     state_tx: Option<mpsc::Sender<RemoveState>>,
+
+    /// The hostname being removed (stored for resume detection)
+    hostname: String,
+
+    /// The backup UUID v7 identifier (stored for resume detection)
+    backup_id: Uuid,
+
+    /// Reference to backups for loading existing backup status
+    backups: Arc<Backups>,
 }
 
 impl RemoveBackupMachine {
@@ -27,7 +67,7 @@ impl RemoveBackupMachine {
     ///
     /// # Arguments
     /// * `hostname` - The hostname of the backup to remove.
-    /// * `backup_number` - The backup number to remove.
+    /// * `backup_id` - The UUID v7 identifier of the backup to remove.
     /// * `ctxt` - The context containing the event source.
     /// * `config` - The configuration for the backup system.
     /// * `state_tx` - An optional channel for sending state updates.
@@ -38,19 +78,25 @@ impl RemoveBackupMachine {
     #[must_use]
     pub fn new(
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         ctxt: &Context,
-        config: &Configuration,
         state_tx: Option<mpsc::Sender<RemoveState>>,
+
+        config: Arc<Configuration>,
+        backups: Arc<Backups>,
     ) -> Self {
-        let client = BackupRemove::new(hostname, backup_number, ctxt, config);
+        let client = BackupRemove::new(hostname, backup_id, ctxt, config.clone(), backups.clone());
         let progression_state = RemoveState::default();
 
         Self {
-            config: config.clone(),
+            config,
             client,
             progression_state: Arc::new(Mutex::new(progression_state)),
             state_tx,
+
+            hostname: hostname.to_string(),
+            backup_id,
+            backups: backups.clone(),
         }
     }
 
@@ -172,6 +218,75 @@ impl RemoveBackupMachine {
         Ok(())
     }
 
+    /// Executes the add refcnt to pool phase.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the operation succeeds.
+    /// * `Err(eyre::Report)` if an error occurs.
+    async fn execute_add_refcnt_to_pool_phase(&mut self) -> Result<()> {
+        info!(
+            "Executing add refcnt to pool phase for removal {}/{}",
+            self.hostname, self.backup_id
+        );
+
+        self.client
+            .save_backup(crate::config::BackupStatus::Removing(
+                RemovingStatus::ToRemoveInPool,
+            ))
+            .await?;
+
+        self.add_refcnt_to_pool().await?;
+
+        Ok(())
+    }
+
+    /// Executes the remove refcnt phase.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the operation succeeds.
+    /// * `Err(eyre::Report)` if an error occurs.
+    async fn execute_remove_refcnt_phase(&mut self) -> Result<()> {
+        info!(
+            "Executing remove refcnt phase for removal {}/{}",
+            self.hostname, self.backup_id
+        );
+
+        self.client
+            .save_backup(crate::config::BackupStatus::Removing(
+                RemovingStatus::RemoveFromHost,
+            ))
+            .await?;
+
+        self.remove_refcnt().await?;
+
+        Ok(())
+    }
+
+    /// Executes the remove backup phase.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the operation succeeds.
+    /// * `Err(eyre::Report)` if an error occurs.
+    async fn execute_remove_backup_phase(&mut self) -> Result<()> {
+        info!(
+            "Executing remove backup phase for removal {}/{}",
+            self.hostname, self.backup_id
+        );
+
+        self.client
+            .save_backup(crate::config::BackupStatus::Removing(
+                RemovingStatus::ToRemove,
+            ))
+            .await?;
+
+        self.remove_backup().await?;
+
+        Ok(())
+    }
+
     /// Executes the backup removal process.
     ///
     /// # Returns
@@ -182,19 +297,78 @@ impl RemoveBackupMachine {
     /// # Errors
     ///
     /// Returns an error if any step of the removal process fails.
-    pub async fn execute(&mut self) -> Result<()> {
+    pub async fn execute(&mut self) -> Result<RemoveState> {
         let pool_directory = &self.config.path.pool_path;
-        let _lock = PoolLock::new_with_name(&pool_directory, "remove")
+        let redis_url = self.config.redis_url();
+        let _lock = PoolLockRedis::new_with_path(&redis_url, pool_directory, "remove")
+            .await?
             .lock_shared()
             .await?;
 
         self.send_progres().await;
 
-        self.add_refcnt_to_pool().await?;
+        // Determine initial state and starting phase
+        let existing_backup = self
+            .backups
+            .get_backup(&self.hostname, self.backup_id)
+            .await;
 
-        self.remove_refcnt().await?;
+        let initial_status = existing_backup
+            .as_ref()
+            .map(|b| b.status.clone())
+            .unwrap_or(crate::config::BackupStatus::Completed);
 
-        self.remove_backup().await?;
+        let mut current_phase = RemovalPhase::from_status(&initial_status);
+
+        info!(
+            "Removal state machine starting for {}/{}: initial_status={:?}, starting_phase={:?}",
+            self.hostname, self.backup_id, initial_status, current_phase
+        );
+
+        // State machine main loop
+        loop {
+            match current_phase {
+                RemovalPhase::AddRefcntToPool => {
+                    match self.execute_add_refcnt_to_pool_phase().await {
+                        Ok(()) => {
+                            current_phase = RemovalPhase::RemoveRefcnt;
+                        }
+                        Err(err) => {
+                            error!("Error during add refcnt to pool phase: {err}");
+                            return Err(err);
+                        }
+                    }
+                }
+
+                RemovalPhase::RemoveRefcnt => match self.execute_remove_refcnt_phase().await {
+                    Ok(()) => {
+                        current_phase = RemovalPhase::RemoveBackup;
+                    }
+                    Err(err) => {
+                        error!("Error during remove refcnt phase: {err}");
+                        return Err(err);
+                    }
+                },
+
+                RemovalPhase::RemoveBackup => match self.execute_remove_backup_phase().await {
+                    Ok(()) => {
+                        current_phase = RemovalPhase::Finished;
+                    }
+                    Err(err) => {
+                        error!("Error during remove backup phase: {err}");
+                        return Err(err);
+                    }
+                },
+
+                RemovalPhase::Finished => {
+                    info!(
+                        "Removal state machine completed for {}/{}",
+                        self.hostname, self.backup_id
+                    );
+                    break;
+                }
+            }
+        }
 
         // Mark the removal as completed
         {
@@ -203,6 +377,11 @@ impl RemoveBackupMachine {
         }
         self.send_progres().await;
 
-        Ok(())
+        let state = {
+            let progression_state = self.progression_state.lock().await;
+            progression_state.clone()
+        };
+
+        Ok(state)
     }
 }

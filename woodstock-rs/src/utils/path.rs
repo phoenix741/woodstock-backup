@@ -1,12 +1,14 @@
 use globset::{GlobBuilder, GlobSetBuilder};
-use log::warn;
-use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{
+    percent_decode, percent_decode_str, percent_encode, utf8_percent_encode, NON_ALPHANUMERIC,
+};
 use std::{
     collections::HashSet,
     ffi::{OsStr, OsString},
     hash::Hash,
     path::{Component, Path, PathBuf, MAIN_SEPARATOR_STR},
 };
+use tracing::warn;
 
 /// Converts a vector of byte vectors to a vector of string slices.
 ///
@@ -161,6 +163,37 @@ pub fn mangle(path: &str) -> String {
     utf8_percent_encode(path, NON_ALPHANUMERIC).to_string()
 }
 
+/// Take a buffer mangle it by replacing special characters like the
+/// method encodeURIComponent will do in javascript.
+///
+/// # Arguments
+///
+/// * `path` - A string slice representing the path to mangle.
+
+/// # Returns
+///
+/// A string slice representing the mangled path.
+#[must_use]
+pub fn mangle_buffer(bytes: &[u8]) -> String {
+    percent_encode(&bytes, NON_ALPHANUMERIC).to_string()
+}
+
+/// Take a path and mangle it by replacing special characters like the
+/// method encodeURIComponent will do in javascript.
+///
+/// # Arguments
+///
+/// * `path` - A string slice representing the path to mangle.
+
+/// # Returns
+///
+/// A string slice representing the mangled path.
+#[must_use]
+pub fn mangle_path<P: AsRef<Path>>(path: P) -> String {
+    let bytes = path_to_vec(path);
+    percent_encode(&bytes, NON_ALPHANUMERIC).to_string()
+}
+
 /// Take a mangled path and unmangle it by decoding percent-encoded characters.
 ///
 /// # Arguments
@@ -174,6 +207,37 @@ pub fn mangle(path: &str) -> String {
 #[must_use]
 pub fn unmangle(path: &str) -> String {
     percent_decode_str(path).decode_utf8_lossy().to_string()
+}
+
+/// Take a mangled string unmangle it by decoding percent-encoded characters.
+///
+/// # Arguments
+///
+/// * `path` - A string slice representing the mangled path.
+///
+/// # Returns
+///
+/// A string slice representing the unmangled path.
+///
+#[must_use]
+pub fn unmangle_buffer(path: &str) -> Vec<u8> {
+    percent_decode(path.as_bytes()).collect::<Vec<u8>>()
+}
+
+/// Take a mangled path and unmangle it by decoding percent-encoded characters.
+///
+/// # Arguments
+///
+/// * `path` - A string slice representing the mangled path.
+///
+/// # Returns
+///
+/// A string slice representing the unmangled path.
+///
+#[must_use]
+pub fn unmangle_path(path: &str) -> PathBuf {
+    let decoded = percent_decode(path.as_bytes()).collect::<Vec<u8>>();
+    vec_to_path(&decoded)
 }
 
 /// Filter all value to return only unique values

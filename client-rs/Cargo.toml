@@ -29,11 +29,11 @@ mdns = ["woodstock-rs/mdns", "dep:mdns-sd"]
 name = "woodstock_client_rs"
 path = "src/lib.rs"
 
-[[bin]] # Bin to run the HelloWorld gRPC server
+[[bin]]
 name = "ws_client_daemon"
 path = "src/main.rs"
 
-[[bin]] # Bin to run the HelloWorld gRPC server
+[[bin]]
 name = "ws_client_console"
 path = "src/console.rs"
 
@@ -42,32 +42,29 @@ async-stream = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
 dirs = "^6.0"
-env_logger = { workspace = true }
 eyre = { workspace = true }
-fern = "0.7"
 futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
 hostname = "^0.4"
 if-addrs = "0.14.0"
-jsonwebtoken = "^9.3"
-lazy_static = { workspace = true }
-libc = "0.2.174"
-log = { workspace = true }
-mdns-sd = { version = "^0.13", optional = true }
-multi_log = "^0.1"
+jsonwebtoken = { workspace = true }
+libc = { workspace = true }
+mdns-sd = { workspace = true, optional = true }
 rand = { workspace = true }
-reqwest = { version = "0.12.22", features = ["json", "rustls-tls-native-roots"] }
+reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 shlex = { version = "^1.3" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
+serde_yaml_ng = { workspace = true }
 self_update = { git = "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease", features = [
     "archive-zip",
     "compression-zip-deflate",
 ] }
 semver = "^1.0"
-tokio = { workspace = true, features = ["signal", "process"] }
+tokio = { workspace = true, features = ["process"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 tokio-stream = { workspace = true }
 ring = { workspace = true }
 rustls = { workspace = true }
@@ -85,11 +82,11 @@ posix-acl = { version = "^1.2", optional = true }
 mnt = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
-winlog = "0.2"
+tracing-etw = "0.2.2"
 windows-service = "^0.8"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
-version = "^0.60"
+version = "^0.61"
 features = [
     "Win32_Foundation",
     "Win32_Security",
@@ -107,7 +104,7 @@ features = [
 ]
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "^0.61"
+version = "^0.62"
 features = [
     "Win32_System_Com",
     "Win32_Foundation",

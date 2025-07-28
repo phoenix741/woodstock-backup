@@ -1,7 +1,6 @@
 use eyre::Result;
 use futures::StreamExt;
 use futures::{pin_mut, Stream};
-use log::{info, warn};
 use prost::Message;
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
@@ -10,6 +9,7 @@ use tokio::{
     fs::{create_dir_all, remove_file, rename, File},
     io::{AsyncWrite, AsyncWriteExt, BufWriter},
 };
+use tracing::{info, warn};
 
 use crate::utils::compression::{CompressionFormat, WoodstockCompressionWriter};
 
@@ -347,7 +347,7 @@ mod tests {
 
         // Génère un stream de 100 FileManifestJournalEntry factices (avec valeurs minimales)
         let fake_entries = (0..100).map(|_| FileManifestJournalEntry {
-            r#type: EntryType::Add as i32,
+            entry_type: EntryType::Add as i32,
             manifest: None,
             state: EntryState::Metadata as i32,
             state_messages: vec![],
@@ -355,6 +355,8 @@ mod tests {
             xfer_calculation: 0,
             xfer_duration: 0,
             xfer_check: 0,
+            chunk_sizes: vec![],
+            chunk_compressed_sizes: vec![],
         });
         let fake_stream = stream::iter(fake_entries);
 

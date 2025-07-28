@@ -60,6 +60,16 @@ jobs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
+    container:
+      image: node:20-bookworm
+    services:
+      redis:
+        image: valkey/valkey:8-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Install dependencies
         run: |
@@ -83,27 +93,17 @@ jobs:
           cache: "npm"
 
       - name: Unit test (release)
-        run: cargo test -- --nocapture
+        run: cargo test --workspace -- --nocapture
         env:
           RUST_LOG: debug
+          REDIS_HOST: redis
 
       - name: Install Node.JS dependencies
         run: |
           npm ci
 
-      - name: Build shared (rust + nodejs)
-        run: |
-          cd shared-rs
-          npm run build
-          cd ..
-
-      - name: Build server
-        run: |
-          cd nestjs
-          npm run lint
-          npm run test
-          npm run buildall
-          cd ..
+      - name: Build server (rust)
+        run: cargo build -p woodstock-server-rs
 
       - name: Build front
         run: |
@@ -170,7 +170,7 @@ jobs:
             binary_name: binaries-linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            features: --no-default-features --features "fuse_unix,mdns"
+            features: --no-default-features --features "mdns"
             binary_name: binaries-linux-lite
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -261,7 +261,6 @@ jobs:
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: ${{ matrix.target }}
           cache: true
 
       - name: Installation de cargo-workspaces
@@ -390,7 +389,7 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo ::set-output name=version::$(node -p "require('./package.json').version")
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Get metadata to tag server container image
         if: github.event_name == 'push'

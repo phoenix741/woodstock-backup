@@ -1,7 +1,7 @@
-use log::{debug, error, warn};
 use std::path::{Path, PathBuf};
 use tokio::fs::{create_dir_all, metadata, rename, File};
 use tokio::io::AsyncWriteExt;
+use tracing::{debug, error, warn};
 
 use crate::config::CHUNK_SIZE;
 use crate::utils::chunk_hasher::{create_chunk_hasher, ChunkHasher};
@@ -133,7 +133,7 @@ impl PoolChunkWriter {
         compression_format: CompressionFormat,
     ) -> Result<PoolChunkInformation> {
         self.file.shutdown().await?;
-
+        // SAFETY: file_hasher is always Some — set in the constructor and only taken once here in shutdown()
         let mut file_hasher = self.file_hasher.take().unwrap();
         let file_hash: Vec<u8> = file_hasher.finalize();
 

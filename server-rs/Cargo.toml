@@ -1,0 +1,136 @@
+[package]
+name = "woodstock-server-rs"
+description = "Woodstock Backup Server Components"
+version = "2.0.0-alpha.51"
+edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+
+[package.metadata.deb]
+license-file = ["../LICENSE", "0"]
+
+# Multiple binaries for different server components
+[[bin]]
+name = "api_server"
+path = "src/bin/api_server.rs"
+
+[[bin]]
+name = "client_api_server"
+path = "src/bin/client_api_server.rs"
+
+[[bin]]
+name = "job_worker"
+path = "src/bin/job_worker.rs"
+
+[[bin]]
+name = "scheduler"
+path = "src/bin/scheduler.rs"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+
+# Web framework
+axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tower = { workspace = true, features = ["full"] }
+tower-http = { version = "0.6", features = [
+  "cors",
+  "fs",
+  "trace",
+  "compression-gzip",
+] }
+
+# TLS/HTTPS support
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+rustls = { workspace = true, features = ["aws_lc_rs"] }
+rustls-pemfile = "2.0"
+tokio-rustls = "0.26"
+x509-parser = "0.18"
+
+# Certificate generation
+rcgen = { version = "0.14", features = ["pem", "x509-parser"] }
+time = { version = "0.3", features = ["macros"] }
+base64 = { workspace = true }
+
+# Valkey client (compatible with Redis protocol)
+redis = { workspace = true, features = [
+  "aio",
+  "tokio-comp",
+  "connection-manager",
+  "safe_iterators",
+] }
+
+# Job queue (Apalis)
+apalis = { version = "0.7", features = ["limit", "catch-panic", "retry"] }
+apalis-redis = "0.7"
+apalis-cron = "0.7"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+
+# Validation
+validator = { version = "0.20", features = ["derive"] }
+
+# Configuration
+config = "0.15.18"
+figment = { version = "0.10", features = ["toml", "yaml", "env"] }
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Error handling
+eyre = { workspace = true }
+color-eyre = { workspace = true }
+thiserror = "2.0.17"
+
+# HTTP client
+reqwest = { workspace = true, features = ["rustls-tls"] }
+
+# Archive generation
+# Tests use sync zip reader (zip), runtime uses async_zip
+zip = { version = "^6.0", features = ["deflate"] }
+async_zip = { version = "0.0.18", features = ["deflate", "tokio"] }
+tokio-util = { workspace = true, features = ["io", "io-util"] }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
+
+# GraphQL
+async-graphql = { version = "7", default-features = false, features = [
+  "chrono",
+  "uuid",
+  "tracing",
+  "apollo_tracing",
+  "graphiql",
+] }
+async-graphql-axum = "7"
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+
+# Direct dependency on woodstock-rs (replaces shared-rs NAPI proxy)
+woodstock-rs = { workspace = true }
+
+# OpenAPI/Swagger documentation
+utoipa = { version = "5.3", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+
+# Prometheus metrics
+prometheus = "0.14"
+lru.workspace = true
+
+# Hostname helper
+gethostname = "1"
+
+sysinfo = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

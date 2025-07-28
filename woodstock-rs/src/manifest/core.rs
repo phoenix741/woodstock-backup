@@ -39,17 +39,19 @@
 //! ## See Also
 //!
 //! - [`FileManifest`], [`FileManifestJournalEntry`], [`IndexManifest`]
-use std::path::{Path, PathBuf};
-
 use async_stream::stream;
 use eyre::Result;
 use futures::{pin_mut, Stream};
 use futures::{Future, StreamExt};
+use std::path::{Path, PathBuf};
 use tokio::fs::{remove_file, rename};
+use tracing::warn;
 
 use crate::proto::ProtobufReader;
 use crate::utils::compression::CompressionFormat;
-use crate::{proto::save_file, EntryState, FileManifest, FileManifestJournalEntry, PoolRefCount};
+use crate::{
+    proto::save_file, EntryState, EntryType, FileManifest, FileManifestJournalEntry, PoolRefCount,
+};
 
 use super::IndexManifest;
 
@@ -61,7 +63,7 @@ pub struct ManifestChunk {
 }
 
 /// Represents a manifest, which contains metadata and paths for backup management.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Manifest {
     /// Name of the manifest.
     pub manifest_name: String,
@@ -186,6 +188,33 @@ impl Manifest {
         })
     }
 
+    /// Reads all journal entries as a stream, including entries in error state.
+    ///
+    /// Unlike [`Manifest::read_journal_entries`], this yields every entry regardless of
+    /// state. Use this when error entries must be counted (e.g. during progression
+    /// recovery after a crash).
+    ///
+    /// # Returns
+    ///
+    /// A stream of [`FileManifestJournalEntry`] entries from the journal file.
+    pub fn read_journal_entries_all(
+        &self,
+    ) -> impl Stream<Item = FileManifestJournalEntry> + Send + '_ {
+        stream!({
+            let manifests =
+                ProtobufReader::<FileManifestJournalEntry>::new(&self.journal_path, true).await;
+            if let Ok(mut manifests) = manifests {
+                let mut manifests = manifests.into_stream();
+
+                while let Some(manifest) = manifests.next().await {
+                    if let Ok(manifest) = manifest {
+                        yield manifest;
+                    }
+                }
+            }
+        })
+    }
+
     /// Reads file list entries as a stream.
     ///
     /// # Returns
@@ -212,7 +241,7 @@ impl Manifest {
     /// # Returns
     ///
     /// A stream of [`FileManifestJournalEntry`] entries from the log file.
-    pub fn read_log_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + '_ {
+    pub fn read_log_entries(&self) -> impl Stream<Item = FileManifestJournalEntry> + Send + '_ {
         stream!({
             let manifests =
                 ProtobufReader::<FileManifestJournalEntry>::new(&self.log_path, true).await;
@@ -285,6 +314,52 @@ impl Manifest {
         })
     }
 
+    /// Streams [`PoolRefCount`] entries built from the journal, using the per-chunk size metadata
+    /// stored in [`FileManifestJournalEntry::chunk_sizes`] and
+    /// [`FileManifestJournalEntry::chunk_compressed_sizes`].
+    ///
+    /// This is used to pre-seed the refcnt index with real size/compressed_size values before
+    /// `compact()` runs, so that [`crate::pool::Refcnt::repair()`] does not need to read
+    /// individual `.info` files from the pool.
+    ///
+    /// Each yielded entry has `ref_count = 0`: it only carries size metadata. The actual
+    /// reference counting is performed by the `compact()` callback.
+    ///
+    /// If `chunk_sizes` is empty (old journal format), the entry is still yielded with
+    /// `size = 0`, triggering the existing `repair()` fallback.
+    pub fn journal_refcnt_sizes_stream(&self) -> impl Stream<Item = PoolRefCount> + '_ {
+        stream!({
+            let entries = self.read_journal_entries();
+            pin_mut!(entries);
+
+            while let Some(entry) = entries.next().await {
+                // Skip removals — they don't contribute chunks to the pool
+                if entry.entry_type() == EntryType::Remove {
+                    continue;
+                }
+
+                let Some(ref manifest) = entry.manifest else {
+                    continue;
+                };
+
+                for (i, sha256) in manifest.chunks.iter().enumerate() {
+                    if sha256.is_empty() {
+                        continue;
+                    }
+                    let size = entry.chunk_sizes.get(i).copied().unwrap_or(0);
+                    let compressed_size = entry.chunk_compressed_sizes.get(i).copied().unwrap_or(0);
+
+                    yield PoolRefCount {
+                        sha256: sha256.clone(),
+                        ref_count: 0,
+                        size,
+                        compressed_size,
+                    };
+                }
+            }
+        })
+    }
+
     /// Compacts the manifest by applying a mapping callback to all messages and rewriting the manifest.
     ///
     /// # Arguments
@@ -313,11 +388,17 @@ impl Manifest {
 
         save_file(&self.new_path, all_messages, false, compression_format).await?;
 
-        let _ = rename(&self.journal_path, &self.log_path).await;
+        // CRITICAL ORDERING FOR CRASH SAFETY:
+        // 1. First, atomically activate the new manifest (rename .new -> manifest)
+        // 2. Then mark journal as processed (rename journal -> .log)
+        // If crash occurs between steps, journal will be replayed (idempotent operation).
+        // If crash occurs before step 1, .new will be recreated on next compact.
         let _ = remove_file(&self.file_list_path).await;
         let _ = remove_file(&self.manifest_path).await;
-
         rename(&self.new_path, &self.manifest_path).await?;
+
+        // Journal rename AFTER manifest is active - this ensures idempotency
+        let _ = rename(&self.journal_path, &self.log_path).await;
 
         Ok(())
     }
@@ -353,6 +434,12 @@ impl Manifest {
             pin_mut!(messages);
 
             while let Some(chunk) = messages.next().await {
+                // Skip chunks with empty hash
+                if chunk.sha256.is_empty() {
+                    warn!("Skipping chunk with empty hash on {:?}", self.manifest_name);
+                    continue;
+                }
+
                 yield PoolRefCount {
                     sha256: chunk.sha256,
                     ref_count: 1,

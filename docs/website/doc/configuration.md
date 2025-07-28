@@ -48,7 +48,7 @@ Inside the `schedule` field:
 | Field        | Default value                                                  | Description                                  |
 | ------------ | -------------------------------------------------------------- | -------------------------------------------- |
 | activated    | true                                                           | Enable or disable automatic backups          |
-| backupPeriod | 8340                                                           | Period between two backups in minutes (24H - 5 minutes) |
+| backupPeriod | 86400                                                           | Period between two backups in seconds (default: 24 hours) |
 | backupToKeep | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1 }` | Number of backups to keep in each category   |
 
 ### Operations

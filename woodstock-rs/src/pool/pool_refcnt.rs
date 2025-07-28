@@ -22,7 +22,7 @@ use crate::woodstock::{PoolRefCount, PoolUnused};
 impl fmt::Display for PoolRefCount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let object = vec![self];
-        let yaml = serde_yaml::to_string(&object);
+        let yaml = serde_yaml_ng::to_string(&object);
         let yaml = match yaml {
             Ok(yaml) => yaml,
             Err(err) => {
@@ -38,7 +38,7 @@ impl fmt::Display for PoolRefCount {
 impl fmt::Display for PoolUnused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let object = vec![self];
-        let yaml = serde_yaml::to_string(&object);
+        let yaml = serde_yaml_ng::to_string(&object);
         let yaml = match yaml {
             Ok(yaml) => yaml,
             Err(err) => {

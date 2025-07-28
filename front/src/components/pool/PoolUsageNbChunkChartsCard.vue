@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { format } from 'date-fns';
+import { format, toDate } from 'date-fns';
 import { HeatmapChart } from 'echarts/charts';
 import { CalendarComponent, TooltipComponent, VisualMapComponent } from 'echarts/components';
 import { use } from 'echarts/core';
@@ -41,7 +41,7 @@ const emptyChunk = computed(() => {
 
 const nbChunkRange = computed(() => {
   // Filter chunk that are before firstDate
-  const nbChunkRange = props.nbChunkRange.map(({ time, ...rest }) => ({ time: time * 1000, ...rest }));
+  const nbChunkRange = props.nbChunkRange.map(({ time, ...rest }) => ({ time: toDate(time).getTime(), ...rest }));
 
   const array = [...emptyChunk.value, ...nbChunkRange]
     .sort((a, b) => a.time - b.time)
@@ -64,35 +64,49 @@ const nbChunkRange = computed(() => {
   return entries;
 });
 
-const minValue = computed(() => {
-  const minValue = Math.min(...nbChunkRange.value.map((item) => item[1]));
-  const minValueStr = Math.abs(minValue).toString();
-  const size = minValueStr.length;
-  const abs = minValue < 0 ? -1 : 1;
+// Sign-preserving log transform: compresses extreme ranges so small values remain visible.
+// e.g. log10(400001) ≈ 5.6, log10(101) ≈ 2.0 → 36% ratio instead of 0.025% with linear scale
+const logTransform = (v: number) => (v === 0 ? 0 : Math.sign(v) * Math.log10(Math.abs(v) + 1));
+const inverseLogTransform = (v: number) => (v === 0 ? 0 : Math.sign(v) * (Math.pow(10, Math.abs(v)) - 1));
 
-  return abs * parseInt(minValueStr[0] + '0'.repeat(size - 1)) - parseInt(1 + '0'.repeat(size - 1));
+// Include all days (including zero-delta days) to avoid gaps in the heatmap calendar
+const nbChunkRangeTransformed = computed(() =>
+  nbChunkRange.value.map(([time, value]) => [time, logTransform(value)] as [string, number]),
+);
+
+const minTransformed = computed(() => {
+  const values = nbChunkRangeTransformed.value.map(([, v]) => v);
+  return values.length ? Math.min(...values) : 0;
 });
 
-const maxValue = computed(() => {
-  const maxValue = Math.max(...nbChunkRange.value.map((item) => item[1]));
-  const maxValueStr = Math.abs(maxValue).toString();
-  const size = maxValueStr.length;
-  const abs = maxValue < 0 ? -1 : 1;
-
-  return abs * parseInt(maxValueStr[0] + '0'.repeat(size - 1)) + parseInt(1 + '0'.repeat(size - 1));
+const maxTransformed = computed(() => {
+  const values = nbChunkRangeTransformed.value.map(([, v]) => v);
+  return values.length ? Math.max(...values) : 1;
 });
 
 const option = computed(() => ({
-  tooltip: {},
+  tooltip: {
+    formatter: (params: { data: [string, number] }) => {
+      const [date, transformedVal] = params.data;
+      const original = Math.round(inverseLogTransform(transformedVal));
+      const sign = original > 0 ? '+' : '';
+      return `${date}<br/>${sign}${original.toLocaleString()} chunks`;
+    },
+  },
   visualMap: {
     type: 'continuous',
-    min: minValue.value,
-    max: maxValue.value,
+    min: minTransformed.value,
+    max: maxTransformed.value,
     calculable: true,
     orient: 'horizontal',
     left: 'center',
     top: 10,
     width: 500,
+    formatter: (v: number) => {
+      const original = Math.round(inverseLogTransform(v));
+      const sign = original > 0 ? '+' : '';
+      return `${sign}${original.toLocaleString()}`;
+    },
   },
   calendar: {
     top: 90,
@@ -108,7 +122,7 @@ const option = computed(() => ({
   series: {
     type: 'heatmap',
     coordinateSystem: 'calendar',
-    data: nbChunkRange.value,
+    data: nbChunkRangeTransformed.value,
   },
 }));
 </script>

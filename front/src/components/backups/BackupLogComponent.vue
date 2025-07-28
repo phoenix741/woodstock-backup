@@ -3,20 +3,15 @@
     <v-col cols="2">
       <v-list>
         <v-list-item
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.log?tailable=false`"
-        >
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.log?tailable=false`">
           <v-list-item-title>Transfert Logs</v-list-item-title>
         </v-list-item>
         <v-list-item
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/log/backup.error.log?tailable=false`"
-        >
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.error.log?tailable=false`">
           <v-list-item-title>Error Logs</v-list-item-title>
         </v-list-item>
-        <v-list-item
-          v-for="share in shares"
-          :key="share.path"
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupNumber}/xferLog/${share.path}.log`"
-        >
+        <v-list-item v-for="share in shares" :key="share.path"
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/xferLog/${share.path}`">
           <v-list-item-title>{{ unmangle(share.path) }}</v-list-item-title>
         </v-list-item>
       </v-list>
@@ -36,10 +31,10 @@ import { unmangle } from '../../utils/file';
 
 const props = defineProps<{
   deviceId: string;
-  backupNumber: number;
+  backupId: string;
 }>();
 
-const { shares } = useShare(props.deviceId, props.backupNumber);
+const { shares } = useShare(props.deviceId, props.backupId);
 
-const logComponent = ref(`/api/hosts/${props.deviceId}/backups/${props.backupNumber}/log/backup.log?tailable=false`);
+const logComponent = ref(`/api/hosts/${props.deviceId}/backups/${props.backupId}/log/backup.log?tailable=false`);
 </script>

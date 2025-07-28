@@ -45,11 +45,11 @@ export const JobFsckDataFragmentDoc = graphql(/* GraphQL */ `
 `);
 
 export const BackupTaskStateFragmentDoc = graphql(/* GraphQL */ `
-  fragment BackupTaskState on BackupTaskState {
+  fragment BackupTaskState on JobBackupTaskState {
     backupExecutionState: executionState
     backupErrorState: errorState
     backupErrorMessage: errorMessage
-    backupProgress: progression {
+    globalProgression: progression {
       startDate
       startTransferDate
       endTransferDate
@@ -117,7 +117,7 @@ export const BackupTaskStateFragmentDoc = graphql(/* GraphQL */ `
 `);
 
 export const RestoreTaskStateFragmentDoc = graphql(/* GraphQL */ `
-  fragment RestoreTaskState on RestoreTaskState {
+  fragment RestoreTaskState on JobRestoreTaskState {
     restoreExecutionState: executionState
     restoreErrorState: errorState
     restoreErrorMessage: errorMessage
@@ -145,7 +145,7 @@ export const RestoreTaskStateFragmentDoc = graphql(/* GraphQL */ `
 `);
 
 export const RemoveTaskStateFragmentDoc = graphql(/* GraphQL */ `
-  fragment RemoveTaskState on RemoveTaskState {
+  fragment RemoveTaskState on JobRemoveState {
     removeExecutionState: executionState
     removeErrorState: errorState
     removeErrorMessage: errorMessage
@@ -153,7 +153,7 @@ export const RemoveTaskStateFragmentDoc = graphql(/* GraphQL */ `
 `);
 
 export const CleanerTaskStateFragmentDoc = graphql(/* GraphQL */ `
-  fragment CleanerTaskState on CleanerTaskState {
+  fragment CleanerTaskState on JobCleanerTaskState {
     cleanerExecutionState: executionState
     cleanerErrorState: errorState
     cleanerErrorMessage: errorMessage
@@ -167,7 +167,7 @@ export const CleanerTaskStateFragmentDoc = graphql(/* GraphQL */ `
 `);
 
 export const FsckTaskStateFragmentDoc = graphql(/* GraphQL */ `
-  fragment FsckTaskState on FsckTaskState {
+  fragment FsckTaskState on JobFsckTaskState {
     fsckExecutionState: executionState
     fsckErrorState: errorState
     fsckErrorMessage: errorMessage
@@ -197,11 +197,12 @@ export const FsckTaskStateFragmentDoc = graphql(/* GraphQL */ `
 
 export const JobFragmentDoc = graphql(/* GraphQL */ `
   fragment Job on Job {
-    id
-    queueName
-    name
+    jobId
+    kind
+    status
+    timestamp
+    host
     failedReason
-    state
     data {
       ...JobBackupData
       ...JobRestoreData
@@ -209,7 +210,7 @@ export const JobFragmentDoc = graphql(/* GraphQL */ `
       ...JobCleanupData
       ...JobFsckData
     }
-    progression {
+    progress {
       ...BackupTaskState
       ...RestoreTaskState
       ...RemoveTaskState

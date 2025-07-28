@@ -1,11 +1,14 @@
 use std::{path::Path, sync::Arc};
 
 use eyre::Result;
-use log::error;
 use tokio::sync::{mpsc, Mutex};
+use tracing::{error, Instrument};
+use uuid::Uuid;
 
 use crate::{
-    config::{Configuration, Context, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
+    config::{
+        Backups, Configuration, Context, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
+    },
     server::{client::Client, progression::BackupProgression},
 };
 
@@ -35,7 +38,8 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
     /// # Arguments
     /// * `client` - The client used for restoration.
     /// * `hostname` - The hostname of the backup to restore.
-    /// * `backup_number` - The backup number to restore.
+    /// * `backup_id` - The UUID v7 identifier of the backup to restore.
+    /// * `backup_number` - The sequential display number of the backup.
     /// * `ctxt` - The context containing the event source.
     /// * `config` - The configuration for the backup system.
     /// * `state_tx` - An optional channel for sending state updates.
@@ -51,14 +55,15 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
     pub async fn new(
         client: Clt,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         ctxt: &Context,
-        config: &Configuration,
         state_tx: Option<mpsc::Sender<RestoreState>>,
+        config: Arc<Configuration>,
+        hosts: Arc<Hosts>,
+        backups: Arc<Backups>,
     ) -> Result<Self> {
-        let client = BackupRestore::new(client, hostname, backup_number, ctxt, config);
+        let client = BackupRestore::new(client, hostname, backup_id, ctxt, config.clone(), backups);
 
-        let hosts = Hosts::new(config);
         let host_configuration = hosts.get_host(hostname).await?;
         let progression_state = RestoreState::default();
 
@@ -197,17 +202,20 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         let state_tx_clone = self.state_tx.clone();
         let share_clone = share.to_string();
 
-        let restore_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut progression_state_clone = progression_state_clone.lock().await;
-                progression_state_clone.process_restore_progress(&share_clone, &progress);
-                if let Some(state_tx) = &state_tx_clone {
-                    if let Err(e) = state_tx.send(progression_state_clone.clone()).await {
-                        error!("Failed to send state update during restore: {}", e);
+        let restore_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut progression_state_clone = progression_state_clone.lock().await;
+                    progression_state_clone.process_restore_progress(&share_clone, &progress);
+                    if let Some(state_tx) = &state_tx_clone {
+                        if let Err(e) = state_tx.send(progression_state_clone.clone()).await {
+                            error!("Failed to send state update during restore: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Appeler restore avec le canal de progression
         let result = self
@@ -259,7 +267,7 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         &mut self,
         destination_directory: P,
         share_selection: &[ShareSelection<&str, P2>],
-    ) -> Result<()> {
+    ) -> Result<RestoreState> {
         self.send_progress().await;
 
         self.execute_authentication().await?;
@@ -297,6 +305,11 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         }
         self.send_progress().await;
 
-        Ok(())
+        let state = {
+            let state = self.progression_state.lock().await;
+            state.clone()
+        };
+
+        Ok(state)
     }
 }

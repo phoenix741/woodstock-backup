@@ -5,20 +5,21 @@
       "JobCleanupData",
       "JobFsckData",
       "JobRemoveData",
-      "JobRestoreData"
+      "JobRestoreData",
+      "JobStatsData"
+    ],
+    "BackupQueueProgress": [
+      "JobBackupTaskState",
+      "JobCleanerTaskState",
+      "JobFsckTaskState",
+      "JobRemoveState",
+      "JobRestoreTaskState"
     ],
     "EventInformation": [
       "EventBackupInformation",
       "EventHashConversionInformation",
       "EventPoolCleanedInformation",
       "EventPoolInformation"
-    ],
-    "TaskState": [
-      "BackupTaskState",
-      "CleanerTaskState",
-      "FsckTaskState",
-      "RemoveTaskState",
-      "RestoreTaskState"
     ]
   }
 }

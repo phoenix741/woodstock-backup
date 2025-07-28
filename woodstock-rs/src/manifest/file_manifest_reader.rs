@@ -37,12 +37,12 @@ use bytes::Bytes;
 use eyre::Result;
 use futures::{pin_mut, stream::unfold};
 
-use log::warn;
 use tokio::{
     fs::File,
     io::{AsyncBufRead, AsyncReadExt, BufReader},
 };
 use tokio_util::io::StreamReader;
+use tracing::warn;
 
 use crate::{
     config::{BUFFER_SIZE, CHUNK_SIZE},
@@ -137,7 +137,7 @@ impl FileManifestReaderState {
             self.current_chunk = Some(reader);
             self.current_chunk_number = self.get_chunk_number();
         }
-
+        // SAFETY: current_chunk is Some — set just above, or was already Some from a prior iteration
         Ok(self.current_chunk.as_mut().unwrap())
     }
 

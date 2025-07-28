@@ -124,7 +124,7 @@ impl SnapshotReference for BtrfsSnapshotReference {
 impl Drop for BtrfsSnapshotReference {
     fn drop(&mut self) {
         if !self.cleaned_up.load(std::sync::atomic::Ordering::Acquire) {
-            log::warn!(
+            tracing::warn!(
                 "BTRFS snapshot '{}' was dropped without explicit cleanup. \
                 This may indicate a potential snapshot leak. Consider calling \
                 delete_self() or using proper cleanup in FileSystemAccessor.",

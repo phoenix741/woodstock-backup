@@ -1,0 +1,43 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs"
+		},
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs",
+			"group": "build"
+		},
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs",
+			"group": "build"
+		},
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs",
+			"group": "build"
+		},
+		{
+			"label": "build-server-rs",
+			"type": "shell",
+			"command": "cargo build -p woodstock-server-rs",
+			"group": "build"
+		}
+	]
+}

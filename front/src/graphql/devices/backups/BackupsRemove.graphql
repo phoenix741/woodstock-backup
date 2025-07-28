@@ -1,5 +1,5 @@
-mutation removeBackup($hostname: String!, $number: Int!) {
-  removeBackup(hostname: $hostname, number: $number) {
+mutation removeBackup($hostname: String!, $id: String!) {
+  removeBackup(hostname: $hostname, id: $id) {
     id
   }
 }

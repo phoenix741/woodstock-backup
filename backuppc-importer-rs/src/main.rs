@@ -9,9 +9,7 @@ pub mod backuppc_client;
 pub mod backuppc_manifest;
 
 use std::ffi::OsString;
-use std::time::Duration;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
+use std::sync::Arc;
 
 use backuppc_client::BackupPCClient;
 use backuppc_pool_reader::attribute_file::Search;
@@ -19,27 +17,52 @@ use backuppc_pool_reader::hosts::{Hosts as BackupPCHosts, HostsTrait};
 use backuppc_pool_reader::util::osstr_to_vec;
 use backuppc_pool_reader::util::vec_to_osstr;
 use backuppc_pool_reader::view::BackupPC;
-use clap::{command, Parser};
+use chrono::DateTime;
+use chrono::Local;
+use clap::Parser;
 use console::Emoji;
 use console::Term;
 use eyre::Result;
 use indicatif::MultiProgress;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use log::debug;
-use log::error;
-use log::info;
 use tokio::sync::mpsc;
-use woodstock::config::BackupStatus;
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use uuid::Uuid;
 use woodstock::config::Configuration;
-use woodstock::config::GlobalConfiguration;
 use woodstock::config::DEFAULT_CHANNEL_BUFFER_SIZE;
+use woodstock::config::GLOBAL_CONFIGURATION;
+use woodstock::config::{BackupStatus, Scheduler};
 use woodstock::config::{Backups, Context, Hosts};
-use woodstock::pool::apply_pending_refcnt_operations;
+use woodstock::pool::PoolManager;
 use woodstock::server::backup::remove::BackupRemove;
 use woodstock::server::backup::save::BackupSave;
 use woodstock::server::progression::BackupProgression;
+use woodstock::utils::lock_redis::PoolLockRedis;
 use woodstock::Share;
+
+/// Shared state for the `BackupPC` importer application.
+struct ServiceState {
+    pub config: Arc<Configuration>,
+    pub hosts: Arc<Hosts>,
+    pub backups: Arc<Backups>,
+}
+
+impl Default for ServiceState {
+    fn default() -> Self {
+        let config = Arc::new(GLOBAL_CONFIGURATION.clone());
+        let scheduler = Arc::new(Scheduler::new(config.clone()));
+        let hosts = Arc::new(Hosts::new(config.clone(), scheduler));
+        let backups = Arc::new(Backups::new(config.clone()));
+        ServiceState {
+            config,
+            hosts,
+            backups,
+        }
+    }
+}
 
 /// Represents a backup definition for a host in the `BackupPC` or Woodstock system.
 ///
@@ -48,10 +71,12 @@ use woodstock::Share;
 struct BackupDefinition {
     /// The name of the host for which the backup is defined.
     pub hostname: String,
+    /// The unique UUID identifier of the backup.
+    pub backup_id: uuid::Uuid,
     /// The backup number associated with the host.
     pub backup_number: usize,
     /// The start time of the backup (Unix timestamp).
-    pub start_time: u64,
+    pub start_time: DateTime<Local>,
     /// The size of the backup in bytes.
     pub size: u64,
 }
@@ -69,24 +94,22 @@ fn version() -> String {
 /// # Returns
 /// A vector of `BackupDefinition` containing metadata for each backup found.
 async fn list_woodstock_backups(
-    config: &Configuration,
+    state: Arc<ServiceState>,
     excludes: &[&str],
 ) -> Vec<BackupDefinition> {
     let mut result = Vec::new();
 
-    let hosts_config = Hosts::new(config);
-    let backups_config = Backups::new(config);
-
-    let hosts = hosts_config.list_hosts().await.unwrap_or_default();
+    let hosts = state.hosts.list_hosts().await.unwrap_or_default();
     for host in hosts {
         if excludes.iter().any(|exclude| host.contains(exclude)) {
             continue;
         }
 
-        let backups = backups_config.get_backups(&host).await;
+        let backups = state.backups.get_backups(&host).await;
         for backup in backups {
             result.push(BackupDefinition {
                 hostname: host.clone(),
+                backup_id: backup.id,
                 backup_number: backup.number,
                 start_time: backup.start_date,
                 size: backup.file_size,
@@ -121,8 +144,11 @@ fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefini
         for backup in backups {
             result.push(BackupDefinition {
                 hostname: hostname.clone(),
+                backup_id: uuid::Uuid::nil(), // BackupPC backups have no Woodstock UUID; used for comparison only
                 backup_number: backup.num as usize,
-                start_time: backup.start_time,
+                start_time: DateTime::from_timestamp(backup.start_time as i64, 0)
+                    .map(DateTime::<Local>::from)
+                    .unwrap_or_else(|| Local::now()),
                 size: backup.size,
             });
         }
@@ -146,11 +172,11 @@ fn list_backuppc_backups(pool_path: &str, excludes: &[&str]) -> Vec<BackupDefini
 /// Returns an error if the backup operation fails, if the `BackupPC` pool cannot be accessed, or if there are issues with the backup definition.
 async fn launch_backup(
     context: &Context,
+    state: Arc<ServiceState>,
     backuppc_pool: &str,
     backup: &BackupDefinition,
     backup_bar: &mut ProgressBar,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let backups_configuration = Backups::new(&GlobalConfiguration);
+) -> Result<()> {
     let backuppc_configuration = BackupPCHosts::new(backuppc_pool);
     let search = Search::new(backuppc_pool);
     let mut view = BackupPC::new(
@@ -160,22 +186,21 @@ async fn launch_backup(
     );
 
     let hostname = osstr_to_vec(&OsString::from(&backup.hostname));
-    let backuppc_shares = view.list_shares(&hostname, u32::try_from(backup.backup_number)?)?;
+    let backuppc_shares = view
+        .list_shares(&hostname, u32::try_from(backup.backup_number)?)
+        .map_err(|e| eyre::eyre!("{e}"))?;
 
     let backuppc_client = BackupPCClient::new(
         view,
         &backup.hostname,
         backup.backup_number,
-        &GlobalConfiguration.chunk_algorithm,
+        &GLOBAL_CONFIGURATION.chunk_algorithm,
     );
 
-    let backup_number = match backups_configuration
-        .get_last_backup(&backup.hostname)
-        .await
-    {
-        Some(backup) => backup.number + 1,
-        None => 0,
-    };
+    let last_backup = state.backups.get_last_backup(&backup.hostname).await;
+    let previous_id = last_backup.as_ref().map(|b| b.id);
+    let backup_number = last_backup.map(|b| b.number + 1).unwrap_or(0);
+    let backup_id = Uuid::now_v7();
 
     let mut abort = false;
 
@@ -186,11 +211,14 @@ async fn launch_backup(
     let mut client = BackupSave::new(
         backuppc_client,
         &backup.hostname,
+        backup_id,
         backup_number,
+        previous_id,
         context,
-        &GlobalConfiguration,
+        state.config.clone(),
+        state.backups.clone(),
     );
-    client.set_fake_date(UNIX_EPOCH.checked_add(Duration::from_secs(backup.start_time)));
+    client.set_fake_date(Some(backup.start_time));
     client.set_agent_version(version()).await;
 
     backup_bar.set_message("Create backup directory");
@@ -277,7 +305,7 @@ async fn launch_backup(
 
     client
         .save_backup(if abort {
-            BackupStatus::Failed
+            BackupStatus::Failed(woodstock::config::FailedStatus::Compact)
         } else {
             BackupStatus::Completed
         })
@@ -286,7 +314,20 @@ async fn launch_backup(
     backup_bar.set_message("Add reference counting to pool");
     backup_bar.tick();
 
-    apply_pending_refcnt_operations(&GlobalConfiguration, &client.get_fake_date()).await?;
+    {
+        let redis_url = state.config.redis_url();
+        let _lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &state.config.path.pool_path,
+            "backuppc_importer_refcnt",
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
+        PoolManager::new(state.config.clone())
+            .apply_pending(&client.get_fake_date())
+            .await?;
+    }
 
     Ok(())
 }
@@ -317,9 +358,9 @@ struct Cli {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> eyre::Result<()> {
     color_eyre::install()?;
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     let args = Cli::parse();
     let term = Term::stdout();
 
@@ -327,7 +368,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         source: woodstock::EventSource::Import,
         username: None,
     };
-    GlobalConfiguration.fix_algorithm()?;
+    GLOBAL_CONFIGURATION.fix_algorithm()?;
+
+    let state = Arc::new(ServiceState::default());
 
     // Write version
     term.write_line(&format!(
@@ -339,35 +382,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     term.write_line("Woodstock path:")?;
     term.write_line(&format!(
         "  - Backup:      {:?}",
-        GlobalConfiguration.path.backup_path
+        GLOBAL_CONFIGURATION.path.backup_path
     ))?;
     term.write_line(&format!(
         "  - Certificate: {:?}",
-        GlobalConfiguration.path.certificates_path
+        GLOBAL_CONFIGURATION.path.certificates_path
     ))?;
     term.write_line(&format!(
         "  - Config:      {:?}",
-        GlobalConfiguration.path.config_path
+        GLOBAL_CONFIGURATION.path.config_path
     ))?;
     term.write_line(&format!(
         "  - Hosts:       {:?}",
-        GlobalConfiguration.path.hosts_path
+        GLOBAL_CONFIGURATION.path.hosts_path
     ))?;
     term.write_line(&format!(
         "  - Logs:        {:?}",
-        GlobalConfiguration.path.logs_path
+        GLOBAL_CONFIGURATION.path.logs_path
     ))?;
     term.write_line(&format!(
         "  - Events:      {:?}",
-        GlobalConfiguration.path.events_path
+        GLOBAL_CONFIGURATION.path.events_path
     ))?;
     term.write_line(&format!(
         "  - Pool:        {:?}",
-        GlobalConfiguration.path.pool_path
+        GLOBAL_CONFIGURATION.path.pool_path
     ))?;
     term.write_line(&format!(
         "  - Jobs:        {:?}",
-        GlobalConfiguration.path.jobs_path
+        GLOBAL_CONFIGURATION.path.jobs_path
     ))?;
 
     term.write_line(&format!(
@@ -385,7 +428,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(AsRef::as_ref)
         .collect();
 
-    let mut woodstock_backups = list_woodstock_backups(&GlobalConfiguration, &excludes).await;
+    let mut woodstock_backups = list_woodstock_backups(state.clone(), &excludes).await;
     woodstock_backups.sort_by_key(|backup| backup.start_time);
 
     for woodstock in &woodstock_backups {
@@ -450,6 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise:>7}% {msg:>65} ETA: {eta}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
     total_bar.set_message(format!("{}/{}", 0, length));
@@ -462,12 +506,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ProgressStyle::with_template(
                 "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise:>7}% ({bytes_per_sec:>12}) {msg:>50} ETA: {eta}",
             )
+            // SAFETY: hardcoded template string is always valid
             .unwrap()
         );
 
         if !args.dry_run {
-            let result =
-                launch_backup(&context, &args.backuppc_pool, &backup, &mut backup_bar).await;
+            let result = launch_backup(
+                &context,
+                state.clone(),
+                &args.backuppc_pool,
+                &backup,
+                &mut backup_bar,
+            )
+            .await;
             if let Err(err) = result {
                 error!(
                     "Error during backup of {}/{}: {}",
@@ -486,7 +537,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if !args.only_one {
         // List backups in woodstock that is not in backuppc
-        let mut woodstock_backups = list_woodstock_backups(&GlobalConfiguration, &excludes).await;
+        let mut woodstock_backups = list_woodstock_backups(state.clone(), &excludes).await;
         woodstock_backups.sort_by_key(|backup| backup.start_time);
 
         let mut backuppc_backups = list_backuppc_backups(&args.backuppc_pool, &excludes);
@@ -521,6 +572,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ProgressStyle::with_template(
                 "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise:>7}% {msg:>65} ETA: {eta}",
             )
+            // SAFETY: hardcoded template string is always valid
             .unwrap(),
         );
         total_bar.set_message(format!("{}/{}", 0, length));
@@ -530,9 +582,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if !args.dry_run {
                 let remover = BackupRemove::new(
                     &backup.hostname,
-                    backup.backup_number,
+                    backup.backup_id,
                     &context,
-                    &GlobalConfiguration,
+                    state.config.clone(),
+                    state.backups.clone(),
                 );
 
                 remover.add_refcnt_to_pool().await?;
@@ -548,7 +601,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         total_bar.finish();
     }
 
-    apply_pending_refcnt_operations(&GlobalConfiguration, &SystemTime::now()).await?;
+    {
+        let redis_url = state.config.redis_url();
+        let _lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &state.config.path.pool_path,
+            "backuppc_importer_cleanup",
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
+        PoolManager::new(state.config.clone())
+            .apply_pending(&Local::now())
+            .await?;
+    }
 
     term.write_line(&format!("[4/4] {}Backups migrate", Emoji("🪄 ", "")))?;
 

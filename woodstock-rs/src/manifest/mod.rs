@@ -27,6 +27,6 @@ mod file_manifest_reader;
 /// Module used to read the index of the manifest
 mod index_manifest_model;
 
-pub use core::*;
-pub use file_manifest::*;
-pub use index_manifest_model::*;
+pub use core::{Manifest, ManifestChunk};
+pub use file_manifest::FileManifestLight;
+pub use index_manifest_model::{IndexFileEntry, IndexManifest, PathManifest};

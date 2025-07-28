@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use eyre::Result;
-use log::error;
 use tokio::sync::mpsc;
+use tracing::{error, Instrument};
 
 use crate::{
-    config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
+    config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     server::pool::convert_state::ConvertState,
-    utils::lock::PoolLock,
+    utils::lock_redis::PoolLockRedis,
     EventSource,
 };
 
@@ -15,11 +15,11 @@ use super::convert::PoolConvert;
 
 pub struct HashConverterMachine {
     /// Configuration of the application, containing paths and other settings.
-    config: Configuration,
+    config: Arc<Configuration>,
     /// The `PoolConvert` instance responsible for performing the hash conversion operations on the storage pool.
     pool_converter: PoolConvert,
     /// The new configuration to be applied during the hash conversion process.
-    new_config: Configuration,
+    new_config: Arc<Configuration>,
     /// The event source used to provide context or events for the hash conversion process.
     source: EventSource,
     /// Shared state of the conversion process, protected by a mutex for safe concurrent access.
@@ -42,12 +42,14 @@ impl HashConverterMachine {
     /// A new instance of `HashConverterMachine`.
     #[must_use]
     pub fn new(
-        config: &Configuration,
-        new_config: &Configuration,
         source: EventSource,
         state_tx: Option<mpsc::Sender<ConvertState>>,
+        config: Arc<Configuration>,
+        hosts: Arc<Hosts>,
+        backups: Arc<Backups>,
+        new_config: Arc<Configuration>,
     ) -> Self {
-        let pool_converter = PoolConvert::new(config);
+        let pool_converter = PoolConvert::new(config.clone(), hosts, backups);
         let convert_state = ConvertState::default();
 
         Self {
@@ -138,22 +140,25 @@ impl HashConverterMachine {
         let convert_state_clone = self.convert_state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut convert_state = convert_state_clone.lock().await;
-                convert_state.process_conversion_progress(progress);
-                if let Some(tx) = &state_tx_clone {
-                    if let Err(e) = tx.send(convert_state.clone()).await {
-                        error!("Failed to send state update during conversion: {}", e);
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut convert_state = convert_state_clone.lock().await;
+                    convert_state.process_conversion_progress(progress);
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(convert_state.clone()).await {
+                            error!("Failed to send state update during conversion: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Execute the conversion with the progress channel
         let result = self
             .pool_converter
-            .convert_backup_dir(&self.new_config, self.source, Some(progress_tx))
+            .convert_backup_dir(self.new_config.clone(), self.source, Some(progress_tx))
             .await;
 
         // Wait for the progress update task to complete
@@ -187,9 +192,15 @@ impl HashConverterMachine {
     ///
     /// Returns an error if the conversion fails.
     pub async fn execute(&self) -> Result<()> {
-        let _lock = PoolLock::new_with_name(&self.config.path.pool_path, "execute_hash_conversion")
-            .lock_exclusive()
-            .await?;
+        let redis_url = self.config.redis_url();
+        let _lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &self.config.path.pool_path,
+            "execute_hash_conversion",
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
 
         self.send_state().await;
 

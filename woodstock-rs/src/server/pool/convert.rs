@@ -1,10 +1,11 @@
-use std::{collections::HashMap, path::Path, time::SystemTime};
+use chrono::Local;
+use std::{collections::HashMap, path::Path, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
 use eyre::Result;
 use futures::StreamExt;
-use log::error;
 use tokio::fs::rename;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
@@ -21,7 +22,11 @@ use crate::{
 #[derive(Clone)]
 pub struct PoolConvert {
     /// The configuration used for the conversion process.
-    config: Configuration,
+    config: Arc<Configuration>,
+    /// The hosts service for managing host configurations.
+    hosts: Arc<Hosts>,
+    /// The backups service for managing backup operations.
+    backups: Arc<Backups>,
 }
 
 impl PoolConvert {
@@ -34,9 +39,11 @@ impl PoolConvert {
     ///
     /// A new instance of `PoolConvert`.
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
+    pub fn new(config: Arc<Configuration>, hosts: Arc<Hosts>, backups: Arc<Backups>) -> Self {
         PoolConvert {
-            config: config.clone(),
+            config,
+            hosts,
+            backups,
         }
     }
 
@@ -55,11 +62,8 @@ impl PoolConvert {
 
         let mut count = 1 + pool_refcnt.size();
 
-        let hosts = Hosts::new(&self.config);
-        let backups = Backups::new(&self.config);
-
-        for host in hosts.list_hosts().await? {
-            let backups = backups.get_backups(&host).await;
+        for host in self.hosts.list_hosts().await? {
+            let backups = self.backups.get_backups(&host).await;
             count += backups.len() + 1;
         }
 
@@ -107,7 +111,7 @@ impl PoolConvert {
 
         let event = Event {
             id: id.to_vec(),
-            r#type: event_type as i32,
+            event_type: event_type as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -120,7 +124,7 @@ impl PoolConvert {
             information: None,
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(id.to_vec())
     }
@@ -144,7 +148,7 @@ impl PoolConvert {
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
-            r#type: EventType::HashConversion as i32,
+            event_type: EventType::HashConversion as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -157,7 +161,7 @@ impl PoolConvert {
             information: Some(Information::HashConversion(information)),
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -280,7 +284,7 @@ impl PoolConvert {
         }
 
         new_refcnt
-            .save_refcnt(&SystemTime::now(), true, compression_format)
+            .save_refcnt(&Local::now(), true, compression_format)
             .await?;
 
         Ok(())
@@ -303,7 +307,7 @@ impl PoolConvert {
     /// This function panics if the chunk map does not contain the required key.
     pub async fn convert_chunk(
         &self,
-        new_config: &Configuration,
+        new_config: Arc<Configuration>,
         progress_tx: Option<mpsc::Sender<usize>>,
     ) -> Result<usize> {
         let yaml_files = ["disk_history.yml", "history.yml", "statistics.yml"];
@@ -319,12 +323,16 @@ impl PoolConvert {
             let old_wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(&refcnt));
             let mut new_wrapper = PoolChunkWrapper::new(&new_config.path.pool_path, None);
 
-            if !chunks_map.contains_key(old_wrapper.get_hash().as_ref().unwrap()) {
+            if !chunks_map.contains_key(
+                // SAFETY: old_wrapper was created with Some(&refcnt) — get_hash() is always Some
+                old_wrapper.get_hash().as_ref().unwrap(),
+            ) {
                 old_wrapper
                     .copy(&mut new_wrapper, new_config.chunk_algorithm)
                     .await?;
 
                 chunks_map.insert(
+                    // SAFETY: same as above — both wrappers were created/filled with a hash
                     old_wrapper.get_hash().clone().unwrap(),
                     new_wrapper.get_hash().clone().unwrap(),
                 );
@@ -443,7 +451,7 @@ impl PoolConvert {
     /// This function returns an error if the conversion fails.
     pub async fn convert_all_manifests(
         &self,
-        new_config: &Configuration,
+        new_config: Arc<Configuration>,
         progress_tx: Option<mpsc::Sender<usize>>,
     ) -> Result<()> {
         let files = [
@@ -455,9 +463,7 @@ impl PoolConvert {
             "backup.yml",
         ];
 
-        let hosts_service = Hosts::new(&self.config);
-        let backups_service = Backups::new(&self.config);
-        let new_backups_service = Backups::new(new_config);
+        let new_backups_service = Backups::new(new_config.clone());
 
         let mut progress_current = 0;
         let chunks_map = self
@@ -465,18 +471,16 @@ impl PoolConvert {
             .await?;
 
         // Progress
-        for host in hosts_service.list_hosts().await? {
-            let backups = backups_service.get_backups(&host).await;
+        for host in self.hosts.list_hosts().await? {
+            let backups = self.backups.get_backups(&host).await;
             for backup in backups {
                 // Convert file log, manifest + copy all other files
-                let shares = backups_service
-                    .get_backup_share_paths(&host, backup.number)
-                    .await;
+                let shares = self.backups.get_backup_share_paths(&host, backup.id).await;
 
                 for share in shares {
-                    let manifest = backups_service.get_manifest(&host, backup.number, &share);
+                    let manifest = self.backups.get_manifest(&host, backup.id, &share);
                     let destination_manifest =
-                        new_backups_service.get_manifest(&host, backup.number, &share);
+                        new_backups_service.get_manifest(&host, backup.id, &share);
 
                     // Convert the manifest
                     self.convert_manifest(&chunks_map, manifest, destination_manifest)
@@ -485,16 +489,20 @@ impl PoolConvert {
                     // Convert REFCNT, unused
                     let () = Self::convert_refcnt(
                         &chunks_map,
-                        &backups_service.get_backup_destination_directory(&host, backup.number),
-                        &new_backups_service.get_backup_destination_directory(&host, backup.number),
+                        &self
+                            .backups
+                            .get_backup_destination_directory(&host, backup.id),
+                        &new_backups_service.get_backup_destination_directory(&host, backup.id),
                         new_config.compression_format,
                     )
                     .await?;
 
                     // Copy error, log, history.yml, shares.yml, statistics.yml
                     copy_files(
-                        &backups_service.get_backup_destination_directory(&host, backup.number),
-                        &new_backups_service.get_backup_destination_directory(&host, backup.number),
+                        &self
+                            .backups
+                            .get_backup_destination_directory(&host, backup.id),
+                        &new_backups_service.get_backup_destination_directory(&host, backup.id),
                         &files,
                     )
                     .await?;
@@ -512,14 +520,14 @@ impl PoolConvert {
             // Convert REFCNT, unused
             let () = Self::convert_refcnt(
                 &chunks_map,
-                &backups_service.get_host_path(&host),
+                &self.backups.get_host_path(&host),
                 &new_backups_service.get_host_path(&host),
                 self.config.compression_format,
             )
             .await?;
 
             copy_files(
-                &backups_service.get_host_path(&host),
+                &self.backups.get_host_path(&host),
                 &new_backups_service.get_host_path(&host),
                 &files,
             )
@@ -552,7 +560,7 @@ impl PoolConvert {
     /// This function returns an error if the conversion fails.
     pub async fn convert_backup_dir(
         &self,
-        new_config: &Configuration,
+        new_config: Arc<Configuration>,
         source: EventSource,
         progress_tx: Option<mpsc::Sender<usize>>,
     ) -> Result<()> {
@@ -560,9 +568,13 @@ impl PoolConvert {
             .create_event_start(EventType::HashConversion, source)
             .await?;
 
-        let total_count = self.convert_chunk(new_config, progress_tx.clone()).await?;
+        let total_count = self
+            .convert_chunk(new_config.clone(), progress_tx.clone())
+            .await?;
 
-        let () = self.convert_all_manifests(new_config, progress_tx).await?;
+        let () = self
+            .convert_all_manifests(new_config.clone(), progress_tx)
+            .await?;
 
         new_config.overwrite_algorithm()?;
 

@@ -1,9 +1,10 @@
 use eyre::Result;
-use log::{error, info};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::{pool::FsckUnusedCount, server::pool::fsck::FsckProgression};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
     ApplyingRefcntError(String),
     InitializationError(String),
@@ -13,7 +14,7 @@ pub enum ErrorState {
     Unknown(String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum FsckExecutionState {
     Waiting,
     ApplyingRefcnt,
@@ -24,7 +25,7 @@ pub enum FsckExecutionState {
     Completed,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RefcntProgression {
     pub progress_max: usize,
     pub progress_current: usize,
@@ -32,7 +33,7 @@ pub struct RefcntProgression {
     pub total_count: usize,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct UnusedProgression {
     pub progress_max: usize,
     pub progress_current: usize,
@@ -42,7 +43,7 @@ pub struct UnusedProgression {
     pub missing: usize,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ChunkProgression {
     pub progress_max: usize,
     pub progress_current: usize,
@@ -50,7 +51,7 @@ pub struct ChunkProgression {
     pub total_count: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FsckState {
     pub execution_state: FsckExecutionState,
     pub error_state: Option<ErrorState>,

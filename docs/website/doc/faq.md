@@ -33,16 +33,14 @@ fun :)
 
 The backups are stored as chunks in the pool directory. This also makes me think of a stock of wood.
 
-## Why use Node.JS?
+## Why Rust?
 
-Short: Because.
+The server and agent are written entirely in **Rust**.
 
-Long: I hesitated between Go, NodeJS, and others. I initially started writing the program in `C++` for performance, but thread
-management made creating a proof of concept complicated. So I started to write it in `NodeJS` because it is easier to
-quickly write a proof of concept.
+The project started as a proof-of-concept in **C++**, but multi-threading complexity made rapid iteration difficult. It was then rewritten in **Node.js** for a quicker prototype. After hitting performance bottlenecks, the critical components were migrated to Rust one by one — first the agent, then the storage core, and finally the whole server.
 
-After some testing, I encountered performance problems with `NodeJS`. So I rewrote the core of the program in `Rust`. I wrote
-the client in `Rust` too. The only parts of the program that remain in JavaScript are the front-end, the controller, and the
-resolver.
+Today the entire backend is in Rust, which gives:
 
-Maybe someday I'll rewrite the program entirely in `Rust`.
+- Predictable memory usage and no garbage-collector pauses during large backups
+- Native performance for chunk hashing (Blake3 with parallelism) and compression (Zstd)
+- A single statically-linked binary per component, easy to deploy in containers or on bare metal

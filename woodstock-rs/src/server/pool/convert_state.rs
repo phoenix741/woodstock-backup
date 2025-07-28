@@ -1,5 +1,5 @@
 use eyre::Result;
-use log::{error, info};
+use tracing::{error, info};
 
 #[derive(Clone, Debug)]
 /// Represents the progression of a conversion process.

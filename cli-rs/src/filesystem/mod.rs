@@ -11,7 +11,6 @@
 //! This module does not explicitly panic.
 
 use eyre::Result;
-use log::{debug, info};
 use lru::LruCache;
 use std::hash::Hasher;
 use std::num::NonZeroUsize;
@@ -21,8 +20,9 @@ use std::sync::{Arc, LazyLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufRead, AsyncReadExt};
 use tokio::sync::Mutex;
+use tracing::{debug, info};
 use twox_hash::XxHash64;
-use woodstock::config::Configuration;
+use woodstock::config::{Backups, Configuration, Hosts};
 use woodstock::manifest::PathManifest;
 use woodstock::utils::path::{osstr_to_vec, path_to_vec, vec_to_osstr};
 use woodstock::view::WoodstockView;
@@ -202,11 +202,19 @@ impl WoodstockFileSystemInner {
     /// # Returns
     ///
     /// A new `WoodstockFileSystemInner` instance.
-    pub fn new(config: &Configuration, prefix_path: &Path) -> Self {
+    pub fn new(
+        config: Arc<Configuration>,
+        hosts: Arc<Hosts>,
+        backups: Arc<Backups>,
+        prefix_path: &Path,
+    ) -> Self {
         WoodstockFileSystemInner {
             inodes: HashMap::new(),
-            view: WoodstockView::new(config),
-            cache: LruCache::new(NonZeroUsize::new(CACHE_SIZE).unwrap()),
+            view: WoodstockView::new(config, hosts, backups),
+            cache: LruCache::new(
+                // SAFETY: CACHE_SIZE is a non-zero compile-time constant
+                NonZeroUsize::new(CACHE_SIZE).unwrap(),
+            ),
             opened: HashMap::new(),
             prefix_path: prefix_path.to_path_buf(),
         }
@@ -602,12 +610,12 @@ impl WoodstockFileSystemInner {
         // If the offset is lesser than the current offset, we need to reset the reader
         if offset < opened_file.offset {
             let reader = self.create_reader(ino).await?;
-
+            // SAFETY: fh was already validated by the .ok_or_else() check on line above
             let opened_file = self.opened.get_mut(&fh).unwrap();
             opened_file.reader = Box::pin(reader);
             opened_file.offset = 0;
         }
-
+        // SAFETY: fh was already validated at the start of this function
         let opened_file = self.opened.get_mut(&fh).unwrap();
 
         // If the offset is greater that the current offset, we need to fast forward (by reading data by 32k chunk )
@@ -659,10 +667,17 @@ impl WoodstockFileSystem {
     /// # Returns
     ///
     /// A new `WoodstockFileSystem` instance.
-    pub fn new(config: &Configuration, prefix_path: &Path) -> Self {
+    pub fn new(
+        config: Arc<Configuration>,
+        hosts: Arc<Hosts>,
+        backups: Arc<Backups>,
+        prefix_path: &Path,
+    ) -> Self {
         WoodstockFileSystem {
             inner: Arc::new(Mutex::new(WoodstockFileSystemInner::new(
                 config,
+                hosts,
+                backups,
                 prefix_path,
             ))),
         }

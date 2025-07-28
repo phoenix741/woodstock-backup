@@ -2,6 +2,7 @@
 pub mod grpc;
 
 use futures::Stream;
+use std::future::Future;
 
 use crate::AuthenticateReply;
 use crate::ChunkHashReply;
@@ -15,7 +16,6 @@ use crate::RestoreFileReply;
 use crate::RestoreFileRequest;
 use eyre::Result;
 
-#[tonic::async_trait]
 pub trait Client {
     /// Sends a ping request to the server to check connectivity.
     ///
@@ -24,7 +24,7 @@ pub trait Client {
     /// * `Ok(true)` if the server responds to the ping.
     /// * `Ok(false)` if the server does not respond.
     /// * `Err(eyre::Report)` if an error occurs during the ping.
-    async fn ping(&self) -> Result<bool>;
+    fn ping(&self) -> impl Future<Output = Result<bool>> + Send;
 
     /// Authenticates the client with the server using the provided password.
     ///
@@ -35,7 +35,10 @@ pub trait Client {
     ///
     /// * `Ok(AuthenticateReply)` if authentication is successful.
     /// * `Err(eyre::Report)` if an error occurs during authentication.
-    async fn authenticate(&self, password: &str) -> Result<AuthenticateReply>;
+    fn authenticate(
+        &self,
+        password: &str,
+    ) -> impl Future<Output = Result<AuthenticateReply>> + Send;
 
     /// Executes a command on the server.
     ///
@@ -46,7 +49,10 @@ pub trait Client {
     ///
     /// * `Ok(ExecuteCommandReply)` if the command execution is successful.
     /// * `Err(eyre::Report)` if an error occurs during command execution.
-    async fn execute_command(&self, command: &str) -> Result<ExecuteCommandReply>;
+    fn execute_command(
+        &self,
+        command: &str,
+    ) -> impl Future<Output = Result<ExecuteCommandReply>> + Send;
 
     /// Synchronizes the file list with the server.
     ///
@@ -83,7 +89,10 @@ pub trait Client {
     ///
     /// * `Ok(ChunkHashReply)` if the hash retrieval is successful.
     /// * `Err(eyre::Report)` if an error occurs during hash retrieval.
-    async fn get_chunk_hash(&self, request: ChunkHashRequest) -> Result<ChunkHashReply>;
+    fn get_chunk_hash(
+        &self,
+        request: ChunkHashRequest,
+    ) -> impl Future<Output = Result<ChunkHashReply>> + Send;
 
     /// Retrieves a chunk from the server.
     ///
@@ -101,5 +110,5 @@ pub trait Client {
     ///
     /// * `Ok(())` if the connection is successfully closed.
     /// * `Err(eyre::Report)` if an error occurs during closure.
-    async fn close(&self) -> Result<()>;
+    fn close(&self) -> impl Future<Output = Result<()>> + Send;
 }

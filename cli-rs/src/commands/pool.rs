@@ -15,18 +15,19 @@ use std::{cell::RefCell, path::PathBuf};
 use console::Term;
 use eyre::Result;
 use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
-use log::error;
+use tracing::error;
 
 use woodstock::{
-    config::Configuration,
     pool::Refcnt,
     server::pool::{
         fsck_machine::FsckMachine, fsck_state::FsckExecutionState,
         pool_cleaner_machine::PoolCleanerMachine, pool_cleaner_state::CleanerExecutionState,
     },
-    utils::lock::PoolLock,
+    utils::lock_redis::PoolLockRedis,
     EventSource,
 };
+
+use crate::commands::CliServiceState;
 
 /// Checks the compression ratios of all chunks in the pool and reports anomalies.
 ///
@@ -41,12 +42,18 @@ use woodstock::{
 /// # Panics
 ///
 /// This function does not explicitly panic.
-pub async fn check_compression(config: &Configuration) -> Result<()> {
-    let _lock = PoolLock::new_with_name(&config.path.pool_path, "check_compression")
-        .lock_exclusive()
-        .await?;
+pub async fn check_compression(state: CliServiceState) -> Result<()> {
+    let redis_url = state.config.redis_url();
+    let _lock = PoolLockRedis::new_with_path(
+        &redis_url,
+        &state.config.path.pool_path,
+        "check_compression",
+    )
+    .await?
+    .lock_exclusive()
+    .await?;
 
-    let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
+    let mut pool_refcnt = Refcnt::new(&state.config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
     let mut compressed_size: u64 = 0;
@@ -129,7 +136,7 @@ fn fsck_message_from_state(state: &FsckExecutionState) -> String {
 ///
 /// This function does not explicitly panic.
 pub async fn verify_all(
-    config: &Configuration,
+    state: CliServiceState,
     source: EventSource,
     dry_run: bool,
     verify_chunks: bool,
@@ -142,12 +149,14 @@ pub async fn verify_all(
 
     // Create the fsck machine
     let machine = FsckMachine::new(
-        config,
         source,
         dry_run,
         verify_chunks,
         skip_ref_unused,
         Some(tx),
+        state.config.clone(),
+        state.hosts.clone(),
+        state.backups.clone(),
     );
 
     // Create a single progress bar for all processes
@@ -156,6 +165,7 @@ pub async fn verify_all(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta} {msg}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
     progress_bar.set_message("Initializing...");
@@ -196,44 +206,37 @@ pub async fn verify_all(
                 FsckExecutionState::Completed => {
                     progress_bar.finish_with_message("Verification completed");
 
-                    // Display summary
-                    term.write_line("").unwrap();
-                    term.write_line(&format!(
+                    // Display summary — terminal writes are best-effort in a display task
+                    let _ = term.write_line("");
+                    let _ = term.write_line(&format!(
                         "Reference count verification results: {} errors/{}",
                         state.refcnt_progression.error_count, state.refcnt_progression.total_count
-                    ))
-                    .unwrap();
+                    ));
 
-                    term.write_line("Unused files verification results:")
-                        .unwrap();
-                    term.write_line(&format!(
+                    let _ = term.write_line("Unused files verification results:");
+                    let _ = term.write_line(&format!(
                         "- In refcnt: {}",
                         HumanCount(state.unused_progression.in_refcnt as u64)
-                    ))
-                    .unwrap();
-                    term.write_line(&format!(
+                    ));
+                    let _ = term.write_line(&format!(
                         "- In unused: {}",
                         HumanCount(state.unused_progression.in_unused as u64)
-                    ))
-                    .unwrap();
-                    term.write_line(&format!(
+                    ));
+                    let _ = term.write_line(&format!(
                         "- In nothing: {}",
                         HumanCount(state.unused_progression.in_nothing as u64)
-                    ))
-                    .unwrap();
-                    term.write_line(&format!(
+                    ));
+                    let _ = term.write_line(&format!(
                         "- Missing: {}",
                         HumanCount(state.unused_progression.missing as u64)
-                    ))
-                    .unwrap();
+                    ));
 
                     if verify_chunks {
-                        term.write_line(&format!(
+                        let _ = term.write_line(&format!(
                             "Chunks verification results: {} errors/{}",
                             state.chunk_progression.error_count,
                             state.chunk_progression.total_count
-                        ))
-                        .unwrap();
+                        ));
                     }
                 }
                 FsckExecutionState::Waiting => {
@@ -273,7 +276,7 @@ pub async fn verify_all(
 ///
 /// This function does not explicitly panic.
 pub async fn clean_unused_pool(
-    config: &Configuration,
+    state: CliServiceState,
     source: EventSource,
     target: Option<String>,
 ) -> Result<()> {
@@ -285,7 +288,7 @@ pub async fn clean_unused_pool(
     let (tx, mut rx) = tokio::sync::mpsc::channel(10);
 
     // Create the pool cleaner machine
-    let machine = PoolCleanerMachine::new(config, target, source, Some(tx));
+    let machine = PoolCleanerMachine::new(target, source, Some(tx), state.config.clone());
 
     // Create a progress bar
     let bar = ProgressBar::new(0);
@@ -293,6 +296,7 @@ pub async fn clean_unused_pool(
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {human_pos}/{human_len} ETA: {eta} {msg}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
 
@@ -336,7 +340,10 @@ pub async fn clean_unused_pool(
     // Make sure the display task ends
     display_task.abort();
 
-    term.write_line(&std::format!("Total removed: {}", HumanBytes(result.size)))?;
+    term.write_line(&std::format!(
+        "Total removed: {}",
+        HumanBytes(result.progression.compressed_file_size)
+    ))?;
 
     Ok(())
 }

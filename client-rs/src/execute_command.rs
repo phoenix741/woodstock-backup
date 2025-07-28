@@ -1,3 +1,5 @@
+use shlex::split;
+use std::process::{Command, Output};
 /// # Command Execution Module
 ///
 /// This module provides functionality for executing shell commands from the backup client.
@@ -6,9 +8,7 @@
 ///
 /// The module implements proper command parsing, argument handling, and result capturing
 /// to ensure secure and reliable command execution.
-use log::{debug, info, warn};
-use shlex::split;
-use std::process::{Command, Output};
+use tracing::{debug, info, warn};
 
 /// Executes a shell command and returns the output.
 ///

@@ -2,7 +2,6 @@ use base64::{engine::general_purpose, Engine as _};
 use jsonwebtoken::{
     decode, encode, get_current_timestamp, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
-use log::{debug, warn};
 use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding},
     rand_core::OsRng,
@@ -12,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{collections::HashSet, path::Path};
 use tokio::fs::read;
+use tracing::{debug, warn};
 
 use eyre::{eyre, Result};
 
@@ -24,7 +24,7 @@ use eyre::{eyre, Result};
 /// The methode ``verify_authentification_token` is used to verify a JWT token using the `public_key`
 ///
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Claims {
     /// Issuer of the token (typically the service or application name).
     iss: String,

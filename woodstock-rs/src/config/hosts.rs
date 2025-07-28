@@ -1,10 +1,15 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use eyre::{eyre, Result};
-use log::{debug, warn};
-use tokio::fs::read_to_string;
+use redis::aio::ConnectionManager;
+use tokio::{fs::read_to_string, sync::Mutex};
+use tracing::{debug, warn};
 
-use super::{Configuration, HostConfiguration};
+use super::{Configuration, HostConfiguration, Schedule, Scheduler};
+use crate::utils::cache::{cache_invalidate, cache_wrap};
 
 /// # Hosts Configuration Module
 ///
@@ -39,11 +44,25 @@ use super::{Configuration, HostConfiguration};
 /// ## See Also
 ///
 /// - [`HostConfiguration`]: For host-specific settings
+
+/// Redis cache key for the flat host list (`hosts.yml`).
+const HOSTS_LIST_KEY: &str = "woodstock:cache:hosts";
+
+/// TTL (in seconds) for host cache entries — 24 hours.
+const CACHE_TTL_SECS: u64 = 86400;
+
+/// Returns the Redis cache key for the configuration of a single host.
+fn host_config_key(hostname: &str) -> String {
+    format!("woodstock:cache:host:{hostname}")
+}
+
 pub struct Hosts {
-    /// Path to the hosts configuration file (hosts.yml).
-    config_path_hosts: PathBuf,
-    /// Path to the directory containing host configuration files.
-    config_path: PathBuf,
+    config: Arc<Configuration>,
+    /// Scheduler
+    scheduler: Arc<Scheduler>,
+    /// Optional Redis connection used to cache host list and per-host config.
+    /// `None` when running from the CLI (no Redis available).
+    redis_conn: Option<Arc<Mutex<ConnectionManager>>>,
 }
 
 impl Hosts {
@@ -57,10 +76,29 @@ impl Hosts {
     ///
     /// A new instance of [`Hosts`] with paths initialized from the configuration.
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
+    pub fn new(config: Arc<Configuration>, scheduler: Arc<Scheduler>) -> Self {
         Self {
-            config_path_hosts: config.path.config_path_hosts.clone(),
-            config_path: config.path.config_path.clone(),
+            config,
+            scheduler,
+            redis_conn: None,
+        }
+    }
+
+    /// Creates a `Hosts` instance that caches `hosts.yml` and per-host
+    /// configuration in Redis, reducing disk I/O between backup operations.
+    ///
+    /// Use this variant from server binaries that have access to a Redis
+    /// [`ConnectionManager`]. The CLI uses [`Self::new`] (no Redis).
+    #[must_use]
+    pub fn with_redis_conn(
+        config: Arc<Configuration>,
+        scheduler: Arc<Scheduler>,
+        conn: ConnectionManager,
+    ) -> Self {
+        Self {
+            config,
+            scheduler,
+            redis_conn: Some(Arc::new(Mutex::new(conn))),
         }
     }
 
@@ -77,22 +115,34 @@ impl Hosts {
     ///
     /// Returns an error if the file cannot be parsed as YAML, but not if the file is missing.
     pub async fn list_hosts(&self) -> Result<Vec<String>> {
-        debug!("Reading hosts from {:?}", self.config_path_hosts);
+        if let Some(conn) = &self.redis_conn {
+            let path = self.config.path.config_path_hosts.clone();
+            let result = cache_wrap(conn, HOSTS_LIST_KEY, CACHE_TTL_SECS, || async move {
+                Self::read_hosts_from_disk(&path).await
+            })
+            .await;
+            return Ok(result);
+        }
+        Ok(Self::read_hosts_from_disk(&self.config.path.config_path_hosts).await)
+    }
 
-        let hosts = read_to_string(&self.config_path_hosts).await;
-        let hosts = match hosts {
-            Ok(hosts) => {
-                debug!("Hosts file content: {hosts}");
-                let hosts: Vec<String> = serde_yaml::from_str(&hosts)?;
-                hosts
+    /// Reads `hosts.yml` from disk and returns the list of hostnames.
+    async fn read_hosts_from_disk(path: &Path) -> Vec<String> {
+        debug!("Reading hosts from {:?}", path);
+        let hosts = read_to_string(path).await;
+        match hosts {
+            Ok(content) => {
+                debug!("Hosts file content: {content}");
+                serde_yaml_ng::from_str(&content).unwrap_or_else(|e| {
+                    warn!("Failed to parse hosts file: {e}");
+                    vec![]
+                })
             }
             Err(e) => {
                 warn!("Error reading hosts file: {e}");
                 vec![]
             }
-        };
-
-        Ok(hosts)
+        }
     }
 
     /// Loads the configuration for a specific host.
@@ -112,16 +162,28 @@ impl Hosts {
     ///
     /// Returns an error if the host is not listed or the configuration file is invalid.
     pub async fn get_host(&self, hostname: &str) -> Result<HostConfiguration> {
-        // Check if the host is in the list
+        // Check if the host is in the list (uses cache if Redis is available)
         let hosts = self.list_hosts().await?;
         if !hosts.contains(&hostname.to_string()) {
             return Err(eyre!("Host {hostname} not found"));
         }
 
-        let path = self.get_host_configuration_file(hostname);
-        let host = self.read_host_file(path).await?;
+        if let Some(conn) = &self.redis_conn {
+            let key = host_config_key(hostname);
+            let config_path = self.get_host_configuration_file(hostname);
+            let result: Option<HostConfiguration> =
+                cache_wrap(conn, &key, CACHE_TTL_SECS, || async move {
+                    read_to_string(&config_path)
+                        .await
+                        .ok()
+                        .and_then(|c| serde_yaml_ng::from_str(&c).ok())
+                })
+                .await;
+            return result.ok_or_else(|| eyre!("Failed to load config for host {hostname}"));
+        }
 
-        Ok(host)
+        let path = self.get_host_configuration_file(hostname);
+        self.read_host_file(path).await
     }
 
     /// Reads and parses a host configuration file from disk.
@@ -140,21 +202,50 @@ impl Hosts {
     /// Returns an error if the file cannot be read or parsed.
     pub async fn read_host_file<P: AsRef<Path>>(&self, path: P) -> Result<HostConfiguration> {
         let content = read_to_string(path).await?;
-        let host: HostConfiguration = serde_yaml::from_str(&content)?;
+        let host: HostConfiguration = serde_yaml_ng::from_str(&content)?;
 
         Ok(host)
     }
 
     /// Returns the path to the configuration file for a given host.
-    ///
-    /// # Arguments
-    ///
-    /// * `hostname` - The name of the host.
-    ///
-    /// # Returns
-    ///
-    /// The path to the YAML configuration file for the specified host.
     fn get_host_configuration_file(&self, hostname: &str) -> PathBuf {
-        self.config_path.join(format!("{hostname}.yml"))
+        self.config.path.config_path.join(format!("{hostname}.yml"))
+    }
+
+    /// Invalidates the cached host list (`woodstock:cache:hosts`).
+    ///
+    /// The next call to [`Self::list_hosts`] will re-read `hosts.yml` from disk.
+    pub async fn invalidate_hosts_list_cache(&self) {
+        if let Some(conn) = &self.redis_conn {
+            cache_invalidate(conn, HOSTS_LIST_KEY).await;
+        }
+    }
+
+    /// Invalidates the cached configuration for a single host
+    /// (`woodstock:cache:host:{hostname}`).
+    ///
+    /// The next call to [`Self::get_host`] for this hostname will re-read
+    /// `{hostname}.yml` from disk.
+    pub async fn invalidate_host_config_cache(&self, hostname: &str) {
+        if let Some(conn) = &self.redis_conn {
+            cache_invalidate(conn, &host_config_key(hostname)).await;
+        }
+    }
+
+    /// Fusionne le schedule global avec celui du host (host override global).
+    pub async fn get_schedule(&self, hostname: &str) -> Result<Schedule> {
+        let global_scheduler = self.scheduler.get_schedule().await?;
+        let global_scheduler = global_scheduler.default_schedule;
+
+        let config = self.get_host(hostname).await?;
+        let mut scheduler = config.schedule.unwrap_or_else(|| global_scheduler.clone());
+
+        scheduler.activated = scheduler.activated.or(global_scheduler.activated);
+        scheduler.backup_period = scheduler.backup_period.or(global_scheduler.backup_period);
+        scheduler.backup_to_keep = scheduler.backup_to_keep.or(global_scheduler.backup_to_keep);
+
+        debug!("Schedule for host {hostname}: {scheduler:?}");
+
+        Ok(scheduler)
     }
 }

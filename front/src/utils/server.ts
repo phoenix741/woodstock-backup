@@ -7,7 +7,6 @@ export function useServerInformation() {
     graphql(/* GraphQL */ `
       query ServerInformations {
         informations {
-          platform
           uptime
           hostname
           woodstockVersion

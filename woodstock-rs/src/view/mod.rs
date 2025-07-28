@@ -8,12 +8,15 @@ use crate::{
     FileManifest,
 };
 use eyre::{eyre, Ok, Result};
-use log::info;
 use lru::LruCache;
+use tracing::info;
+use uuid::Uuid;
+
 use std::{
     collections::HashMap,
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use std::{collections::HashSet, num::NonZeroUsize};
 use tokio::io::AsyncBufRead;
@@ -33,7 +36,7 @@ impl FileManifest {
             path: path_to_vec(PathBuf::from(host)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
-                r#type: FileManifestType::Directory as i32,
+                file_type: FileManifestType::Directory as i32,
                 ..FileManifestStat::default()
             }),
             ..Default::default()
@@ -51,16 +54,16 @@ impl FileManifest {
     #[must_use]
     pub fn from_backup(backup: &Backup) -> Self {
         Self {
-            path: path_to_vec(PathBuf::from(format!("{}", backup.number))),
+            path: path_to_vec(PathBuf::from(backup.id.to_string())),
             stats: Some(FileManifestStat {
                 mode: 0o755,
-                r#type: FileManifestType::Directory as i32,
+                file_type: FileManifestType::Directory as i32,
                 size: backup.file_size,
                 compressed_size: backup.compressed_file_size,
-                created: i64::try_from(backup.start_date).unwrap_or_default(),
+                created: backup.start_date.timestamp(),
                 last_modified: backup
                     .end_date
-                    .and_then(|f| i64::try_from(f).ok())
+                    .and_then(|f| Some(f.timestamp()))
                     .unwrap_or_default(),
                 ..FileManifestStat::default()
             }),
@@ -82,7 +85,7 @@ impl FileManifest {
             path: path_to_vec(PathBuf::from(share)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
-                r#type: FileManifestType::Directory as i32,
+                file_type: FileManifestType::Directory as i32,
                 ..FileManifestStat::default()
             }),
             ..Default::default()
@@ -103,7 +106,7 @@ impl FileManifest {
             path: path_to_vec(PathBuf::from(file)),
             stats: Some(FileManifestStat {
                 mode: 0o755,
-                r#type: FileManifestType::Directory as i32,
+                file_type: FileManifestType::Directory as i32,
                 ..FileManifestStat::default()
             }),
             ..Default::default()
@@ -161,7 +164,7 @@ pub struct SelectedShares {
 #[derive(Debug, Default)]
 pub struct PathInformation<'a> {
     pub hostname: Option<&'a str>,
-    pub backup_number: Option<usize>,
+    pub backup_id: Option<Uuid>,
     pub shares: Vec<String>,
     pub share: Option<String>,
     pub path: Option<PathBuf>,
@@ -171,11 +174,13 @@ pub struct PathInformation<'a> {
 /// The goal of this module is to provide a view for the Woodstock application.
 ///
 /// The view can be used to access to the directory as files
+///
+/// TODO: Remplace LruCache with a redis cache
 pub struct WoodstockView {
     /// The hosts configuration for the Woodstock application.
-    hosts: Hosts,
+    hosts: Arc<Hosts>,
     /// The backups configuration for the Woodstock application.
-    backups: Backups,
+    backups: Arc<Backups>,
     /// The path to the storage pool.
     pool_path: PathBuf,
     /// A cache for storing file manifests.
@@ -193,12 +198,13 @@ impl WoodstockView {
     /// This function will panic if the cache size in the configuration is zero.
     /// Ensure that the cache size is set to a non-zero value before calling this function.
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
+    pub fn new(config: Arc<Configuration>, hosts: Arc<Hosts>, backups: Arc<Backups>) -> Self {
         Self {
-            hosts: Hosts::new(config),
-            backups: Backups::new(config),
+            hosts,
+            backups,
             pool_path: config.path.pool_path.clone(),
-            cache: LruCache::new(NonZeroUsize::new(config.cache_size).unwrap()),
+            // SAFETY: cache_size is validated at config load time to be ≥ 1
+            cache: LruCache::new(NonZeroUsize::new(config.cache_size.max(1)).unwrap()),
         }
     }
 
@@ -216,14 +222,14 @@ impl WoodstockView {
     async fn get_manifest_from_cache(
         &mut self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         share: &str,
     ) -> Result<&Vec<FileManifest>> {
-        let key = PathBuf::from([hostname, backup_number.to_string().as_str(), share].join("/"));
+        let key = PathBuf::from([hostname, backup_id.to_string().as_str(), share].join("/"));
 
         let cached_result = self.cache.get_or_insert_mut(key, Vec::new);
         if cached_result.is_empty() {
-            let manifest = self.backups.get_manifest(hostname, backup_number, share);
+            let manifest = self.backups.get_manifest(hostname, backup_id, share);
             *cached_result = manifest.read_manifest_entries_to_end().await?;
         }
 
@@ -248,12 +254,12 @@ impl WoodstockView {
     async fn list_shares_of(
         &self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         path: &mut std::path::Components<'_>,
     ) -> Result<SelectedShares> {
         let mut shares = self
             .backups
-            .get_backup_share_paths(hostname, backup_number)
+            .get_backup_share_paths(hostname, backup_id)
             .await;
 
         // Ensure that shares are sorted by length (longest last) to ensure that the selected share is the share that
@@ -308,12 +314,12 @@ impl WoodstockView {
     async fn get_file_from_path(
         &mut self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         share: &str,
         path: &Path,
     ) -> Result<&FileManifest> {
         let entries = self
-            .get_manifest_from_cache(hostname, backup_number, share)
+            .get_manifest_from_cache(hostname, backup_id, share)
             .await?;
 
         for entry in entries {
@@ -341,12 +347,12 @@ impl WoodstockView {
     pub async fn list_all_files(
         &mut self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         share: &str,
         path: &PathBuf,
     ) -> Result<Vec<FileManifest>> {
         let entries = self
-            .get_manifest_from_cache(hostname, backup_number, share)
+            .get_manifest_from_cache(hostname, backup_id, share)
             .await?;
 
         let mut files = Vec::new();
@@ -375,12 +381,12 @@ impl WoodstockView {
     pub async fn list_file_from_dir(
         &mut self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         share: &str,
         path: &PathBuf,
     ) -> Result<Vec<FileManifest>> {
         let entries = self
-            .get_manifest_from_cache(hostname, backup_number, share)
+            .get_manifest_from_cache(hostname, backup_id, share)
             .await?;
 
         let mut missing_paths = HashSet::new();
@@ -438,39 +444,64 @@ impl WoodstockView {
         if hostname.is_none() {
             return Ok(PathInformation {
                 hostname: None,
-                backup_number: None,
+                backup_id: None,
                 shares: vec![],
                 share: None,
                 path: None,
             });
         }
+        // SAFETY: hostname is Some here — the is_none() check above already returns early
         let hostname = hostname.unwrap().as_os_str().to_str().unwrap_or_default();
 
-        let backup_number = path_components.next();
-        if backup_number.is_none() {
+        let backup_id_component = path_components.next();
+        if backup_id_component.is_none() {
             return Ok(PathInformation {
                 hostname: Some(hostname),
-                backup_number: None,
+                backup_id: None,
                 shares: vec![],
                 share: None,
                 path: None,
             });
         }
-        let backup_number = backup_number
+        // SAFETY: backup_id is Some here — the is_none() check above returns early
+        let backup_str = backup_id_component
             .unwrap()
             .as_os_str()
             .to_str()
-            .and_then(|f| f.parse::<usize>().ok())
-            .unwrap_or(0);
+            .unwrap_or_default();
+        let backup_id = if let core::result::Result::Ok(uuid) = Uuid::parse_str(backup_str) {
+            uuid
+        } else if let core::result::Result::Ok(n) = backup_str.parse::<usize>() {
+            match self.backups.get_backup_by_number(hostname, n).await {
+                Some(backup) => backup.id,
+                None => {
+                    return Ok(PathInformation {
+                        hostname: Some(hostname),
+                        backup_id: None,
+                        shares: vec![],
+                        share: None,
+                        path: None,
+                    })
+                }
+            }
+        } else {
+            return Ok(PathInformation {
+                hostname: Some(hostname),
+                backup_id: None,
+                shares: vec![],
+                share: None,
+                path: None,
+            });
+        };
 
         let selected_shares = self
-            .list_shares_of(hostname, backup_number, &mut path_components)
+            .list_shares_of(hostname, backup_id, &mut path_components)
             .await?;
 
         match selected_shares.selected_share {
             None => Ok(PathInformation {
                 hostname: Some(hostname),
-                backup_number: Some(backup_number),
+                backup_id: Some(backup_id),
                 shares: selected_shares.shares,
                 share: None,
                 path: None,
@@ -480,7 +511,7 @@ impl WoodstockView {
 
                 Ok(PathInformation {
                     hostname: Some(hostname),
-                    backup_number: Some(backup_number),
+                    backup_id: Some(backup_id),
                     shares: selected_shares.shares,
                     share: Some(selected_share),
                     path: Some(path_rest.to_path_buf()),
@@ -505,7 +536,7 @@ impl WoodstockView {
         match path_info {
             PathInformation {
                 hostname: None,
-                backup_number: None,
+                backup_id: None,
                 shares: _,
                 share: _,
                 path: _,
@@ -518,7 +549,7 @@ impl WoodstockView {
             }
             PathInformation {
                 hostname: Some(hostname),
-                backup_number: None,
+                backup_id: None,
                 shares: _,
                 share: _,
                 path: _,
@@ -531,7 +562,7 @@ impl WoodstockView {
             }
             PathInformation {
                 hostname: Some(_),
-                backup_number: Some(_),
+                backup_id: Some(_),
                 shares,
                 share: None,
                 path: _,
@@ -541,7 +572,7 @@ impl WoodstockView {
                 .collect()),
             PathInformation {
                 hostname: Some(hostname),
-                backup_number: Some(backup_number),
+                backup_id: Some(backup_id),
                 shares,
                 share: Some(share),
                 path: path_rest,
@@ -554,7 +585,7 @@ impl WoodstockView {
                     .collect::<Vec<FileManifest>>();
 
                 let files = self
-                    .list_file_from_dir(hostname, backup_number, &share, &path_rest)
+                    .list_file_from_dir(hostname, backup_id, &share, &path_rest)
                     .await?;
 
                 // Add detected shares to files
@@ -585,7 +616,7 @@ impl WoodstockView {
         let Some(hostname) = path_info.hostname else {
             return Err(eyre!("Invalid path (missing hostname)"));
         };
-        let Some(backup_number) = path_info.backup_number else {
+        let Some(backup_id) = path_info.backup_id else {
             return Err(eyre!("Invalid path (missing backup number)"));
         };
         let Some(share) = path_info.share else {
@@ -596,7 +627,7 @@ impl WoodstockView {
         };
 
         let manifest = self
-            .get_file_from_path(hostname, backup_number, &share, &path)
+            .get_file_from_path(hostname, backup_id, &share, &path)
             .await?;
 
         Ok(manifest)
@@ -619,7 +650,7 @@ impl WoodstockView {
         let Some(hostname) = path_info.hostname else {
             return Err(eyre!("Invalid path (missing hostname)"));
         };
-        let Some(backup_number) = path_info.backup_number else {
+        let Some(backup_id) = path_info.backup_id else {
             return Err(eyre!("Invalid path (missing backup number)"));
         };
         let Some(share) = path_info.share else {
@@ -630,7 +661,7 @@ impl WoodstockView {
         };
 
         let manifest = self
-            .get_file_from_path(hostname, backup_number, &share, &path)
+            .get_file_from_path(hostname, backup_id, &share, &path)
             .await?;
 
         let reader = manifest.open_from_pool(&pool_path);

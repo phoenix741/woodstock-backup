@@ -7,9 +7,10 @@
 Woodstock Backup combines several modern technologies to offer a robust backup solution:
 
 - **Client-server architecture**: The server contacts clients to initiate backups, simplifying configuration and enhancing security
-- **Technologies**: Primarily developed in JavaScript (NodeJS for the server and Vue for the interface), with critical components in Rust for performance
+- **Technologies**: Entirely developed in **Rust** for the backend (4 microservices + the agent), with **Vue 3** for the web interface
 - **Optimized storage**: Uses a sophisticated chunk-based deduplication system with Blake3 hashing, organizing data in a hierarchical pool structure
 - **Security**: Mutual TLS (mTLS) authentication and JWT tokens to secure communications
+- **Job queue**: Asynchronous job processing via **Valkey/Redis** (Apalis framework) for reliable scheduling and execution
 
 Woodstock Backup is open-source software distributed under the MIT license.
 

@@ -1,6 +1,7 @@
-use std::time::SystemTime;
+use chrono::{DateTime, Local};
+use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 /// Represents the progression of a file list operation.
 pub struct FileListProgression {
     /// The total size of the files.
@@ -19,15 +20,15 @@ pub struct FileListProgression {
     pub removed_file_count: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 /// Represents the progression of a backup operation.
 pub struct BackupProgression {
     /// The start date of the backup.
-    pub start_date: SystemTime,
+    pub start_date: DateTime<Local>,
     /// The start date of the transfer.
-    pub start_transfer_date: Option<SystemTime>,
+    pub start_transfer_date: Option<DateTime<Local>>,
     /// The end date of the transfer.
-    pub end_transfer_date: Option<SystemTime>,
+    pub end_transfer_date: Option<DateTime<Local>>,
 
     /// The total size of compressed files.
     pub compressed_file_size: u64,
@@ -87,30 +88,24 @@ impl BackupProgression {
     pub fn speed(&self) -> f64 {
         let duration = match self.start_transfer_date {
             Some(start_transfer_date) => match self.end_transfer_date {
-                Some(end_transfer_date) => end_transfer_date
-                    .duration_since(start_transfer_date)
-                    .unwrap_or_default()
-                    .as_secs_f64(),
-                None => start_transfer_date
-                    .elapsed()
-                    .unwrap_or_default()
-                    .as_secs_f64(),
+                Some(end_transfer_date) => (end_transfer_date - start_transfer_date).num_seconds(),
+                None => (Local::now() - start_transfer_date).num_seconds(),
             },
-            None => self.start_date.elapsed().unwrap_or_default().as_secs_f64(),
+            None => (Local::now() - self.start_date).num_seconds(),
         };
 
-        if duration == 0.0 {
+        if duration == 0 {
             return 0.0;
         }
 
-        self.progress_current as f64 / duration
+        self.progress_current as f64 / duration as f64
     }
 }
 
 impl Default for BackupProgression {
     fn default() -> Self {
         Self {
-            start_date: SystemTime::now(),
+            start_date: Local::now(),
             start_transfer_date: None,
             end_transfer_date: None,
             compressed_file_size: 0,

@@ -2,7 +2,7 @@
   <v-app-bar>
     <v-app-bar-title>
       <v-btn variant="text" to="/devices">Devices</v-btn>
-      <v-btn variant="text" to="/tasks/active">Tasks</v-btn>
+      <v-btn variant="text" to="/tasks">Tasks</v-btn>
       <v-btn variant="text" to="/pool">Pool</v-btn>
       <v-btn variant="text" to="/events">Events</v-btn>
     </v-app-bar-title>
@@ -22,15 +22,15 @@ import { computed, onMounted } from 'vue';
 const theme = useTheme();
 const isDarkTheme = computed(() => theme.global.current.value.dark);
 
-// Initialise le thème en fonction de la préférence du système
+// Initialize theme based on system preference
 onMounted(() => {
-  // Vérifie si l'utilisateur a déjà une préférence stockée
+  // Check if the user already has a stored preference
   const storedTheme = localStorage.getItem('theme');
 
   if (storedTheme) {
     theme.global.name.value = storedTheme;
   } else {
-    // Sinon, utiliser la préférence du système
+    // Otherwise, use system preference
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     theme.global.name.value = prefersDark ? 'dark' : 'light';
   }
@@ -40,7 +40,7 @@ function toggleTheme() {
   const newTheme = theme.global.current.value.dark ? 'light' : 'dark';
   theme.global.name.value = newTheme;
 
-  // Sauvegarder la préférence de l'utilisateur
+  // Save user preference
   localStorage.setItem('theme', newTheme);
 }
 </script>

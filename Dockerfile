@@ -1,18 +1,24 @@
 #
 # -------- Base Rust -----------
-ARG RUST_VERSION=1-alpine
-ARG NODE_VERSION=20-alpine
-ARG DEBIAN_VERSION=latest
+ARG RUST_VERSION=1
+ARG NODE_VERSION=20-slim
+ARG RUNTIME_VERSION=3.23
 ARG FEATURES=all
 
 FROM rust:$RUST_VERSION AS build-chef
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
-  apk add --no-cache musl-dev clang clang-dev alpine-sdk cmake protoc acl-dev nodejs npm; \
-  else \
-  apt-get update && apt-get install -y cmake protobuf-c-compiler protobuf-codegen protobuf-compiler libacl1-dev  libfuse-dev nodejs npm; \
-  fi
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  clang \
+  libclang-dev \
+  build-essential \
+  cmake \
+  protobuf-compiler \
+  libacl1-dev \
+  libssl-dev \
+  pkg-config \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN cargo install cargo-chef --locked && rm -rf $CARGO_HOME/registry/
 
@@ -36,11 +42,20 @@ COPY ./woodstock-rs /src/woodstock-rs/
 COPY ./client-rs /src/client-rs/
 COPY ./cli-rs /src/cli-rs/
 COPY ./backuppc-importer-rs /src/backuppc-importer-rs/
-COPY ./shared-rs /src/shared-rs/
+COPY ./server-rs /src/server-rs/
+COPY ./e2e-tests /src/e2e-tests/
 
 RUN cargo build --release $FEATURES
-WORKDIR /src/shared-rs
-RUN npm install && npm run build
+
+# Strip binaries to reduce image size
+RUN strip /src/target/release/api_server \
+  /src/target/release/client_api_server \
+  /src/target/release/job_worker \
+  /src/target/release/scheduler \
+  /src/target/release/ws_client_daemon \
+  /src/target/release/ws_backuppc_importer \
+  /src/target/release/ws_console \
+  /src/target/release/ws_sync
 
 #
 # -------- Dependencies -------
@@ -50,19 +65,12 @@ LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src
 
-RUN mkdir -p /src/{nestjs,shared-rs,front,docs} && mkdir -p /src/docs/website
+RUN mkdir -p /src/{front,docs} && mkdir -p /src/docs/website
 COPY package*.json /src
 COPY front/package*.json /src/front/
-COPY nestjs/package*.json /src/nestjs/
-COPY shared-rs/package*.json /src/shared-rs/
 COPY docs/website/package*.json /src/docs/website/
 
 RUN npm ci
-
-FROM dependencies AS prod-dependencies
-
-WORKDIR /src
-RUN npm ci --production
 
 #
 # -------- Build front -------
@@ -73,70 +81,79 @@ COPY front/ /src/front/
 RUN npm run build 
 
 #
-# -------- Build back -------
-FROM dependencies AS build-back
-
-WORKDIR /src/nestjs
-
-COPY --from=build-sharedrs /src/shared-rs/* /src/shared-rs/
-COPY nestjs/ /src/nestjs/
-RUN npm run buildall
-
-#
 # -------- Build client -------
-FROM debian:$DEBIAN_VERSION AS client
+FROM alpine:$RUNTIME_VERSION AS client
 
-RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
-  apk add --no-cache acl; \
-  else \
-  apt-get update && apt-get install -y libacl1  libfuse2 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
-  fi
+RUN apk add --no-cache \
+  acl \
+  fuse \
+  libgcc \
+  gcompat \
+  samba-client \
+  ca-certificates \
+  btrfs-progs \
+  tzdata
 
-COPY --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
+# Create a user to run the app
+ARG APP_USER=woodstock
+ARG APP_UID=1000
+RUN adduser -D -u $APP_UID $APP_USER && \
+  mkdir -p /app/cli /etc/woodstock && \
+  chown -R $APP_USER:$APP_USER /app /etc/woodstock
+
+# Ensure the client looks for config in the volume mount point
+ENV CLIENT_PATH=/etc/woodstock
+
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
 
 VOLUME [ "/etc/woodstock" ]
 
+USER $APP_USER
 CMD [ "/app/cli/ws_client_daemon" ]
 
 #
-# -------- Dist -----------
-FROM node:$NODE_VERSION AS dist
+# -------- Server (Rust) -----------
+FROM alpine:$RUNTIME_VERSION AS server
 
-RUN if cat /etc/os-release | grep -q 'ID=alpine'; then \
-  apk add --no-cache acl; \
-  else \
-  apt-get update && apt-get install -y libacl1  libfuse2 samba-common-bin && apt-get clean && rm -rf /var/lib/apt/lists/*; \
-  fi
+RUN apk add --no-cache \
+  acl \
+  fuse \
+  libgcc \
+  gcompat \
+  ca-certificates \
+  tzdata
 
-RUN npm install pm2 -g
+# Create a user to run the app
+ARG APP_USER=woodstock
+ARG APP_UID=1000
+RUN adduser -D -u $APP_UID $APP_USER && \
+  mkdir -p /app /backups && \
+  chown -R $APP_USER:$APP_USER /app /backups
 
-WORKDIR /app/nestjs
+WORKDIR /app
 
-COPY --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/cli/
-COPY --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
-COPY --from=build-sharedrs /src/target/release/ws_console /app/cli/
-COPY --from=build-sharedrs /src/target/release/ws_sync /app/cli/
+# Copy Rust binaries
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/client_api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/job_worker /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/scheduler /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_console /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_sync /app/
 
-COPY --from=build-sharedrs /src/shared-rs/index.* /app/shared-rs/
-COPY --from=build-sharedrs /src/shared-rs/shared-rs.* /app/shared-rs/
+# Copy Frontend static files
+COPY --chown=$APP_USER:$APP_USER --from=build-front /src/front/dist /app/static
 
-COPY --from=prod-dependencies /src/nestjs/node_modules /app/nestjs/node_modules
-COPY --from=prod-dependencies /src/node_modules /app/node_modules
-COPY --from=build-back /src/nestjs/package*.json /app/nestjs/
-COPY --from=build-back /src/nestjs/dist/ /app/nestjs/
-COPY --from=build-back /src/nestjs/ecosystem.config.js /app/nestjs/
-COPY --from=build-front /src/front/dist /app/nestjs/front/
-
-ENV STATIC_PATH=/app/nestjs/front/
-ENV NODE_ENV=production
+ENV STATIC_PATH=/app/static
 ENV BACKUP_PATH=/backups
 ENV LOG_LEVEL=info
 ENV REDIS_HOST=redis
 ENV REDIS_PORT=6379
 
-ENV VUE_APP_GRAPHQL_HTTP=/graphql
-
 VOLUME [ "/backups" ]
-ENTRYPOINT [ "pm2-runtime" ]
-CMD [ "ecosystem.config.js" ]
-EXPOSE 3000
+
+USER $APP_USER
+
+# Default to API server
+CMD [ "/app/api_server" ]
+EXPOSE 3000 8443

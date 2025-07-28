@@ -22,14 +22,15 @@
 ///
 /// ## Thread Safety
 ///
-/// The [`GlobalConfiguration`] static is safe for concurrent read access.
+/// The [`GLOBAL_CONFIGURATION`] static is safe for concurrent read access.
 use eyre::Result;
-use lazy_static::lazy_static;
-use log::{info, warn, Level};
 use std::{
     env,
     path::{Path, PathBuf},
 };
+use tracing::{info, warn, Level};
+
+use std::sync::LazyLock;
 
 use crate::{
     utils::{chunk_hasher::DEFAULT_CHUNK_ALGORITHM, compression::CompressionFormat},
@@ -59,6 +60,12 @@ pub struct ConfigurationPath {
 
     /// Directory for the refcnt waiting to be processed.
     pub pool_refcnt_path: PathBuf,
+
+    /// Directory for pending refcnt operations (Phase 6 Volet A: Dirty File Marker System).
+    pub pool_refcnt_pending_path: PathBuf,
+
+    /// Path to the dirty file marker (indicates crashed refcnt operations).
+    pub pool_refcnt_dirty_file: PathBuf,
 
     /// Directory for job logs and status information.
     pub jobs_path: PathBuf,
@@ -147,6 +154,8 @@ impl ConfigurationPath {
         let config_path_pool_algorithm = pool_path.join("algorithm");
 
         let pool_refcnt_path = pool_path.join("refcnt");
+        let pool_refcnt_pending_path = pool_refcnt_path.join("pending");
+        let pool_refcnt_dirty_file = pool_path.join("REFCNT.dirty");
 
         Self {
             backup_path,
@@ -156,6 +165,8 @@ impl ConfigurationPath {
             logs_path,
             pool_path,
             pool_refcnt_path,
+            pool_refcnt_pending_path,
+            pool_refcnt_dirty_file,
             jobs_path,
             events_path,
             config_path_hosts,
@@ -215,7 +226,8 @@ impl Default for RedisConfiguration {
                 .unwrap_or_else(|| "localhost".to_string()),
             port: env::var("REDIS_PORT")
                 .ok()
-                .map_or(6379, |p| p.parse().unwrap()),
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(6379),
         }
     }
 }
@@ -249,6 +261,11 @@ impl Configuration {
             path: ConfigurationPath::new(backup_path, OptionalConfigurationPath::default()),
             ..Default::default()
         }
+    }
+
+    /// Get Redis URL from woodstock configuration
+    pub fn redis_url(&self) -> String {
+        format!("redis://{}:{}", self.redis.host, self.redis.port)
     }
 
     /// Returns the Woodstock package version as a string.
@@ -327,13 +344,13 @@ impl Default for Configuration {
 
         let log_level = match env::var("LOG_LEVEL") {
             Ok(level) => match level.to_lowercase().as_str() {
-                "error" => Level::Error,
-                "warn" => Level::Warn,
-                "debug" => Level::Debug,
-                "trace" => Level::Trace,
-                _ => Level::Info,
+                "error" => Level::ERROR,
+                "warn" => Level::WARN,
+                "debug" => Level::DEBUG,
+                "trace" => Level::TRACE,
+                _ => Level::INFO,
             },
-            Err(_) => Level::Info,
+            Err(_) => Level::INFO,
         };
 
         let cache_size = match env::var("CACHE_SIZE") {
@@ -385,9 +402,10 @@ impl Default for Configuration {
     }
 }
 
-lazy_static! {
-    pub static ref GlobalConfiguration: Configuration = Configuration::default();
-}
+/// Global configuration instance. Safe for concurrent read access.
+///
+/// Initialized lazily on first access using environment variables.
+pub static GLOBAL_CONFIGURATION: LazyLock<Configuration> = LazyLock::new(Configuration::default);
 
 ///
 /// The goal of the `Context` struct is to hold the configuration of the application.

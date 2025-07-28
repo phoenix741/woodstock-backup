@@ -1,28 +1,30 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="executionStateMessage" icon="cloud-download"
-    :progress-percent="progress?.backupProgress?.percent ?? 0" :progress-message="progressMessage"
-    :error-message="errorMessage" :backup-error-state="!!progress?.backupErrorState">
+    :progress-percent="progress?.globalProgression?.percent ?? 0" :progress-message="progressMessage"
+    :error-message="errorMessage" :backup-error-state="!!progress?.backupErrorState" :expanded="expanded">
     <template #tags>
       <v-chip size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-file-multiple</v-icon>
-        {{ toNumber((progress?.backupProgress?.newFileCount ?? 0) + (progress?.backupProgress?.modifiedFileCount ?? 0))
+        {{ toNumber((progress?.globalProgression?.newFileCount ?? 0) + (progress?.globalProgression?.modifiedFileCount
+          ?? 0))
         }}
         files
       </v-chip>
       <v-chip size="small" class="ma-1" color="green" variant="outlined">
         <v-icon start size="small">mdi-harddisk</v-icon>
-        {{ filesize((progress?.backupProgress?.newFileSize ?? 0n) + (progress?.backupProgress?.modifiedFileSize ?? 0n))
+        {{ filesize((progress?.globalProgression?.newFileSize ?? 0n) + (progress?.globalProgression?.modifiedFileSize ??
+          0n))
         }}
       </v-chip>
       <v-chip size="small" class="ma-1" color="orange" variant="outlined">
         <v-icon start size="small">mdi-zip-box</v-icon>
-        {{ filesize((progress?.backupProgress?.newCompressedFileSize ?? 0n) +
-          (progress?.backupProgress?.modifiedCompressedFileSize ?? 0n)) }}
+        {{ filesize((progress?.globalProgression?.newCompressedFileSize ?? 0n) +
+          (progress?.globalProgression?.modifiedCompressedFileSize ?? 0n)) }}
       </v-chip>
-      <v-chip v-if="progress?.backupProgress?.errorCount ?? 0 > 0" size="small" class="ma-1" color="error"
+      <v-chip v-if="progress?.globalProgression?.errorCount ?? 0 > 0" size="small" class="ma-1" color="error"
         variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ toNumber(progress?.backupProgress?.errorCount) }} errors
+        {{ toNumber(progress?.globalProgression?.errorCount) }} errors
       </v-chip>
       <v-chip v-if="progress?.backupErrorState" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
@@ -49,13 +51,13 @@
         </v-row>
 
         <!-- Shares Progress -->
-        <v-row v-if="progress?.shareStates?.length" class="mb-4">
+        <v-row v-if="sortedShareStates.length" class="mb-4">
           <v-col cols="12">
             <h4 class="text-subtitle-2 mb-3">
               <v-icon size="small" class="mr-2">mdi-folder-multiple</v-icon>
               Shares Progress
             </h4>
-            <div v-for="(share, index) in progress.shareStates" :key="index" class="mb-4">
+            <div v-for="(share, index) in sortedShareStates" :key="index" class="mb-4">
               <div class="d-flex align-center mb-2">
                 <v-chip :color="shareStateColor(share.executionState)" variant="outlined" class="mr-2">
                   <v-icon start size="small">{{ shareStateIcon(share.executionState) }}</v-icon>
@@ -188,16 +190,22 @@ import { toDateTime, toPercent, toNumber } from '@/components/hosts/hosts.utils'
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress } = defineProps<{
+const { data, progress, expanded } = defineProps<{
   data: JobBackupDataFragment;
   progress: BackupTaskStateFragment | undefined | null;
+  expanded?: boolean;
 }>();
 
 const title = computed(() => `Backup ${data.host}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
 
+const sortedShareStates = computed(() => {
+  if (!progress?.shareStates) return [];
+  return [...progress.shareStates].sort((a, b) => a.share.localeCompare(b.share));
+});
+
 const progressMessage = computed(() => {
-  if ((progress?.backupProgress?.speed ?? 0) > 0) {
-    return `${filesize(progress?.backupProgress?.speed ?? 0)}/s`;
+  if ((progress?.globalProgression?.speed ?? 0) > 0) {
+    return `${filesize(progress?.globalProgression?.speed ?? 0)}/s`;
   }
   return '';
 });

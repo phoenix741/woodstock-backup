@@ -1,28 +1,23 @@
 <template>
-  <template v-if="job.name === 'backup' && backupData">
-    <TaskCardBackup :data="backupData" :progress="backupProgress">
-    </TaskCardBackup>
+  <template v-if="job.kind === JobKind.Backup && backupData">
+    <TaskCardBackup :data="backupData" :progress="backupProgress" :expanded="expanded" />
   </template>
-  <template v-else-if="job.name === 'restore' && restoreData">
-    <TaskCardRestore :data="restoreData" :progress="restoreProgress">
-    </TaskCardRestore>
+  <template v-else-if="job.kind === JobKind.Restore && restoreData">
+    <TaskCardRestore :data="restoreData" :progress="restoreProgress" :expanded="expanded" />
   </template>
-  <template v-else-if="job.name === 'remove_backup' && removeData">
-    <TaskCardRemove :data="removeData" :progress="removeProgress">
-    </TaskCardRemove>
+  <template v-else-if="job.kind === JobKind.Remove && removeData">
+    <TaskCardRemove :data="removeData" :progress="removeProgress" :expanded="expanded" />
   </template>
-  <template v-else-if="job.name === 'fsck' && fsckData">
-    <TaskCardFsck :data="fsckData" :progress="fsckProgress">
-    </TaskCardFsck>
+  <template v-else-if="job.kind === JobKind.Fsck && fsckData">
+    <TaskCardFsck :data="fsckData" :progress="fsckProgress" :expanded="expanded" />
   </template>
-  <template v-else-if="job.name === 'cleanup_refcnt' && cleanupData">
-    <TaskCardCleanup :data="cleanupData" :progress="cleanupProgress">
-    </TaskCardCleanup>
+  <template v-else-if="job.kind === JobKind.CleanupRefcnt && cleanupData">
+    <TaskCardCleanup :data="cleanupData" :progress="cleanupProgress" :expanded="expanded" />
   </template>
 </template>
 
 <script setup lang="ts">
-import { BackupTaskStateFragmentDoc, CleanerTaskStateFragmentDoc, FsckTaskStateFragmentDoc, JobBackupDataFragmentDoc, JobCleanupDataFragmentDoc, JobFsckDataFragmentDoc, JobRemoveDataFragmentDoc, JobRestoreDataFragmentDoc, RemoveTaskStateFragmentDoc, RestoreTaskStateFragmentDoc, type JobFragment } from '@/generated/graphql';
+import { BackupTaskStateFragmentDoc, CleanerTaskStateFragmentDoc, FsckTaskStateFragmentDoc, JobBackupDataFragmentDoc, JobCleanupDataFragmentDoc, JobFsckDataFragmentDoc, JobKind, JobRemoveDataFragmentDoc, JobRestoreDataFragmentDoc, RemoveTaskStateFragmentDoc, RestoreTaskStateFragmentDoc, type JobFragment } from '@/generated/graphql';
 import { useFragment } from '@/generated';
 import { computed } from 'vue';
 import TaskCardBackup from './TaskCardBackup.vue';
@@ -31,8 +26,9 @@ import TaskCardRemove from './TaskCardRemove.vue';
 import TaskCardFsck from './TaskCardFsck.vue';
 import TaskCardCleanup from './TaskCardCleanup.vue';
 
-const { job } = defineProps<{
-  job: JobFragment
+const { job, expanded } = defineProps<{
+  job: JobFragment;
+  expanded?: boolean;
 }>();
 
 const backupData = computed(() => {
@@ -40,8 +36,8 @@ const backupData = computed(() => {
   return useFragment(JobBackupDataFragmentDoc, job.data);
 });
 const backupProgress = computed(() => {
-  if (!job.progression || job.progression.__typename !== 'BackupTaskState') return null;
-  return useFragment(BackupTaskStateFragmentDoc, job.progression);
+  if (!job.progress || job.progress.__typename !== 'JobBackupTaskState') return null;
+  return useFragment(BackupTaskStateFragmentDoc, job.progress);
 });
 
 const restoreData = computed(() => {
@@ -49,8 +45,8 @@ const restoreData = computed(() => {
   return useFragment(JobRestoreDataFragmentDoc, job.data);
 });
 const restoreProgress = computed(() => {
-  if (!job.progression || job.progression.__typename !== 'RestoreTaskState') return null;
-  return useFragment(RestoreTaskStateFragmentDoc, job.progression);
+  if (!job.progress || job.progress.__typename !== 'JobRestoreTaskState') return null;
+  return useFragment(RestoreTaskStateFragmentDoc, job.progress);
 });
 
 const removeData = computed(() => {
@@ -58,8 +54,8 @@ const removeData = computed(() => {
   return useFragment(JobRemoveDataFragmentDoc, job.data);
 });
 const removeProgress = computed(() => {
-  if (!job.progression || job.progression.__typename !== 'RemoveTaskState') return null;
-  return useFragment(RemoveTaskStateFragmentDoc, job.progression);
+  if (!job.progress || job.progress.__typename !== 'JobRemoveState') return null;
+  return useFragment(RemoveTaskStateFragmentDoc, job.progress);
 });
 
 const fsckData = computed(() => {
@@ -67,8 +63,8 @@ const fsckData = computed(() => {
   return useFragment(JobFsckDataFragmentDoc, job.data);
 });
 const fsckProgress = computed(() => {
-  if (!job.progression || job.progression.__typename !== 'FsckTaskState') return null;
-  return useFragment(FsckTaskStateFragmentDoc, job.progression);
+  if (!job.progress || job.progress.__typename !== 'JobFsckTaskState') return null;
+  return useFragment(FsckTaskStateFragmentDoc, job.progress);
 });
 
 const cleanupData = computed(() => {
@@ -76,8 +72,8 @@ const cleanupData = computed(() => {
   return useFragment(JobCleanupDataFragmentDoc, job.data);
 });
 const cleanupProgress = computed(() => {
-  if (!job.progression || job.progression.__typename !== 'CleanerTaskState') return null;
-  return useFragment(CleanerTaskStateFragmentDoc, job.progression);
+  if (!job.progress || job.progress.__typename !== 'JobCleanerTaskState') return null;
+  return useFragment(CleanerTaskStateFragmentDoc, job.progress);
 });
 
 </script>

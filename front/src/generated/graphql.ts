@@ -14,11 +14,23 @@ export type Scalars = {
   Boolean: { input: boolean; output: boolean; }
   Int: { input: number; output: number; }
   Float: { input: number; output: number; }
-  /** The `BigInt` scalar type represents non-fractional signed whole numeric values. BigInt can represent values between -(2^63) + 1 and 2^63 - 1. */
   BigInt: { input: bigint; output: bigint; }
-  /** A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format. */
-  DateTime: { input: string; output: string; }
+  Buffer: { input: string; output: string; }
+  /**
+   * Implement the DateTime<Local> scalar
+   *
+   * The input/output is a string in RFC3339 format.
+   */
+  DateTime: { input: Date; output: Date; }
+  /** A scalar that can represent any JSON Object value. */
+  JSONObject: { input: any; output: any; }
 };
+
+export enum AbortingStageDto {
+  ToAddInPool = 'TO_ADD_IN_POOL',
+  ToCompact = 'TO_COMPACT',
+  ToCountRef = 'TO_COUNT_REF'
+}
 
 export type ApplicationEvent = {
   __typename?: 'ApplicationEvent';
@@ -32,62 +44,64 @@ export type ApplicationEvent = {
   uuid: Scalars['String']['output'];
 };
 
-export type Backup = {
-  __typename?: 'Backup';
+export enum BackupErrorState {
+  AddReferencesToPoolError = 'ADD_REFERENCES_TO_POOL_ERROR',
+  AuthenticationError = 'AUTHENTICATION_ERROR',
+  BackupError = 'BACKUP_ERROR',
+  CommandExecutionError = 'COMMAND_EXECUTION_ERROR',
+  CompactError = 'COMPACT_ERROR',
+  CountReferencesError = 'COUNT_REFERENCES_ERROR',
+  InitializationError = 'INITIALIZATION_ERROR',
+  Unknown = 'UNKNOWN'
+}
+
+export type BackupEx = {
+  __typename?: 'BackupEx';
   agentVersion?: Maybe<Scalars['String']['output']>;
   compressedFileSize: Scalars['BigInt']['output'];
-  endDate?: Maybe<Scalars['Float']['output']>;
-  errorCount: Scalars['Float']['output'];
+  endDate?: Maybe<Scalars['DateTime']['output']>;
+  errorCount: Scalars['Int']['output'];
+  errorMessage?: Maybe<Scalars['String']['output']>;
   existingCompressedFileSize: Scalars['BigInt']['output'];
-  existingFileCount: Scalars['Float']['output'];
+  existingFileCount: Scalars['Int']['output'];
   existingFileSize: Scalars['BigInt']['output'];
-  fileCount: Scalars['Float']['output'];
+  fileCount: Scalars['Int']['output'];
   fileSize: Scalars['BigInt']['output'];
   files: Array<FileDescription>;
   id: Scalars['ID']['output'];
   modifiedCompressedFileSize: Scalars['BigInt']['output'];
-  modifiedFileCount: Scalars['Float']['output'];
+  modifiedFileCount: Scalars['Int']['output'];
   modifiedFileSize: Scalars['BigInt']['output'];
   newCompressedFileSize: Scalars['BigInt']['output'];
-  newFileCount: Scalars['Float']['output'];
+  newFileCount: Scalars['Int']['output'];
   newFileSize: Scalars['BigInt']['output'];
-  number: Scalars['Float']['output'];
-  removedFileCount: Scalars['Float']['output'];
+  number: Scalars['Int']['output'];
+  removedFileCount: Scalars['Int']['output'];
   shares: Array<FileDescription>;
   speed: Scalars['Float']['output'];
-  startDate: Scalars['Float']['output'];
-  status: BackupStatus;
+  startDate: Scalars['DateTime']['output'];
+  status: BackupStatusDto;
 };
 
 
-export type BackupFilesArgs = {
-  path: Scalars['String']['input'];
+export type BackupExFilesArgs = {
+  path: Scalars['Buffer']['input'];
   sharePath: Scalars['String']['input'];
 };
 
-export enum BackupErrorState {
-  AddReferencesToPoolError = 'AddReferencesToPoolError',
-  AuthenticationError = 'AuthenticationError',
-  BackupError = 'BackupError',
-  CommandExecutionError = 'CommandExecutionError',
-  CompactError = 'CompactError',
-  CountReferencesError = 'CountReferencesError',
-  InitializationError = 'InitializationError',
-  Unknown = 'Unknown'
-}
-
 export enum BackupExecutionState {
-  AddReferencesToPool = 'AddReferencesToPool',
-  Authenticate = 'Authenticate',
-  Compact = 'Compact',
-  Completed = 'Completed',
-  CountReferences = 'CountReferences',
-  DownloadChunks = 'DownloadChunks',
-  DownloadFileList = 'DownloadFileList',
-  Initialization = 'Initialization',
-  PostCommands = 'PostCommands',
-  PreCommands = 'PreCommands',
-  Waiting = 'Waiting'
+  AddReferencesToPool = 'ADD_REFERENCES_TO_POOL',
+  Authenticate = 'AUTHENTICATE',
+  Compact = 'COMPACT',
+  Completed = 'COMPLETED',
+  CountReferences = 'COUNT_REFERENCES',
+  DownloadChunks = 'DOWNLOAD_CHUNKS',
+  DownloadFileList = 'DOWNLOAD_FILE_LIST',
+  Initialization = 'INITIALIZATION',
+  PostCommands = 'POST_COMMANDS',
+  PreCommands = 'PRE_COMMANDS',
+  Skipped = 'SKIPPED',
+  Waiting = 'WAITING'
 }
 
 export type BackupOperation = {
@@ -95,13 +109,13 @@ export type BackupOperation = {
   excludes?: Maybe<Array<Scalars['String']['output']>>;
   includes?: Maybe<Array<Scalars['String']['output']>>;
   shares: Array<BackupTaskShare>;
-  timeout?: Maybe<Scalars['Float']['output']>;
+  timeout?: Maybe<Scalars['Int']['output']>;
 };
 
 export type BackupProgression = {
   __typename?: 'BackupProgression';
   compressedFileSize: Scalars['BigInt']['output'];
-  endTransferDate?: Maybe<Scalars['Int']['output']>;
+  endTransferDate?: Maybe<Scalars['DateTime']['output']>;
   errorCount: Scalars['Int']['output'];
   fileCount: Scalars['Int']['output'];
   fileSize: Scalars['BigInt']['output'];
@@ -116,25 +130,33 @@ export type BackupProgression = {
   progressMax: Scalars['BigInt']['output'];
   removedFileCount: Scalars['Int']['output'];
   speed: Scalars['Float']['output'];
-  startDate: Scalars['Int']['output'];
-  startTransferDate?: Maybe<Scalars['Int']['output']>;
+  startDate: Scalars['DateTime']['output'];
+  startTransferDate?: Maybe<Scalars['DateTime']['output']>;
 };
 
-export type BackupQueueData = JobBackupData | JobCleanupData | JobFsckData | JobRemoveData | JobRestoreData;
+export type BackupQueueData = JobBackupData | JobCleanupData | JobFsckData | JobRemoveData | JobRestoreData | JobStatsData;
 
-export enum BackupStatus {
-  Aborted = 'Aborted',
-  Completed = 'Completed',
-  Failed = 'Failed',
-  Finishing = 'Finishing',
-  InProgress = 'InProgress'
+export type BackupQueueProgress = JobBackupTaskState | JobCleanerTaskState | JobFsckTaskState | JobRemoveState | JobRestoreTaskState;
+
+export type BackupStatusDto = {
+  __typename?: 'BackupStatusDto';
+  abortingStage?: Maybe<AbortingStageDto>;
+  failedStage?: Maybe<FailedStageDto>;
+  finishingStage?: Maybe<FinishingStageDto>;
+  removingStage?: Maybe<RemovingStageDto>;
+  statusType: BackupStatusTypeDto;
+};
+
+export enum BackupStatusTypeDto {
+  Aborted = 'ABORTED',
+  Aborting = 'ABORTING',
+  Completed = 'COMPLETED',
+  Failed = 'FAILED',
+  Finishing = 'FINISHING',
+  InProgress = 'IN_PROGRESS',
+  Removing = 'REMOVING'
 }
 
-/**
- * Part of config file.
- *
- * Store information about a share
- */
 export type BackupTaskShare = {
   __typename?: 'BackupTaskShare';
   excludes?: Maybe<Array<Scalars['String']['output']>>;
@@ -142,25 +164,14 @@ export type BackupTaskShare = {
   name: Scalars['String']['output'];
 };
 
-export type BackupTaskState = {
-  __typename?: 'BackupTaskState';
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  errorState?: Maybe<BackupErrorState>;
-  executionState: BackupExecutionState;
-  postCommandStates: Array<ExecuteCommandState>;
-  preCommandStates: Array<ExecuteCommandState>;
-  progression: BackupProgression;
-  shareStates: Array<ShareState>;
-};
-
 export type BigIntTimeSerie = {
   __typename?: 'BigIntTimeSerie';
-  time: Scalars['Float']['output'];
+  time: Scalars['DateTime']['output'];
   value: Scalars['BigInt']['output'];
 };
 
 export enum ChunkAlgorithm {
-  Blake3 = 'Blake3',
+  Blake_3 = 'BLAKE_3',
   Sha2_256 = 'Sha2_256',
   Sha3_256 = 'Sha3_256'
 }
@@ -174,18 +185,18 @@ export type ChunkProgression = {
 };
 
 export enum CleanerErrorState {
-  ApplyingRefcntError = 'ApplyingRefcntError',
-  CleaningError = 'CleaningError',
-  InitializationError = 'InitializationError',
-  Unknown = 'Unknown'
+  ApplyingRefcntError = 'APPLYING_REFCNT_ERROR',
+  CleaningError = 'CLEANING_ERROR',
+  InitializationError = 'INITIALIZATION_ERROR',
+  Unknown = 'UNKNOWN'
 }
 
 export enum CleanerExecutionState {
-  ApplyingRefcnt = 'ApplyingRefcnt',
-  Cleaning = 'Cleaning',
-  Completed = 'Completed',
-  Initialization = 'Initialization',
-  Waiting = 'Waiting'
+  ApplyingRefcnt = 'APPLYING_REFCNT',
+  Cleaning = 'CLEANING',
+  Completed = 'COMPLETED',
+  Initialization = 'INITIALIZATION',
+  Waiting = 'WAITING'
 }
 
 export type CleanerProgression = {
@@ -196,42 +207,18 @@ export type CleanerProgression = {
   progressMax: Scalars['Int']['output'];
 };
 
-export type CleanerTaskState = {
-  __typename?: 'CleanerTaskState';
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  errorState?: Maybe<CleanerErrorState>;
-  executionState: CleanerExecutionState;
-  progression: CleanerProgression;
-};
-
-export type ClearCacheResponse = {
-  __typename?: 'ClearCacheResponse';
-  void?: Maybe<Scalars['Float']['output']>;
-};
-
 export type DiskUsage = {
   __typename?: 'DiskUsage';
-  free?: Maybe<Scalars['BigInt']['output']>;
-  freeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  freeRange?: Maybe<Array<BigIntTimeSerie>>;
-  total?: Maybe<Scalars['BigInt']['output']>;
-  totalLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  totalRange?: Maybe<Array<BigIntTimeSerie>>;
-  used?: Maybe<Scalars['BigInt']['output']>;
-  usedLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  usedRange?: Maybe<Array<BigIntTimeSerie>>;
+  free: Scalars['BigInt']['output'];
+  freeLastMonth: Scalars['BigInt']['output'];
+  freeRange: Array<BigIntTimeSerie>;
+  total: Scalars['BigInt']['output'];
+  totalLastMonth: Scalars['BigInt']['output'];
+  totalRange: Array<BigIntTimeSerie>;
+  used: Scalars['BigInt']['output'];
+  usedLastMonth: Scalars['BigInt']['output'];
+  usedRange: Array<BigIntTimeSerie>;
 };
-
-export enum EnumFileType {
-  BlockDevice = 'BlockDevice',
-  CharacterDevice = 'CharacterDevice',
-  Directory = 'Directory',
-  Fifo = 'Fifo',
-  RegularFile = 'RegularFile',
-  Socket = 'Socket',
-  Symlink = 'Symlink',
-  Unknown = 'Unknown'
-}
 
 export type EventBackupInformation = {
   __typename?: 'EventBackupInformation';
@@ -268,39 +255,39 @@ export type EventPoolInformation = {
 };
 
 export enum EventSource {
-  Cli = 'Cli',
-  Import = 'Import',
-  User = 'User',
-  Woodstock = 'Woodstock'
+  Cli = 'CLI',
+  Import = 'IMPORT',
+  User = 'USER',
+  Woodstock = 'WOODSTOCK'
 }
 
 export enum EventStatus {
-  ClientDisconnected = 'ClientDisconnected',
-  GenericError = 'GenericError',
-  None = 'None',
-  ServerCrashed = 'ServerCrashed',
-  Success = 'Success'
+  ClientDisconnected = 'CLIENT_DISCONNECTED',
+  GenericError = 'GENERIC_ERROR',
+  None = 'NONE',
+  ServerCrashed = 'SERVER_CRASHED',
+  Success = 'SUCCESS'
 }
 
 export enum EventStep {
-  End = 'End',
-  Start = 'Start'
+  End = 'END',
+  Start = 'START'
 }
 
 export enum EventType {
-  Backup = 'Backup',
-  Delete = 'Delete',
-  HashConversion = 'HashConversion',
-  PoolChecked = 'PoolChecked',
-  PoolCleaned = 'PoolCleaned',
-  Restore = 'Restore'
+  Backup = 'BACKUP',
+  Delete = 'DELETE',
+  HashConversion = 'HASH_CONVERSION',
+  PoolChecked = 'POOL_CHECKED',
+  PoolCleaned = 'POOL_CLEANED',
+  Restore = 'RESTORE'
 }
 
 export enum ExecuteCommandExecutionState {
-  Failed = 'Failed',
-  InProgress = 'InProgress',
-  Success = 'Success',
-  Waiting = 'Waiting'
+  Failed = 'FAILED',
+  InProgress = 'IN_PROGRESS',
+  Success = 'SUCCESS',
+  Waiting = 'WAITING'
 }
 
 export type ExecuteCommandOperation = {
@@ -314,21 +301,30 @@ export type ExecuteCommandState = {
   executionState: ExecuteCommandExecutionState;
 };
 
+export enum FailedStageDto {
+  Compact = 'COMPACT',
+  InPool = 'IN_POOL',
+  RefCount = 'REF_COUNT'
+}
+
 export type FileAcl = {
   __typename?: 'FileAcl';
   id: Scalars['Int']['output'];
   perm: Scalars['Int']['output'];
-  qualifier: FileManifestAclQualifier;
+  qualifier: FileManifestAclQualifierDto;
 };
 
 export type FileDescription = {
   __typename?: 'FileDescription';
   acl: Array<FileAcl>;
-  path: Scalars['String']['output'];
+  chunks: Array<Scalars['Buffer']['output']>;
+  hash: Scalars['Buffer']['output'];
+  metadata: Scalars['JSONObject']['output'];
+  path: Scalars['Buffer']['output'];
   stats?: Maybe<FileStat>;
-  symlink: Scalars['String']['output'];
-  type: EnumFileType;
-  xattr: Array<FileXattr>;
+  symlink: Scalars['Buffer']['output'];
+  type: FileManifestTypeDto;
+  xattr: Array<FileXAttr>;
 };
 
 export type FileListProgression = {
@@ -341,87 +337,93 @@ export type FileListProgression = {
   removedFileCount: Scalars['Int']['output'];
 };
 
-export enum FileManifestAclQualifier {
-  GroupId = 'GroupId',
-  GroupObj = 'GroupObj',
-  Mask = 'Mask',
-  Other = 'Other',
-  Undefined = 'Undefined',
-  UserId = 'UserId',
-  UserObj = 'UserObj'
+export enum FileManifestAclQualifierDto {
+  GroupId = 'GROUP_ID',
+  GroupObj = 'GROUP_OBJ',
+  Mask = 'MASK',
+  Other = 'OTHER',
+  Undefined = 'UNDEFINED',
+  UserId = 'USER_ID',
+  UserObj = 'USER_OBJ'
+}
+
+export enum FileManifestTypeDto {
+  BlockDevice = 'BLOCK_DEVICE',
+  CharacterDevice = 'CHARACTER_DEVICE',
+  Directory = 'DIRECTORY',
+  Fifo = 'FIFO',
+  RegularFile = 'REGULAR_FILE',
+  Socket = 'SOCKET',
+  Symlink = 'SYMLINK',
+  Unknown = 'UNKNOWN'
 }
 
 export type FileStat = {
   __typename?: 'FileStat';
-  compressedSize: Scalars['String']['output'];
-  created: Scalars['String']['output'];
+  compressedSize: Scalars['BigInt']['output'];
+  created: Scalars['Int']['output'];
   dev: Scalars['BigInt']['output'];
   groupId: Scalars['Int']['output'];
   ino: Scalars['BigInt']['output'];
-  lastModified: Scalars['String']['output'];
-  lastRead: Scalars['String']['output'];
+  lastModified: Scalars['Int']['output'];
+  lastRead: Scalars['Int']['output'];
   mode: Scalars['Int']['output'];
   nlink: Scalars['BigInt']['output'];
   ownerId: Scalars['Int']['output'];
   rdev: Scalars['BigInt']['output'];
-  size: Scalars['String']['output'];
-  type: EnumFileType;
+  size: Scalars['BigInt']['output'];
+  type: FileManifestTypeDto;
 };
 
-export type FileXattr = {
-  __typename?: 'FileXattr';
-  key: Scalars['String']['output'];
-  value: Scalars['String']['output'];
+export type FileXAttr = {
+  __typename?: 'FileXAttr';
+  key: Scalars['Buffer']['output'];
+  value: Scalars['Buffer']['output'];
 };
+
+export enum FinishingStageDto {
+  ToAddInPool = 'TO_ADD_IN_POOL',
+  ToCompact = 'TO_COMPACT',
+  ToCountRef = 'TO_COUNT_REF'
+}
 
 export enum FsckErrorState {
-  ApplyingRefcntError = 'ApplyingRefcntError',
-  InitializationError = 'InitializationError',
-  Unknown = 'Unknown',
-  VerifyChunkError = 'VerifyChunkError',
-  VerifyRefcntError = 'VerifyRefcntError',
-  VerifyUnusedError = 'VerifyUnusedError'
+  ApplyingRefcntError = 'APPLYING_REFCNT_ERROR',
+  InitializationError = 'INITIALIZATION_ERROR',
+  Unknown = 'UNKNOWN',
+  VerifyChunkError = 'VERIFY_CHUNK_ERROR',
+  VerifyRefcntError = 'VERIFY_REFCNT_ERROR',
+  VerifyUnusedError = 'VERIFY_UNUSED_ERROR'
 }
 
 export enum FsckExecutionState {
-  ApplyingRefcnt = 'ApplyingRefcnt',
-  Completed = 'Completed',
-  Initialization = 'Initialization',
-  VerifyChunk = 'VerifyChunk',
-  VerifyRefcnt = 'VerifyRefcnt',
-  VerifyUnused = 'VerifyUnused',
-  Waiting = 'Waiting'
+  ApplyingRefcnt = 'APPLYING_REFCNT',
+  Completed = 'COMPLETED',
+  Initialization = 'INITIALIZATION',
+  VerifyChunk = 'VERIFY_CHUNK',
+  VerifyRefcnt = 'VERIFY_REFCNT',
+  VerifyUnused = 'VERIFY_UNUSED',
+  Waiting = 'WAITING'
 }
-
-export type FsckTaskState = {
-  __typename?: 'FsckTaskState';
-  chunkProgression: ChunkProgression;
-  dryRun: Scalars['Boolean']['output'];
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  errorState?: Maybe<FsckErrorState>;
-  executionState: FsckExecutionState;
-  refcntProgression: RefcntProgression;
-  unusedProgression: UnusedProgression;
-};
 
 export type Host = {
   __typename?: 'Host';
   addresses?: Maybe<Array<Scalars['String']['output']>>;
   agentVersion?: Maybe<Scalars['String']['output']>;
   availibilityState?: Maybe<HostAvailibilityState>;
-  backups: Array<Backup>;
+  backups: Array<BackupEx>;
   configuration: HostConfiguration;
   dateToNextBackup?: Maybe<Scalars['DateTime']['output']>;
-  lastBackup?: Maybe<Backup>;
+  lastBackup?: Maybe<BackupEx>;
   name: Scalars['ID']['output'];
   timeSinceLastBackup?: Maybe<Scalars['Float']['output']>;
   timeToNextBackup?: Maybe<Scalars['Float']['output']>;
 };
 
 export enum HostAvailibilityState {
-  Offline = 'Offline',
-  Online = 'Online',
-  Unknown = 'Unknown'
+  Offline = 'OFFLINE',
+  Online = 'ONLINE',
+  Unknown = 'UNKNOWN'
 }
 
 export type HostConfigOperation = {
@@ -431,61 +433,77 @@ export type HostConfigOperation = {
   preCommands?: Maybe<Array<ExecuteCommandOperation>>;
 };
 
-/**
- * Config file for one Host
- *
- * Contains all information that can be used to backup a host.
- */
 export type HostConfiguration = {
   __typename?: 'HostConfiguration';
   addresses?: Maybe<Array<Scalars['String']['output']>>;
   operations: HostConfigOperation;
-  password: Scalars['String']['output'];
-  port: Scalars['Float']['output'];
+  port: Scalars['Int']['output'];
   schedule?: Maybe<Schedule>;
 };
 
 export type HostStatistics = {
   __typename?: 'HostStatistics';
-  compressedSize?: Maybe<Scalars['BigInt']['output']>;
-  compressedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  compressedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  host?: Maybe<Scalars['String']['output']>;
-  longestChain?: Maybe<Scalars['Int']['output']>;
+  compressedSize: Scalars['BigInt']['output'];
+  compressedSizeLastMonth: Scalars['BigInt']['output'];
+  compressedSizeRange: Array<BigIntTimeSerie>;
+  host: Scalars['String']['output'];
+  longestChain: Scalars['Int']['output'];
   longestChainLastMonth?: Maybe<Scalars['Int']['output']>;
-  longestChainRange?: Maybe<Array<NumberTimeSerie>>;
-  nbChunk?: Maybe<Scalars['Int']['output']>;
+  longestChainRange: Array<NumberTimeSerie>;
+  nbChunk: Scalars['Int']['output'];
   nbChunkLastMonth?: Maybe<Scalars['Int']['output']>;
-  nbChunkRange?: Maybe<Array<NumberTimeSerie>>;
-  nbRef?: Maybe<Scalars['Int']['output']>;
+  nbChunkRange: Array<NumberTimeSerie>;
+  nbRef: Scalars['Int']['output'];
   nbRefLastMonth?: Maybe<Scalars['Int']['output']>;
-  nbRefRange?: Maybe<Array<NumberTimeSerie>>;
-  size?: Maybe<Scalars['BigInt']['output']>;
-  sizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  sizeRange?: Maybe<Array<BigIntTimeSerie>>;
+  nbRefRange: Array<NumberTimeSerie>;
+  size: Scalars['BigInt']['output'];
+  sizeLastMonth: Scalars['BigInt']['output'];
+  sizeRange: Array<BigIntTimeSerie>;
 };
 
 export type Job = {
   __typename?: 'Job';
-  attemptsMade: Scalars['Int']['output'];
-  data?: Maybe<BackupQueueData>;
+  data: BackupQueueData;
   failedReason?: Maybe<Scalars['String']['output']>;
-  id?: Maybe<Scalars['String']['output']>;
-  name: Scalars['String']['output'];
-  progression?: Maybe<TaskState>;
-  queueName: Scalars['String']['output'];
-  state: Scalars['String']['output'];
+  host?: Maybe<Scalars['String']['output']>;
+  jobId: Scalars['String']['output'];
+  kind: JobKind;
+  progress?: Maybe<BackupQueueProgress>;
+  status: JobStatus;
+  timestamp: Scalars['Int']['output'];
 };
 
 export type JobBackupData = {
   __typename?: 'JobBackupData';
-  config?: Maybe<HostConfiguration>;
-  force?: Maybe<Scalars['Boolean']['output']>;
+  config: HostConfiguration;
+  force: Scalars['Boolean']['output'];
   host: Scalars['String']['output'];
+  /** UUID v7 of this backup (primary key) */
+  id: Scalars['String']['output'];
   ip?: Maybe<Scalars['String']['output']>;
-  number?: Maybe<Scalars['Float']['output']>;
-  previousNumber?: Maybe<Scalars['Float']['output']>;
-  startDate?: Maybe<Scalars['Float']['output']>;
+  /** Sequential display number */
+  number: Scalars['Int']['output'];
+  previousId?: Maybe<Scalars['String']['output']>;
+  startDate?: Maybe<Scalars['DateTime']['output']>;
+};
+
+export type JobBackupTaskState = {
+  __typename?: 'JobBackupTaskState';
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  errorState?: Maybe<BackupErrorState>;
+  executionState: BackupExecutionState;
+  postCommandStates: Array<ExecuteCommandState>;
+  preCommandStates: Array<ExecuteCommandState>;
+  progression: BackupProgression;
+  shareStates: Array<ShareState>;
+};
+
+export type JobCleanerTaskState = {
+  __typename?: 'JobCleanerTaskState';
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  errorState?: Maybe<CleanerErrorState>;
+  executionState: CleanerExecutionState;
+  progression: CleanerProgression;
 };
 
 export type JobCleanupData = {
@@ -499,12 +517,42 @@ export type JobFsckData = {
   verifyChunks: Scalars['Boolean']['output'];
 };
 
+export type JobFsckTaskState = {
+  __typename?: 'JobFsckTaskState';
+  chunkProgression: ChunkProgression;
+  dryRun: Scalars['Boolean']['output'];
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  errorState?: Maybe<FsckErrorState>;
+  executionState: FsckExecutionState;
+  refcntProgression: RefcntProgression;
+  unusedProgression: UnusedProgression;
+};
+
+export enum JobKind {
+  Backup = 'BACKUP',
+  CleanupRefcnt = 'CLEANUP_REFCNT',
+  Fsck = 'FSCK',
+  Remove = 'REMOVE',
+  Restore = 'RESTORE',
+  Stats = 'STATS'
+}
+
 export type JobRemoveData = {
   __typename?: 'JobRemoveData';
   config?: Maybe<HostConfiguration>;
   host: Scalars['String']['output'];
-  number?: Maybe<Scalars['Float']['output']>;
-  startDate?: Maybe<Scalars['Float']['output']>;
+  /** UUID v7 of the backup to remove */
+  id: Scalars['String']['output'];
+  /** Sequential display number */
+  number: Scalars['Int']['output'];
+  startDate?: Maybe<Scalars['DateTime']['output']>;
+};
+
+export type JobRemoveState = {
+  __typename?: 'JobRemoveState';
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  errorState?: Maybe<RemoveErrorState>;
+  executionState: RemoveExecutionState;
 };
 
 export type JobResponse = {
@@ -518,9 +566,12 @@ export type JobRestoreData = {
   destinationDirectory: Scalars['String']['output'];
   files: Array<JobRestoreDataSelection>;
   host: Scalars['String']['output'];
+  /** UUID v7 of the backup to restore */
+  id: Scalars['String']['output'];
   ip?: Maybe<Scalars['String']['output']>;
-  number?: Maybe<Scalars['Float']['output']>;
-  startDate?: Maybe<Scalars['Float']['output']>;
+  /** Sequential display number */
+  number: Scalars['Int']['output'];
+  startDate?: Maybe<Scalars['DateTime']['output']>;
 };
 
 export type JobRestoreDataSelection = {
@@ -529,122 +580,161 @@ export type JobRestoreDataSelection = {
   share: Scalars['String']['output'];
 };
 
-export type Mutation = {
-  __typename?: 'Mutation';
+export type JobRestoreTaskState = {
+  __typename?: 'JobRestoreTaskState';
+  errorMessage?: Maybe<Scalars['String']['output']>;
+  errorState?: Maybe<RestoreErrorState>;
+  executionState: RestoreExecutionState;
+  globalProgression: BackupProgression;
+};
+
+export type JobStatsData = {
+  __typename?: 'JobStatsData';
+  empty: Scalars['Boolean']['output'];
+};
+
+export enum JobStatus {
+  Completed = 'COMPLETED',
+  Created = 'CREATED',
+  Failed = 'FAILED',
+  Started = 'STARTED'
+}
+
+export type MutationRoot = {
+  __typename?: 'MutationRoot';
   checkAndFixPool: JobResponse;
   cleanupPool: JobResponse;
-  clearCache: ClearCacheResponse;
+  clearCache: JobResponse;
   createBackup: JobResponse;
   removeBackup: JobResponse;
   restoreBackup: JobResponse;
 };
 
 
-export type MutationCheckAndFixPoolArgs = {
+export type MutationRootCheckAndFixPoolArgs = {
   fix: Scalars['Boolean']['input'];
   verifyChunks: Scalars['Boolean']['input'];
 };
 
 
-export type MutationCreateBackupArgs = {
+export type MutationRootCreateBackupArgs = {
   hostname: Scalars['String']['input'];
 };
 
 
-export type MutationRemoveBackupArgs = {
+export type MutationRootRemoveBackupArgs = {
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
 };
 
 
-export type MutationRestoreBackupArgs = {
+export type MutationRootRestoreBackupArgs = {
   input: RestoreInput;
 };
 
 export type NumberTimeSerie = {
   __typename?: 'NumberTimeSerie';
-  time: Scalars['Float']['output'];
+  time: Scalars['DateTime']['output'];
   value: Scalars['Int']['output'];
+};
+
+/** DTO for the overall health status of the storage pool. */
+export type PoolHealthStatusDto = {
+  __typename?: 'PoolHealthStatusDto';
+  /** Overall health indicator (false if dirty state detected) */
+  healthy: Scalars['Boolean']['output'];
+  /** Whether the pool is in a dirty state (crashed during refcnt operations) */
+  isDirty: Scalars['Boolean']['output'];
+  /** Number of pending refcnt operations */
+  pendingCount: Scalars['Int']['output'];
 };
 
 export type PoolUsage = {
   __typename?: 'PoolUsage';
-  compressedSize?: Maybe<Scalars['BigInt']['output']>;
-  compressedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  compressedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  longestChain?: Maybe<Scalars['Int']['output']>;
+  compressedSize: Scalars['BigInt']['output'];
+  compressedSizeLastMonth: Scalars['BigInt']['output'];
+  compressedSizeRange: Array<BigIntTimeSerie>;
+  longestChain: Scalars['Int']['output'];
   longestChainLastMonth?: Maybe<Scalars['Int']['output']>;
-  longestChainRange?: Maybe<Array<NumberTimeSerie>>;
-  nbChunk?: Maybe<Scalars['Int']['output']>;
+  longestChainRange: Array<NumberTimeSerie>;
+  nbChunk: Scalars['Int']['output'];
   nbChunkLastMonth?: Maybe<Scalars['Int']['output']>;
-  nbChunkRange?: Maybe<Array<NumberTimeSerie>>;
-  nbRef?: Maybe<Scalars['Int']['output']>;
+  nbChunkRange: Array<NumberTimeSerie>;
+  nbRef: Scalars['Int']['output'];
   nbRefLastMonth?: Maybe<Scalars['Int']['output']>;
-  nbRefRange?: Maybe<Array<NumberTimeSerie>>;
-  size?: Maybe<Scalars['BigInt']['output']>;
-  sizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  sizeRange?: Maybe<Array<BigIntTimeSerie>>;
-  unusedSize?: Maybe<Scalars['BigInt']['output']>;
-  unusedSizeLastMonth?: Maybe<Scalars['BigInt']['output']>;
-  unusedSizeRange?: Maybe<Array<BigIntTimeSerie>>;
+  nbRefRange: Array<NumberTimeSerie>;
+  size: Scalars['BigInt']['output'];
+  sizeLastMonth: Scalars['BigInt']['output'];
+  sizeRange: Array<BigIntTimeSerie>;
+  unusedSize: Scalars['BigInt']['output'];
+  unusedSizeLastMonth: Scalars['BigInt']['output'];
+  unusedSizeRange: Array<BigIntTimeSerie>;
 };
 
-export type Query = {
-  __typename?: 'Query';
-  backup: Backup;
-  backups: Array<Backup>;
+export type QueryMerged = {
+  __typename?: 'QueryMerged';
+  backup: BackupEx;
+  backups: Array<BackupEx>;
   events: Array<ApplicationEvent>;
+  /** Récupère tous les backups ayant échoué (avec error_message non null) */
+  failedBackups: Array<BackupEx>;
   host: Host;
   hosts: Array<Host>;
   informations: ServerInformations;
+  /**
+   * Gets the health status of the storage pool.
+   * Checks for dirty state (crashed refcnt operations).
+   */
+  poolHealth: PoolHealthStatusDto;
   queue: Array<Job>;
   queueStats: QueueStats;
   statistics: Statistics;
 };
 
 
-export type QueryBackupArgs = {
+export type QueryMergedBackupArgs = {
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
 };
 
 
-export type QueryBackupsArgs = {
+export type QueryMergedBackupsArgs = {
   hostname: Scalars['String']['input'];
 };
 
 
-export type QueryEventsArgs = {
+export type QueryMergedEventsArgs = {
   firstEvent: Scalars['DateTime']['input'];
   lastEvent: Scalars['DateTime']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
 };
 
 
-export type QueryHostArgs = {
+export type QueryMergedHostArgs = {
   hostname: Scalars['String']['input'];
 };
 
 
-export type QueryQueueArgs = {
+export type QueryMergedQueueArgs = {
   input: QueueListInput;
 };
 
 export type QueueListInput = {
   operationName?: InputMaybe<Scalars['String']['input']>;
   queueName?: InputMaybe<Scalars['String']['input']>;
-  states?: Array<Scalars['String']['input']>;
+  state?: InputMaybe<JobStatus>;
 };
 
 export type QueueStats = {
   __typename?: 'QueueStats';
-  active: Scalars['Int']['output'];
-  completed: Scalars['Int']['output'];
-  delayed: Scalars['Int']['output'];
+  dead: Scalars['Int']['output'];
   failed: Scalars['Int']['output'];
-  lastExecution?: Maybe<Scalars['Float']['output']>;
-  nextWakeup?: Maybe<Scalars['Float']['output']>;
-  waiting: Scalars['Int']['output'];
-  waitingChildren: Scalars['Int']['output'];
+  lastExecution?: Maybe<Scalars['DateTime']['output']>;
+  nextWakeup?: Maybe<Scalars['DateTime']['output']>;
+  pending: Scalars['Int']['output'];
+  running: Scalars['Int']['output'];
+  success: Scalars['Int']['output'];
 };
 
 export type RefcntProgression = {
@@ -656,40 +746,39 @@ export type RefcntProgression = {
 };
 
 export enum RemoveErrorState {
-  AddReferencesToPoolError = 'AddReferencesToPoolError',
-  BackupRemovalError = 'BackupRemovalError',
-  RefcntRemovalError = 'RefcntRemovalError',
-  Unknown = 'Unknown'
+  AddReferencesToPoolError = 'ADD_REFERENCES_TO_POOL_ERROR',
+  BackupRemovalError = 'BACKUP_REMOVAL_ERROR',
+  RefcntRemovalError = 'REFCNT_REMOVAL_ERROR',
+  Unknown = 'UNKNOWN'
 }
 
 export enum RemoveExecutionState {
-  AddReferencesToPool = 'AddReferencesToPool',
-  Completed = 'Completed',
-  RemovingBackup = 'RemovingBackup',
-  RemovingRefCnt = 'RemovingRefCnt',
-  Waiting = 'Waiting'
+  AddReferencesToPool = 'ADD_REFERENCES_TO_POOL',
+  Completed = 'COMPLETED',
+  RemovingBackup = 'REMOVING_BACKUP',
+  RemovingRefcnt = 'REMOVING_REFCNT',
+  Waiting = 'WAITING'
 }
 
-export type RemoveTaskState = {
-  __typename?: 'RemoveTaskState';
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  errorState?: Maybe<RemoveErrorState>;
-  executionState: RemoveExecutionState;
-};
+export enum RemovingStageDto {
+  RemoveFromHost = 'REMOVE_FROM_HOST',
+  ToRemove = 'TO_REMOVE',
+  ToRemoveInPool = 'TO_REMOVE_IN_POOL'
+}
 
 export enum RestoreErrorState {
-  AuthenticationError = 'AuthenticationError',
-  PreparationError = 'PreparationError',
-  RestoreError = 'RestoreError',
-  Unknown = 'Unknown'
+  AuthenticationError = 'AUTHENTICATION_ERROR',
+  PreparationError = 'PREPARATION_ERROR',
+  RestoreError = 'RESTORE_ERROR',
+  Unknown = 'UNKNOWN'
 }
 
 export enum RestoreExecutionState {
-  Authentication = 'Authentication',
-  Completed = 'Completed',
-  Preparation = 'Preparation',
-  Restoring = 'Restoring',
-  Waiting = 'Waiting'
+  Authentication = 'AUTHENTICATION',
+  Completed = 'COMPLETED',
+  Preparation = 'PREPARATION',
+  Restoring = 'RESTORING',
+  Waiting = 'WAITING'
 }
 
 export type RestoreFilesInput = {
@@ -701,47 +790,39 @@ export type RestoreInput = {
   destinationDirectory: Scalars['String']['input'];
   files: Array<RestoreFilesInput>;
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
-};
-
-export type RestoreTaskState = {
-  __typename?: 'RestoreTaskState';
-  errorMessage?: Maybe<Scalars['String']['output']>;
-  errorState?: Maybe<RestoreErrorState>;
-  executionState: RestoreExecutionState;
-  globalProgression: BackupProgression;
+  /** UUID v7 of the backup to restore */
+  id: Scalars['String']['input'];
 };
 
 export type Schedule = {
   __typename?: 'Schedule';
   activated?: Maybe<Scalars['Boolean']['output']>;
-  backupPeriod?: Maybe<Scalars['Float']['output']>;
+  backupPeriod?: Maybe<Scalars['Int']['output']>;
   backupToKeep?: Maybe<ScheduledBackupToKeep>;
 };
 
 export type ScheduledBackupToKeep = {
   __typename?: 'ScheduledBackupToKeep';
-  daily?: Maybe<Scalars['Float']['output']>;
-  hourly?: Maybe<Scalars['Float']['output']>;
-  monthly?: Maybe<Scalars['Float']['output']>;
-  weekly?: Maybe<Scalars['Float']['output']>;
-  yearly?: Maybe<Scalars['Float']['output']>;
+  daily?: Maybe<Scalars['Int']['output']>;
+  hourly?: Maybe<Scalars['Int']['output']>;
+  monthly?: Maybe<Scalars['Int']['output']>;
+  weekly?: Maybe<Scalars['Int']['output']>;
+  yearly?: Maybe<Scalars['Int']['output']>;
 };
 
 export type ServerInformations = {
   __typename?: 'ServerInformations';
   hostname: Scalars['String']['output'];
-  platform: Scalars['String']['output'];
-  uptime: Scalars['Float']['output'];
-  woodstockVersion?: Maybe<Scalars['String']['output']>;
+  uptime: Scalars['Int']['output'];
+  woodstockVersion: Scalars['String']['output'];
 };
 
 export enum ShareExecutionState {
-  Failed = 'Failed',
-  FileList = 'FileList',
-  InProgress = 'InProgress',
-  Success = 'Success',
-  Waiting = 'Waiting'
+  Failed = 'FAILED',
+  FileList = 'FILE_LIST',
+  InProgress = 'IN_PROGRESS',
+  Success = 'SUCCESS',
+  Waiting = 'WAITING'
 }
 
 export type ShareState = {
@@ -754,20 +835,43 @@ export type ShareState = {
 
 export type Statistics = {
   __typename?: 'Statistics';
-  diskUsage?: Maybe<DiskUsage>;
-  hosts?: Maybe<Array<HostStatistics>>;
-  poolUsage?: Maybe<PoolUsage>;
+  diskUsage: DiskUsage;
+  hosts: Array<HostStatistics>;
+  poolUsage: PoolUsage;
 };
 
-export type Subscription = {
-  __typename?: 'Subscription';
-  jobFailed: Job;
-  jobRemoved: Job;
+export type SubscriptionMerged = {
+  __typename?: 'SubscriptionMerged';
+  /**
+   * Subscription: real backup changes for a given host.
+   *
+   * Emitted via Redis Pub/Sub (`woodstock:backup:changed`) whenever
+   * `backup.yml` is written to disk by any server process
+   * (job_worker, api_server, …):
+   * - Creation or update (`add_or_replace_backup`, `update_backup`)
+   * - Removal signalled (`remove_backup`)
+   *
+   * For completed removals (backup no longer on disk), the front-end
+   * uses the `jobUpdated(kind: "remove")` subscription and triggers a refetch.
+   */
+  backupUpdated: BackupEx;
+  /**
+   * Subscription: job updates with optional `host` and `kind` filters.
+   * Without filters, all jobs are returned (historical behaviour).
+   */
   jobUpdated: Job;
-  jobWaiting: Scalars['Int']['output'];
 };
 
-export type TaskState = BackupTaskState | CleanerTaskState | FsckTaskState | RemoveTaskState | RestoreTaskState;
+
+export type SubscriptionMergedBackupUpdatedArgs = {
+  hostname: Scalars['String']['input'];
+};
+
+
+export type SubscriptionMergedJobUpdatedArgs = {
+  host?: InputMaybe<Scalars['String']['input']>;
+  kind?: InputMaybe<Scalars['String']['input']>;
+};
 
 export type UnusedProgression = {
   __typename?: 'UnusedProgression';
@@ -779,7 +883,7 @@ export type UnusedProgression = {
   progressMax: Scalars['Int']['output'];
 };
 
-export type ApplicationEventFragment = { __typename?: 'ApplicationEvent', uuid: string, type: EventType, step: EventStep, source: EventSource, timestamp: string, errorMessages: Array<string>, status: EventStatus, information?: (
+export type ApplicationEventFragment = { __typename?: 'ApplicationEvent', uuid: string, type: EventType, step: EventStep, source: EventSource, timestamp: Date, errorMessages: Array<string>, status: EventStatus, information?: (
     { __typename: 'EventBackupInformation' }
     & { ' $fragmentRefs'?: { 'EventBackupInformationFragment': EventBackupInformationFragment } }
   ) | (
@@ -801,42 +905,59 @@ export type EventPoolCleanedInformationFragment = { __typename?: 'EventPoolClean
 
 export type EventHashConversionInformationFragment = { __typename?: 'EventHashConversionInformation', count: number, algorithm: ChunkAlgorithm } & { ' $fragmentName'?: 'EventHashConversionInformationFragment' };
 
+export type PoolHealthQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type PoolHealthQuery = { __typename?: 'QueryMerged', poolHealth: { __typename?: 'PoolHealthStatusDto', healthy: boolean, isDirty: boolean, pendingCount: number } };
+
 export type HostQueryVariables = Exact<{
   hostname: Scalars['String']['input'];
 }>;
 
 
-export type HostQuery = { __typename?: 'Query', host: { __typename?: 'Host', name: string, agentVersion?: string | null, availibilityState?: HostAvailibilityState | null, timeSinceLastBackup?: number | null, dateToNextBackup?: string | null, addresses?: Array<string> | null, lastBackup?: { __typename?: 'Backup', agentVersion?: string | null, status: BackupStatus } | null, configuration: { __typename?: 'HostConfiguration', operations: { __typename?: 'HostConfigOperation', preCommands?: Array<{ __typename?: 'ExecuteCommandOperation', command: string }> | null, operation?: { __typename?: 'BackupOperation', shares: Array<{ __typename?: 'BackupTaskShare', name: string }> } | null, postCommands?: Array<{ __typename?: 'ExecuteCommandOperation', command: string }> | null }, schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } } };
+export type HostQuery = { __typename?: 'QueryMerged', host: { __typename?: 'Host', name: string, agentVersion?: string | null, availibilityState?: HostAvailibilityState | null, timeSinceLastBackup?: number | null, dateToNextBackup?: Date | null, addresses?: Array<string> | null, lastBackup?: { __typename?: 'BackupEx', agentVersion?: string | null, status: (
+        { __typename?: 'BackupStatusDto' }
+        & { ' $fragmentRefs'?: { 'BackupStatusFieldsFragment': BackupStatusFieldsFragment } }
+      ) } | null, configuration: { __typename?: 'HostConfiguration', operations: { __typename?: 'HostConfigOperation', preCommands?: Array<{ __typename?: 'ExecuteCommandOperation', command: string }> | null, operation?: { __typename?: 'BackupOperation', shares: Array<{ __typename?: 'BackupTaskShare', name: string }> } | null, postCommands?: Array<{ __typename?: 'ExecuteCommandOperation', command: string }> | null }, schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } } };
 
 export type HostsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type HostsQuery = { __typename?: 'Query', hosts: Array<{ __typename?: 'Host', name: string, agentVersion?: string | null, availibilityState?: HostAvailibilityState | null, timeSinceLastBackup?: number | null, dateToNextBackup?: string | null, lastBackup?: { __typename?: 'Backup', number: number, startDate: number, fileSize: bigint, status: BackupStatus, agentVersion?: string | null } | null, configuration: { __typename?: 'HostConfiguration', schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } }> };
+export type HostsQuery = { __typename?: 'QueryMerged', hosts: Array<{ __typename?: 'Host', name: string, agentVersion?: string | null, availibilityState?: HostAvailibilityState | null, timeSinceLastBackup?: number | null, dateToNextBackup?: Date | null, lastBackup?: { __typename?: 'BackupEx', number: number, startDate: Date, fileSize: bigint, agentVersion?: string | null, status: (
+        { __typename?: 'BackupStatusDto' }
+        & { ' $fragmentRefs'?: { 'BackupStatusFieldsFragment': BackupStatusFieldsFragment } }
+      ) } | null, configuration: { __typename?: 'HostConfiguration', schedule?: { __typename?: 'Schedule', activated?: boolean | null } | null } }> };
 
 export type BackupQueryVariables = Exact<{
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
 }>;
 
 
-export type BackupQuery = { __typename?: 'Query', backup: { __typename?: 'Backup', id: string, number: number, status: BackupStatus, startDate: number, endDate?: number | null, errorCount: number, fileCount: number, newFileCount: number, existingFileCount: number, removedFileCount: number, modifiedFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number } };
+export type BackupQuery = { __typename?: 'QueryMerged', backup: { __typename?: 'BackupEx', id: string, number: number, startDate: Date, endDate?: Date | null, errorCount: number, fileCount: number, newFileCount: number, existingFileCount: number, removedFileCount: number, modifiedFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number, status: (
+      { __typename?: 'BackupStatusDto' }
+      & { ' $fragmentRefs'?: { 'BackupStatusFieldsFragment': BackupStatusFieldsFragment } }
+    ) } };
 
 export type BackupsQueryVariables = Exact<{
   hostname: Scalars['String']['input'];
 }>;
 
 
-export type BackupsQuery = { __typename?: 'Query', backups: Array<{ __typename?: 'Backup', id: string, number: number, status: BackupStatus, startDate: number, endDate?: number | null, errorCount: number, fileCount: number, newFileCount: number, existingFileCount: number, removedFileCount: number, modifiedFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number }> };
+export type BackupsQuery = { __typename?: 'QueryMerged', backups: Array<{ __typename?: 'BackupEx', id: string, number: number, startDate: Date, endDate?: Date | null, errorCount: number, fileCount: number, newFileCount: number, existingFileCount: number, removedFileCount: number, modifiedFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number, status: (
+      { __typename?: 'BackupStatusDto' }
+      & { ' $fragmentRefs'?: { 'BackupStatusFieldsFragment': BackupStatusFieldsFragment } }
+    ) }> };
 
 export type BackupsBrowseQueryVariables = Exact<{
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
   sharePath: Scalars['String']['input'];
-  path: Scalars['String']['input'];
+  path: Scalars['Buffer']['input'];
 }>;
 
 
-export type BackupsBrowseQuery = { __typename?: 'Query', backup: { __typename?: 'Backup', id: string, files: Array<(
+export type BackupsBrowseQuery = { __typename?: 'QueryMerged', backup: { __typename?: 'BackupEx', id: string, files: Array<(
       { __typename?: 'FileDescription' }
       & { ' $fragmentRefs'?: { 'FragmentFileDescriptionFragment': FragmentFileDescriptionFragment } }
     )> } };
@@ -846,28 +967,53 @@ export type CreateBackupMutationVariables = Exact<{
 }>;
 
 
-export type CreateBackupMutation = { __typename?: 'Mutation', createBackup: { __typename?: 'JobResponse', id: string } };
+export type CreateBackupMutation = { __typename?: 'MutationRoot', createBackup: { __typename?: 'JobResponse', id: string } };
 
 export type RemoveBackupMutationVariables = Exact<{
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
 }>;
 
 
-export type RemoveBackupMutation = { __typename?: 'Mutation', removeBackup: { __typename?: 'JobResponse', id: string } };
+export type RemoveBackupMutation = { __typename?: 'MutationRoot', removeBackup: { __typename?: 'JobResponse', id: string } };
 
-export type FragmentFileDescriptionFragment = { __typename?: 'FileDescription', path: string, type: EnumFileType, symlink: string, stats?: { __typename?: 'FileStat', ownerId: number, groupId: number, mode: number, size: string, lastModified: string } | null } & { ' $fragmentName'?: 'FragmentFileDescriptionFragment' };
+export type BackupStatusFieldsFragment = { __typename?: 'BackupStatusDto', statusType: BackupStatusTypeDto, finishingStage?: FinishingStageDto | null, abortingStage?: AbortingStageDto | null, failedStage?: FailedStageDto | null, removingStage?: RemovingStageDto | null } & { ' $fragmentName'?: 'BackupStatusFieldsFragment' };
+
+export type FragmentFileDescriptionFragment = { __typename?: 'FileDescription', path: string, type: FileManifestTypeDto, symlink: string, stats?: { __typename?: 'FileStat', ownerId: number, groupId: number, mode: number, size: bigint, lastModified: number } | null } & { ' $fragmentName'?: 'FragmentFileDescriptionFragment' };
 
 export type SharesBrowseQueryVariables = Exact<{
   hostname: Scalars['String']['input'];
-  number: Scalars['Int']['input'];
+  id: Scalars['String']['input'];
 }>;
 
 
-export type SharesBrowseQuery = { __typename?: 'Query', backup: { __typename?: 'Backup', id: string, shares: Array<(
+export type SharesBrowseQuery = { __typename?: 'QueryMerged', backup: { __typename?: 'BackupEx', id: string, shares: Array<(
       { __typename?: 'FileDescription' }
       & { ' $fragmentRefs'?: { 'FragmentFileDescriptionFragment': FragmentFileDescriptionFragment } }
     )> } };
+
+export type BackupUpdatedSubscriptionVariables = Exact<{
+  hostname: Scalars['String']['input'];
+}>;
+
+
+export type BackupUpdatedSubscription = { __typename?: 'SubscriptionMerged', backupUpdated: { __typename?: 'BackupEx', id: string, number: number, startDate: Date, endDate?: Date | null, errorCount: number, fileCount: number, newFileCount: number, existingFileCount: number, removedFileCount: number, modifiedFileCount: number, fileSize: bigint, newFileSize: bigint, existingFileSize: bigint, speed: number, status: { __typename?: 'BackupStatusDto', statusType: BackupStatusTypeDto, finishingStage?: FinishingStageDto | null, abortingStage?: AbortingStageDto | null, failedStage?: FailedStageDto | null, removingStage?: RemovingStageDto | null } } };
+
+export type JobRemoveUpdatedSubscriptionVariables = Exact<{
+  host?: InputMaybe<Scalars['String']['input']>;
+  kind?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type JobRemoveUpdatedSubscription = { __typename?: 'SubscriptionMerged', jobUpdated: { __typename?: 'Job', jobId: string, status: JobStatus } };
+
+export type JobBackupUpdatedSubscriptionVariables = Exact<{
+  host?: InputMaybe<Scalars['String']['input']>;
+  kind?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type JobBackupUpdatedSubscription = { __typename?: 'SubscriptionMerged', jobUpdated: { __typename?: 'Job', jobId: string, status: JobStatus } };
 
 export type JobPoolResponseFragment = { __typename?: 'JobResponse', id: string } & { ' $fragmentName'?: 'JobPoolResponseFragment' };
 
@@ -876,7 +1022,7 @@ export type RestoreBackupMutationVariables = Exact<{
 }>;
 
 
-export type RestoreBackupMutation = { __typename?: 'Mutation', restoreBackup: (
+export type RestoreBackupMutation = { __typename?: 'MutationRoot', restoreBackup: (
     { __typename?: 'JobResponse' }
     & { ' $fragmentRefs'?: { 'JobPoolResponseFragment': JobPoolResponseFragment } }
   ) };
@@ -884,15 +1030,17 @@ export type RestoreBackupMutation = { __typename?: 'Mutation', restoreBackup: (
 export type ClearCacheMutationVariables = Exact<{ [key: string]: never; }>;
 
 
-export type ClearCacheMutation = { __typename?: 'Mutation', clearCache: { __typename?: 'ClearCacheResponse', void?: number | null } };
+export type ClearCacheMutation = { __typename?: 'MutationRoot', clearCache: { __typename?: 'JobResponse', id: string } };
 
 export type EventsQueryVariables = Exact<{
   firstEvent: Scalars['DateTime']['input'];
   lastEvent: Scalars['DateTime']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  offset?: InputMaybe<Scalars['Int']['input']>;
 }>;
 
 
-export type EventsQuery = { __typename?: 'Query', events: Array<(
+export type EventsQuery = { __typename?: 'QueryMerged', events: Array<(
     { __typename?: 'ApplicationEvent' }
     & { ' $fragmentRefs'?: { 'ApplicationEventFragment': ApplicationEventFragment } }
   )> };
@@ -900,7 +1048,7 @@ export type EventsQuery = { __typename?: 'Query', events: Array<(
 export type CleanupPoolMutationVariables = Exact<{ [key: string]: never; }>;
 
 
-export type CleanupPoolMutation = { __typename?: 'Mutation', cleanupPool: (
+export type CleanupPoolMutation = { __typename?: 'MutationRoot', cleanupPool: (
     { __typename?: 'JobResponse' }
     & { ' $fragmentRefs'?: { 'JobPoolResponseFragment': JobPoolResponseFragment } }
   ) };
@@ -911,7 +1059,7 @@ export type CheckAndFixPoolMutationVariables = Exact<{
 }>;
 
 
-export type CheckAndFixPoolMutation = { __typename?: 'Mutation', checkAndFixPool: (
+export type CheckAndFixPoolMutation = { __typename?: 'MutationRoot', checkAndFixPool: (
     { __typename?: 'JobResponse' }
     & { ' $fragmentRefs'?: { 'JobPoolResponseFragment': JobPoolResponseFragment } }
   ) };
@@ -919,44 +1067,44 @@ export type CheckAndFixPoolMutation = { __typename?: 'Mutation', checkAndFixPool
 export type ServerInformationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type ServerInformationsQuery = { __typename?: 'Query', informations: { __typename?: 'ServerInformations', platform: string, uptime: number, hostname: string, woodstockVersion?: string | null } };
+export type ServerInformationsQuery = { __typename?: 'QueryMerged', informations: { __typename?: 'ServerInformations', uptime: number, hostname: string, woodstockVersion: string } };
 
 export type DiskUsageStatisticsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type DiskUsageStatisticsQuery = { __typename?: 'Query', statistics: { __typename?: 'Statistics', hosts?: Array<{ __typename?: 'HostStatistics', host?: string | null, size?: bigint | null, compressedSize?: bigint | null }> | null } };
+export type DiskUsageStatisticsQuery = { __typename?: 'QueryMerged', statistics: { __typename?: 'Statistics', hosts: Array<{ __typename?: 'HostStatistics', host: string, size: bigint, compressedSize: bigint }> } };
 
 export type QueueStatisticsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type QueueStatisticsQuery = { __typename?: 'Query', queueStats: { __typename?: 'QueueStats', active: number, waiting: number, failed: number, delayed: number, completed: number } };
+export type QueueStatisticsQuery = { __typename?: 'QueryMerged', queueStats: { __typename?: 'QueueStats', pending: number, running: number, success: number, failed: number, dead: number } };
 
 export type PoolStatisticsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type PoolStatisticsQuery = { __typename?: 'Query', statistics: { __typename?: 'Statistics', diskUsage?: { __typename?: 'DiskUsage', used?: bigint | null, usedLastMonth?: bigint | null, free?: bigint | null, total?: bigint | null } | null, poolUsage?: { __typename?: 'PoolUsage', nbChunk?: number | null, nbChunkLastMonth?: number | null, nbRef?: number | null, nbRefLastMonth?: number | null, size?: bigint | null, compressedSize?: bigint | null, compressedSizeLastMonth?: bigint | null, unusedSize?: bigint | null, nbChunkRange?: Array<{ __typename?: 'NumberTimeSerie', time: number, value: number }> | null, compressedSizeRange?: Array<{ __typename?: 'BigIntTimeSerie', time: number, value: bigint }> | null } | null } };
+export type PoolStatisticsQuery = { __typename?: 'QueryMerged', statistics: { __typename?: 'Statistics', diskUsage: { __typename?: 'DiskUsage', used: bigint, usedLastMonth: bigint, free: bigint, total: bigint }, poolUsage: { __typename?: 'PoolUsage', nbChunk: number, nbChunkLastMonth?: number | null, nbRef: number, nbRefLastMonth?: number | null, size: bigint, compressedSize: bigint, compressedSizeLastMonth: bigint, unusedSize: bigint, nbChunkRange: Array<{ __typename?: 'NumberTimeSerie', time: Date, value: number }>, compressedSizeRange: Array<{ __typename?: 'BigIntTimeSerie', time: Date, value: bigint }> } } };
 
-export type JobBackupDataFragment = { __typename?: 'JobBackupData', host: string, number?: number | null, ip?: string | null, startDate?: number | null } & { ' $fragmentName'?: 'JobBackupDataFragment' };
+export type JobBackupDataFragment = { __typename?: 'JobBackupData', host: string, number: number, ip?: string | null, startDate?: Date | null } & { ' $fragmentName'?: 'JobBackupDataFragment' };
 
-export type JobRestoreDataFragment = { __typename?: 'JobRestoreData', host: string, number?: number | null, ip?: string | null, startDate?: number | null, destinationDirectory: string, files: Array<{ __typename?: 'JobRestoreDataSelection', share: string, selection: Array<string> }> } & { ' $fragmentName'?: 'JobRestoreDataFragment' };
+export type JobRestoreDataFragment = { __typename?: 'JobRestoreData', host: string, number: number, ip?: string | null, startDate?: Date | null, destinationDirectory: string, files: Array<{ __typename?: 'JobRestoreDataSelection', share: string, selection: Array<string> }> } & { ' $fragmentName'?: 'JobRestoreDataFragment' };
 
-export type JobRemoveDataFragment = { __typename?: 'JobRemoveData', host: string, number?: number | null, startDate?: number | null } & { ' $fragmentName'?: 'JobRemoveDataFragment' };
+export type JobRemoveDataFragment = { __typename?: 'JobRemoveData', host: string, number: number, startDate?: Date | null } & { ' $fragmentName'?: 'JobRemoveDataFragment' };
 
 export type JobCleanupDataFragment = { __typename?: 'JobCleanupData', target?: string | null } & { ' $fragmentName'?: 'JobCleanupDataFragment' };
 
 export type JobFsckDataFragment = { __typename?: 'JobFsckData', dryRun: boolean, verifyChunks: boolean } & { ' $fragmentName'?: 'JobFsckDataFragment' };
 
-export type BackupTaskStateFragment = { __typename?: 'BackupTaskState', backupExecutionState: BackupExecutionState, backupErrorState?: BackupErrorState | null, backupErrorMessage?: string | null, backupProgress: { __typename?: 'BackupProgression', startDate: number, startTransferDate?: number | null, endTransferDate?: number | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint }, preCommandStates: Array<{ __typename?: 'ExecuteCommandState', executionState: ExecuteCommandExecutionState, command: { __typename?: 'ExecuteCommandOperation', command: string } }>, shareStates: Array<{ __typename?: 'ShareState', share: string, executionState: ShareExecutionState, backupProgression: { __typename?: 'BackupProgression', startDate: number, startTransferDate?: number | null, endTransferDate?: number | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint }, fileListProgression: { __typename?: 'FileListProgression', fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, newFileCount: number, modifiedFileCount: number, removedFileCount: number } }>, postCommandStates: Array<{ __typename?: 'ExecuteCommandState', executionState: ExecuteCommandExecutionState, command: { __typename?: 'ExecuteCommandOperation', command: string } }> } & { ' $fragmentName'?: 'BackupTaskStateFragment' };
+export type BackupTaskStateFragment = { __typename?: 'JobBackupTaskState', backupExecutionState: BackupExecutionState, backupErrorState?: BackupErrorState | null, backupErrorMessage?: string | null, globalProgression: { __typename?: 'BackupProgression', startDate: Date, startTransferDate?: Date | null, endTransferDate?: Date | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint }, preCommandStates: Array<{ __typename?: 'ExecuteCommandState', executionState: ExecuteCommandExecutionState, command: { __typename?: 'ExecuteCommandOperation', command: string } }>, shareStates: Array<{ __typename?: 'ShareState', share: string, executionState: ShareExecutionState, backupProgression: { __typename?: 'BackupProgression', startDate: Date, startTransferDate?: Date | null, endTransferDate?: Date | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint }, fileListProgression: { __typename?: 'FileListProgression', fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, newFileCount: number, modifiedFileCount: number, removedFileCount: number } }>, postCommandStates: Array<{ __typename?: 'ExecuteCommandState', executionState: ExecuteCommandExecutionState, command: { __typename?: 'ExecuteCommandOperation', command: string } }> } & { ' $fragmentName'?: 'BackupTaskStateFragment' };
 
-export type RestoreTaskStateFragment = { __typename?: 'RestoreTaskState', restoreExecutionState: RestoreExecutionState, restoreErrorState?: RestoreErrorState | null, restoreErrorMessage?: string | null, restoreProgression: { __typename?: 'BackupProgression', startDate: number, startTransferDate?: number | null, endTransferDate?: number | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint } } & { ' $fragmentName'?: 'RestoreTaskStateFragment' };
+export type RestoreTaskStateFragment = { __typename?: 'JobRestoreTaskState', restoreExecutionState: RestoreExecutionState, restoreErrorState?: RestoreErrorState | null, restoreErrorMessage?: string | null, restoreProgression: { __typename?: 'BackupProgression', startDate: Date, startTransferDate?: Date | null, endTransferDate?: Date | null, fileSize: bigint, newFileSize: bigint, modifiedFileSize: bigint, compressedFileSize: bigint, newCompressedFileSize: bigint, modifiedCompressedFileSize: bigint, fileCount: number, newFileCount: number, modifiedFileCount: number, removedFileCount: number, errorCount: number, speed: number, percent: number, progressCurrent: bigint, progressMax: bigint } } & { ' $fragmentName'?: 'RestoreTaskStateFragment' };
 
-export type RemoveTaskStateFragment = { __typename?: 'RemoveTaskState', removeExecutionState: RemoveExecutionState, removeErrorState?: RemoveErrorState | null, removeErrorMessage?: string | null } & { ' $fragmentName'?: 'RemoveTaskStateFragment' };
+export type RemoveTaskStateFragment = { __typename?: 'JobRemoveState', removeExecutionState: RemoveExecutionState, removeErrorState?: RemoveErrorState | null, removeErrorMessage?: string | null } & { ' $fragmentName'?: 'RemoveTaskStateFragment' };
 
-export type CleanerTaskStateFragment = { __typename?: 'CleanerTaskState', cleanerExecutionState: CleanerExecutionState, cleanerErrorState?: CleanerErrorState | null, cleanerErrorMessage?: string | null, cleanerProgress: { __typename?: 'CleanerProgression', progressMax: number, progressCurrent: number, fileSize: bigint, compressedFileSize: bigint } } & { ' $fragmentName'?: 'CleanerTaskStateFragment' };
+export type CleanerTaskStateFragment = { __typename?: 'JobCleanerTaskState', cleanerExecutionState: CleanerExecutionState, cleanerErrorState?: CleanerErrorState | null, cleanerErrorMessage?: string | null, cleanerProgress: { __typename?: 'CleanerProgression', progressMax: number, progressCurrent: number, fileSize: bigint, compressedFileSize: bigint } } & { ' $fragmentName'?: 'CleanerTaskStateFragment' };
 
-export type FsckTaskStateFragment = { __typename?: 'FsckTaskState', dryRun: boolean, fsckExecutionState: FsckExecutionState, fsckErrorState?: FsckErrorState | null, fsckErrorMessage?: string | null, refcntProgression: { __typename?: 'RefcntProgression', progressMax: number, progressCurrent: number, errorCount: number, totalCount: number }, unusedProgression: { __typename?: 'UnusedProgression', progressMax: number, progressCurrent: number, inNothing: number, inRefcnt: number, inUnused: number, missing: number }, chunkProgression: { __typename?: 'ChunkProgression', progressMax: number, progressCurrent: number, errorCount: number, totalCount: number } } & { ' $fragmentName'?: 'FsckTaskStateFragment' };
+export type FsckTaskStateFragment = { __typename?: 'JobFsckTaskState', dryRun: boolean, fsckExecutionState: FsckExecutionState, fsckErrorState?: FsckErrorState | null, fsckErrorMessage?: string | null, refcntProgression: { __typename?: 'RefcntProgression', progressMax: number, progressCurrent: number, errorCount: number, totalCount: number }, unusedProgression: { __typename?: 'UnusedProgression', progressMax: number, progressCurrent: number, inNothing: number, inRefcnt: number, inUnused: number, missing: number }, chunkProgression: { __typename?: 'ChunkProgression', progressMax: number, progressCurrent: number, errorCount: number, totalCount: number } } & { ' $fragmentName'?: 'FsckTaskStateFragment' };
 
-export type JobFragment = { __typename?: 'Job', id?: string | null, queueName: string, name: string, failedReason?: string | null, state: string, data?: (
+export type JobFragment = { __typename?: 'Job', jobId: string, kind: JobKind, status: JobStatus, timestamp: number, host?: string | null, failedReason?: string | null, data: (
     { __typename?: 'JobBackupData' }
     & { ' $fragmentRefs'?: { 'JobBackupDataFragment': JobBackupDataFragment } }
   ) | (
@@ -971,20 +1119,20 @@ export type JobFragment = { __typename?: 'Job', id?: string | null, queueName: s
   ) | (
     { __typename?: 'JobRestoreData' }
     & { ' $fragmentRefs'?: { 'JobRestoreDataFragment': JobRestoreDataFragment } }
-  ) | null, progression?: (
-    { __typename?: 'BackupTaskState' }
+  ) | { __typename?: 'JobStatsData' }, progress?: (
+    { __typename?: 'JobBackupTaskState' }
     & { ' $fragmentRefs'?: { 'BackupTaskStateFragment': BackupTaskStateFragment } }
   ) | (
-    { __typename?: 'CleanerTaskState' }
+    { __typename?: 'JobCleanerTaskState' }
     & { ' $fragmentRefs'?: { 'CleanerTaskStateFragment': CleanerTaskStateFragment } }
   ) | (
-    { __typename?: 'FsckTaskState' }
+    { __typename?: 'JobFsckTaskState' }
     & { ' $fragmentRefs'?: { 'FsckTaskStateFragment': FsckTaskStateFragment } }
   ) | (
-    { __typename?: 'RemoveTaskState' }
+    { __typename?: 'JobRemoveState' }
     & { ' $fragmentRefs'?: { 'RemoveTaskStateFragment': RemoveTaskStateFragment } }
   ) | (
-    { __typename?: 'RestoreTaskState' }
+    { __typename?: 'JobRestoreTaskState' }
     & { ' $fragmentRefs'?: { 'RestoreTaskStateFragment': RestoreTaskStateFragment } }
   ) | null } & { ' $fragmentName'?: 'JobFragment' };
 
@@ -993,7 +1141,7 @@ export type TasksQueryVariables = Exact<{
 }>;
 
 
-export type TasksQuery = { __typename?: 'Query', queue: Array<(
+export type TasksQuery = { __typename?: 'QueryMerged', queue: Array<(
     { __typename?: 'Job' }
     & { ' $fragmentRefs'?: { 'JobFragment': JobFragment } }
   )> };
@@ -1001,7 +1149,7 @@ export type TasksQuery = { __typename?: 'Query', queue: Array<(
 export type QueueTasksJobUpdatedSubscriptionVariables = Exact<{ [key: string]: never; }>;
 
 
-export type QueueTasksJobUpdatedSubscription = { __typename?: 'Subscription', jobUpdated: (
+export type QueueTasksJobUpdatedSubscription = { __typename?: 'SubscriptionMerged', jobUpdated: (
     { __typename?: 'Job' }
     & { ' $fragmentRefs'?: { 'JobFragment': JobFragment } }
   ) };
@@ -1011,6 +1159,7 @@ export const EventPoolInformationFragmentDoc = {"kind":"Document","definitions":
 export const EventPoolCleanedInformationFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolCleanedInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}}]} as unknown as DocumentNode<EventPoolCleanedInformationFragment, unknown>;
 export const EventHashConversionInformationFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventHashConversionInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"algorithm"}}]}}]} as unknown as DocumentNode<EventHashConversionInformationFragment, unknown>;
 export const ApplicationEventFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ApplicationEvent"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ApplicationEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uuid"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"errorMessages"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"information"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventBackupInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolCleanedInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventHashConversionInformation"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventBackupInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"sharePath"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fix"}},{"kind":"Field","name":{"kind":"Name","value":"refcount"}},{"kind":"Field","name":{"kind":"Name","value":"refcountError"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}},{"kind":"Field","name":{"kind":"Name","value":"chunkCount"}},{"kind":"Field","name":{"kind":"Name","value":"chunkError"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolCleanedInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventHashConversionInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"algorithm"}}]}}]} as unknown as DocumentNode<ApplicationEventFragment, unknown>;
+export const BackupStatusFieldsFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupStatusFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupStatusDto"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}}]} as unknown as DocumentNode<BackupStatusFieldsFragment, unknown>;
 export const FragmentFileDescriptionFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<FragmentFileDescriptionFragment, unknown>;
 export const JobPoolResponseFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobPoolResponse"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobResponse"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]} as unknown as DocumentNode<JobPoolResponseFragment, unknown>;
 export const JobBackupDataFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}}]} as unknown as DocumentNode<JobBackupDataFragment, unknown>;
@@ -1018,37 +1167,43 @@ export const JobRestoreDataFragmentDoc = {"kind":"Document","definitions":[{"kin
 export const JobRemoveDataFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}}]} as unknown as DocumentNode<JobRemoveDataFragment, unknown>;
 export const JobCleanupDataFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}}]} as unknown as DocumentNode<JobCleanupDataFragment, unknown>;
 export const JobFsckDataFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}}]} as unknown as DocumentNode<JobFsckDataFragment, unknown>;
-export const BackupTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"backupProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}}]} as unknown as DocumentNode<BackupTaskStateFragment, unknown>;
-export const RestoreTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}}]} as unknown as DocumentNode<RestoreTaskStateFragment, unknown>;
-export const RemoveTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RemoveTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}}]} as unknown as DocumentNode<RemoveTaskStateFragment, unknown>;
-export const CleanerTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}}]} as unknown as DocumentNode<CleanerTaskStateFragment, unknown>;
-export const FsckTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<FsckTaskStateFragment, unknown>;
-export const JobFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"backupProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RemoveTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<JobFragment, unknown>;
-export const HostDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Host"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}},{"kind":"Field","name":{"kind":"Name","value":"availibilityState"}},{"kind":"Field","name":{"kind":"Name","value":"timeSinceLastBackup"}},{"kind":"Field","name":{"kind":"Name","value":"dateToNextBackup"}},{"kind":"Field","name":{"kind":"Name","value":"addresses"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"operations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"preCommands"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}},{"kind":"Field","name":{"kind":"Name","value":"operation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"shares"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommands"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}}]} as unknown as DocumentNode<HostQuery, HostQueryVariables>;
-export const HostsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}}]}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"availibilityState"}},{"kind":"Field","name":{"kind":"Name","value":"timeSinceLastBackup"}},{"kind":"Field","name":{"kind":"Name","value":"dateToNextBackup"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}}]} as unknown as DocumentNode<HostsQuery, HostsQueryVariables>;
-export const BackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}}]} as unknown as DocumentNode<BackupQuery, BackupQueryVariables>;
-export const BackupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backups"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backups"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}}]} as unknown as DocumentNode<BackupsQuery, BackupsQueryVariables>;
-export const BackupsBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"BackupsBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sharePath"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}}},{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<BackupsBrowseQuery, BackupsBrowseQueryVariables>;
+export const BackupTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"globalProgression"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}}]} as unknown as DocumentNode<BackupTaskStateFragment, unknown>;
+export const RestoreTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}}]} as unknown as DocumentNode<RestoreTaskStateFragment, unknown>;
+export const RemoveTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}}]} as unknown as DocumentNode<RemoveTaskStateFragment, unknown>;
+export const CleanerTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}}]} as unknown as DocumentNode<CleanerTaskStateFragment, unknown>;
+export const FsckTaskStateFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<FsckTaskStateFragment, unknown>;
+export const JobFragmentDoc = {"kind":"Document","definitions":[{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobId"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progress"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"globalProgression"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}}]} as unknown as DocumentNode<JobFragment, unknown>;
+export const PoolHealthDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PoolHealth"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"poolHealth"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"healthy"}},{"kind":"Field","name":{"kind":"Name","value":"isDirty"}},{"kind":"Field","name":{"kind":"Name","value":"pendingCount"}}]}}]}}]} as unknown as DocumentNode<PoolHealthQuery, PoolHealthQueryVariables>;
+export const HostDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Host"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"status"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupStatusFields"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"availibilityState"}},{"kind":"Field","name":{"kind":"Name","value":"timeSinceLastBackup"}},{"kind":"Field","name":{"kind":"Name","value":"dateToNextBackup"}},{"kind":"Field","name":{"kind":"Name","value":"addresses"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"operations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"preCommands"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}},{"kind":"Field","name":{"kind":"Name","value":"operation"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"shares"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommands"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupStatusFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupStatusDto"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}}]} as unknown as DocumentNode<HostQuery, HostQueryVariables>;
+export const HostsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"lastBackup"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"status"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupStatusFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}}]}},{"kind":"Field","name":{"kind":"Name","value":"agentVersion"}},{"kind":"Field","name":{"kind":"Name","value":"availibilityState"}},{"kind":"Field","name":{"kind":"Name","value":"timeSinceLastBackup"}},{"kind":"Field","name":{"kind":"Name","value":"dateToNextBackup"}},{"kind":"Field","name":{"kind":"Name","value":"configuration"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"schedule"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"activated"}}]}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupStatusFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupStatusDto"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}}]} as unknown as DocumentNode<HostsQuery, HostsQueryVariables>;
+export const BackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"status"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupStatusFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupStatusFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupStatusDto"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}}]} as unknown as DocumentNode<BackupQuery, BackupQueryVariables>;
+export const BackupsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Backups"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backups"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"status"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupStatusFields"}}]}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupStatusFields"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupStatusDto"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}}]} as unknown as DocumentNode<BackupsQuery, BackupsQueryVariables>;
+export const BackupsBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"BackupsBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"path"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Buffer"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"sharePath"},"value":{"kind":"Variable","name":{"kind":"Name","value":"sharePath"}}},{"kind":"Argument","name":{"kind":"Name","value":"path"},"value":{"kind":"Variable","name":{"kind":"Name","value":"path"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<BackupsBrowseQuery, BackupsBrowseQueryVariables>;
 export const CreateBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"createBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<CreateBackupMutation, CreateBackupMutationVariables>;
-export const RemoveBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"removeBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<RemoveBackupMutation, RemoveBackupMutationVariables>;
-export const SharesBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SharesBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"number"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"number"},"value":{"kind":"Variable","name":{"kind":"Name","value":"number"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"shares"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<SharesBrowseQuery, SharesBrowseQueryVariables>;
+export const RemoveBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"removeBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<RemoveBackupMutation, RemoveBackupMutationVariables>;
+export const SharesBrowseDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"SharesBrowse"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"shares"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"FragmentFileDescription"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FragmentFileDescription"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FileDescription"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"path"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"stats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"ownerId"}},{"kind":"Field","name":{"kind":"Name","value":"groupId"}},{"kind":"Field","name":{"kind":"Name","value":"mode"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"lastModified"}}]}},{"kind":"Field","name":{"kind":"Name","value":"symlink"}}]}}]} as unknown as DocumentNode<SharesBrowseQuery, SharesBrowseQueryVariables>;
+export const BackupUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"BackupUpdated"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"backupUpdated"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"hostname"},"value":{"kind":"Variable","name":{"kind":"Name","value":"hostname"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"status"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statusType"}},{"kind":"Field","name":{"kind":"Name","value":"finishingStage"}},{"kind":"Field","name":{"kind":"Name","value":"abortingStage"}},{"kind":"Field","name":{"kind":"Name","value":"failedStage"}},{"kind":"Field","name":{"kind":"Name","value":"removingStage"}}]}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"endDate"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"existingFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}}]}}]}}]} as unknown as DocumentNode<BackupUpdatedSubscription, BackupUpdatedSubscriptionVariables>;
+export const JobRemoveUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"JobRemoveUpdated"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"host"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"kind"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"host"},"value":{"kind":"Variable","name":{"kind":"Name","value":"host"}}},{"kind":"Argument","name":{"kind":"Name","value":"kind"},"value":{"kind":"Variable","name":{"kind":"Name","value":"kind"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobId"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]} as unknown as DocumentNode<JobRemoveUpdatedSubscription, JobRemoveUpdatedSubscriptionVariables>;
+export const JobBackupUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"JobBackupUpdated"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"host"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"kind"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"host"},"value":{"kind":"Variable","name":{"kind":"Name","value":"host"}}},{"kind":"Argument","name":{"kind":"Name","value":"kind"},"value":{"kind":"Variable","name":{"kind":"Name","value":"kind"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobId"}},{"kind":"Field","name":{"kind":"Name","value":"status"}}]}}]}}]} as unknown as DocumentNode<JobBackupUpdatedSubscription, JobBackupUpdatedSubscriptionVariables>;
 export const RestoreBackupDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"restoreBackup"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"RestoreInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"restoreBackup"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobPoolResponse"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobPoolResponse"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobResponse"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]} as unknown as DocumentNode<RestoreBackupMutation, RestoreBackupMutationVariables>;
-export const ClearCacheDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"clearCache"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"clearCache"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"void"}}]}}]}}]} as unknown as DocumentNode<ClearCacheMutation, ClearCacheMutationVariables>;
-export const EventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Events"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"events"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"firstEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}}},{"kind":"Argument","name":{"kind":"Name","value":"lastEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ApplicationEvent"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventBackupInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"sharePath"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fix"}},{"kind":"Field","name":{"kind":"Name","value":"refcount"}},{"kind":"Field","name":{"kind":"Name","value":"refcountError"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}},{"kind":"Field","name":{"kind":"Name","value":"chunkCount"}},{"kind":"Field","name":{"kind":"Name","value":"chunkError"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolCleanedInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventHashConversionInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"algorithm"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ApplicationEvent"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ApplicationEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uuid"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"errorMessages"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"information"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventBackupInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolCleanedInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventHashConversionInformation"}}]}}]}}]}}]} as unknown as DocumentNode<EventsQuery, EventsQueryVariables>;
+export const ClearCacheDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"clearCache"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"clearCache"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]}}]} as unknown as DocumentNode<ClearCacheMutation, ClearCacheMutationVariables>;
+export const EventsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Events"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"DateTime"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"limit"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"offset"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"events"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"firstEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"firstEvent"}}},{"kind":"Argument","name":{"kind":"Name","value":"lastEvent"},"value":{"kind":"Variable","name":{"kind":"Name","value":"lastEvent"}}},{"kind":"Argument","name":{"kind":"Name","value":"limit"},"value":{"kind":"Variable","name":{"kind":"Name","value":"limit"}}},{"kind":"Argument","name":{"kind":"Name","value":"offset"},"value":{"kind":"Variable","name":{"kind":"Name","value":"offset"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"ApplicationEvent"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventBackupInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"sharePath"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fix"}},{"kind":"Field","name":{"kind":"Name","value":"refcount"}},{"kind":"Field","name":{"kind":"Name","value":"refcountError"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}},{"kind":"Field","name":{"kind":"Name","value":"chunkCount"}},{"kind":"Field","name":{"kind":"Name","value":"chunkError"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventPoolCleanedInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"count"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"EventHashConversionInformation"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"count"}},{"kind":"Field","name":{"kind":"Name","value":"algorithm"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"ApplicationEvent"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"ApplicationEvent"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uuid"}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"step"}},{"kind":"Field","name":{"kind":"Name","value":"source"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"errorMessages"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"information"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"__typename"}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventBackupInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventBackupInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventPoolCleanedInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventPoolCleanedInformation"}}]}},{"kind":"InlineFragment","typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"EventHashConversionInformation"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"EventHashConversionInformation"}}]}}]}}]}}]} as unknown as DocumentNode<EventsQuery, EventsQueryVariables>;
 export const CleanupPoolDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"cleanupPool"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"cleanupPool"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobPoolResponse"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobPoolResponse"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobResponse"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]} as unknown as DocumentNode<CleanupPoolMutation, CleanupPoolMutationVariables>;
 export const CheckAndFixPoolDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"checkAndFixPool"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"fix"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"verifyChunks"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Boolean"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"checkAndFixPool"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"fix"},"value":{"kind":"Variable","name":{"kind":"Name","value":"fix"}}},{"kind":"Argument","name":{"kind":"Name","value":"verifyChunks"},"value":{"kind":"Variable","name":{"kind":"Name","value":"verifyChunks"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobPoolResponse"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobPoolResponse"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobResponse"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}}]}}]} as unknown as DocumentNode<CheckAndFixPoolMutation, CheckAndFixPoolMutationVariables>;
-export const ServerInformationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ServerInformations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"informations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"platform"}},{"kind":"Field","name":{"kind":"Name","value":"uptime"}},{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"woodstockVersion"}}]}}]}}]} as unknown as DocumentNode<ServerInformationsQuery, ServerInformationsQueryVariables>;
+export const ServerInformationsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"ServerInformations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"informations"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"uptime"}},{"kind":"Field","name":{"kind":"Name","value":"hostname"}},{"kind":"Field","name":{"kind":"Name","value":"woodstockVersion"}}]}}]}}]} as unknown as DocumentNode<ServerInformationsQuery, ServerInformationsQueryVariables>;
 export const DiskUsageStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"DiskUsageStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"hosts"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSize"}}]}}]}}]}}]} as unknown as DocumentNode<DiskUsageStatisticsQuery, DiskUsageStatisticsQueryVariables>;
-export const QueueStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"QueueStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queueStats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"active"}},{"kind":"Field","name":{"kind":"Name","value":"waiting"}},{"kind":"Field","name":{"kind":"Name","value":"failed"}},{"kind":"Field","name":{"kind":"Name","value":"delayed"}},{"kind":"Field","name":{"kind":"Name","value":"completed"}}]}}]}}]} as unknown as DocumentNode<QueueStatisticsQuery, QueueStatisticsQueryVariables>;
+export const QueueStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"QueueStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queueStats"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"pending"}},{"kind":"Field","name":{"kind":"Name","value":"running"}},{"kind":"Field","name":{"kind":"Name","value":"success"}},{"kind":"Field","name":{"kind":"Name","value":"failed"}},{"kind":"Field","name":{"kind":"Name","value":"dead"}}]}}]}}]} as unknown as DocumentNode<QueueStatisticsQuery, QueueStatisticsQueryVariables>;
 export const PoolStatisticsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"PoolStatistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"statistics"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"diskUsage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"used"}},{"kind":"Field","name":{"kind":"Name","value":"usedLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"free"}},{"kind":"Field","name":{"kind":"Name","value":"total"}}]}},{"kind":"Field","name":{"kind":"Name","value":"poolUsage"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"nbChunk"}},{"kind":"Field","name":{"kind":"Name","value":"nbChunkLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"nbChunkRange"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"time"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"nbRef"}},{"kind":"Field","name":{"kind":"Name","value":"nbRefLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"size"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSizeLastMonth"}},{"kind":"Field","name":{"kind":"Name","value":"compressedSizeRange"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"time"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedSize"}}]}}]}}]}}]} as unknown as DocumentNode<PoolStatisticsQuery, PoolStatisticsQueryVariables>;
-export const TasksDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Tasks"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"QueueListInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"backupProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RemoveTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}}]} as unknown as DocumentNode<TasksQuery, TasksQueryVariables>;
-export const QueueTasksJobUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"QueueTasksJobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"BackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"backupProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"RemoveTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"CleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"FsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"queueName"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"state"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}}]} as unknown as DocumentNode<QueueTasksJobUpdatedSubscription, QueueTasksJobUpdatedSubscriptionVariables>;
-import { bigintTypePolicy } from '../utils/bigint.utils';
+export const TasksDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"Tasks"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"QueueListInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"queue"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"globalProgression"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobId"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progress"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}}]} as unknown as DocumentNode<TasksQuery, TasksQueryVariables>;
+export const QueueTasksJobUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"QueueTasksJobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobUpdated"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"Job"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobBackupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRestoreData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"ip"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"destinationDirectory"}},{"kind":"Field","name":{"kind":"Name","value":"files"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"selection"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobRemoveData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"number"}},{"kind":"Field","name":{"kind":"Name","value":"startDate"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobCleanupData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanupData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"target"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"JobFsckData"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckData"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"verifyChunks"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"BackupTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobBackupTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"backupExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"backupErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"globalProgression"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"preCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"shareStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"share"}},{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"backupProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}},{"kind":"Field","name":{"kind":"Name","value":"fileListProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}}]}}]}},{"kind":"Field","name":{"kind":"Name","value":"postCommandStates"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"executionState"}},{"kind":"Field","name":{"kind":"Name","value":"command"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"command"}}]}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RestoreTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRestoreTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"restoreExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"restoreProgression"},"name":{"kind":"Name","value":"globalProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startDate"}},{"kind":"Field","name":{"kind":"Name","value":"startTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"endTransferDate"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"newCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedCompressedFileSize"}},{"kind":"Field","name":{"kind":"Name","value":"fileCount"}},{"kind":"Field","name":{"kind":"Name","value":"newFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"modifiedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"removedFileCount"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"speed"}},{"kind":"Field","name":{"kind":"Name","value":"percent"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"progressMax"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"RemoveTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobRemoveState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"removeExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"removeErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"CleanerTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobCleanerTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"cleanerExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","alias":{"kind":"Name","value":"cleanerProgress"},"name":{"kind":"Name","value":"progression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"fileSize"}},{"kind":"Field","name":{"kind":"Name","value":"compressedFileSize"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"FsckTaskState"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"JobFsckTaskState"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","alias":{"kind":"Name","value":"fsckExecutionState"},"name":{"kind":"Name","value":"executionState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorState"},"name":{"kind":"Name","value":"errorState"}},{"kind":"Field","alias":{"kind":"Name","value":"fsckErrorMessage"},"name":{"kind":"Name","value":"errorMessage"}},{"kind":"Field","name":{"kind":"Name","value":"dryRun"}},{"kind":"Field","name":{"kind":"Name","value":"refcntProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}},{"kind":"Field","name":{"kind":"Name","value":"unusedProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"inNothing"}},{"kind":"Field","name":{"kind":"Name","value":"inRefcnt"}},{"kind":"Field","name":{"kind":"Name","value":"inUnused"}},{"kind":"Field","name":{"kind":"Name","value":"missing"}}]}},{"kind":"Field","name":{"kind":"Name","value":"chunkProgression"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"progressMax"}},{"kind":"Field","name":{"kind":"Name","value":"progressCurrent"}},{"kind":"Field","name":{"kind":"Name","value":"errorCount"}},{"kind":"Field","name":{"kind":"Name","value":"totalCount"}}]}}]}},{"kind":"FragmentDefinition","name":{"kind":"Name","value":"Job"},"typeCondition":{"kind":"NamedType","name":{"kind":"Name","value":"Job"}},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"jobId"}},{"kind":"Field","name":{"kind":"Name","value":"kind"}},{"kind":"Field","name":{"kind":"Name","value":"status"}},{"kind":"Field","name":{"kind":"Name","value":"timestamp"}},{"kind":"Field","name":{"kind":"Name","value":"host"}},{"kind":"Field","name":{"kind":"Name","value":"failedReason"}},{"kind":"Field","name":{"kind":"Name","value":"data"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobBackupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRestoreData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobRemoveData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobCleanupData"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"JobFsckData"}}]}},{"kind":"Field","name":{"kind":"Name","value":"progress"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"FragmentSpread","name":{"kind":"Name","value":"BackupTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RestoreTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"RemoveTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"CleanerTaskState"}},{"kind":"FragmentSpread","name":{"kind":"Name","value":"FsckTaskState"}}]}}]}}]} as unknown as DocumentNode<QueueTasksJobUpdatedSubscription, QueueTasksJobUpdatedSubscriptionVariables>;
+import { dateTypePolicy, bigintTypePolicy } from '../utils/graphql.utils';
 
 export const scalarTypePolicies = {
-  Backup: {
+  ApplicationEvent: { fields: { timestamp: dateTypePolicy } },
+  BackupEx: {
     fields: {
       compressedFileSize: bigintTypePolicy,
+      endDate: dateTypePolicy,
       existingCompressedFileSize: bigintTypePolicy,
       existingFileSize: bigintTypePolicy,
       fileSize: bigintTypePolicy,
@@ -1056,11 +1211,13 @@ export const scalarTypePolicies = {
       modifiedFileSize: bigintTypePolicy,
       newCompressedFileSize: bigintTypePolicy,
       newFileSize: bigintTypePolicy,
+      startDate: dateTypePolicy,
     },
   },
   BackupProgression: {
     fields: {
       compressedFileSize: bigintTypePolicy,
+      endTransferDate: dateTypePolicy,
       fileSize: bigintTypePolicy,
       modifiedCompressedFileSize: bigintTypePolicy,
       modifiedFileSize: bigintTypePolicy,
@@ -1068,9 +1225,11 @@ export const scalarTypePolicies = {
       newFileSize: bigintTypePolicy,
       progressCurrent: bigintTypePolicy,
       progressMax: bigintTypePolicy,
+      startDate: dateTypePolicy,
+      startTransferDate: dateTypePolicy,
     },
   },
-  BigIntTimeSerie: { fields: { value: bigintTypePolicy } },
+  BigIntTimeSerie: { fields: { time: dateTypePolicy, value: bigintTypePolicy } },
   CleanerProgression: { fields: { compressedFileSize: bigintTypePolicy, fileSize: bigintTypePolicy } },
   DiskUsage: {
     fields: {
@@ -1087,8 +1246,16 @@ export const scalarTypePolicies = {
     fields: { fileSize: bigintTypePolicy, modifiedFileSize: bigintTypePolicy, newFileSize: bigintTypePolicy },
   },
   FileStat: {
-    fields: { dev: bigintTypePolicy, ino: bigintTypePolicy, nlink: bigintTypePolicy, rdev: bigintTypePolicy },
+    fields: {
+      compressedSize: bigintTypePolicy,
+      dev: bigintTypePolicy,
+      ino: bigintTypePolicy,
+      nlink: bigintTypePolicy,
+      rdev: bigintTypePolicy,
+      size: bigintTypePolicy,
+    },
   },
+  Host: { fields: { dateToNextBackup: dateTypePolicy } },
   HostStatistics: {
     fields: {
       compressedSize: bigintTypePolicy,
@@ -1097,6 +1264,10 @@ export const scalarTypePolicies = {
       sizeLastMonth: bigintTypePolicy,
     },
   },
+  JobBackupData: { fields: { startDate: dateTypePolicy } },
+  JobRemoveData: { fields: { startDate: dateTypePolicy } },
+  JobRestoreData: { fields: { startDate: dateTypePolicy } },
+  NumberTimeSerie: { fields: { time: dateTypePolicy } },
   PoolUsage: {
     fields: {
       compressedSize: bigintTypePolicy,
@@ -1107,4 +1278,5 @@ export const scalarTypePolicies = {
       unusedSizeLastMonth: bigintTypePolicy,
     },
   },
+  QueueStats: { fields: { lastExecution: dateTypePolicy, nextWakeup: dateTypePolicy } },
 };

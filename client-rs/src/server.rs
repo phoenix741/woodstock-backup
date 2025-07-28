@@ -1,5 +1,4 @@
 use futures::{pin_mut, Stream, TryStreamExt};
-use log::{debug, error, info, trace};
 use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{path::Path, pin::Pin, sync::Arc};
@@ -9,6 +8,7 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 use tonic::{metadata::MetadataMap, Response};
+use tracing::{debug, error, info, trace};
 use woodstock::ChunkInformation;
 
 use crate::authentification::Service as AuthService;
@@ -505,8 +505,8 @@ impl WoodstockClientService for WoodstockClient {
         while let Some(request) = stream.next().await {
             let request = request?;
 
-            match request.field {
-                Some(refresh_cache_request::Field::Header(header)) => {
+            match request.payload {
+                Some(refresh_cache_request::Payload::Header(header)) => {
                     debug!("Received header: {:?}", header);
                     if share.is_some() {
                         error!("Header already defined");
@@ -515,7 +515,7 @@ impl WoodstockClientService for WoodstockClient {
 
                     share = Some(header);
                 }
-                Some(refresh_cache_request::Field::FileManifest(manifest)) => {
+                Some(refresh_cache_request::Payload::FileManifest(manifest)) => {
                     trace!("Received manifest: {:?}", manifest);
                     index.add(FileManifestLight::from(manifest));
                 }
@@ -530,6 +530,7 @@ impl WoodstockClientService for WoodstockClient {
             error!("Share must be defined");
             return Err(tonic::Status::invalid_argument("Share must be defined"));
         }
+        // SAFETY: share is always Some here — the is_none() check above returns Err if None
         let share = share.as_ref().unwrap().clone();
 
         debug!("Launch backup for share: {}", share.share_path);
@@ -589,7 +590,7 @@ impl WoodstockClientService for WoodstockClient {
                     .unwrap_or_default()
                     .as_secs();
                 let entry = FileManifestJournalEntry {
-                    r#type: EntryType::Remove as i32,
+                    entry_type: EntryType::Remove as i32,
                     manifest: Some(FileManifest {
                         path: file.manifest.path.clone(),
                         ..Default::default()
@@ -602,6 +603,8 @@ impl WoodstockClientService for WoodstockClient {
                     xfer_calculation: 0,
                     xfer_duration: 0,
                     xfer_check: 0,
+                    chunk_sizes: vec![],
+                    chunk_compressed_sizes: vec![],
                 };
                 let result = tx.send(Ok(entry)).await;
                 if result.is_err() {

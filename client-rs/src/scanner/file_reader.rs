@@ -10,13 +10,13 @@ use futures::pin_mut;
 use futures::Stream;
 use futures::StreamExt;
 use globset::GlobSet;
-use log::{debug, info};
 use std::cmp::min;
 use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
+use tracing::{debug, info};
 
 use super::file_browser::get_files;
 use super::CreateManifestOptions;
@@ -76,10 +76,10 @@ pub fn get_files_with_hash<'a, P: Into<PathBuf>, T: PathManifest>(
                 match is_modified(index, manifest) {
                     Some(false) => continue,
                     Some(true) => {
-                        journal_entry.r#type = EntryType::Modify as i32;
+                        journal_entry.entry_type = EntryType::Modify as i32;
                     }
                     None => {
-                        journal_entry.r#type = EntryType::Add as i32;
+                        journal_entry.entry_type = EntryType::Add as i32;
                     }
                 }
 
@@ -160,7 +160,9 @@ pub async fn calculate_chunk_hash_future(request: &ChunkHashRequest) -> Result<C
         caculate_chunk_hash(&path, request.algorithm())
     });
 
-    manifest.await.unwrap()
+    manifest
+        .await
+        .map_err(|e| eyre::eyre!("Chunk hash task panicked: {e}"))?
 }
 
 /// Calculates the chunk hash for a file.
@@ -292,7 +294,7 @@ pub fn read_chunk(
             reader.seek(SeekFrom::Start(position)).await?;
 
             yield FileChunk {
-                field: Some(file_chunk::Field::Header(FileChunkHeader {
+                payload: Some(file_chunk::Payload::Header(FileChunkHeader {
                     chunk_id: *chunk,
                 })),
             };
@@ -316,7 +318,7 @@ pub fn read_chunk(
                 file_hasher.update(&buffer[..length_to_return]);
 
                 yield FileChunk {
-                    field: Some(file_chunk::Field::Data(FileChunkData {
+                    payload: Some(file_chunk::Payload::Data(FileChunkData {
                         data: buffer[..length_to_return].to_vec(),
                     })),
                 };
@@ -325,7 +327,7 @@ pub fn read_chunk(
             let chunk_hash = chunk_hasher.finalize();
 
             yield FileChunk {
-                field: Some(file_chunk::Field::Footer(FileChunkFooter { chunk_hash })),
+                payload: Some(file_chunk::Payload::Footer(FileChunkFooter { chunk_hash })),
             };
         }
 
@@ -333,7 +335,7 @@ pub fn read_chunk(
 
         if usize::try_from(chunk_count).unwrap_or_default() == chunks.len() {
             yield FileChunk {
-                field: Some(file_chunk::Field::Eof(FileChunkEndOfFile { hash })),
+                payload: Some(file_chunk::Payload::Eof(FileChunkEndOfFile { hash })),
             };
         }
     })

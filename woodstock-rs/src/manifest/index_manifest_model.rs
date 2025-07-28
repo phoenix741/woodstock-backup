@@ -87,7 +87,7 @@ impl<T: PathManifest> IndexManifest<T> {
 
     /// Applies a journal entry to the index manifest.
     pub fn apply(&mut self, journal_entry: FileManifestJournalEntry) {
-        match journal_entry.r#type() {
+        match journal_entry.entry_type() {
             EntryType::Remove => {
                 if let Some(manifest) = journal_entry.manifest {
                     self.remove(&manifest.path);

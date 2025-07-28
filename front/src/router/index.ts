@@ -30,10 +30,14 @@ const routes = [
         component: () => import(/* webpackChunkName: "backups" */ '@/views/BackupDetailsView.vue'),
       },
       {
-        path: 'tasks/:taskFilter',
+        path: 'tasks',
         name: 'Tasks',
-        props: true,
         component: () => import(/* webpackChunkName: "tasks" */ '@/views/TasksView.vue'),
+      },
+      {
+        // Rétrocompatibilité : anciennes URLs /tasks/started, /tasks/completed…
+        path: 'tasks/:taskFilter',
+        redirect: { name: 'Tasks' },
       },
       {
         path: 'pool',

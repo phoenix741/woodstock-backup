@@ -5,7 +5,7 @@
         <span>Backup #{{ backup?.number }}</span>
 
         <v-chip class="ml-2" :color="statusColor" size="small">
-          {{ backup?.status }}
+          {{ getBackupStatusText(backup?.status) }}
         </v-chip>
       </div>
     </v-card-title>
@@ -15,11 +15,11 @@
       <v-row>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">Start</div>
-          <div>{{ backup?.startDate && toDateTime(backup?.startDate * 1000) }}</div>
+          <div>{{ backup?.startDate && toDateTime(backup?.startDate) }}</div>
         </v-col>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">End</div>
-          <div>{{ backup?.endDate && toDateTime(backup?.endDate * 1000) }}</div>
+          <div>{{ backup?.endDate && toDateTime(backup?.endDate) }}</div>
         </v-col>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">Duration</div>
@@ -97,20 +97,21 @@
 
 <script lang="ts" setup>
 import { defineProps, computed } from 'vue';
-import { getBackupStatusColor, useBackup } from '@/utils/backups';
+import { getBackupStatusColor, getBackupStatusText, useBackup } from '@/utils/backups';
 import filesize from '@/utils/filesize';
 import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
+import { toDate } from 'date-fns';
 
 const props = defineProps<{
   deviceId: string;
-  backupId: number;
+  backupId: string;
 }>();
 
 const { backup, isFetching } = useBackup(props.deviceId, props.backupId);
 
 const duration = computed(() => {
   if (backup?.value?.endDate) {
-    return toDuration((backup.value.endDate - backup.value.startDate) * 1000);
+    return toDuration((toDate(backup.value.endDate).getTime() - toDate(backup.value.startDate).getTime()));
   }
   return undefined;
 });

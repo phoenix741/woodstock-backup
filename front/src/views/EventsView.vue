@@ -14,6 +14,11 @@
     <v-timeline :hide-opposite="mobile" :density="mobile ? 'compact' : 'default'" side="end">
       <Event v-for="event in mergedEvents" :key="event.uuid" :event="event"></Event>
     </v-timeline>
+    <div class="d-flex justify-center align-center mt-4 ga-2">
+      <v-btn :disabled="page <= 1" variant="tonal" icon="mdi-chevron-left" @click="page--"></v-btn>
+      <span class="text-body-2">Page {{ page }}</span>
+      <v-btn :disabled="mergedEvents.length < pageSize" variant="tonal" icon="mdi-chevron-right" @click="page++"></v-btn>
+    </div>
   </v-container>
 </template>
 
@@ -25,14 +30,18 @@ import { useFragment } from '@/generated';
 import { EventStep } from '@/generated/graphql';
 import { useEvents } from '@/utils/events';
 import { addMonths } from 'date-fns';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useDisplay } from 'vuetify';
 import { VDateInput } from 'vuetify/labs/VDateInput';
 
 const startDate = ref(addMonths(new Date(), -1));
 const endDate = ref(new Date());
+const page = ref(1);
 
-const { events } = useEvents(startDate, endDate);
+// Reset to page 1 when the date range changes
+watch([startDate, endDate], () => { page.value = 1; });
+
+const { events, pageSize } = useEvents(startDate, endDate, page);
 const { mobile } = useDisplay();
 
 const mergedEvents = computed<Array<MergedApplicationEvent>>(() => {

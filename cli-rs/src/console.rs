@@ -20,19 +20,20 @@
 //! * check all chunks
 //! * recalculate all the chunks
 //!
+mod backup_resolver;
 mod commands;
 #[cfg(all(unix, feature = "fuse_unix"))]
 mod filesystem;
 
-use std::time::SystemTime;
-
+use crate::backup_resolver::resolve_backup_id;
+use chrono::Local;
 use clap::{Parser, Subcommand};
 use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
 use commands::read_protobuf::read_log;
 use commands::resolve::resolve_mdns;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 
 #[cfg(all(unix, feature = "fuse_unix"))]
 use commands::mount::{mount, MountOption};
@@ -40,8 +41,9 @@ use commands::mount::{mount, MountOption};
 use crate::commands::pool::{check_compression, clean_unused_pool, verify_all};
 use crate::commands::read_chunk::read_chunk;
 use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
-use woodstock::config::{Context, GlobalConfiguration};
-use woodstock::pool::apply_pending_refcnt_operations;
+use crate::commands::CliServiceState;
+use woodstock::config::Context;
+use woodstock::pool::PoolManager;
 
 /// Command-line interface options for the Woodstock CLI tool.
 #[derive(Parser)]
@@ -69,13 +71,13 @@ enum Commands {
         filter_chunks: Option<String>,
     },
 
-    /// Read and display the backup log for a given host and backup number.
+    /// Read and display the backup log for a given host and backup.
     ReadLog {
         /// The hostname of the backup server.
         hostname: String,
 
-        /// The backup number to read the log for.
-        backup_number: usize,
+        /// The backup identifier (UUID or sequential number).
+        backup_id: String,
 
         /// The share path for the log.
         share_path: String,
@@ -153,9 +155,9 @@ enum Commands {
         #[clap(long)]
         hostname: Option<String>,
 
-        /// The backup number to mount.
+        /// The backup identifier to mount (UUID or sequential number, optional).
         #[clap(long)]
-        backup_number: Option<usize>,
+        backup_id: Option<String>,
 
         /// The path to mount.
         #[clap(long)]
@@ -170,13 +172,16 @@ enum Commands {
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let context = Context::default();
+    let state = CliServiceState::default();
 
     let args = Cli::parse();
 
-    let subcommand = args.subcommand.expect("No subcommand provided");
+    let subcommand = args
+        .subcommand
+        .ok_or_else(|| eyre::eyre!("No subcommand provided"))?;
     match subcommand {
         Commands::ReadProtobuf {
             path,
@@ -185,55 +190,65 @@ async fn main() -> Result<()> {
             filter_chunks,
         } => read_protobuf(&path, &format, filter_name.as_ref(), filter_chunks.as_ref())
             .await
-            .expect("Failed to read protobuf file"),
+            .wrap_err("Failed to read protobuf file")?,
 
         Commands::ReadLog {
             hostname,
-            backup_number,
+            backup_id,
             share_path,
         } => {
-            read_log(&GlobalConfiguration, &hostname, backup_number, &share_path)
+            let (uuid, _number) = resolve_backup_id(&backup_id, &hostname, &state.backups).await?;
+            read_log(state, &hostname, uuid, &share_path)
                 .await
-                .expect("Failed to read log");
+                .wrap_err("Failed to read log")?;
         }
 
         Commands::GetChunk { chunk } => {
-            read_chunk(&GlobalConfiguration.path.pool_path, &chunk)
+            read_chunk(&state.config.path.pool_path, &chunk)
                 .await
-                .expect("Failed to read chunk");
+                .wrap_err("Failed to read chunk")?;
         }
         Commands::SearchChunk { chunk } => {
-            search_chunk(&GlobalConfiguration, &chunk)
+            search_chunk(state, &chunk)
                 .await
-                .expect("Failed to search chunk");
+                .wrap_err("Failed to search chunk")?;
         }
         Commands::CompactRefcnt {} => {
-            apply_pending_refcnt_operations(&GlobalConfiguration, &SystemTime::now())
+            // Acquire EXCLUSIVE lock to prevent race conditions
+            use woodstock::utils::lock_redis::PoolLockRedis;
+            let redis_url = state.config.redis_url();
+            let _lock = PoolLockRedis::new_with_path(
+                &redis_url,
+                &state.config.path.pool_path,
+                "compact_refcnt_manual",
+            )
+            .await
+            .wrap_err("Failed to acquire lock")?
+            .lock_exclusive()
+            .await
+            .wrap_err("Failed to acquire exclusive lock")?;
+
+            PoolManager::new(state.config.clone())
+                .apply_pending(&Local::now())
                 .await
-                .expect("Failed to compact refcnt");
+                .wrap_err("Failed to compact refcnt")?;
         }
         Commands::CleanUnused { target } => {
-            clean_unused_pool(&GlobalConfiguration, context.source, target)
+            clean_unused_pool(state, context.source, target)
                 .await
-                .expect("Clean unused failed");
+                .wrap_err("Clean unused failed")?;
         }
-        Commands::CheckCompression {} => check_compression(&GlobalConfiguration)
+        Commands::CheckCompression {} => check_compression(state)
             .await
-            .expect("Failed to check compression"),
+            .wrap_err("Failed to check compression")?,
         Commands::Fsck {
             dry_run,
             chunks,
             skip_ref_unused,
         } => {
-            verify_all(
-                &GlobalConfiguration,
-                context.source,
-                dry_run,
-                chunks,
-                skip_ref_unused,
-            )
-            .await
-            .expect("Can't verify refcnt");
+            verify_all(state, context.source, dry_run, chunks, skip_ref_unused)
+                .await
+                .wrap_err("Can't verify refcnt")?;
         }
         Commands::Compare {
             file_manifest_source,
@@ -241,36 +256,36 @@ async fn main() -> Result<()> {
         } => {
             compare(&file_manifest_source, &file_manifest_target)
                 .await
-                .expect("Failed to compare file manifest");
+                .wrap_err("Failed to compare file manifest")?;
         }
         Commands::ResolveHost { hostname } => {
-            resolve_mdns(&GlobalConfiguration, &hostname)
+            resolve_mdns(state, &hostname)
                 .await
-                .expect("Failed to resolve mDNS");
+                .wrap_err("Failed to resolve mDNS")?;
         }
         Commands::ConvertHashRepo { backup_path, hash } => {
             convert_hash_repo(&backup_path, &hash)
                 .await
-                .expect("Failed to convert hash repository");
+                .wrap_err("Failed to convert hash repository")?;
         }
         #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {
             hostname,
-            backup_number,
+            backup_id,
             path,
             mount_point,
         } => {
             mount(
-                &GlobalConfiguration,
+                state,
                 &MountOption {
                     hostname,
-                    backup_number,
+                    backup_id,
                     path,
                     mount_point,
                 },
             )
             .await
-            .expect("Failed to mount");
+            .wrap_err("Failed to mount")?;
         }
     }
 

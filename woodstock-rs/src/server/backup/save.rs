@@ -5,17 +5,18 @@ use std::{
 };
 
 use async_stream::stream;
+use chrono::{DateTime, Local};
 use eyre::{eyre, Result};
 use futures::{pin_mut, StreamExt};
-use log::{debug, error, info};
 use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
 use crate::{
     config::{Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::{create_event_backup_end, create_event_backup_start},
-    file_chunk::{self, Field},
-    pool::{add_refcnt_to_pool, PoolChunkInformation, PoolChunkWrapper, Refcnt},
+    file_chunk::{self, Payload},
+    pool::{PoolChunkInformation, PoolChunkWrapper, PoolManager, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
@@ -37,13 +38,17 @@ pub struct BackupSave<Clt: Client> {
 
     /// The hostname associated with the save operation.
     hostname: String,
-    /// The ID of the current backup being saved.
-    current_backup_id: usize,
+    /// UUID v7 identifier — primary key, used for filesystem routing.
+    backup_id: Uuid,
+    /// Sequential display number for this backup (set at creation, immutable).
+    number: usize,
+    /// UUID v7 of the immediately preceding completed backup (used for incremental cloning).
+    previous_backup_id: Option<Uuid>,
     /// The version of the agent performing the save operation.
     agent_version: Arc<Mutex<Option<String>>>,
     /// Represents an optional fake date for testing purposes.
     /// This is used to override the current system time during backup operations.
-    fake_date: Option<SystemTime>,
+    fake_date: Option<DateTime<Local>>,
     /// Tracks the maximum progress for each task in the backup operation.
     /// This is a thread-safe structure to ensure consistency across multiple threads.
     progress_max: Arc<Mutex<HashMap<String, u64>>>,
@@ -57,12 +62,14 @@ pub struct BackupSave<Clt: Client> {
     /// The source of events for the save operation.
     source: EventSource,
     /// The configuration for the save operation.
-    config: Configuration,
+    config: Arc<Configuration>,
     /// Specifies the algorithm used for chunking data during the backup.
     /// This determines how data is divided into smaller chunks for storage.
     algorithm: ChunkAlgorithm,
     /// Compression format of saved files
     compression_format: CompressionFormat,
+    /// Backups configuration
+    backups: Arc<Backups>,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -71,7 +78,8 @@ impl<Clt: Client> BackupSave<Clt> {
     /// # Arguments
     /// * `client` - The client for the backup system.
     /// * `hostname` - The hostname for the backup.
-    /// * `backup_number` - The backup number.
+    /// * `backup_id` - The UUID v7 identifier for this backup.
+    /// * `number` - The sequential display number for this backup.
     /// * `ctxt` - The context for the backup.
     /// * `config` - The configuration for the backup system.
     ///
@@ -81,20 +89,19 @@ impl<Clt: Client> BackupSave<Clt> {
     pub fn new(
         client: Clt,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
+        number: usize,
+        previous_backup_id: Option<Uuid>,
         ctxt: &Context,
-        config: &Configuration,
+        config: Arc<Configuration>,
+        backups: Arc<Backups>,
     ) -> Self {
         // At first backup set the used algorithm
         let _ = config.fix_algorithm();
 
-        let backups = Backups::new(config);
-        let destination_directory =
-            backups.get_backup_destination_directory(hostname, backup_number);
+        let destination_directory = backups.get_backup_destination_directory(hostname, backup_id);
 
-        info!(
-            "Initialize client for backup {hostname}/{backup_number} in {destination_directory:?}"
-        );
+        info!("Initialize client for backup {hostname}/{backup_id} in {destination_directory:?}");
         let uuid = Uuid::new_v4();
         let uuid = uuid.as_bytes().to_vec();
 
@@ -103,7 +110,9 @@ impl<Clt: Client> BackupSave<Clt> {
             client,
             check_file_consistency: false,
             hostname: hostname.to_string(),
-            current_backup_id: backup_number,
+            backup_id,
+            number,
+            previous_backup_id,
             agent_version: Arc::new(Mutex::new(None)),
             progress_max: Arc::new(Mutex::new(HashMap::new())),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
@@ -113,6 +122,7 @@ impl<Clt: Client> BackupSave<Clt> {
             algorithm: config.chunk_algorithm,
             compression_format: config.compression_format,
             fake_date: None,
+            backups,
         }
     }
 
@@ -145,7 +155,7 @@ impl<Clt: Client> BackupSave<Clt> {
     ///
     /// # Panics
     /// This function does not panic.
-    pub fn set_fake_date(&mut self, fake_date: Option<SystemTime>) {
+    pub fn set_fake_date(&mut self, fake_date: Option<DateTime<Local>>) {
         self.fake_date = fake_date;
     }
 
@@ -154,8 +164,8 @@ impl<Clt: Client> BackupSave<Clt> {
     /// # Returns
     ///
     /// The fake date as a `SystemTime`.
-    pub fn get_fake_date(&self) -> SystemTime {
-        self.fake_date.unwrap_or_else(SystemTime::now)
+    pub fn get_fake_date(&self) -> DateTime<Local> {
+        self.fake_date.unwrap_or_else(Local::now)
     }
 
     /// Retrieves the current progression state.
@@ -176,48 +186,37 @@ impl<Clt: Client> BackupSave<Clt> {
     ///
     /// A `Backup` object representing the current state.
     async fn to_backup(&self, status: &BackupStatus) -> Backup {
-        let now = SystemTime::now();
+        let now = Local::now();
         let progression = *self.progression.lock().await;
 
         Backup {
-            number: self.current_backup_id,
+            id: self.backup_id,
+            number: self.number,
             agent_version: self.agent_version.lock().await.clone(),
             status: status.clone(),
 
             start_date: match self.fake_date {
-                Some(fake_date) => fake_date
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                None => progression
-                    .start_date
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
+                Some(fake_date) => fake_date,
+                None => progression.start_date,
             },
             end_date: if status.is_finished() {
                 match self.fake_date {
                     Some(fake_date) => {
                         let duration = if let Some(start_date) = progression.start_transfer_date {
-                            now.duration_since(start_date).unwrap_or_default()
+                            now - start_date
                         } else {
-                            now.duration_since(UNIX_EPOCH).unwrap_or_default()
+                            now - now
                         };
-                        let end_date = fake_date + duration;
-                        Some(
-                            end_date
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
-                        )
+                        Some(fake_date + duration)
                     }
-                    None => Some(now.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()),
+                    None => Some(now),
                 }
             } else {
                 None
             },
 
             error_count: progression.error_count,
+            error_message: None,
 
             file_count: progression.file_count,
             new_file_count: progression.new_file_count,
@@ -282,25 +281,16 @@ impl<Clt: Client> BackupSave<Clt> {
     ///
     /// Returns an error if the initialization fails.
     pub async fn init_backup_directory(&self, shares: &[&str]) -> Result<()> {
-        let backups = Backups::new(&self.config);
-        let previous_backup = backups
-            .get_previous_backup(&self.hostname, self.current_backup_id)
-            .await
-            .map(|b| b.number);
+        let previous_backup = self.previous_backup_id;
 
         info!(
-            "Prepare backup directory for {hostname}/{backup_number} with shares {shares:?} from previous backup {previous_backup:?}",
+            "Prepare backup directory for {hostname}/{backup_id} with shares {shares:?} from previous backup {previous_backup:?}",
             hostname = self.hostname,
-            backup_number = self.current_backup_id,
+            backup_id = self.backup_id,
         );
 
-        backups
-            .clone_backup(
-                &self.hostname,
-                previous_backup,
-                self.current_backup_id,
-                shares,
-            )
+        self.backups
+            .clone_backup(&self.hostname, previous_backup, self.backup_id, shares)
             .await?;
 
         // Load Reference count
@@ -310,11 +300,13 @@ impl<Clt: Client> BackupSave<Clt> {
 
         // Register the event
         create_event_backup_start(
+            &self.config,
             &self.config.path.events_path,
             &self.uuid,
             self.source,
             &self.hostname,
-            self.current_backup_id,
+            self.backup_id,
+            self.number,
             shares,
         )
         .await?;
@@ -367,17 +359,18 @@ impl<Clt: Client> BackupSave<Clt> {
         info!("Download file list for {:?}", share);
 
         let hostname = self.hostname.clone();
-        let current_backup_id = self.current_backup_id;
+        let current_backup_id = self.backup_id;
 
-        let backups = Backups::new(&self.config);
-        let manifest = backups.get_manifest(&hostname, current_backup_id, &share.share_path);
+        let manifest = self
+            .backups
+            .get_manifest(&hostname, current_backup_id, &share.share_path);
 
         let share_refresh_stream = share.clone();
         let manifest_refresh_stream = manifest.clone();
 
         let refresh_cache_stream = stream!({
             let header = RefreshCacheRequest {
-                field: Some(refresh_cache_request::Field::Header(
+                payload: Some(refresh_cache_request::Payload::Header(
                     share_refresh_stream.clone(),
                 )),
             };
@@ -389,7 +382,7 @@ impl<Clt: Client> BackupSave<Clt> {
 
             while let Some(entry) = entries.next().await {
                 let request = RefreshCacheRequest {
-                    field: Some(refresh_cache_request::Field::FileManifest(entry)),
+                    payload: Some(refresh_cache_request::Payload::FileManifest(entry)),
                 };
 
                 yield request;
@@ -414,7 +407,7 @@ impl<Clt: Client> BackupSave<Clt> {
 
                         let mut progression = progression.lock().await;
                         progression.file_size += file_size;
-                        match &entry.r#type() {
+                        match &entry.entry_type() {
                             EntryType::Add => {
                                 progression.new_file_count += 1;
                                 progression.new_file_size += file_size;
@@ -459,7 +452,7 @@ impl<Clt: Client> BackupSave<Clt> {
             let progression = progression.lock().await;
 
             let mut global_progression = self.progression.lock().await;
-            global_progression.start_transfer_date = Some(SystemTime::now());
+            global_progression.start_transfer_date = Some(Local::now());
             global_progression.progress_max += progression.file_size;
 
             let mut progress_max = self.progress_max.lock().await;
@@ -508,8 +501,8 @@ impl<Clt: Client> BackupSave<Clt> {
 
         while let Some(message) = readable.next().await {
             let message = message?;
-            match message.field {
-                Some(file_chunk::Field::Header(header)) => {
+            match message.payload {
+                Some(file_chunk::Payload::Header(header)) => {
                     current_chunk_id = usize::try_from(header.chunk_id)?;
 
                     debug!("Download chunk {}", current_chunk_id);
@@ -521,7 +514,7 @@ impl<Clt: Client> BackupSave<Clt> {
 
                     current_chunk = Some((wrapper, writer));
                 }
-                Some(Field::Data(chunk)) => {
+                Some(Payload::Data(chunk)) => {
                     debug!(
                         "Download chunk data {}, len = {}",
                         current_chunk_id,
@@ -534,7 +527,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         error!("No chunk header before data");
                     }
                 }
-                Some(Field::Footer(_)) => {
+                Some(Payload::Footer(_)) => {
                     debug!("Download chunk footer {}", current_chunk_id);
 
                     if let Some((mut wrapper, mut writer)) = current_chunk.take() {
@@ -550,7 +543,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         error!("No chunk header before footer");
                     }
                 }
-                Some(Field::Eof(eof)) => {
+                Some(Payload::Eof(eof)) => {
                     debug!("Download chunk eof {}", current_chunk_id);
 
                     if full {
@@ -650,7 +643,7 @@ impl<Clt: Client> BackupSave<Clt> {
         file_manifest: &mut FileManifest,
         is_add: bool,
         tx: &mpsc::Sender<PoolChunkInformation>,
-    ) -> Result<(u64, u64, u64)> {
+    ) -> Result<(u64, u64, u64, Vec<u64>, Vec<u64>)> {
         debug!(
             "Download manifest chunk for {:?}, is_add = {:?}",
             file_manifest.path(),
@@ -660,7 +653,7 @@ impl<Clt: Client> BackupSave<Clt> {
         if chunk_count == 0 {
             file_manifest.chunks = vec![];
             file_manifest.hash = get_empty_hash(self.algorithm);
-            return Ok((0, 0, 0));
+            return Ok((0, 0, 0, vec![], vec![]));
         }
 
         let filename = file_manifest.path.clone();
@@ -717,12 +710,16 @@ impl<Clt: Client> BackupSave<Clt> {
         let mut compressed_size: u64 = 0;
         let mut size: u64 = 0;
         let mut chunks_hash = Vec::with_capacity(chunk_count);
+        let mut chunk_sizes = Vec::with_capacity(chunk_count);
+        let mut chunk_compressed_sizes = Vec::with_capacity(chunk_count);
         {
             let mut refcnt = self.refcnt.lock().await;
             for chunk in chunks.values() {
                 compressed_size += chunk.compressed_size;
                 size += chunk.size;
                 chunks_hash.push(chunk.sha256.clone());
+                chunk_sizes.push(chunk.size);
+                chunk_compressed_sizes.push(chunk.compressed_size);
 
                 refcnt.apply(
                     &PoolRefCount {
@@ -740,7 +737,7 @@ impl<Clt: Client> BackupSave<Clt> {
         if file_manifest.stats.is_none() {
             file_manifest.stats = Some(Default::default());
         }
-
+        // SAFETY: stats is always Some here — set just above if it was None
         let stats = file_manifest.stats.as_mut().unwrap();
         stats.compressed_size = compressed_size;
         if stats.size != size {
@@ -770,6 +767,8 @@ impl<Clt: Client> BackupSave<Clt> {
             xfer_calculation.as_secs(),
             xfer_duration.as_secs(),
             xfer_check.as_secs(),
+            chunk_sizes,
+            chunk_compressed_sizes,
         ))
     }
 
@@ -797,8 +796,9 @@ impl<Clt: Client> BackupSave<Clt> {
         let mut error_count = 0;
         let mut abort: Option<eyre::Report> = None;
 
-        let backups = Backups::new(&self.config);
-        let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
+        let manifest = self
+            .backups
+            .get_manifest(&self.hostname, self.backup_id, share_path);
 
         let progress_max = {
             let progress_max = self.progress_max.lock().await;
@@ -813,18 +813,21 @@ impl<Clt: Client> BackupSave<Clt> {
             mpsc::channel::<PoolChunkInformation>(DEFAULT_CHANNEL_BUFFER_SIZE);
         let progression_clone = progression.clone();
 
-        let chunk_task = tokio::spawn(async move {
-            while let Some(chunk) = chunk_rx.recv().await {
-                let mut local_prog = progression_clone.lock().await;
-                local_prog.progress_current += chunk.size;
+        let chunk_task = tokio::spawn(
+            async move {
+                while let Some(chunk) = chunk_rx.recv().await {
+                    let mut local_prog = progression_clone.lock().await;
+                    local_prog.progress_current += chunk.size;
 
-                if let Some(chunk_tx) = &chunk_tx {
-                    if let Err(e) = chunk_tx.send(*local_prog).await {
-                        error!("Failed to send chunk progress: {}", e);
+                    if let Some(chunk_tx) = &chunk_tx {
+                        if let Err(e) = chunk_tx.send(*local_prog).await {
+                            error!("Failed to send chunk progress: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Start by reading file list
         let mut journal_writer =
@@ -839,8 +842,8 @@ impl<Clt: Client> BackupSave<Clt> {
 
         while let Some(mut file_manifest_journal_entry) = file_list.next().await {
             let path = file_manifest_journal_entry.path();
-            let is_add = file_manifest_journal_entry.r#type() == EntryType::Add;
-            let is_remove = file_manifest_journal_entry.r#type() == EntryType::Remove;
+            let is_add = file_manifest_journal_entry.entry_type() == EntryType::Add;
+            let is_remove = file_manifest_journal_entry.entry_type() == EntryType::Remove;
             let is_special_file = file_manifest_journal_entry.is_special_file();
             let is_error = file_manifest_journal_entry.state() == EntryState::Error;
 
@@ -864,7 +867,13 @@ impl<Clt: Client> BackupSave<Clt> {
                         .await;
 
                     match file_manifest {
-                        Ok((xfer_calculation, xfer_duration, xfer_check)) => {
+                        Ok((
+                            xfer_calculation,
+                            xfer_duration,
+                            xfer_check,
+                            chunk_sizes,
+                            chunk_compressed_sizes,
+                        )) => {
                             file_manifest_journal_entry.state = match file_manifest_journal_entry
                                 .state()
                             {
@@ -877,6 +886,9 @@ impl<Clt: Client> BackupSave<Clt> {
                             file_manifest_journal_entry.xfer_calculation = xfer_calculation;
                             file_manifest_journal_entry.xfer_duration = xfer_duration;
                             file_manifest_journal_entry.xfer_check = xfer_check;
+                            file_manifest_journal_entry.chunk_sizes = chunk_sizes;
+                            file_manifest_journal_entry.chunk_compressed_sizes =
+                                chunk_compressed_sizes;
                         }
                         Err(e) => {
                             error!("Can't download chunk for {:?}: {}", path, e);
@@ -914,7 +926,7 @@ impl<Clt: Client> BackupSave<Clt> {
             if file_manifest_journal_entry.state() == EntryState::Chunks
                 || file_manifest_journal_entry.state() == EntryState::ChunksPartialMetadata
             {
-                match file_manifest_journal_entry.r#type() {
+                match file_manifest_journal_entry.entry_type() {
                     EntryType::Add => {
                         let size = file_manifest_journal_entry.size();
                         let compressed_size = file_manifest_journal_entry.compressed_size();
@@ -1002,25 +1014,158 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn close(&self) -> Result<()> {
         info!("Close backup");
 
-        self.progression.lock().await.end_transfer_date = Some(SystemTime::now());
+        self.progression.lock().await.end_transfer_date = Some(Local::now());
 
         // FIXME: Manage abort
 
         self.client.close().await?;
 
-        self.save_backup(BackupStatus::Finishing).await?;
+        Ok(())
+    }
+
+    /// Reconstructs in-memory progression stats from on-disk data after a server crash.
+    ///
+    /// Called during [`BackupPhase::Recover`] before resuming from a partial backup.
+    /// The source of truth depends on how far the previous run progressed:
+    ///
+    /// - **Journal present** (crash before/during compact): reads journal entries (including
+    ///   errors) to rebuild the breakdown stats (`new_file_count`, `modified_file_count`, etc.).
+    ///   The totals (`file_count`, `file_size`) are left to the subsequent compact phase, which
+    ///   iterates the final merged manifest.
+    ///
+    /// - **Log present, no journal** (crash after compact): compact will be skipped due to the
+    ///   idempotence check. Reads log entries for the breakdown and manifest entries for the
+    ///   totals (`file_count`, `file_size`, `compressed_file_size`).
+    ///
+    /// - **Neither present**: nothing to recover; progression stays at zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading from disk fails unrecoverably.
+    pub async fn recover_progression(&self, share_path: &str) -> Result<()> {
+        info!(
+            "Recovering progression for {}/{} share {:?}",
+            self.hostname, self.backup_id, share_path
+        );
+
+        let manifest = self
+            .backups
+            .get_manifest(&self.hostname, self.backup_id, share_path);
+
+        let mut new_file_count = 0usize;
+        let mut new_file_size = 0u64;
+        let mut new_compressed_file_size = 0u64;
+        let mut modified_file_count = 0usize;
+        let mut modified_file_size = 0u64;
+        let mut modified_compressed_file_size = 0u64;
+        let mut removed_file_count = 0usize;
+        let mut error_count = 0usize;
+        let mut file_count = 0usize;
+        let mut file_size = 0u64;
+        let mut compressed_file_size = 0u64;
+
+        // Determine the source stream and whether the manifest totals must also be read.
+        // - Journal present  → crash before compact; compact will rebuild file_count/file_size.
+        //   Use read_journal_entries_all() so that error entries are also counted.
+        // - Log present      → crash after compact; compact is idempotent-skipped, so totals
+        //   must be read from the final manifest as well.
+        // - Neither present  → nothing to recover.
+        let (entries_stream, read_manifest_totals): (
+            std::pin::Pin<Box<dyn futures::Stream<Item = FileManifestJournalEntry> + Send + '_>>,
+            bool,
+        ) = if manifest.journal_path.exists() {
+            (Box::pin(manifest.read_journal_entries_all()), false)
+        } else if manifest.log_path.exists() {
+            (Box::pin(manifest.read_log_entries()), true)
+        } else {
+            info!(
+                "No journal or log for {}/{} share {:?} — nothing to recover",
+                self.hostname, self.backup_id, share_path
+            );
+            return Ok(());
+        };
+
+        // Shared loop: accumulates breakdown stats from journal entries or log entries
+        // (both have the same `FileManifestJournalEntry` format).
+        pin_mut!(entries_stream);
+        while let Some(entry) = entries_stream.next().await {
+            match entry.state() {
+                EntryState::Error => error_count += 1,
+                EntryState::Chunks | EntryState::ChunksPartialMetadata => {
+                    let size = entry.size();
+                    let compressed = entry.compressed_size();
+                    match entry.entry_type() {
+                        EntryType::Add => {
+                            new_file_count += 1;
+                            new_file_size += size;
+                            new_compressed_file_size += compressed;
+                        }
+                        EntryType::Modify => {
+                            modified_file_count += 1;
+                            modified_file_size += size;
+                            modified_compressed_file_size += compressed;
+                        }
+                        EntryType::Remove => removed_file_count += 1,
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        // Totals from the final manifest — only needed when compact was already done
+        // (log case). In the journal case, compact will set these itself.
+        if read_manifest_totals {
+            let manifest_entries = manifest.read_manifest_entries();
+            pin_mut!(manifest_entries);
+            while let Some(fm) = manifest_entries.next().await {
+                file_count += 1;
+                file_size += fm.size();
+                compressed_file_size += fm.compressed_size();
+            }
+        }
+
+        info!(
+            "Recovered {}/{} share {:?}: new={}, modified={}, removed={}, errors={}, file_count={}",
+            self.hostname,
+            self.backup_id,
+            share_path,
+            new_file_count,
+            modified_file_count,
+            removed_file_count,
+            error_count,
+            file_count
+        );
+
+        let mut progression = self.progression.lock().await;
+        progression.error_count += error_count;
+        progression.new_file_count += new_file_count;
+        progression.new_file_size += new_file_size;
+        progression.new_compressed_file_size += new_compressed_file_size;
+        progression.modified_file_count += modified_file_count;
+        progression.modified_file_size += modified_file_size;
+        progression.modified_compressed_file_size += modified_compressed_file_size;
+        progression.removed_file_count += removed_file_count;
+        // Totals: non-zero only in the log case (crash after compact). In the journal case,
+        // compact will set these when it iterates the final manifest.
+        progression.file_count += file_count;
+        progression.file_size += file_size;
+        progression.compressed_file_size += compressed_file_size;
 
         Ok(())
     }
 
-    /// Compacts the specified share path.
+    /// Compacts the backup manifest for the specified share path.
+    ///
+    /// Reads chunks from the agent, merges the journal into the manifest, and
+    /// writes the final manifest. This operation is idempotent: if the journal has
+    /// already been processed (renamed to `.log`), the compaction is skipped.
     ///
     /// # Arguments
-    /// * `share_path` - The path of the share to compact.
+    /// * `share_path` - The share path to compact.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` if the compaction succeeds.
+    /// * `Ok(())` if the compaction succeeds or was already done.
     /// * `Err(eyre::Report)` if an error occurs during compaction.
     ///
     /// # Errors
@@ -1029,8 +1174,32 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn compact(&self, share_path: &str) -> Result<()> {
         info!("Compact share {:?}", share_path);
 
-        let backups = Backups::new(&self.config);
-        let manifest = backups.get_manifest(&self.hostname, self.current_backup_id, share_path);
+        let manifest = self
+            .backups
+            .get_manifest(&self.hostname, self.backup_id, share_path);
+
+        // Idempotence check: if journal doesn't exist, compact has already completed successfully
+        if !manifest.journal_path.exists() {
+            info!(
+                "Compact already done for {}/{} share {:?} (journal already processed), skipping",
+                self.hostname, self.backup_id, share_path
+            );
+            return Ok(());
+        }
+
+        // Pre-seed the refcnt index with per-chunk sizes from the journal.
+        // This avoids repair() having to read individual .info files from the pool
+        // (which are small, randomly spread, and catastrophically slow on HDDs).
+        // Each entry is applied with ref_count=0: only the size metadata is seeded;
+        // the actual ref_count is incremented by the compact callback below.
+        {
+            let sizes_stream = manifest.journal_refcnt_sizes_stream();
+            pin_mut!(sizes_stream);
+            let mut refcnt = self.refcnt.lock().await;
+            while let Some(pool_refcnt) = sizes_stream.next().await {
+                refcnt.apply(&pool_refcnt, &crate::pool::RefcntApplySens::Increase);
+            }
+        }
 
         manifest
             .compact(
@@ -1059,16 +1228,18 @@ impl<Clt: Client> BackupSave<Clt> {
             )
             .await?;
 
-        backups
-            .add_backup_share_path(&self.hostname, self.current_backup_id, share_path)
+        self.backups
+            .add_backup_share_path(&self.hostname, self.backup_id, share_path)
             .await?;
-
-        self.save_backup(BackupStatus::Finishing).await?;
 
         Ok(())
     }
 
     /// Counts the references for the backup process.
+    ///
+    /// This operation is idempotent: it can be safely called multiple times.
+    /// The refcnt.repair() call recalculates all chunk references from scratch,
+    /// so re-running this function will produce the same result.
     ///
     /// # Returns
     ///
@@ -1081,8 +1252,6 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn count_references(&self) -> Result<()> {
         info!("Count references");
 
-        let backups = Backups::new(&self.config);
-
         let mut refcnt = self.refcnt.lock().await;
         refcnt
             .repair(&self.config.path.pool_path, self.algorithm)
@@ -1091,7 +1260,7 @@ impl<Clt: Client> BackupSave<Clt> {
             .save_refcnt(&self.get_fake_date(), false, self.compression_format)
             .await?;
 
-        let host_refcnt_file = backups.get_host_path(&self.hostname);
+        let host_refcnt_file = self.backups.get_host_path(&self.hostname);
         Refcnt::apply_all_from(
             &host_refcnt_file,
             &refcnt,
@@ -1101,8 +1270,6 @@ impl<Clt: Client> BackupSave<Clt> {
             self.compression_format,
         )
         .await?;
-
-        self.save_backup(BackupStatus::Finishing).await?;
 
         Ok(())
     }
@@ -1120,17 +1287,13 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn add_refcnt_to_pool(&self) -> Result<()> {
         info!("Add references count to pool");
 
-        let backups = Backups::new(&self.config);
-        let host_refcnt_file =
-            backups.get_backup_destination_directory(&self.hostname, self.current_backup_id);
+        let host_refcnt_file = self
+            .backups
+            .get_backup_destination_directory(&self.hostname, self.backup_id);
 
-        add_refcnt_to_pool(
-            &self.config,
-            host_refcnt_file,
-            &self.hostname,
-            self.current_backup_id,
-        )
-        .await?;
+        PoolManager::new(self.config.clone())
+            .add_refcnt(host_refcnt_file, &self.hostname, self.backup_id)
+            .await?;
 
         Ok(())
     }
@@ -1151,16 +1314,16 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn save_backup(&self, status: BackupStatus) -> Result<()> {
         info!("Save backup (complete = {status:?})");
 
-        let backups = Backups::new(&self.config);
         let backup = self.to_backup(&status).await;
 
-        backups
+        self.backups
             .add_or_replace_backup(&self.hostname, &backup)
             .await?;
 
         if status.is_finished() {
-            let shares = backups
-                .get_backup_share_paths(&self.hostname, self.current_backup_id)
+            let shares = self
+                .backups
+                .get_backup_share_paths(&self.hostname, self.backup_id)
                 .await;
             let shares = shares
                 .iter()
@@ -1169,11 +1332,13 @@ impl<Clt: Client> BackupSave<Clt> {
 
             // Register the event
             create_event_backup_end(
+                &self.config,
                 &self.config.path.events_path,
                 &self.uuid,
                 self.source,
                 &self.hostname,
-                self.current_backup_id,
+                self.backup_id,
+                self.number,
                 &shares,
                 EventStatus::Success,
             )

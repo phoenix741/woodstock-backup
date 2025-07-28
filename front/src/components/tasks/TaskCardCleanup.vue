@@ -1,6 +1,6 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="subtitle" icon="broom" :progress-percent="progressPercent"
-    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError">
+    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
     <template #tags>
       <v-chip v-if="progress?.cleanerProgress" size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-progress-check</v-icon>
@@ -31,9 +31,10 @@ import { toNumber } from '../hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 
 
-const { data, progress } = defineProps<{
+const { data, progress, expanded } = defineProps<{
   data: JobCleanupDataFragment;
   progress: CleanerTaskStateFragment | undefined | null;
+  expanded?: boolean;
 }>();
 
 const title = computed(() => `Pool Cleanup ${data.target ? `- ${data.target}` : ''}`);
