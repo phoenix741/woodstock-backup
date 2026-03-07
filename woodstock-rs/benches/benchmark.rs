@@ -1,9 +1,10 @@
 use std::{
     fs::File,
+    hint::black_box,
     io::{Read, Write},
 };
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use tempfile::NamedTempFile;
 use woodstock::{config::CHUNK_SIZE, utils::chunk_hasher::create_chunk_hasher, ChunkAlgorithm};
 

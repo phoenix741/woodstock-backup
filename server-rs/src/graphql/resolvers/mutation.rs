@@ -183,4 +183,39 @@ impl MutationRoot {
             .map_err(super::util::map_err)?;
         Ok(JobResponse { id: "ok".into() })
     }
+
+    /// Déclenche manuellement la purge des sauvegardes en surplus pour un hôte.
+    ///
+    /// Calcule immédiatement les sauvegardes à supprimer selon la politique de rétention
+    /// configurée pour l'hôte, puis enqueue un job `Remove` pour chacune.
+    #[graphql(name = "purgeRetention")]
+    async fn purge_retention(
+        &self,
+        ctx: &Context<'_>,
+        hostname: String,
+    ) -> GqlResult<JobResponse> {
+        let state = ctx.data::<ApiServerState>()?;
+
+        let hosts = state
+            .hosts_service
+            .list_hosts()
+            .await
+            .map_err(super::util::map_err)?;
+
+        if !hosts.contains(&hostname) {
+            return Err(async_graphql::Error::new(format!(
+                "Can't find the host with the name {hostname}"
+            )));
+        }
+
+        let mut producers = state.producers.lock().await;
+        producers
+            .enforce_retention_for_host(&hostname, None)
+            .await
+            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+
+        Ok(JobResponse {
+            id: format!("purge::{hostname}"),
+        })
+    }
 }

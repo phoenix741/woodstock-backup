@@ -31,6 +31,16 @@
               </v-chip>
             </template>
 
+            <template v-slot:[`item.retention`]="{ item }">
+              <v-chip
+                v-if="item.retentionLabel"
+                :color="item.retentionColor"
+                size="small"
+                label
+                :text="item.retentionLabel"
+              />
+            </template>
+
             <template v-slot:[`item.completed`]="{ item }">
               <v-progress-circular v-if="!item.endDate" indeterminate color="primary" width="20"
                 size="20"></v-progress-circular>
@@ -38,12 +48,14 @@
               <v-chip :color="item.statusColor" size="small" label :text="getBackupStatusText(item.status)"> </v-chip>
             </template>
             <template v-slot:bottom>
+              <v-data-table-footer />
               <div class="d-flex">
                 <div class="flex-1-0 text-left">
                   <BackupDownload :device-id="deviceId"></BackupDownload>
                 </div>
                 <div class="text-right pa-2">
                   <BackupDelete :device-id="deviceId" :backup-ids="selection ?? []"></BackupDelete>
+                  <BackupPurge :device-id="deviceId"></BackupPurge>
                   <BackupCreate :device-id="deviceId"></BackupCreate>
                 </div>
               </div>
@@ -65,7 +77,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { type VDataTable } from 'vuetify/components';
 
 import { getBackupStatusColor, getBackupStatusText, useBackups } from '../utils/backups';
+import { getRetentionCategoryColor, getRetentionCategoryLabel } from '@/utils/retention-category';
 import BackupCreate from './dialogs/BackupCreate.vue';
+import BackupPurge from './dialogs/BackupPurge.vue';
 import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
 import { toDate } from 'date-fns';
@@ -98,6 +112,8 @@ const headers: ReadonlyHeaders = [
 
   { title: 'Errors', align: 'end', key: 'errorCount' },
 
+  { title: 'Rétention', align: 'center', key: 'retention' },
+
   { title: 'Complete', align: 'center', key: 'completed' },
 ];
 
@@ -110,6 +126,8 @@ const backupsDataTable = computed(() => {
     return {
       duration: (endDate.getTime() - startDate.getTime()),
       statusColor: getBackupStatusColor(backup.status),
+      retentionColor: getRetentionCategoryColor(backup.retentionCategory),
+      retentionLabel: getRetentionCategoryLabel(backup.retentionCategory),
       ...backup,
     };
   });

@@ -58,6 +58,7 @@ use crate::{
     manifest::Manifest,
     utils::{
         cache::{cache_invalidate, cache_wrap},
+        lock_redis::PoolLockRedis,
         path::mangle,
     },
 };
@@ -144,6 +145,29 @@ impl Backups {
                 }
             }
         }
+    }
+
+    /// Reads backups directly from disk, bypassing any cache.
+    ///
+    /// Must be used by **all write operations** so that the read-modify-write
+    /// cycle always works on the authoritative on-disk state, not on a
+    /// potentially stale cache entry.
+    async fn read_backups_for_write(&self, hostname: &str) -> Vec<Backup> {
+        let path = self.get_backup_file(hostname);
+        Self::read_backups_from_disk(path).await
+    }
+
+    /// Acquires an exclusive Redis lock scoped to the `backup.yml` file of
+    /// `hostname`.  Held for the duration of any read-modify-write cycle to
+    /// prevent concurrent writes from racing on the same file.
+    async fn lock_host_for_write(&self, hostname: &str) -> Result<PoolLockRedis> {
+        let redis_url = self.config.redis_url();
+        let backup_file = self.get_backup_file(hostname);
+        let lock = PoolLockRedis::new_with_path(&redis_url, &backup_file, "write")
+            .await?
+            .lock_exclusive()
+            .await?;
+        Ok(lock)
     }
 
     /// Reads the backup list for `hostname` directly from disk, without any cache.
@@ -399,7 +423,8 @@ impl Backups {
     ///
     /// Returns an error if the backup list cannot be read or written to disk.
     pub async fn add_or_replace_backup(&self, hostname: &str, backup: &Backup) -> Result<()> {
-        let backups = self.get_backups(hostname).await;
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let backups = self.read_backups_for_write(hostname).await;
 
         // Find the index of backup.id in backup_file if found
         let index = backups
@@ -437,7 +462,8 @@ impl Backups {
     where
         F: FnMut(&mut Backup),
     {
-        let backups = self.get_backups(hostname).await;
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let backups = self.read_backups_for_write(hostname).await;
 
         // Find the backup to update
         let index = backups
@@ -472,7 +498,8 @@ impl Backups {
     pub async fn remove_backup(&self, hostname: &str, backup_id: Uuid) -> Result<Backup> {
         let backup_destination = self.get_backup_destination_directory(hostname, backup_id);
 
-        let mut backups = self.get_backups(hostname).await;
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let mut backups = self.read_backups_for_write(hostname).await;
 
         // Find the index of backup.id in backup_file
         let index = backups
@@ -488,8 +515,20 @@ impl Backups {
         // Serialize and save in the backup file
         self.save(hostname, &backups).await?;
 
-        remove_dir_all(&backup_destination).await?;
+        // Invalidate the cache immediately after the yaml write, regardless of
+        // what happens to the directory removal below. Cache coherence must be
+        // tied to the disk write, not to the subsequent filesystem operation.
+        // Failing to do this causes stale cache entries to be written back to
+        // disk by the next job, resurrecting removed entries (infinite loop).
         self.notify(hostname, backup_id, true).await;
+
+        match remove_dir_all(&backup_destination).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                // Directory already absent — treat as already removed.
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         Ok(backup)
     }

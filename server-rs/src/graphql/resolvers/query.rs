@@ -68,17 +68,22 @@ impl QueryRoot {
             )));
         }
 
-        let backups = state
-            .backups_service
-            .get_backups(&hostname)
-            .await
-            .map_err(super::util::map_err)?;
+        let raw_backups = state.backups.get_backups(&hostname).await;
 
-        Ok(backups
+        // Compute retention categories for the full list.
+        let categories =
+            super::types::compute_retention_categories(&hostname, state, &raw_backups).await;
+
+        Ok(raw_backups
             .into_iter()
-            .map(|b| BackupEx {
-                hostname: hostname.clone(),
-                inner: b,
+            .map(|b| {
+                let id = b.id;
+                let retention = categories.get(&id).copied().map(Into::into);
+                BackupEx {
+                    hostname: hostname.clone(),
+                    inner: b.into(),
+                    retention_category: retention,
+                }
             })
             .collect())
     }
@@ -106,6 +111,7 @@ impl QueryRoot {
                     failed_backups.push(BackupEx {
                         hostname: hostname.clone(),
                         inner: backup,
+                        retention_category: None,
                     });
                 }
             }
@@ -144,6 +150,7 @@ impl QueryRoot {
         Ok(BackupEx {
             hostname,
             inner: backup,
+            retention_category: None,
         })
     }
 

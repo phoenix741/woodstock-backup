@@ -34,3 +34,8 @@ This folder contains the technical documentation for developers who want to cont
     * Snapshot drivers (Btrfs implemented; ZFS, VSS planned).
     * File scanner and metadata handling (ACL, Xattr).
     * Network discovery (mDNS) and automatic updates.
+
+6. **[Backup Retention](RETENTION.md)**
+    * Time-based sliding window algorithm (Hourly, Daily, Weekly, Monthly, Yearly).
+    * Removal process and synchronization locking (`backup.yml`).
+    * GraphQL integration.

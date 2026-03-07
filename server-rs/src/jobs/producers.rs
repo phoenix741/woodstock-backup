@@ -4,9 +4,11 @@ use std::sync::Arc;
 
 use apalis::prelude::*;
 use apalis_redis::RedisStorage;
+use chrono::Local;
 use tracing::instrument;
 use uuid::Uuid;
-use woodstock::config::{Backups, Hosts};
+use woodstock::config::{BackupStatus, Backups, Hosts};
+use woodstock::server::backup::retention::get_backups_to_delete;
 
 use crate::jobs::progress::{JobKind, ProgressPublisher};
 use crate::jobs::types::*;
@@ -242,6 +244,125 @@ impl Producers {
 
         Ok(parts.task_id.to_string())
     }
+
+    /// Applique la politique de rétention pour un hôte : calcule les sauvegardes à supprimer
+    /// selon la politique configurée, et enqueue un job `Remove` pour chacune.
+    ///
+    /// `exclude_id` — UUID d'une sauvegarde à ne jamais supprimer (ex: backup qui vient d'être créé).
+    ///
+    /// Retourne le nombre de jobs de suppression enqueués.
+    #[instrument(skip(self))]
+    pub async fn enforce_retention_for_host(
+        &mut self,
+        host: &str,
+        exclude_id: Option<Uuid>,
+    ) -> Result<usize, Error> {
+        let backups = self.backups.get_backups(host).await;
+
+        // Re-enqueue any backup already stuck in a Removing state (interrupted
+        // job whose retries were exhausted). Without this, they would remain
+        // stuck indefinitely since the retention algorithm only considers
+        // Completed backups.
+        let stuck: Vec<Uuid> = backups
+            .iter()
+            .filter(|b| matches!(b.status, BackupStatus::Removing(_)))
+            .map(|b| b.id)
+            .collect();
+        let stuck_count = enqueue_retention_removals(
+            host,
+            &backups,
+            stuck,
+            &mut self.backup_storage,
+            Some(&self.progress_publisher),
+        )
+        .await;
+
+        let policy = self
+            .hosts
+            .get_schedule(host)
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?
+            .backup_to_keep;
+
+        let Some(policy) = policy else {
+            return Ok(stuck_count);
+        };
+
+        let now = Local::now();
+        let mut to_delete = get_backups_to_delete(&backups, &policy, now);
+
+        if let Some(excluded) = exclude_id {
+            to_delete.retain(|&id| id != excluded);
+        }
+
+        let retention_count = enqueue_retention_removals(
+            host,
+            &backups,
+            to_delete,
+            &mut self.backup_storage,
+            Some(&self.progress_publisher),
+        )
+        .await;
+
+        Ok(stuck_count + retention_count)
+    }
+}
+
+/// Enqueue un job `Remove` pour chaque backup de la liste `to_delete`.
+///
+/// Cette free function est la brique partagée entre :
+/// - [`Producers::enforce_retention_for_host`] (appelée depuis une mutation GraphQL)
+/// - [`crate::jobs::workers::JobExecutors::enforce_retention_policy`] (appelée post-backup)
+///
+/// Retourne le nombre de jobs enqueués avec succès.
+pub(crate) async fn enqueue_retention_removals(
+    host: &str,
+    backups: &[woodstock::config::Backup],
+    to_delete: Vec<Uuid>,
+    storage: &mut apalis_redis::RedisStorage<BackupQueueJob>,
+    progress: Option<&ProgressPublisher>,
+) -> usize {
+    let mut enqueued = 0usize;
+    for backup_id in to_delete {
+        let backup_number = backups
+            .iter()
+            .find(|b| b.id == backup_id)
+            .map_or(0, |b| b.number);
+
+        let remove_data = RemoveJobData {
+            host: host.to_string(),
+            id: backup_id,
+            number: backup_number,
+            ..Default::default()
+        };
+
+        match storage
+            .push(BackupQueueJob::Remove(remove_data.clone()))
+            .await
+        {
+            Ok(parts) => {
+                if let Some(publi) = progress {
+                    let _ = publi
+                        .create_job(
+                            &parts.task_id.to_string(),
+                            JobKind::with_remove(remove_data),
+                            Some(host),
+                        )
+                        .await;
+                }
+                enqueued += 1;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to enqueue retention removal for {}/{}: {}",
+                    host,
+                    backup_id,
+                    e
+                );
+            }
+        }
+    }
+    enqueued
 }
 
 /// Planification Cron: utilitaires de persistance vers RedisStorage

@@ -42,6 +42,10 @@ pub struct ScheduledBackupToKeep {
     pub weekly: Option<usize>,
     pub monthly: Option<usize>,
     pub yearly: Option<usize>,
+    /// Maximum number of yearly representatives to keep (oldest dropped first).
+    /// `None` means unlimited — all years are kept.
+    #[serde(default)]
+    pub yearly_limit: Option<usize>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

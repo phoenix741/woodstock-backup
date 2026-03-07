@@ -49,6 +49,7 @@ impl Scheduler {
                     weekly: Some(4),
                     monthly: Some(12),
                     yearly: Some(1),
+                    yearly_limit: None,
                 }),
             },
         }

@@ -320,7 +320,12 @@ impl JobExecutors {
 
         // Gestion de l'erreur pour retry et persistance
         match exec_res {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                // Enforce retention policy: remove old backups according to the host policy.
+                self.enforce_retention_policy(&task_id, &host, id, &state)
+                    .await;
+                Ok(())
+            }
             Err(e) => {
                 let error_message = format!("Backup failed: {}", e);
                 error!(
@@ -771,5 +776,81 @@ impl JobExecutors {
             }
         }
         Ok(())
+    }
+
+    /// Enforce retention policy after a successful backup.
+    ///
+    /// Loads all backups for the host, computes which ones should be deleted
+    /// according to the configured [`ScheduledBackupToKeep`] policy, and
+    /// enqueues a `Remove` job for each surplus backup.
+    ///
+    /// The backup that was just created (`current_backup_id`) is always
+    /// excluded from deletion as a safety guard.
+    async fn enforce_retention_policy(
+        &self,
+        task_id: &TaskId,
+        host: &str,
+        current_backup_id: uuid::Uuid,
+        state: &ApiWorkerState,
+    ) {
+        use woodstock::server::backup::retention::get_backups_to_delete;
+
+        let backups = state.backups.get_backups(host).await;
+
+        // Only enforce if the completed backup is actually Completed.
+        let is_completed = backups
+            .iter()
+            .find(|b| b.id == current_backup_id)
+            .is_some_and(|b| matches!(b.status, woodstock::config::BackupStatus::Completed));
+
+        if !is_completed {
+            return;
+        }
+
+        let policy = match state.hosts.get_schedule(host).await {
+            Ok(s) => s.backup_to_keep,
+            Err(e) => {
+                warn!(
+                    "[{}] Failed to load retention policy for {}: {}",
+                    task_id, host, e
+                );
+                return;
+            }
+        };
+
+        let Some(policy) = policy else {
+            return;
+        };
+
+        let now = Local::now();
+        let mut to_delete = get_backups_to_delete(&backups, &policy, now);
+
+        // Never delete the backup we just created (paranoia check).
+        to_delete.retain(|&id| id != current_backup_id);
+
+        if to_delete.is_empty() {
+            return;
+        }
+
+        info!(
+            "[{}] Retention: enqueuing {} backup(s) for removal on {}",
+            task_id,
+            to_delete.len(),
+            host
+        );
+
+        let count = crate::jobs::producers::enqueue_retention_removals(
+            host,
+            &backups,
+            to_delete,
+            &mut state.apalis_redis_storage.backup_storage.clone(),
+            self.progress.as_ref(),
+        )
+        .await;
+
+        info!(
+            "[{}] Retention: {} backup(s) successfully enqueued for removal on {}",
+            task_id, count, host
+        );
     }
 }

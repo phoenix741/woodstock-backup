@@ -100,6 +100,7 @@ impl ProgressSubscription {
                         .map(|backup| BackupEx {
                             hostname,
                             inner: backup,
+                            retention_category: None,
                         })
                 }
             })

@@ -4,7 +4,7 @@ use chrono::{DateTime, Local};
 use super::super::scalars::BigIntScalar;
 use crate::api::dto::{
     BackupStatusDto, FileDescription, FileManifestTypeDto, Host, HostAvailibilityState,
-    HostConfiguration,
+    HostConfiguration, RetentionCategoryDto,
 };
 use crate::api::ApiServerState;
 use crate::graphql::scalars::BufferScalar;
@@ -13,6 +13,9 @@ use crate::graphql::scalars::BufferScalar;
 pub struct BackupEx {
     pub hostname: String,
     pub inner: crate::api::dto::Backup,
+    /// Retention category computed at query time. `None` for in-flight or
+    /// single-backup lookups where the full list is not available.
+    pub retention_category: Option<RetentionCategoryDto>,
 }
 
 #[Object]
@@ -84,6 +87,9 @@ impl BackupEx {
     async fn agent_version(&self) -> Option<String> {
         self.inner.agent_version.clone()
     }
+    async fn retention_category(&self) -> Option<RetentionCategoryDto> {
+        self.retention_category
+    }
 
     async fn shares(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<FileDescription>> {
         let state = ctx.data::<ApiServerState>()?;
@@ -141,17 +147,21 @@ impl Host {
 
     async fn backups(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<BackupEx>> {
         let state = ctx.data::<ApiServerState>()?;
-        let backups = state
-            .backups_service
-            .get_backups(&self.name)
-            .await
-            .map_err(super::util::map_err)?;
+        let raw_backups = state.backups.get_backups(&self.name).await;
 
-        Ok(backups
+        // Compute retention categories from the full backup list.
+        let categories = compute_retention_categories(&self.name, state, &raw_backups).await;
+
+        Ok(raw_backups
             .into_iter()
-            .map(|b| BackupEx {
-                hostname: self.name.to_string(),
-                inner: b,
+            .map(|b| {
+                let id = b.id;
+                let retention = categories.get(&id).copied().map(Into::into);
+                BackupEx {
+                    hostname: self.name.to_string(),
+                    inner: b.into(),
+                    retention_category: retention,
+                }
             })
             .collect())
     }
@@ -167,6 +177,7 @@ impl Host {
         Ok(last.map(|b| BackupEx {
             hostname: self.name.to_string(),
             inner: b,
+            retention_category: None,
         }))
     }
 
@@ -268,5 +279,31 @@ impl Host {
             )),
             Err(_) => Ok(None),
         }
+    }
+}
+
+/// Compute a retention-category map for a host's backup list.
+///
+/// Returns an empty map if the host has no retention policy configured, which
+/// means all backups will have `retention_category = None` in the API response
+/// (no chip shown in the frontend).
+pub(super) async fn compute_retention_categories(
+    hostname: &str,
+    state: &ApiServerState,
+    raw_backups: &[woodstock::config::Backup],
+) -> std::collections::HashMap<uuid::Uuid, woodstock::server::backup::retention::RetentionCategory>
+{
+    let policy = match state.hosts.get_schedule(hostname).await {
+        Ok(s) => s.backup_to_keep,
+        Err(_) => return std::collections::HashMap::new(),
+    };
+
+    match policy {
+        Some(p) => woodstock::server::backup::retention::classify_backups(
+            raw_backups,
+            &p,
+            chrono::Local::now(),
+        ),
+        None => std::collections::HashMap::new(),
     }
 }

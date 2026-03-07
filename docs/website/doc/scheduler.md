@@ -14,6 +14,7 @@ defaultSchedule:
     weekly: 4
     monthly: 12
     yearly: 1
+    yearly_limit: null
 ```
 
 ## The Application Scheduler
@@ -34,4 +35,4 @@ Inside the `scheduler` field:
 | ------------ | -------------------------------------------------------------- | -------------------------------------------- |
 | activated    | true                                                           | Enable or disable automatic backups          |
 | backupPeriod | 86400                                                          | Period between two backups in seconds (default: 24 hours) |
-| backupToKeep | `{ hourly: 24, daily: 7, weekly: 4, monthly: 12, yearly: 1 }`  | Number of backups to keep in each category (not currently used) |
+| backupToKeep | `{ hourly: 24, daily: 7, weekly: 4, monthly: 12, yearly: 1, yearly_limit: null }`  | Number of backups to keep in each category. The `yearly_limit` parameter sets a maximum limit on the total number of yearly representatives kept, discarding the oldest first (`null` for unlimited). |

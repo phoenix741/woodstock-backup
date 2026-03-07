@@ -1,0 +1,5 @@
+mutation purgeRetention($hostname: String!) {
+  purgeRetention(hostname: $hostname) {
+    id
+  }
+}

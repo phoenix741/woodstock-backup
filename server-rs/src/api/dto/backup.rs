@@ -185,6 +185,43 @@ pub struct Backup {
     pub agent_version: Option<String>,
 }
 
+/// Retention category DTO — mirrors [`woodstock::server::backup::retention::RetentionCategory`].
+#[derive(
+    Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, ToSchema, async_graphql::Enum,
+)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RetentionCategoryDto {
+    /// Representative of an hourly slot.
+    Hourly,
+    /// Representative of a daily slot.
+    Daily,
+    /// Representative of a weekly (ISO-week) slot.
+    Weekly,
+    /// Representative of a monthly slot.
+    Monthly,
+    /// Representative of a yearly slot.
+    Yearly,
+    /// Not retained by any slot — scheduled for deletion.
+    Surplus,
+    /// Most recent terminal backup — protected from deletion.
+    LastBackup,
+}
+
+impl From<woodstock::server::backup::retention::RetentionCategory> for RetentionCategoryDto {
+    fn from(cat: woodstock::server::backup::retention::RetentionCategory) -> Self {
+        use woodstock::server::backup::retention::RetentionCategory as C;
+        match cat {
+            C::Hourly => Self::Hourly,
+            C::Daily => Self::Daily,
+            C::Weekly => Self::Weekly,
+            C::Monthly => Self::Monthly,
+            C::Yearly => Self::Yearly,
+            C::Surplus => Self::Surplus,
+            C::LastBackup => Self::LastBackup,
+        }
+    }
+}
+
 impl From<WoodstockBackup> for Backup {
     fn from(backup: WoodstockBackup) -> Self {
         Self {

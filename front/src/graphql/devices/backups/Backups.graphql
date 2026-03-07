@@ -9,6 +9,8 @@ query Backups($hostname: String!) {
       ...BackupStatusFields
     }
 
+    retentionCategory
+
     startDate
     endDate
 
