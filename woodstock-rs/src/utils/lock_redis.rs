@@ -65,6 +65,21 @@ const EXTEND_EXCLUSIVE_SCRIPT: &str = r#"
     end
 "#;
 
+/// Lua script to atomically acquire an exclusive lock.
+/// Refuses acquisition if an exclusive lock already exists or if any shared lock session remains.
+/// KEYS: [1]=exclusive_key, [2]=shared_key
+/// ARGV: [1]=uuid, [2]=ttl_millis
+const ACQUIRE_EXCLUSIVE_SCRIPT: &str = r#"
+    if redis.call("scard", KEYS[2]) > 0 then
+        return 0
+    end
+    local result = redis.call("set", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
+    if result then
+        return 1
+    end
+    return 0
+"#;
+
 /// Represents a Redis-based lock for a resource, such as a backup pool.
 ///
 /// The lock ensures that only one process can access the resource exclusively,
@@ -116,7 +131,11 @@ impl PoolLockRedis {
     /// Returns an error if the Redis connection cannot be established.
     pub async fn new(redis_url: &str, resource: &str, operation_name: &str) -> Result<Self> {
         let client = Client::open(redis_url)?;
-        let conn = client.get_multiplexed_async_connection().await?;
+        let mut conn = client.get_multiplexed_async_connection().await?;
+
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            Self::log_connection_identity(&mut conn, "new", Some(resource)).await?;
+        }
 
         Ok(Self {
             client,
@@ -135,7 +154,6 @@ impl PoolLockRedis {
 
     /// Creates a new Redis lock instance from a path.
     ///
-    /// This is a convenience constructor that mangles the path to create a safe resource identifier.
     ///
     /// # Arguments
     ///
@@ -143,7 +161,6 @@ impl PoolLockRedis {
     /// * `path` - The path to the resource (e.g., pool path like "/data/pool1")
     /// * `operation_name` - The operation name (e.g., "fsck", "backup", "restore")
     ///
-    /// # Returns
     ///
     /// Returns a result containing the new lock instance.
     ///
@@ -157,6 +174,74 @@ impl PoolLockRedis {
     ) -> Result<Self> {
         let resource = mangle_path(path);
         Self::new(redis_url, &resource, operation_name).await
+    }
+
+    async fn log_connection_identity(
+        conn: &mut MultiplexedConnection,
+        context: &str,
+        resource: Option<&str>,
+    ) -> Result<()> {
+        let client_id: i64 = redis::cmd("CLIENT")
+            .arg("ID")
+            .query_async(conn)
+            .await
+            .wrap_err("Failed to inspect Redis client id")?;
+        let info: String = redis::cmd("INFO")
+            .arg("server")
+            .query_async(conn)
+            .await
+            .wrap_err("Failed to inspect Redis server info")?;
+
+        let run_id = info
+            .lines()
+            .find_map(|line| line.strip_prefix("run_id:"))
+            .unwrap_or("unknown");
+        let process_id = info
+            .lines()
+            .find_map(|line| line.strip_prefix("process_id:"))
+            .unwrap_or("unknown");
+        let tcp_port = info
+            .lines()
+            .find_map(|line| line.strip_prefix("tcp_port:"))
+            .unwrap_or("unknown");
+
+        debug!(
+            "Redis connection identity [{}] resource={:?}: client_id={}, run_id={}, process_id={}, tcp_port={}",
+            context, resource, client_id, run_id, process_id, tcp_port
+        );
+
+        Ok(())
+    }
+
+    /// Passively inspects whether a resource currently has any active Redis lock.
+    ///
+    /// Unlike `try_lock_exclusive_nowait`, this method never acquires or releases a
+    /// lock itself. It only inspects the Redis keys already present for the resource.
+    pub async fn has_active_lock(redis_url: &str, resource: &str) -> Result<bool> {
+        let probe = Self::new(redis_url, resource, "inspect_lock_state").await?;
+        probe.has_active_lock_internal().await
+    }
+
+    async fn has_active_lock_internal(&self) -> Result<bool> {
+        let mut conn = self.conn.lock().await;
+
+        self.cleanup_expired_sessions(&mut conn, &self.shared_key())
+            .await?;
+
+        let exclusive_exists: bool = conn
+            .exists(self.exclusive_key())
+            .await
+            .wrap_err("Failed to inspect exclusive lock existence")?;
+        if exclusive_exists {
+            return Ok(true);
+        }
+
+        let shared_count: usize = conn
+            .scard(self.shared_key())
+            .await
+            .wrap_err("Failed to inspect shared lock count")?;
+
+        Ok(shared_count > 0)
     }
 
     /// Returns the Redis key for the exclusive lock.
@@ -451,38 +536,34 @@ impl PoolLockRedis {
 
         match lock_type {
             LockType::Exclusive => {
-                // Check if there's already an exclusive lock
-                let exclusive_exists: bool = conn
-                    .exists(&self.exclusive_key())
-                    .await
-                    .wrap_err("Failed to check exclusive lock existence")?;
-                if exclusive_exists {
-                    return Ok(false);
-                }
+                self.log_lock_state(&mut conn, "Before exclusive acquire attempt")
+                    .await?;
 
-                // Check if there are any shared locks
-                let shared_count: usize = conn
-                    .scard(&self.shared_key())
-                    .await
-                    .wrap_err("Failed to check shared lock count")?;
-                if shared_count > 0 {
-                    return Ok(false);
-                }
-
-                // Acquire exclusive lock using SET NX PX (atomic)
-                let acquired: bool = redis::cmd("SET")
-                    .arg(&self.exclusive_key())
+                let acquired: i32 = Script::new(ACQUIRE_EXCLUSIVE_SCRIPT)
+                    .key(&self.exclusive_key())
+                    .key(&self.shared_key())
                     .arg(self.uuid.to_string())
-                    .arg("NX")
-                    .arg("PX")
                     .arg(LOCK_TTL * 1000)
-                    .query_async::<bool>(&mut *conn)
+                    .invoke_async(&mut *conn)
                     .await
                     .wrap_err_with(|| {
-                        format!("Failed to acquire exclusive lock for {}", self.resource)
+                        format!(
+                            "Failed to atomically acquire exclusive lock for {}",
+                            self.resource
+                        )
                     })?;
 
-                Ok(acquired)
+                self.log_lock_state(
+                    &mut conn,
+                    if acquired == 1 {
+                        "After successful exclusive acquire"
+                    } else {
+                        "After failed exclusive acquire"
+                    },
+                )
+                .await?;
+
+                Ok(acquired == 1)
             }
             LockType::Shared => {
                 // Atomically check for exclusive lock, add to shared set and create
@@ -551,6 +632,54 @@ impl PoolLockRedis {
         Ok(())
     }
 
+    async fn log_lock_state(&self, conn: &mut MultiplexedConnection, context: &str) -> Result<()> {
+        let exclusive_key = self.exclusive_key();
+        let shared_key = self.shared_key();
+
+        let owner: Option<String> = conn
+            .get(&exclusive_key)
+            .await
+            .wrap_err("Failed to inspect exclusive lock owner")?;
+        let ttl_ms: i64 = redis::cmd("PTTL")
+            .arg(&exclusive_key)
+            .query_async(conn)
+            .await
+            .wrap_err("Failed to inspect exclusive lock TTL")?;
+        let shared_count: usize = conn
+            .scard(&shared_key)
+            .await
+            .wrap_err("Failed to inspect shared lock count")?;
+        let client_id: i64 = redis::cmd("CLIENT")
+            .arg("ID")
+            .query_async(conn)
+            .await
+            .wrap_err("Failed to inspect Redis client id")?;
+        let info: String = redis::cmd("INFO")
+            .arg("server")
+            .query_async(conn)
+            .await
+            .wrap_err("Failed to inspect Redis server info")?;
+        let run_id = info
+            .lines()
+            .find_map(|line| line.strip_prefix("run_id:"))
+            .unwrap_or("unknown");
+        let process_id = info
+            .lines()
+            .find_map(|line| line.strip_prefix("process_id:"))
+            .unwrap_or("unknown");
+        let tcp_port = info
+            .lines()
+            .find_map(|line| line.strip_prefix("tcp_port:"))
+            .unwrap_or("unknown");
+
+        debug!(
+            "{} for {}: exclusive_owner={:?}, exclusive_ttl_ms={}, shared_count={}, client_id={}, run_id={}, process_id={}, tcp_port={}",
+            context, self.resource, owner, ttl_ms, shared_count, client_id, run_id, process_id, tcp_port
+        );
+
+        Ok(())
+    }
+
     /// Starts the heartbeat task to keep the lock alive.
     ///
     /// # Returns
@@ -576,7 +705,23 @@ impl PoolLockRedis {
                 }
             };
 
-            let mut interval = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL));
+            if tracing::enabled!(tracing::Level::DEBUG) {
+                if let Err(e) =
+                    Self::log_connection_identity(&mut conn, "heartbeat", Some(&resource)).await
+                {
+                    warn!(
+                        "Failed to inspect Redis identity for heartbeat on {} (UUID: {}): {}",
+                        resource, uuid, e
+                    );
+                }
+            }
+
+            let heartbeat_period = Duration::from_secs(HEARTBEAT_INTERVAL);
+            let mut interval = tokio::time::interval_at(
+                tokio::time::Instant::now() + heartbeat_period,
+                heartbeat_period,
+            );
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
             // Use the shared constant for the script
             let extend_exclusive_script = Script::new(EXTEND_EXCLUSIVE_SCRIPT);
@@ -616,12 +761,27 @@ impl PoolLockRedis {
 
                 match result {
                     Ok(1) => {
-                        debug!("Heartbeat OK for lock {} (UUID: {})", resource, uuid);
+                        let ttl_ms: Result<i64, _> = redis::cmd("PTTL")
+                            .arg(format!("lock:{}:exclusive", resource))
+                            .query_async(&mut conn)
+                            .await;
+                        let client_id: Result<i64, _> =
+                            redis::cmd("CLIENT").arg("ID").query_async(&mut conn).await;
+                        debug!(
+                            "Heartbeat OK for lock {} (UUID: {}, ttl_ms={:?}, client_id={:?})",
+                            resource, uuid, ttl_ms, client_id
+                        );
                     }
                     Ok(0) => {
+                        let owner: Result<Option<String>, _> =
+                            conn.get(format!("lock:{}:exclusive", resource)).await;
+                        let ttl_ms: Result<i64, _> = redis::cmd("PTTL")
+                            .arg(format!("lock:{}:exclusive", resource))
+                            .query_async(&mut conn)
+                            .await;
                         error!(
-                            "Lock lost - key expired or was removed: {} (UUID: {})",
-                            resource, uuid
+                            "Lock lost - key expired or was removed: {} (UUID: {}, owner={:?}, ttl_ms={:?})",
+                            resource, uuid, owner, ttl_ms
                         );
                         *lost_flag.lock().await = true;
                         cancel_token.cancel();
@@ -685,14 +845,60 @@ impl PoolLockRedis {
     ///
     /// Returns an error if the lock was lost due to heartbeat failure or expiration.
     pub async fn check_valid(&self) -> Result<()> {
-        let lost = self.lost_flag.lock().await;
-        if *lost {
+        if *self.lost_flag.lock().await {
             return Err(eyre::eyre!(
                 "Lock was lost for resource: {} (UUID: {})",
                 self.resource,
                 self.uuid
             ));
         }
+
+        let mut conn = self.conn.lock().await;
+        let still_valid = match self.lock_type {
+            Some(LockType::Exclusive) => {
+                let expected_owner = self.uuid.to_string();
+                let owner: Option<String> =
+                    conn.get(&self.exclusive_key()).await.wrap_err_with(|| {
+                        format!(
+                            "Failed to verify exclusive lock ownership for {}",
+                            self.resource
+                        )
+                    })?;
+
+                owner.as_deref() == Some(expected_owner.as_str())
+            }
+            Some(LockType::Shared) => {
+                let session_exists: bool =
+                    conn.exists(&self.session_key()).await.wrap_err_with(|| {
+                        format!("Failed to verify shared lock session for {}", self.resource)
+                    })?;
+
+                if !session_exists {
+                    false
+                } else {
+                    conn.sismember(&self.shared_key(), self.uuid.to_string())
+                        .await
+                        .wrap_err_with(|| {
+                            format!(
+                                "Failed to verify shared lock membership for {}",
+                                self.resource
+                            )
+                        })?
+                }
+            }
+            None => false,
+        };
+
+        if !still_valid {
+            *self.lost_flag.lock().await = true;
+            self.cancellation_token.cancel();
+            return Err(eyre::eyre!(
+                "Lock was lost for resource: {} (UUID: {})",
+                self.resource,
+                self.uuid
+            ));
+        }
+
         Ok(())
     }
 
@@ -841,6 +1047,11 @@ impl PoolLockRedis {
                 "Exclusive lock for {} was not owned by UUID {} during drop cleanup",
                 resource, uuid
             );
+        } else {
+            debug!(
+                "Released exclusive lock for {} during drop cleanup (UUID: {})",
+                resource, uuid
+            );
         }
 
         // Delete metadata key
@@ -962,21 +1173,45 @@ impl Drop for PoolLockRedis {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{SocketAddr, ToSocketAddrs};
     use std::path::PathBuf;
+    use std::sync::LazyLock;
     use test_log::test;
 
     fn redis_url() -> String {
-        let host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-        format!("redis://{}:6379", host)
+        static REDIS_URL: LazyLock<String> = LazyLock::new(|| {
+            let host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+            let fallback = format!("redis://{}:6379", host);
+
+            let resolved = format!("{}:6379", host)
+                .to_socket_addrs()
+                .ok()
+                .and_then(|mut addrs| addrs.next());
+
+            match resolved {
+                Some(SocketAddr::V4(addr)) => format!("redis://{}:{}", addr.ip(), addr.port()),
+                Some(SocketAddr::V6(addr)) => {
+                    format!("redis://[{}]:{}", addr.ip(), addr.port())
+                }
+                None => fallback,
+            }
+        });
+
+        REDIS_URL.clone()
+    }
+
+    fn test_resource(name: &str) -> String {
+        format!("/test/{}/{}", name, Uuid::new_v4())
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_new() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_new", "test_new").await;
+        let resource = test_resource("test_new");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test_new").await;
         assert!(lock.is_ok());
 
         let lock = lock.unwrap();
-        assert_eq!(lock.resource, "/test/test_new");
+        assert_eq!(lock.resource, resource);
         assert_eq!(lock.operation_name, "test_new");
         assert!(!lock.locked);
         assert!(lock.abort_handle.is_none());
@@ -999,7 +1234,8 @@ mod tests {
 
     #[test(tokio::test)]
     async fn test_redis_lock_exclusive() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_exclusive", "test_exclusive")
+        let resource = test_resource("test_exclusive");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test_exclusive")
             .await
             .unwrap();
         let result = lock.lock_exclusive().await;
@@ -1009,11 +1245,13 @@ mod tests {
         let locked = result.unwrap();
         assert!(locked.locked);
         assert!(locked.abort_handle.is_some());
+        locked.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_shared() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_shared", "test_shared")
+        let resource = test_resource("test_shared");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test_shared")
             .await
             .unwrap();
         let result = lock.lock_shared().await;
@@ -1023,55 +1261,42 @@ mod tests {
         let locked = result.unwrap();
         assert!(locked.locked);
         assert!(locked.abort_handle.is_some());
+        locked.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_shared_compatibility() {
-        let lock1 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_shared_compat",
-            "test_shared_compat",
-        )
-        .await
-        .unwrap();
+        let resource = test_resource("test_shared_compat");
+        let lock1 = PoolLockRedis::new(&redis_url(), &resource, "test_shared_compat")
+            .await
+            .unwrap();
         let locked1 = lock1.lock_shared().await.unwrap();
 
         // Second shared lock should succeed
-        let lock2 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_shared_compat",
-            "test_shared_compat",
-        )
-        .await
-        .unwrap();
+        let lock2 = PoolLockRedis::new(&redis_url(), &resource, "test_shared_compat")
+            .await
+            .unwrap();
         let locked2 = lock2.lock_shared().await.unwrap();
 
         assert!(locked1.locked);
         assert!(locked2.locked);
 
         // Cleanup
-        drop(locked1);
-        drop(locked2);
+        locked1.unlock().await.unwrap();
+        locked2.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_exclusive_blocks_shared() {
-        let lock1 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_exclusive_blocks",
-            "test_exclusive_blocks",
-        )
-        .await
-        .unwrap();
+        let resource = test_resource("test_exclusive_blocks");
+        let lock1 = PoolLockRedis::new(&redis_url(), &resource, "test_exclusive_blocks")
+            .await
+            .unwrap();
         let locked1 = lock1.lock_exclusive().await.unwrap();
 
-        let lock2 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_exclusive_blocks",
-            "test_exclusive_blocks",
-        )
-        .await
-        .unwrap();
+        let lock2 = PoolLockRedis::new(&redis_url(), &resource, "test_exclusive_blocks")
+            .await
+            .unwrap();
 
         let handle = tokio::spawn(async move {
             let result = lock2.lock_shared().await;
@@ -1083,31 +1308,25 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         // Release first lock
-        drop(locked1);
+        locked1.unlock().await.unwrap();
 
         // Second lock should now succeed
         let locked2 = handle.await.unwrap();
         assert!(locked2.locked);
+        locked2.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_shared_blocks_exclusive() {
-        let lock1 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_shared_blocks",
-            "test_shared_blocks",
-        )
-        .await
-        .unwrap();
+        let resource = test_resource("test_shared_blocks");
+        let lock1 = PoolLockRedis::new(&redis_url(), &resource, "test_shared_blocks")
+            .await
+            .unwrap();
         let locked1 = lock1.lock_shared().await.unwrap();
 
-        let lock2 = PoolLockRedis::new(
-            &redis_url(),
-            "/test/test_shared_blocks",
-            "test_shared_blocks",
-        )
-        .await
-        .unwrap();
+        let lock2 = PoolLockRedis::new(&redis_url(), &resource, "test_shared_blocks")
+            .await
+            .unwrap();
 
         let handle = tokio::spawn(async move {
             let result = lock2.lock_exclusive().await;
@@ -1119,16 +1338,18 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         // Release first lock
-        drop(locked1);
+        locked1.unlock().await.unwrap();
 
         // Second lock should now succeed
         let locked2 = handle.await.unwrap();
         assert!(locked2.locked);
+        locked2.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_heartbeat_maintains_lock() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_heartbeat", "test_heartbeat")
+        let resource = test_resource("test_heartbeat");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test_heartbeat")
             .await
             .unwrap();
         let locked = lock.lock_exclusive().await.unwrap();
@@ -1140,7 +1361,7 @@ mod tests {
         assert!(locked.check_valid().await.is_ok());
 
         // Try to acquire another lock - should fail because first lock is still alive
-        let lock2 = PoolLockRedis::new(&redis_url(), "/test/test_heartbeat", "test_heartbeat")
+        let lock2 = PoolLockRedis::new(&redis_url(), &resource, "test_heartbeat")
             .await
             .unwrap();
 
@@ -1152,13 +1373,15 @@ mod tests {
         assert!(!handle.is_finished());
 
         // Cleanup
-        drop(locked);
-        let _ = handle.await;
+        locked.unlock().await.unwrap();
+        let locked2 = handle.await.unwrap().unwrap();
+        locked2.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_redis_lock_check_valid() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_check_valid", "test_check_valid")
+        let resource = test_resource("test_check_valid");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test_check_valid")
             .await
             .unwrap();
         let locked = lock.lock_exclusive().await.unwrap();
@@ -1169,11 +1392,13 @@ mod tests {
         // After some time, should still be valid (heartbeat maintains it)
         tokio::time::sleep(Duration::from_secs(5)).await;
         assert!(locked.check_valid().await.is_ok());
+        locked.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_try_lock_exclusive_nowait_success() {
-        let lock = PoolLockRedis::new(&redis_url(), "/test/test_try_nowait_success", "test")
+        let resource = test_resource("test_try_nowait_success");
+        let lock = PoolLockRedis::new(&redis_url(), &resource, "test")
             .await
             .unwrap();
         let result = lock.try_lock_exclusive_nowait().await;
@@ -1181,18 +1406,21 @@ mod tests {
         assert!(result.is_ok());
         let locked = result.unwrap();
         assert!(locked.is_some());
-        assert!(locked.unwrap().locked);
+        let locked = locked.unwrap();
+        assert!(locked.locked);
+        locked.unlock().await.unwrap();
     }
 
     #[test(tokio::test)]
     async fn test_try_lock_exclusive_nowait_fails_when_locked() {
-        let lock1 = PoolLockRedis::new(&redis_url(), "/test/test_try_nowait_fail", "test1")
+        let resource = test_resource("test_try_nowait_fail");
+        let lock1 = PoolLockRedis::new(&redis_url(), &resource, "test1")
             .await
             .unwrap();
-        let _locked1 = lock1.lock_exclusive().await.unwrap();
+        let locked1 = lock1.lock_exclusive().await.unwrap();
 
         // Try to acquire lock without waiting - should fail
-        let lock2 = PoolLockRedis::new(&redis_url(), "/test/test_try_nowait_fail", "test2")
+        let lock2 = PoolLockRedis::new(&redis_url(), &resource, "test2")
             .await
             .unwrap();
         let result = lock2.try_lock_exclusive_nowait().await;
@@ -1200,5 +1428,58 @@ mod tests {
         assert!(result.is_ok());
         let locked2 = result.unwrap();
         assert!(locked2.is_none());
+        locked1.unlock().await.unwrap();
+    }
+
+    #[test(tokio::test)]
+    async fn test_has_active_lock_is_passive() {
+        let resource = test_resource("test_passive_probe");
+
+        assert!(!PoolLockRedis::has_active_lock(&redis_url(), &resource)
+            .await
+            .unwrap());
+
+        let client = Client::open(redis_url()).unwrap();
+        let mut conn = client.get_multiplexed_async_connection().await.unwrap();
+        let owner: Option<String> = conn
+            .get(format!("lock:{}:exclusive", resource))
+            .await
+            .unwrap();
+
+        assert!(owner.is_none());
+    }
+
+    #[test(tokio::test)]
+    async fn test_has_active_lock_detects_exclusive_lock() {
+        let resource = test_resource("test_passive_probe_exclusive");
+        let locked = PoolLockRedis::new(&redis_url(), &resource, "test_probe_exclusive")
+            .await
+            .unwrap()
+            .lock_exclusive()
+            .await
+            .unwrap();
+
+        assert!(PoolLockRedis::has_active_lock(&redis_url(), &resource)
+            .await
+            .unwrap());
+
+        locked.unlock().await.unwrap();
+    }
+
+    #[test(tokio::test)]
+    async fn test_has_active_lock_detects_shared_lock() {
+        let resource = test_resource("test_passive_probe_shared");
+        let locked = PoolLockRedis::new(&redis_url(), &resource, "test_probe_shared")
+            .await
+            .unwrap()
+            .lock_shared()
+            .await
+            .unwrap();
+
+        assert!(PoolLockRedis::has_active_lock(&redis_url(), &resource)
+            .await
+            .unwrap());
+
+        locked.unlock().await.unwrap();
     }
 }

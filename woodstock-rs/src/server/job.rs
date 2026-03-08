@@ -173,22 +173,9 @@ impl JobUtility {
 
         let redis_url = self.configuration.redis_url();
 
-        // Essayer d'acquérir un lock exclusif sans attendre
-        // Si le lock ne peut pas être acquis, cela signifie qu'un job est déjà en cours
-        match PoolLockRedis::new(&redis_url, host, "check")
-            .await?
-            .try_lock_exclusive_nowait()
-            .await?
-        {
-            Some(_lock) => {
-                // Lock acquis, donc aucun job n'est en cours
-                // Le lock sera automatiquement libéré quand _lock est droppé
-                Ok(false)
-            }
-            None => {
-                // Lock non acquis, un job est déjà en cours
-                Ok(true)
-            }
-        }
+        // Passive inspection only: do not acquire a temporary lock just to probe state,
+        // otherwise the probe itself creates a short-lived exclusive lock and releases it
+        // asynchronously via Drop.
+        PoolLockRedis::has_active_lock(&redis_url, host).await
     }
 }
