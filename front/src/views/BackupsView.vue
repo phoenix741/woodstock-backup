@@ -16,7 +16,7 @@
           <v-data-table show-select v-model="selection" v-model:items-per-page="itemsPerPage" :headers="headers"
             :items="backupsDataTable" :loading="isFetching" :sort-by="[{ key: 'number', order: 'desc' }]"
             loading-title="Loading... Please wait" item-value="id" class="elevation-1" @click:row="navigateTo">
-            <template v-slot:[`item.number`]="{ item }">{{ item.number }}</template>
+            <template v-slot:[`item.number`]="{ item }">{{ toNumber(item.number) }}</template>
             <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate) }}</template>
             <template v-slot:[`item.duration`]="{ item }">{{ toDuration(item.duration) }}</template>
             <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize)
@@ -70,7 +70,7 @@
 <script lang="ts" setup>
 import BackupsChartsComponent from '@/components/backups/cards/BackupsChartsComponent.vue';
 import HostCard from '@/components/hosts/cards/HostCard.vue';
-import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
+import { parseDateTime, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -82,7 +82,6 @@ import BackupCreate from './dialogs/BackupCreate.vue';
 import BackupPurge from './dialogs/BackupPurge.vue';
 import BackupDownload from './dialogs/BackupDownload.vue';
 import BackupDelete from './dialogs/BackupDelete.vue';
-import { toDate } from 'date-fns';
 
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
@@ -121,8 +120,8 @@ const { backups, isFetching } = useBackups(deviceId);
 
 const backupsDataTable = computed(() => {
   return backups.value?.map((backup) => {
-    const endDate = toDate(backup.endDate ? backup.endDate : Date.now());
-    const startDate = toDate(backup.startDate);
+    const endDate = parseDateTime(backup.endDate ? backup.endDate : Date.now());
+    const startDate = parseDateTime(backup.startDate);
     return {
       duration: (endDate.getTime() - startDate.getTime()),
       statusColor: getBackupStatusColor(backup.status),

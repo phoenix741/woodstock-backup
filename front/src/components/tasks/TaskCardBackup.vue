@@ -139,7 +139,7 @@
                 </span>
                 <span v-if="share.backupProgression.errorCount > 0" class="mr-4 text-error">
                   <v-icon size="small">mdi-alert</v-icon>
-                  {{ share.backupProgression.errorCount }} errors
+                  {{ toNumber(share.backupProgression.errorCount) }} errors
                 </span>
               </div>
 

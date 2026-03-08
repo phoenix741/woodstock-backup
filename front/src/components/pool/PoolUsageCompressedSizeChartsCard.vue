@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { toDate } from '@/components/hosts/hosts.utils';
 import { LineChart } from 'echarts/charts';
 import { GridComponent } from 'echarts/components';
 import { use } from 'echarts/core';
@@ -31,6 +32,7 @@ const option = computed(() => ({
       type: 'time',
       axisLabel: {
         rotate: 45,
+        formatter: (value: string | number) => toDate(value),
       },
     },
   ],

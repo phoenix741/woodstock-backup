@@ -24,6 +24,8 @@
 
 // Fork of https://github.com/hustcc/filesize.js
 
+import { formatDecimalValue } from './formatting';
+
 type SPEC = {
   readonly radix: number;
   readonly unit: string[];
@@ -74,5 +76,5 @@ export default function (bytes: number | bigint | string, fixed = 1, spec?: stri
 
   const { bytes: reducedBytes, loop } = reduce(bytes, radix);
 
-  return `${reducedBytes.toFixed(fixed)} ${unit[loop]}`;
+  return `${formatDecimalValue(reducedBytes, fixed)} ${unit[loop]}`;
 }

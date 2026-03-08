@@ -12,7 +12,7 @@
       </v-chip>
       <v-chip v-if="totalErrorCount > 0" size="small" class="ma-1" color="error" variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ totalErrorCount }} errors
+        {{ toNumber(totalErrorCount) }} errors
       </v-chip>
       <v-chip v-if="hasError" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>

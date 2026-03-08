@@ -28,19 +28,19 @@
           <!-- Compteurs (informatifs uniquement) -->
           <v-chip color="info" variant="outlined" size="small">
             <v-icon start size="small">mdi-play-circle</v-icon>
-            {{ runningTasks.length }}
+            {{ toNumber(runningTasks.length) }}
           </v-chip>
           <v-chip color="warning" variant="outlined" size="small">
             <v-icon start size="small">mdi-clock-outline</v-icon>
-            {{ pendingTasks.length }}
+            {{ toNumber(pendingTasks.length) }}
           </v-chip>
           <v-chip color="success" variant="outlined" size="small">
             <v-icon start size="small">mdi-check-circle</v-icon>
-            {{ completedTasks.length }}
+            {{ toNumber(completedTasks.length) }}
           </v-chip>
           <v-chip color="error" variant="outlined" size="small">
             <v-icon start size="small">mdi-alert-circle</v-icon>
-            {{ failedTasks.length }}
+            {{ toNumber(failedTasks.length) }}
           </v-chip>
         </div>
       </v-col>
@@ -61,7 +61,7 @@
             <div class="d-flex align-center mb-2">
               <v-icon color="info" class="mr-2">mdi-play-circle</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Running</span>
-              <v-chip size="x-small" color="info" variant="tonal" class="ml-2">{{ runningFiltered.length }}</v-chip>
+              <v-chip size="x-small" color="info" variant="tonal" class="ml-2">{{ toNumber(runningFiltered.length) }}</v-chip>
             </div>
           </v-col>
         </v-row>
@@ -79,7 +79,7 @@
             <div class="d-flex align-center mb-2">
               <v-icon color="warning" class="mr-2">mdi-clock-outline</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Pending</span>
-              <v-chip size="x-small" color="warning" variant="tonal" class="ml-2">{{ pendingFiltered.length }}</v-chip>
+              <v-chip size="x-small" color="warning" variant="tonal" class="ml-2">{{ toNumber(pendingFiltered.length) }}</v-chip>
             </div>
           </v-col>
         </v-row>
@@ -98,7 +98,7 @@
             <div class="d-flex align-center mb-2">
               <v-icon class="mr-2">mdi-history</v-icon>
               <span class="text-subtitle-1 font-weight-bold">History</span>
-              <v-chip size="x-small" variant="tonal" class="ml-2">{{ historyFiltered.length }}</v-chip>
+              <v-chip size="x-small" variant="tonal" class="ml-2">{{ toNumber(historyFiltered.length) }}</v-chip>
               <v-spacer />
               <!-- Sous-filtre : Terminés / Échoués -->
               <v-btn-toggle v-model="historySubFilter" multiple density="compact">
@@ -143,6 +143,7 @@
 <script lang="ts" setup>
 import TaskCard from '@/components/tasks/TaskCard.vue';
 import { JobKind, JobStatus } from '@/generated/graphql';
+import { toNumber } from '@/components/hosts/hosts.utils';
 import { useQueueRealtimeStats } from '@/utils/stats';
 import { useTasks } from '@/utils/tasks';
 import { computed, ref } from 'vue';

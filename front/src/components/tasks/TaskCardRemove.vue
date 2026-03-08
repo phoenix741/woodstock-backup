@@ -12,7 +12,7 @@ import {
   type JobRemoveDataFragment,
   type RemoveTaskStateFragment
 } from '@/generated/graphql';
-import { toDateTime } from '@/components/hosts/hosts.utils';
+import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
 const { data, progress, expanded } = defineProps<{
@@ -21,7 +21,7 @@ const { data, progress, expanded } = defineProps<{
   expanded?: boolean;
 }>();
 
-const title = computed(() => `Remove Backup ${data.host} #${data.number}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
+const title = computed(() => `Remove Backup ${data.host} #${toNumber(data.number)}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
 
 const hasError = computed(() => progress?.removeErrorState !== null && progress?.removeErrorState !== undefined);
 

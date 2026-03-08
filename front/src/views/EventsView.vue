@@ -16,7 +16,7 @@
     </v-timeline>
     <div class="d-flex justify-center align-center mt-4 ga-2">
       <v-btn :disabled="page <= 1" variant="tonal" icon="mdi-chevron-left" @click="page--"></v-btn>
-      <span class="text-body-2">Page {{ page }}</span>
+      <span class="text-body-2">Page {{ toNumber(page) }}</span>
       <v-btn :disabled="mergedEvents.length < pageSize" variant="tonal" icon="mdi-chevron-right" @click="page++"></v-btn>
     </div>
   </v-container>
@@ -26,6 +26,7 @@
 import Event from '@/components/event/EventComponent.vue';
 import { ApplicationEventFragment } from '@/components/event/events.fragment';
 import type { MergedApplicationEvent } from '@/components/event/events.model';
+import { toNumber } from '@/components/hosts/hosts.utils';
 import { useFragment } from '@/generated';
 import { EventStep } from '@/generated/graphql';
 import { useEvents } from '@/utils/events';

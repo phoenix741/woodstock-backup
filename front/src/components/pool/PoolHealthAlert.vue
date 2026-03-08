@@ -16,7 +16,7 @@
         counting operations were interrupted during a previous backup or removal.
       </div>
       <div class="text-body-2 mt-2">
-        <strong>Pending operations:</strong> {{ poolHealth.pendingCount }}
+        <strong>Pending operations:</strong> {{ toNumber(poolHealth.pendingCount) }}
       </div>
       <div class="mt-4">
         <v-btn
@@ -46,6 +46,7 @@
 import { ref, computed } from 'vue';
 import { useQuery } from '@vue/apollo-composable';
 import gql from 'graphql-tag';
+import { toNumber } from '@/components/hosts/hosts.utils';
 import { usePool } from '@/utils/pool';
 
 // GraphQL Query

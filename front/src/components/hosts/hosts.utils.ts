@@ -2,8 +2,6 @@ import type {
   BackupStatusDto,
   HostAvailibilityState
 } from '@/generated/graphql';
-import { format, formatDuration, intervalToDuration } from 'date-fns';
-import numeral from 'numeral';
 import { computed } from 'vue';
 import vuetify from '../../plugins/vuetify';
 import {
@@ -12,6 +10,14 @@ import {
   getBackupStatusIcon,
   getBackupStatusKey
 } from '@/utils/backup-status';
+import {
+  formatDateTimeValue,
+  formatDateValue,
+  formatDurationValue,
+  formatNumberValue,
+  formatPercentValue,
+  parseDateTime,
+} from '@/utils/formatting';
 
 export const BackupStatusDisabled = 'Disabled';
 export const BackupStatusIdle = 'Idle';
@@ -105,48 +111,23 @@ export function getAvailabilityColor(availibilityState: HostAvailibilityState | 
 }
 
 export function toDuration(age: number) {
-  const duration = intervalToDuration({ start: 0, end: age });
-  if (duration.seconds) {
-    duration.minutes = (duration.minutes ?? 0) + 1;
-    duration.seconds = 0;
-  }
-
-  if (duration.years) {
-    duration.months = (duration.months ?? 0) + 1;
-    duration.days = 0;
-    duration.hours = 0;
-    duration.minutes = 0;
-    duration.seconds = 0;
-  } else if (duration.months) {
-    duration.days = (duration.days ?? 0) + 1;
-    duration.hours = 0;
-    duration.minutes = 0;
-    duration.seconds = 0;
-  } else if (duration.days) {
-    duration.hours = (duration.hours ?? 0) + 1;
-    duration.minutes = 0;
-    duration.seconds = 0;
-  } else if (duration.hours) {
-    duration.minutes = (duration.minutes ?? 0) + 1;
-  }
-
-  return formatDuration(duration);
+  return formatDurationValue(age);
 }
 
 export function toDateTime(value: string | number | Date) {
-  return format(value, 'MM/dd/yyyy HH:mm');
+  return formatDateTimeValue(value);
 }
 
 export function toDate(value: string | number | Date) {
-  return format(value, 'MM/dd/yyyy');
+  return formatDateValue(value);
 }
 
 export function toPercent(value?: number) {
-  if (value === null || value === undefined) return '';
-  return numeral(value / 100).format('0.00%');
+  return formatPercentValue(value);
 }
 
-export function toNumber(value?: number) {
-  if (value === null || value === undefined) return '';
-  return numeral(value).format('0,000');
+export function toNumber(value?: number | bigint) {
+  return formatNumberValue(value);
 }
+
+export { parseDateTime };

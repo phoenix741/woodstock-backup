@@ -8,7 +8,8 @@
 </template>
 
 <script setup lang="ts">
-import { format, toDate } from 'date-fns';
+import { toDate, toNumber } from '@/components/hosts/hosts.utils';
+import { format } from 'date-fns';
 import { HeatmapChart } from 'echarts/charts';
 import { CalendarComponent, TooltipComponent, VisualMapComponent } from 'echarts/components';
 import { use } from 'echarts/core';
@@ -41,7 +42,7 @@ const emptyChunk = computed(() => {
 
 const nbChunkRange = computed(() => {
   // Filter chunk that are before firstDate
-  const nbChunkRange = props.nbChunkRange.map(({ time, ...rest }) => ({ time: toDate(time).getTime(), ...rest }));
+  const nbChunkRange = props.nbChunkRange.map(({ time, ...rest }) => ({ time: new Date(time).getTime(), ...rest }));
 
   const array = [...emptyChunk.value, ...nbChunkRange]
     .sort((a, b) => a.time - b.time)
@@ -90,7 +91,7 @@ const option = computed(() => ({
       const [date, transformedVal] = params.data;
       const original = Math.round(inverseLogTransform(transformedVal));
       const sign = original > 0 ? '+' : '';
-      return `${date}<br/>${sign}${original.toLocaleString()} chunks`;
+      return `${toDate(date)}<br/>${sign}${toNumber(original)} chunks`;
     },
   },
   visualMap: {
@@ -105,7 +106,7 @@ const option = computed(() => ({
     formatter: (v: number) => {
       const original = Math.round(inverseLogTransform(v));
       const sign = original > 0 ? '+' : '';
-      return `${sign}${original.toLocaleString()}`;
+      return `${sign}${toNumber(original)}`;
     },
   },
   calendar: {

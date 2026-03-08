@@ -18,7 +18,7 @@
       <v-chip v-if="(progress?.restoreProgression?.errorCount ?? 0) > 0" size="small" class="ma-1" color="error"
         variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ progress?.restoreProgression?.errorCount }} errors
+        {{ toNumber(progress?.restoreProgression?.errorCount) }} errors
       </v-chip>
       <v-chip v-if="progress?.restoreErrorState" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>

@@ -20,9 +20,11 @@ import { createApp } from 'vue';
 
 // Plugins
 import { registerPlugins } from '@/plugins';
+import { initializeAppLocale } from '@/utils/locale';
 
 const app = createApp(App);
 
+initializeAppLocale();
 registerPlugins(app);
 
 app.mount('#app');

@@ -27,6 +27,10 @@
             <template v-slot:[`item.lastBackupSize`]="{ item }">
               <template v-if="item.lastBackupSize">{{ filesize(item.lastBackupSize) }}</template>
             </template>
+            <template v-slot:[`item.lastBackupNumber`]="{ item }">
+              <template v-if="item.lastBackupNumber !== null && item.lastBackupNumber !== undefined">{{
+                toNumber(item.lastBackupNumber) }}</template>
+            </template>
             <template v-slot:[`item.agentVersion`]="{ item }">
               {{ item.agentVersion || 'unknown' }}
             </template>
@@ -53,7 +57,7 @@
 import HostRepartitionChartsComponent from '@/components/hosts/cards/HostRepartitionChartsComponent.vue';
 import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSuccessFailureChartsComponent.vue';
 
-import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration } from '@/components/hosts/hosts.utils';
+import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
