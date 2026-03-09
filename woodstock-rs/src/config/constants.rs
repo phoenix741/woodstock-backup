@@ -25,6 +25,17 @@ pub const MDNS_SUFFIX: &str = "._woodstock._tcp.local.";
 /// After this period, if no response is received, the discovery operation will time out.
 pub const MDNS_TIMEOUT_MSEC: u64 = 1_000;
 
+/// The timeout in seconds for synchronous DNS resolution executed via spawn_blocking.
+///
+/// This bounds the time spent waiting on system DNS calls to keep the async runtime responsive.
+pub const DNS_RESOLVE_TIMEOUT_SEC: u64 = 3;
+
+/// Maximum number of concurrent DNS resolutions dispatched via spawn_blocking.
+///
+/// Limits the pressure on the blocking thread pool and avoids starving the async runtime
+/// when resolving many hostnames at once.
+pub const DNS_RESOLVE_MAX_CONCURRENCY: usize = 16;
+
 /// Size of each chunk in the backup system (16 MB).
 ///
 /// Files larger than this size will be split into multiple chunks during backup.
@@ -46,6 +57,16 @@ pub const BUFFER_SIZE: usize = 1 << 17; // 128KB (128 * 128Kb = 16MB)
 /// before the sender blocks. A value of 100 provides good balance between memory
 /// usage and performance.
 pub const DEFAULT_CHANNEL_BUFFER_SIZE: usize = 100;
+
+/// Maximum expected duration of a long-running job (backup, restore, fsck) in seconds.
+///
+/// This constant is the single source of truth for job session duration across the system:
+/// - Apalis orphan timeouts for backup, interactive (restore), and maintenance queues are
+///   derived from this value to prevent false-positive consumer deregistration during
+///   large data transfers or long fsck runs.
+/// - Set to 12 hours to accommodate multi-terabyte backups over gRPC streaming and
+///   full-pool fsck operations.
+pub const DEFAULT_BACKUP_TIMEOUT_SECS: u64 = 12 * 3600; // 12h
 
 /// Redis key used for Woodstock DNS service discovery.
 ///

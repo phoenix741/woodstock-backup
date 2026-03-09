@@ -1,9 +1,9 @@
 export interface CompressedSizePoolUsage {
-  time: number;
+  time: Date;
   value: bigint;
 }
 
 export interface NbChunkPoolUsage {
-  time: number;
+  time: Date;
   value: number;
 }

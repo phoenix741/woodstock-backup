@@ -1,4 +1,4 @@
-# Server Authentication to Client
+# Client Authentication to Server
 
 ## Overview
 

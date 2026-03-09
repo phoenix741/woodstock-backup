@@ -1,0 +1,50 @@
+# Woodstock Backup
+
+> Woodstock Backup is a centralized backup solution with advanced deduplication and FUSE filesystem access. It features a Rust-based architecture with deduplication, plus native Windows compatibility without requiring SSH or rsync on client machines.
+
+Woodstock Backup consists of multiple Rust crates (woodstock-rs core, client-rs daemon, cli-rs tools, shared-rs bindings) and modern web components (NestJS backend, Vue.js frontend). The system uses chunk-based deduplication, cryptographic verification, and provides both web interface and FUSE filesystem mounting for backup access.
+
+## Documentation
+
+- [Main README](README.md): Project overview and basic information
+- [Installation Guide](docs/website/doc/installation.md): Complete setup instructions for Docker and manual installation
+- [Configuration Guide](docs/website/doc/configuration.md): Host configuration and backup setup
+- [Agent Documentation](docs/website/doc/agent.md): Client agent installation and configuration
+- [FAQ](docs/website/doc/faq.md): Frequently asked questions and troubleshooting
+- [Contributing Guidelines](CONTRIBUTING.md): How to contribute to the project
+- [Storage Documentation](docs/storage/README.md): Technical details on storage architecture and chunk sizing
+
+## Architecture
+
+- [Main Website Documentation](docs/website/index.md): Project features and latest version information
+- [Workspace Root Cargo.toml](Cargo.toml): Rust workspace configuration with all crates and dependencies
+- [Root Package.json](package.json): JavaScript workspace configuration for front-end and backend
+- [Shared Library Package](shared-rs/package.json): Node.js bindings for Rust components
+
+## Core Components
+
+- [Woodstock Core Library](woodstock-rs/Cargo.toml): Main Rust library with backup and storage logic
+- [Client Daemon](client-rs/Cargo.toml): Rust-based client agent for backup operations
+- [CLI Tools](cli-rs/Cargo.toml): Command-line utilities for backup management
+- [Shared Components](shared-rs/Cargo.toml): Cross-language shared models and services
+
+## Web Interface
+
+- [NestJS Backend](nestjs/README.md): API server and GraphQL backend implementation
+- [Vue.js Frontend](front/README.md): Modern web interface for backup management
+- [Frontend Package Config](front/package.json): Vue.js application dependencies and build configuration
+- [Backend Package Config](nestjs/package.json): NestJS application dependencies and scripts
+
+## Development
+
+- [BackupPC Importer](backuppc-importer-rs/Cargo.toml): Tool for importing existing BackupPC backups
+- [End-to-End Tests](e2e-tests/Cargo.toml): Integration test suite
+- [Docker Configuration](docker-compose.yml): Development and deployment container setup
+- [Release Changelog](CHANGELOG.md): Version history and release notes
+
+## Optional
+
+- [License](LICENSE): MIT license terms
+- [Docker Files](Dockerfile): Container build configuration
+- [Cross-compilation Script](scripts/cross-compile-windows.sh): Build tools for Windows targets
+- [Website About Page](docs/website/about/index.md): Additional project information

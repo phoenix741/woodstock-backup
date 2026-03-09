@@ -1,12 +1,8 @@
 <template>
   <v-row>
     <v-col cols="6">
-      <BackupFilesTreeComponent
-        :deviceId="props.deviceId"
-        :backupNumber="props.backupNumber"
-        :hiddenFiles="false"
-        @select="selected = $event"
-      ></BackupFilesTreeComponent>
+      <BackupFilesTreeComponent :deviceId="props.deviceId" :backupId="props.backupId" :hiddenFiles="false"
+        @select="selected = $event"></BackupFilesTreeComponent>
     </v-col>
     <v-col cols="6">
       <v-table v-if="selected">
@@ -37,23 +33,19 @@
           </tr>
           <tr v-if="selected.node.stats?.size">
             <td>Size</td>
-            <td>{{ filesize(parseInt(selected.node.stats.size)) }}</td>
+            <td>{{ filesize(selected.node.stats.size) }}</td>
           </tr>
           <tr v-if="selected.node.stats?.lastModified">
             <td>Modification Time</td>
-            <td>{{ toDateTime(parseInt(selected.node.stats.lastModified) * 1000) }}</td>
+            <td>{{ toDateTime(selected.node.stats.lastModified * 1000) }}</td>
           </tr>
         </tbody>
         <tfoot>
           <tr>
             <td colspan="2" class="text-right">
               <v-btn color="primary" :href="selectedPath" target="_blank">Download</v-btn>
-              <BackupRestore
-                :device-id="deviceId"
-                :backup-number="backupNumber"
-                :share-path="selected.sharePath"
-                :path="selected.path.join('/')"
-              ></BackupRestore>
+              <BackupRestore :device-id="deviceId" :backup-id="backupId" :share-path="selected.sharePath"
+                :path="selected.path.join('/')"></BackupRestore>
             </td>
           </tr>
         </tfoot>
@@ -73,14 +65,13 @@ import type { TreeViewNode } from './backups.interface';
 
 const props = defineProps<{
   deviceId: string;
-  backupNumber: number;
+  backupId: string;
 }>();
 
 const selected = ref<TreeViewNode | undefined>(undefined);
 const selectedPath = computed(
   () =>
-    `/api/hosts/${props.deviceId}/backups/${props.backupNumber}/files/download?sharePath=${
-      selected.value?.sharePath
+    `/api/hosts/${props.deviceId}/backups/${props.backupId}/files/download?sharePath=${selected.value?.sharePath
     }&path=${selected.value?.path.join('/')}`,
 );
 </script>

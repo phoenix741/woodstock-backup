@@ -1,8 +1,8 @@
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
 use eyre::Result;
-use log::{debug, error, info};
+use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -81,7 +81,9 @@ pub struct PoolFsck {
     /// Configuration for the fsck operations.
     ///
     /// This struct is used to monitor the progress and capture any errors that occur during the filesystem check (fsck) operations.
-    config: Configuration,
+    pub config: Arc<Configuration>,
+    pub hosts_config: Arc<Hosts>,
+    pub backups_config: Arc<Backups>,
 }
 
 impl PoolFsck {
@@ -95,9 +97,11 @@ impl PoolFsck {
     ///
     /// A new instance of [`PoolFsck`].
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
+    pub fn new(config: Arc<Configuration>, hosts: Arc<Hosts>, backups: Arc<Backups>) -> Self {
         PoolFsck {
-            config: config.clone(),
+            config,
+            hosts_config: hosts,
+            backups_config: backups,
         }
     }
 
@@ -119,7 +123,7 @@ impl PoolFsck {
 
         let event = Event {
             id: id.to_vec(),
-            r#type: EventType::PoolChecked as i32,
+            event_type: EventType::PoolChecked as i32,
             step: EventStep::Start as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -132,7 +136,7 @@ impl PoolFsck {
             information: None,
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(id.to_vec())
     }
@@ -157,7 +161,7 @@ impl PoolFsck {
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
-            r#type: EventType::PoolChecked as i32,
+            event_type: EventType::PoolChecked as i32,
             step: EventStep::End as i32,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)?
@@ -178,7 +182,7 @@ impl PoolFsck {
             information: Some(Information::Pool(information)),
         };
 
-        append_events(&self.config.path.events_path, &[&event]).await?;
+        append_events(&self.config, &self.config.path.events_path, &[&event]).await?;
 
         Ok(())
     }
@@ -194,12 +198,8 @@ impl PoolFsck {
     pub async fn verify_refcnt_max(&self) -> Result<usize> {
         let mut count = 1;
 
-        // Calculate max
-        let hosts = Hosts::new(&self.config);
-        let backups = Backups::new(&self.config);
-
-        for host in hosts.list_hosts().await? {
-            let backups = backups.get_backups(&host).await;
+        for host in self.hosts_config.list_hosts().await? {
+            let backups = self.backups_config.get_backups(&host).await;
             count += backups.len() + 1;
         }
 
@@ -229,33 +229,39 @@ impl PoolFsck {
     ) -> Result<FsckProgression> {
         info!("Starting pool reference count verification");
 
-        let hosts = Hosts::new(&self.config);
-        let backups = Backups::new(&self.config);
-
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
-            while let Some(progress) = internal_rx.recv().await {
-                if let Some(tx) = &progress_tx {
-                    if let Err(e) = tx.send(progress).await {
-                        error!("Failed to send verification progress: {}", e);
+        let progress_thread = tokio::spawn(
+            async move {
+                while let Some(progress) = internal_rx.recv().await {
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx.send(progress).await {
+                            error!("Failed to send verification progress: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         let mut error_count = 0;
         let mut total_count = 0;
         let mut progress = 0;
 
         // Progress
-        for host in hosts.list_hosts().await? {
-            let backups = backups.get_backups(&host).await;
+        for host in self.hosts_config.list_hosts().await? {
+            let backups = self.backups_config.get_backups(&host).await;
             for backup in backups {
-                debug!("Checking backup {}/{}", host, backup.number);
-                let result =
-                    check_backup_integrity(&host, backup.number, dry_run, &self.config).await?;
+                debug!("Checking backup {}/{}", host, backup.id);
+                let result = check_backup_integrity(
+                    &host,
+                    backup.id,
+                    dry_run,
+                    self.config.clone(),
+                    self.backups_config.clone(),
+                )
+                .await?;
 
                 error_count += result.error_count;
                 total_count += result.total_count;
@@ -274,7 +280,13 @@ impl PoolFsck {
             }
 
             debug!("Checking host {}", host);
-            let result = check_host_integrity(&host, dry_run, &self.config).await?;
+            let result = check_host_integrity(
+                &host,
+                dry_run,
+                self.config.clone(),
+                self.backups_config.clone(),
+            )
+            .await?;
 
             error_count += result.error_count;
             total_count += result.total_count;
@@ -294,7 +306,13 @@ impl PoolFsck {
         }
 
         debug!("Checking pool");
-        let result = check_pool_integrity(dry_run, &self.config).await?;
+        let result = check_pool_integrity(
+            dry_run,
+            self.config.clone(),
+            self.hosts_config.clone(),
+            self.backups_config.clone(),
+        )
+        .await?;
 
         error_count += result.error_count;
         total_count += result.total_count;
@@ -366,17 +384,20 @@ impl PoolFsck {
         info!("Starting unused files verification");
 
         let (internal_tx, mut internal_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
-            while let Some(p) = internal_rx.recv().await {
-                if let Some(tx) = &progress_tx {
-                    if let Err(e) = tx.send(p).await {
-                        error!("Failed to send unused files verification progress: {}", e);
+        let progress_thread = tokio::spawn(
+            async move {
+                while let Some(p) = internal_rx.recv().await {
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx.send(p).await {
+                            error!("Failed to send unused files verification progress: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
-        let result = check_unused(dry_run, internal_tx, &self.config).await?;
+        let result = check_unused(dry_run, internal_tx, self.config.clone()).await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in file list progression task: {}", e);
@@ -434,15 +455,18 @@ impl PoolFsck {
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(async move {
-            while let Some(progress) = internal_rx.recv().await {
-                if let Some(tx) = &progress_tx {
-                    if let Err(e) = tx.send(progress).await {
-                        error!("Failed to send chunk verification progress: {}", e);
+        let progress_thread = tokio::spawn(
+            async move {
+                while let Some(progress) = internal_rx.recv().await {
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx.send(progress).await {
+                            error!("Failed to send chunk verification progress: {}", e);
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         let chunks = self.verify_chunk_max().await?;
         let mut error_count = 0;
@@ -453,8 +477,9 @@ impl PoolFsck {
 
             let is_valid = wrapper
                 .check_chunk_information(self.config.chunk_algorithm)
-                .await?;
-            if !is_valid {
+                .await;
+
+            if !is_valid.is_ok_and(|f| f) {
                 error_count += 1;
             }
 

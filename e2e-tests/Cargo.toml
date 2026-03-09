@@ -7,14 +7,15 @@ edition = "2021"
 woodstock-rs = { path = "../woodstock-rs" }
 woodstock-client-rs = { path = "../client-rs" }
 
-eyre = "^0.6"
-futures = "^0.3"
-tokio = { version = "^1.46", features = ["macros", "rt-multi-thread", "fs"] }
-tokio-stream = "^0.1"
-hyper-util = "^0.1"
-log = "^0.4"
-tower = { version = "^0.5", features = ["util"] }
-tonic = { version = "^0.13", features = ["tls-native-roots", "gzip"] }
-tempfile = "3.20.0"
+eyre = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "fs"] }
+tokio-stream = { workspace = true }
+hyper-util = { workspace = true }
+tracing = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+tonic = { workspace = true, features = ["tls-native-roots", "gzip"] }
+tempfile = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]

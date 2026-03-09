@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use eyre::Result;
-use log::{error, info};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::server::progression::BackupProgression;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
     AuthenticationError(String),
     PreparationError(String),
@@ -13,7 +14,7 @@ pub enum ErrorState {
     Unknown(String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum RestoreExecutionState {
     Waiting,
     Authentication,
@@ -22,14 +23,14 @@ pub enum RestoreExecutionState {
     Completed,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShareRestoreState {
     pub share: String,
     pub file_count: u64,
     pub restore_progression: BackupProgression,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RestoreState {
     pub execution_state: RestoreExecutionState,
     pub error_state: Option<ErrorState>,

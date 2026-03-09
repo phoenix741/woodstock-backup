@@ -18,7 +18,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="n in backupNumbers" :key="n">
+                <tr v-for="n in backupIds" :key="n">
                   <td>{{ n }}</td>
                   <td v-if="results.get(n)?.jobId">Job n°{{ results.get(n)?.jobId }}</td>
                   <td v-else-if="results.get(n)?.message">Error: {{ results.get(n)?.message }}</td>
@@ -57,31 +57,31 @@ enum ProgressDialogState {
 
 const props = defineProps<{
   deviceId: string;
-  backupNumbers: number[];
+  backupIds: string[];
 }>();
 
 const dialog = ref(false);
 const dialogState = ref(ProgressDialogState.Waiting);
 
-const results = reactive(new Map<number, { message?: string; jobId?: string }>());
+const results = reactive(new Map<string, { message?: string; jobId?: string }>());
 
 const { mutate } = useMutation(RemoveBackupDocument);
 
 const removeBackup = async () => {
   dialogState.value = ProgressDialogState.InProgress;
-  for (const backup of props.backupNumbers) {
+  for (const backupId of props.backupIds) {
     const { data, errors } =
       (await mutate({
         hostname: props.deviceId,
-        number: backup,
+        id: backupId,
       })) ?? {};
 
     if (data?.removeBackup?.id) {
-      results.set(backup, { jobId: data.removeBackup.id });
+      results.set(backupId, { jobId: data.removeBackup.id });
     }
     const error = errors?.join(', ');
     if (error) {
-      results.set(backup, { message: error });
+      results.set(backupId, { message: error });
     }
   }
   dialogState.value = ProgressDialogState.Result;

@@ -53,3 +53,6 @@ done
 # Afficher les statistiques
 backup_count=$(find "$BACKUP_PATH" -name "backup.yml" | wc -l)
 echo -e "${GREEN}Terminé! $backup_count fichiers backup.yml traités${NC}"
+
+
+sed -Ei.bak "s/\!big[[:space:]]+'([0-9]+)'/\1/g" $BACKUP_PATH/pool/disk_history.yml

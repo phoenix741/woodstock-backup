@@ -43,11 +43,27 @@ mod constants;
 /// Module for host configuration management.
 mod hosts;
 
+/// Module for scheduling configuration management
+mod scheduler;
+
 /// Module defining data models for configuration entities.
 mod model;
 
-pub use backups::*;
-pub use constants::*;
-pub use core::*;
-pub use hosts::*;
-pub use model::*;
+pub use backups::{BackupChangedEvent, Backups, BACKUP_CHANGED_CHANNEL};
+pub use constants::{
+    BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64, DEFAULT_BACKUP_TIMEOUT_SECS,
+    DEFAULT_CHANNEL_BUFFER_SIZE, DEFAULT_PORT, DNS_RESOLVE_MAX_CONCURRENCY,
+    DNS_RESOLVE_TIMEOUT_SEC, MDNS_SERVICE_NAME, MDNS_SUFFIX, MDNS_TIMEOUT_MSEC,
+    REDIS_WOODSTOCK_KEY_DNS,
+};
+pub use core::{
+    Configuration, ConfigurationPath, Context, OptionalConfigurationPath, RedisConfiguration,
+    GLOBAL_CONFIGURATION,
+};
+pub use hosts::Hosts;
+pub use model::{
+    ApplicationScheduler, Backup, BackupOperation, BackupStatus, BackupTaskShare,
+    ExecuteCommandOperation, FailedStatus, FinishingStatus, HostConfigOperation, HostConfiguration,
+    RemovingStatus, Schedule, ScheduledBackupToKeep,
+};
+pub use scheduler::Scheduler;

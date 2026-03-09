@@ -11,7 +11,8 @@ const config: CodegenConfig = {
         {
           '@thx/graphql-typescript-scalar-type-policies': {
             scalarTypePolicies: {
-              BigInt: '../utils/bigint.utils#bigintTypePolicy',
+              BigInt: '../utils/graphql.utils#bigintTypePolicy',
+              DateTime: '../utils/graphql.utils#dateTypePolicy',
             },
           },
         },
@@ -20,7 +21,8 @@ const config: CodegenConfig = {
         useTypeImports: true,
         scalars: {
           BigInt: 'bigint',
-          DateTime: 'string',
+          DateTime: 'Date',
+          Buffer: 'string',
         },
       },
     },

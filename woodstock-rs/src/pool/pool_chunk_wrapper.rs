@@ -1,12 +1,12 @@
 use eyre::Result;
 use futures::{pin_mut, Stream, StreamExt};
-use log::{debug, error, warn};
 use prost::Message;
 use std::path::{Path, PathBuf};
 use tokio::{
     fs::{copy, create_dir_all, remove_file, rename, File},
     io::{AsyncReadExt, AsyncWriteExt},
 };
+use tracing::{debug, error, warn};
 
 use crate::utils::{chunk_hasher::create_chunk_hasher, compression::CompressionFormat};
 use crate::ChunkAlgorithm;

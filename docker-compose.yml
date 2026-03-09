@@ -6,29 +6,99 @@ services:
     image: phoenix741/woodstock-backup-website:develop
     ports:
       - 8080:80
-  woodstock:
+  # Main API Server & Frontend
+  server-api:
     build:
       context: ./
       dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1
-        - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=12-slim
-    image: phoenix741/woodstock-backup:develop
+      target: server
+    image: phoenix741/woodstock-backup-server:develop
     ports:
       - 3000:3000
     depends_on:
-      - redis
+      valkey:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     environment:
-      - REDIS_HOST=redis
+      - REDIS_HOST=valkey
       - REDIS_PORT=6379
-      - LOG_LEVEL=warn
-      - NODE_ENV=development
+      - LOG_LEVEL=debug
       - BACKUP_PATH=/backups
-      - NODE_ENV=production
-      - BACKUP_WORKER_INSTANCES=3
-      - CLIENT_API_HOSTNAME=myserver.localdomain.com
-      - CLIENT_API_PORT=8443
+      - STATIC_PATH=/app/static
+    volumes:
+      - "backups_storage:/backups"
+
+  # gRPC/HTTPS Gateway for Agents
+  server-client-api:
+    image: phoenix741/woodstock-backup-server:develop
+    command: ["/app/client_api_server"]
+    ports:
+      - 8443:8443
+    depends_on:
+      valkey:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
+    volumes:
+      - "backups_storage:/backups"
+
+  # Backup Worker ( Heavy operations)
+  server-worker:
+    image: phoenix741/woodstock-backup-server:develop
+    command: ["/app/job_worker"]
+    depends_on:
+      valkey:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
+    volumes:
+      - "backups_storage:/backups"
+
+  # Scheduler (Cron jobs)
+  server-scheduler:
+    image: phoenix741/woodstock-backup-server:develop
+    command: ["/app/scheduler"]
+    depends_on:
+      valkey:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
     volumes:
       - "backups_storage:/backups"
 
@@ -36,21 +106,24 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1
-        - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=12-slim
       target: client
     image: phoenix741/woodstock-backup-client:develop
     ports:
       - 3657:3657
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
     environment:
-      - CLIENT_PATH=/config
+      - WS_CLIENT_CONFIG=/etc/woodstock
       - WS_CLIENT_PASSWORD=password
-      - WS_CLIENT_SERVER=https://192.168.101.3:8443
+      - WS_CLIENT_SERVER=https://server-client-api:8443
       - LOG_LEVEL=debug
     volumes:
-      - "client_storage:/config"
+      - "client_storage:/etc/woodstock"
 
   # woodstock_client:
   #   image: phoenix741/woodstock-backup:develop
@@ -59,25 +132,29 @@ services:
   #     - LOG_LEVEL=debug
   #     - NODE_ENV=development
 
-  redis:
-    image: "bitnami/redis:7.4"
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+  valkey:
+    image: "valkey/valkey:9-alpine"
+    command: valkey-server --save 60 1 --loglevel warning
     ports:
       - "6379:6379"
     volumes:
-      - "redis_data:/bitnami/redis/data"
+      - "valkey_data:/data"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   prometheus:
-    image: bitnami/prometheus:2
+    image: prom/prometheus:latest
     volumes:
-      - prometheus_storage:/opt/bitnami/prometheus/data
-      - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
+      - prometheus_storage:/prometheus
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     network_mode: "host"
 
 volumes:
-  redis_data:
+  valkey_data:
   prometheus_storage:
   client_storage:
   backups_storage:

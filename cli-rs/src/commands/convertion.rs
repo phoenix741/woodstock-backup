@@ -86,6 +86,15 @@ pub async fn convert_hash_repo(backup_path: &str, hash: &str) -> Result<()> {
         ..new_configuration
     };
 
+    let configuration = Arc::new(configuration);
+    let new_configuration = Arc::new(new_configuration);
+    let scheduler = Arc::new(woodstock::config::Scheduler::new(configuration.clone()));
+    let hosts = Arc::new(woodstock::config::Hosts::new(
+        configuration.clone(),
+        scheduler,
+    ));
+    let backups = Arc::new(woodstock::config::Backups::new(configuration.clone()));
+
     let previous_execution_state = RefCell::new(ConvertExecutionState::Waiting);
     let (tx, mut rx) = mpsc::channel::<ConvertState>(DEFAULT_CHANNEL_BUFFER_SIZE);
 
@@ -94,6 +103,7 @@ pub async fn convert_hash_repo(backup_path: &str, hash: &str) -> Result<()> {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% {pos}/{len} ETA: {eta}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
 
@@ -114,10 +124,12 @@ pub async fn convert_hash_repo(backup_path: &str, hash: &str) -> Result<()> {
 
     // Create and run the conversion machine
     let converter = HashConverterMachine::new(
-        &configuration,
-        &new_configuration,
         EventSource::Cli,
         Some(tx),
+        configuration,
+        hosts,
+        backups,
+        new_configuration,
     );
 
     // Execute the conversion

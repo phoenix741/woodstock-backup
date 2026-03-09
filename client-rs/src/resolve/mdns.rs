@@ -1,8 +1,8 @@
 use eyre::Result;
-use log::{error, info};
 use mdns_sd::{IfKind, ServiceDaemon, ServiceInfo};
 use tokio::sync::Mutex;
 use tokio::task::AbortHandle;
+use tracing::{error, info};
 use woodstock::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX};
 
 use crate::config::ClientConfig;
@@ -10,7 +10,6 @@ use crate::config::ClientConfig;
 use super::ResolveClient;
 
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 /// Interval in seconds between system state checks.
@@ -156,7 +155,8 @@ impl MdnsResolveClient {
         let handler = tokio::spawn(async move {
             let mut current_time = std::time::Instant::now();
             loop {
-                thread::sleep(Duration::from_secs(CHECK_INTERVAL));
+                // Use async sleep to avoid blocking a Tokio worker
+                tokio::time::sleep(Duration::from_secs(CHECK_INTERVAL)).await;
                 if std::time::Instant::elapsed(&current_time).as_secs() > MAX_INTERVAL {
                     info!("Device woke up, refreshing mDNS service");
                     self_clone.refresh().await;
@@ -241,7 +241,7 @@ impl ResolveClient for MdnsResolveClient {
     async fn stop(&self) {
         if let Some(daemon) = self.daemon.lock().await.take() {
             match daemon.unregister(&self.full_name()) {
-                Ok(receiver) => match receiver.recv() {
+                Ok(receiver) => match receiver.recv_async().await {
                     Ok(status) => info!("mDNS service successfully unregistered: {:?}.", status),
                     Err(e) => error!("Failed to unregister mDNS service: {}", e),
                 },
@@ -249,7 +249,7 @@ impl ResolveClient for MdnsResolveClient {
             }
 
             match daemon.shutdown() {
-                Ok(receiver) => match receiver.recv() {
+                Ok(receiver) => match receiver.recv_async().await {
                     Ok(status) => info!("mDNS daemon successfully stopped: {:?}.", status),
                     Err(e) => error!("Failed to stop mDNS daemon: {}", e),
                 },

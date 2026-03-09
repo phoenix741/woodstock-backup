@@ -1,7 +1,7 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="executionStateMessage" icon="cloud-upload"
     :progress-percent="progress?.restoreProgression?.percent ?? 0" :progress-message="progressMessage"
-    :error-message="errorMessage" :backup-error-state="!!progress?.restoreErrorState">
+    :error-message="errorMessage" :backup-error-state="!!progress?.restoreErrorState" :expanded="expanded">
     <template #tags>
       <v-chip size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-file-multiple</v-icon>
@@ -18,7 +18,7 @@
       <v-chip v-if="(progress?.restoreProgression?.errorCount ?? 0) > 0" size="small" class="ma-1" color="error"
         variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ progress?.restoreProgression?.errorCount }} errors
+        {{ toNumber(progress?.restoreProgression?.errorCount) }} errors
       </v-chip>
       <v-chip v-if="progress?.restoreErrorState" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
@@ -36,9 +36,10 @@ import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress } = defineProps<{
+const { data, progress, expanded } = defineProps<{
   data: JobRestoreDataFragment;
   progress: RestoreTaskStateFragment | undefined | null;
+  expanded?: boolean;
 }>();
 
 // Computed properties for AbstractTaskCard

@@ -2,12 +2,19 @@
 //!
 //! This module provides types and functions for managing and persisting backup pool statistics and history.
 
+pub mod disk_stats;
+pub mod instant_stats;
 /// Contains models for statistics data.
 mod model;
 
-use std::{path::Path, time::SystemTime};
+use std::{io::ErrorKind, path::Path};
+use tracing::error;
 
-pub use model::*;
+use chrono::{DateTime, Local};
+pub use model::{
+    HistoricalDiskStatistics, HistoricalPoolStatistics, HostStatsUsage, PoolStatistics,
+    StatsDiskUsage, WithDate,
+};
 use tokio::fs::write;
 
 use eyre::Result;
@@ -25,13 +32,13 @@ use eyre::Result;
 /// # Errors
 ///
 /// Returns an error if the statistics file cannot be read or deserialized from YAML.
-pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics> {
+pub async fn read_statistics(dirname: &Path) -> PoolStatistics {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("statistics.yml");
-    let yaml = tokio::fs::read_to_string(filename).await?;
-    let statistics = serde_yaml::from_str(&yaml)?;
-
-    Ok(statistics)
+    let yaml = tokio::fs::read_to_string(filename)
+        .await
+        .unwrap_or_default();
+    serde_yaml_ng::from_str(&yaml).unwrap_or_default()
 }
 
 /// Writes the pool statistics to a YAML file and appends them to the history.
@@ -52,11 +59,11 @@ pub async fn read_statistics(dirname: &Path) -> Result<PoolStatistics> {
 pub async fn write_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,
-    date: &SystemTime,
+    date: &DateTime<Local>,
 ) -> Result<()> {
     // Serialize PoolStatistics in yaml format
     let filename = dirname.join("statistics.yml");
-    let yaml = serde_yaml::to_string(statistics)?;
+    let yaml = serde_yaml_ng::to_string(statistics)?;
     write(filename, yaml).await?;
 
     append_history_to_statistics(statistics, dirname, date).await?;
@@ -77,13 +84,29 @@ pub async fn write_statistics(
 /// # Errors
 ///
 /// Returns an error if the history file cannot be read or deserialized from YAML.
-pub async fn load_history(dirname: &Path) -> Result<Vec<HistoricalPoolStatistics>> {
+pub async fn load_history(dirname: &Path) -> Vec<HistoricalPoolStatistics> {
     // Deserialize PoolStatistics from yaml format
     let filename = dirname.join("history.yml");
-    let yaml = tokio::fs::read_to_string(filename).await?;
-    let statistics = serde_yaml::from_str(&yaml)?;
+    let yaml = tokio::fs::read_to_string(filename).await;
 
-    Ok(statistics)
+    match yaml {
+        Ok(yaml) => {
+            let history = serde_yaml_ng::from_str(&yaml);
+            match history {
+                Ok(history) => history,
+                Err(e) => {
+                    error!("Failed to parse history: {e}");
+                    Vec::new()
+                }
+            }
+        }
+        Err(e) => {
+            if e.kind() != ErrorKind::NotFound {
+                error!("Failed to read backups: {e}");
+            }
+            Vec::new()
+        }
+    }
 }
 
 /// Appends the current pool statistics to the history file.
@@ -104,12 +127,12 @@ pub async fn load_history(dirname: &Path) -> Result<Vec<HistoricalPoolStatistics
 pub async fn append_history_to_statistics(
     statistics: &PoolStatistics,
     dirname: &Path,
-    date: &SystemTime,
+    date: &DateTime<Local>,
 ) -> Result<()> {
-    let mut histories = load_history(dirname).await.unwrap_or_else(|_| Vec::new());
+    let mut histories = load_history(dirname).await;
 
     let history = HistoricalPoolStatistics {
-        date: date.duration_since(SystemTime::UNIX_EPOCH)?.as_secs(),
+        date: *date,
         longest_chain: statistics.longest_chain,
         nb_chunk: statistics.nb_chunk,
         nb_ref: statistics.nb_ref,
@@ -124,7 +147,7 @@ pub async fn append_history_to_statistics(
 
     // Serialize PoolStatistics in yaml format
     let filename = dirname.join("history.yml");
-    let yaml = serde_yaml::to_string(&histories)?;
+    let yaml = serde_yaml_ng::to_string(&histories)?;
     write(filename, yaml).await?;
 
     Ok(())

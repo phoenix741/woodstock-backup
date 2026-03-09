@@ -48,7 +48,7 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
         rdev: metadata.rdev(),
         ino: metadata.ino(),
         nlink: metadata.nlink(),
-        r#type: match metadata.mode() & S_IFMT {
+        file_type: match metadata.mode() & S_IFMT {
             S_IFREG => FileManifestType::RegularFile,
             S_IFLNK => FileManifestType::Symlink,
             S_IFDIR => FileManifestType::Directory,

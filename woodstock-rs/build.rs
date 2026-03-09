@@ -1,7 +1,7 @@
 //! Build script for woodstock-rs
 //!
 //! This script has two main responsibilities:
-//! 1. Configure and compile Protocol Buffers definitions with the `tonic_build` crate
+//! 1. Configure and compile Protocol Buffers definitions with the `tonic-prost-build` crate
 //! 2. Handle special build requirements for musl targets
 
 use std::io::Result;
@@ -13,8 +13,8 @@ use std::io::Result;
 /// - Apply special serialization attributes to specific fields
 /// - Compile the woodstock.proto file into Rust code
 fn main() -> Result<()> {
-    // Configure tonic_build for protobuf compilation with serde support
-    tonic_build::configure()
+    // Configure tonic-prost-build for protobuf compilation with serde support
+    tonic_prost_build::configure()
         // Add serde serialization support to all messages
         .message_attribute(".", "#[serde_with::serde_as]\n#[derive(serde::Serialize)]")
         // Add serde serialization support to all enums

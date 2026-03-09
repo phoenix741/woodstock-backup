@@ -1,6 +1,6 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="globalProgressText" icon="delete" :progress-percent="globalProgress"
-    :error-message="errorMessage" :backup-error-state="hasError">
+    :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
   </AbstractTaskCard>
 </template>
 
@@ -12,15 +12,16 @@ import {
   type JobRemoveDataFragment,
   type RemoveTaskStateFragment
 } from '@/generated/graphql';
-import { toDateTime } from '@/components/hosts/hosts.utils';
+import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress } = defineProps<{
+const { data, progress, expanded } = defineProps<{
   data: JobRemoveDataFragment;
   progress: RemoveTaskStateFragment | undefined | null;
+  expanded?: boolean;
 }>();
 
-const title = computed(() => `Remove Backup ${data.host} #${data.number}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
+const title = computed(() => `Remove Backup ${data.host} #${toNumber(data.number)}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
 
 const hasError = computed(() => progress?.removeErrorState !== null && progress?.removeErrorState !== undefined);
 
@@ -30,7 +31,7 @@ const globalProgress = computed(() => {
       return 5;
     case RemoveExecutionState.AddReferencesToPool:
       return 25;
-    case RemoveExecutionState.RemovingRefCnt:
+    case RemoveExecutionState.RemovingRefcnt:
       return 50;
     case RemoveExecutionState.RemovingBackup:
       return 75;
@@ -49,7 +50,7 @@ const globalProgressText = computed((): string => {
       return 'Waiting to start removal...';
     case RemoveExecutionState.AddReferencesToPool:
       return 'Adding references to pool...';
-    case RemoveExecutionState.RemovingRefCnt:
+    case RemoveExecutionState.RemovingRefcnt:
       return 'Removing reference counts...';
     case RemoveExecutionState.RemovingBackup:
       return 'Removing backup data...';

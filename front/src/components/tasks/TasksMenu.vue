@@ -1,16 +1,16 @@
 <template>
   <v-sheet rounded="lg">
     <v-list rounded="lg">
-      <v-list-item link to="/tasks/active">
-        <v-list-item-title>Active</v-list-item-title>
+      <v-list-item link to="/tasks/started">
+        <v-list-item-title>Running</v-list-item-title>
         <template v-slot:append>
-          <v-badge color="info" :content="stats.active" inline></v-badge>
+          <v-badge color="info" :content="stats.running" inline></v-badge>
         </template>
       </v-list-item>
       <v-list-item link to="/tasks/completed">
         <v-list-item-title>Success</v-list-item-title>
         <template v-slot:append>
-          <v-badge color="success" :content="stats.completed" inline></v-badge>
+          <v-badge color="success" :content="stats.success" inline></v-badge>
         </template>
       </v-list-item>
       <v-list-item link to="/tasks/failed">
@@ -19,16 +19,10 @@
           <v-badge color="error" :content="stats.failed" inline></v-badge>
         </template>
       </v-list-item>
-      <v-list-item link to="/tasks/waiting">
-        <v-list-item-title>Waiting</v-list-item-title>
+      <v-list-item link to="/tasks/created">
+        <v-list-item-title>Pending</v-list-item-title>
         <template v-slot:append>
-          <v-badge color="warning" :content="stats.waiting" inline></v-badge>
-        </template>
-      </v-list-item>
-      <v-list-item link to="/tasks/delayed">
-        <v-list-item-title>Delayed</v-list-item-title>
-        <template v-slot:append>
-          <v-badge color="warning" :content="stats.delayed" inline></v-badge>
+          <v-badge color="warning" :content="stats.pending" inline></v-badge>
         </template>
       </v-list-item>
     </v-list>

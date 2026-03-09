@@ -5,99 +5,104 @@ package woodstock;
 // Event Protocol
 
 enum EventType {
-  Backup = 0;
-  Restore = 1;
-  Delete = 2;
-  PoolChecked = 4;
-  PoolCleaned = 6;
-  HashConversion = 7;
+  reserved 3, 5;
+
+  EVENT_TYPE_BACKUP          = 0;
+  EVENT_TYPE_RESTORE         = 1;
+  EVENT_TYPE_DELETE          = 2;
+  EVENT_TYPE_POOL_CHECKED    = 4;
+  EVENT_TYPE_POOL_CLEANED    = 6;
+  EVENT_TYPE_HASH_CONVERSION = 7;
 }
 
 enum EventStep {
-  Start = 0;
-  End = 1;
+  EVENT_STEP_START = 0;
+  EVENT_STEP_END   = 1;
 }
 
 enum EventSource {
-  User = 0;
-  Woodstock = 1;
-  Import = 2;
-  Cli = 3;
+  EVENT_SOURCE_USER      = 0;
+  EVENT_SOURCE_WOODSTOCK = 1;
+  EVENT_SOURCE_IMPORT    = 2;
+  EVENT_SOURCE_CLI       = 3;
 }
 
 enum EventStatus {
-  None = 0;
-  Success = 1;
-  ClientDisconnected = 2;
-  ServerCrashed = 3;
-  GenericError = 4;
+  EVENT_STATUS_NONE                = 0;
+  EVENT_STATUS_SUCCESS             = 1;
+  EVENT_STATUS_CLIENT_DISCONNECTED = 2;
+  EVENT_STATUS_SERVER_CRASHED      = 3;
+  EVENT_STATUS_GENERIC_ERROR       = 4;
 }
 
 message EventBackupInformation {
-  string hostname = 1;
-  uint64 number = 2;
-  repeated string sharePath = 3;
+  string          hostname   = 1;
+  uint64          number     = 2;
+  repeated string share_path = 3;
+  string          id         = 4;
 }
 
 message EventPoolInformation {
-  bool fix = 1;
-  uint64 refcount = 2;
+  bool   fix            = 1;
+  uint64 refcount       = 2;
   uint64 refcount_error = 3;
-  uint64 in_unused = 4;
-  uint64 in_refcnt = 5;
-  uint64 in_nothing = 6;
-  uint64 missing = 7;
-  uint64 chunk_count = 8;
-  uint64 chunk_error = 9;
+  uint64 in_unused      = 4;
+  uint64 in_refcnt      = 5;
+  uint64 in_nothing     = 6;
+  uint64 missing        = 7;
+  uint64 chunk_count    = 8;
+  uint64 chunk_error    = 9;
 }
 
 message EventPoolCleanedInformation {
-  uint64 size = 1;
+  uint64 size  = 1;
   uint64 count = 2;
 }
 
 message HashConversionInformation {
-  uint64 count = 1;
+  uint64         count     = 1;
   ChunkAlgorithm algorithm = 2;
 }
 
 message Event {
-  bytes id = 12;
-  EventType type = 1;
-  EventStep step = 2;
-  uint64 timestamp = 3;
-  EventSource source = 4;
-  string user = 5;
-  repeated string errorMessages = 6; 
-  EventStatus status = 7;
-  
+  reserved 9;
+
+  bytes           id             = 12;
+  EventType       event_type     = 1;
+  EventStep       step           = 2;
+  uint64          timestamp      = 3;
+  EventSource     source         = 4;
+  string          user           = 5;
+  repeated string error_messages = 6;
+  EventStatus     status         = 7;
+
   oneof information {
-    EventBackupInformation backup = 8;
-    EventPoolCleanedInformation poolCleaned = 10;
-    EventPoolInformation pool = 11;
-    HashConversionInformation hashConversion = 13;
+    EventBackupInformation      backup          = 8;
+    EventPoolCleanedInformation pool_cleaned    = 10;
+    EventPoolInformation        pool            = 11;
+    HashConversionInformation   hash_conversion = 13;
   }
 }
 
 // Pool Protocol
 
 enum ChunkAlgorithm {
-    Blake3 = 0;
-    Sha3_256 = 1;
-    Sha2_256 = 2;
+  CHUNK_ALGORITHM_BLAKE3   = 0;
+  CHUNK_ALGORITHM_SHA3_256 = 1;
+  CHUNK_ALGORITHM_SHA2_256 = 2;
 }
 
 message PoolUnused {
-  bytes sha256 = 1;
-  uint64 size = 3;
-  uint64 compressedSize = 4;
+  bytes  sha256          = 1;
+  uint64 size            = 3;
+  uint64 compressed_size = 4;
 }
 
 message PoolRefCount {
-  bytes sha256 = 1;
-  uint32 refCount = 2;
-  uint64 size = 3;
-  uint64 compressedSize = 4;
+  bytes  sha256          = 1;
+  uint32 ref_count       = 2;
+  uint64 size            = 3;
+  uint64 compressed_size = 4;
 }
 
 // Backup Protocol
@@ -107,131 +112,141 @@ message Empty {
 }
 
 enum FileManifestType {
-    RegularFile = 0;
-    Symlink = 1;
-    Directory = 2;
-    BlockDevice = 3;
-    CharacterDevice = 4;
-    Fifo = 5;
-    Socket = 6;
-    Unknown = 99;
+  reserved 7 to 98;
+
+  FILE_MANIFEST_TYPE_REGULAR_FILE      = 0;
+  FILE_MANIFEST_TYPE_SYMLINK           = 1;
+  FILE_MANIFEST_TYPE_DIRECTORY         = 2;
+  FILE_MANIFEST_TYPE_BLOCK_DEVICE      = 3;
+  FILE_MANIFEST_TYPE_CHARACTER_DEVICE  = 4;
+  FILE_MANIFEST_TYPE_FIFO              = 5;
+  FILE_MANIFEST_TYPE_SOCKET            = 6;
+  FILE_MANIFEST_TYPE_UNKNOWN           = 99;
 }
 
 message FileManifestStat {
-  uint32 ownerId = 1;
-  uint32 groupId = 2;
-  uint64 size = 3;
-  uint64 compressedSize = 4;
-  int64 lastRead = 5;
-  int64 lastModified = 6;
-  int64 created = 7;
-  uint32 mode = 8;
-  FileManifestType type = 9;
+  uint32           owner_id       = 1;
+  uint32           group_id       = 2;
+  uint64           size           = 3;
+  uint64           compressed_size = 4;
+  int64            last_read      = 5;
+  int64            last_modified  = 6;
+  int64            created        = 7;
+  uint32           mode           = 8;
+  FileManifestType file_type      = 9;
 
-  uint64 dev = 10;
+  uint64 dev  = 10;
   uint64 rdev = 11;
 
-  uint64 ino = 12;
+  uint64 ino   = 12;
   uint64 nlink = 13;
 }
 
 enum FileManifestAclQualifier {
-    UNDEFINED = 0;
-    USER_OBJ = 1;
-    GROUP_OBJ = 2;
-    OTHER = 3;
-    USER_ID = 4;
-    GROUP_ID = 5;
-    MASK = 6;
+  FILE_MANIFEST_ACL_QUALIFIER_UNDEFINED = 0;
+  FILE_MANIFEST_ACL_QUALIFIER_USER_OBJ  = 1;
+  FILE_MANIFEST_ACL_QUALIFIER_GROUP_OBJ = 2;
+  FILE_MANIFEST_ACL_QUALIFIER_OTHER     = 3;
+  FILE_MANIFEST_ACL_QUALIFIER_USER_ID   = 4;
+  FILE_MANIFEST_ACL_QUALIFIER_GROUP_ID  = 5;
+  FILE_MANIFEST_ACL_QUALIFIER_MASK      = 6;
 }
 
 message FileManifestAcl {
   FileManifestAclQualifier qualifier = 1;
-  uint32 id = 2;
-  uint32 perm = 3;
+  uint32                   id        = 2;
+  uint32                   perm      = 3;
 }
 
 message FileManifestXAttr {
-  bytes key = 1;
+  bytes key   = 1;
   bytes value = 2;
 }
 
 // File manifest used to store the content of a file
 message FileManifest {
-  bytes path = 1;
-  FileManifestStat stats = 2;
-  bytes symlink = 3;
+  bytes            path    = 1;
+  FileManifestStat stats   = 2;
+  bytes            symlink = 3;
 
   repeated FileManifestXAttr xattr = 4;
-  repeated FileManifestAcl acl = 5;
+  repeated FileManifestAcl   acl   = 5;
 
   repeated bytes chunks = 6;
-  bytes hash = 8;
+  bytes          hash   = 8;
 
   map<string, bytes> metadata = 7;
 }
 
 enum EntryType {
   // Add a new file
-  ADD = 0;
+  ENTRY_TYPE_ADD = 0;
   // Modify a file
-  MODIFY = 1;
+  ENTRY_TYPE_MODIFY = 1;
   // Remove a file
-  REMOVE = 2;
+  ENTRY_TYPE_REMOVE = 2;
 }
 
 enum EntryState {
-  METADATA = 0;
-  PARTIAL_METADATA = 1;
-  CHUNKS = 2;
-  CHUNKS_PARTIAL_METADATA = 3;
-  ERROR = 99;
+  reserved 4 to 98;
+
+  ENTRY_STATE_METADATA                = 0;
+  ENTRY_STATE_PARTIAL_METADATA        = 1;
+  ENTRY_STATE_CHUNKS                  = 2;
+  ENTRY_STATE_CHUNKS_PARTIAL_METADATA = 3;
+  ENTRY_STATE_ERROR                   = 99;
 }
 
 // Journal entry
 message FileManifestJournalEntry {
-  EntryType type = 1;
-  FileManifest manifest = 2;
+  EntryType    entry_type = 1;
+  FileManifest manifest   = 2;
 
-  EntryState state = 3;
-  repeated string stateMessages = 4;
+  EntryState      state          = 3;
+  repeated string state_messages = 4;
 
-  uint64 xferStart = 5;
-  uint64 xferCalculation = 6;
-  uint64 xferDuration = 7;
-  uint64 xferCheck = 8;
+  uint64 xfer_start       = 5;
+  uint64 xfer_calculation = 6;
+  uint64 xfer_duration    = 7;
+  uint64 xfer_check       = 8;
+
+  // Per-chunk sizes for efficient refcnt reconstruction without reading .info files from pool.
+  // Parallel arrays indexed by position in manifest.chunks.
+  // Absent (empty) means old format: fallback to repair() reading .info files.
+  repeated uint64 chunk_sizes            = 9;
+  repeated uint64 chunk_compressed_sizes = 10;
 }
 
 message Share {
-  string sharePath = 1;
-  repeated string includes = 2;
-  repeated string excludes = 3;
+  string          share_path = 1;
+  repeated string includes   = 2;
+  repeated string excludes   = 3;
 }
 
 message RefreshCacheRequest {
-  oneof field {
-    Share header = 1;
-    FileManifest fileManifest = 2;
+  oneof payload {
+    Share        header        = 1;
+    FileManifest file_manifest = 2;
   }
 }
 
 message ChunkHashRequest {
-  string sharePath = 1;
-  bytes filename = 2;
-  ChunkAlgorithm algorithm = 3;
+  string         share_path = 1;
+  bytes          filename   = 2;
+  ChunkAlgorithm algorithm  = 3;
 }
 
 message ChunkHashReply {
   repeated bytes chunks = 1;
-  bytes hash = 2;
+  bytes          hash   = 2;
 }
 
 message ChunkInformation {
-  string sharePath = 1;
-  bytes filename = 2;
+  string share_path = 1;
+  bytes  filename   = 2;
   // If empty the whole file is requested
-  repeated uint64 chunksId = 3;
-  ChunkAlgorithm algorithm = 4;
+  repeated uint64 chunks_id = 3;
+  ChunkAlgorithm  algorithm = 4;
 }
 
 message FileChunkData {
@@ -239,11 +254,11 @@ message FileChunkData {
 }
 
 message FileChunkHeader {
-  uint64 chunkId = 1;
+  uint64 chunk_id = 1;
 }
 
 message FileChunkFooter {
-  bytes chunkHash = 1;
+  bytes chunk_hash = 1;
 }
 
 // Only when whole file is requested
@@ -252,11 +267,11 @@ message FileChunkEndOfFile {
 }
 
 message FileChunk {
-  oneof field {
-    FileChunkHeader header = 1;
-    FileChunkData data = 2;
-    FileChunkFooter footer = 3;
-    FileChunkEndOfFile eof = 4;
+  oneof payload {
+    FileChunkHeader    header = 1;
+    FileChunkData      data   = 2;
+    FileChunkFooter    footer = 3;
+    FileChunkEndOfFile eof    = 4;
   }
 }
 
@@ -265,19 +280,19 @@ message ExecuteCommandRequest {
 }
 
 message ExecuteCommandReply {
-  int32 code = 1;
+  int32  code   = 1;
   string stdout = 2;
   string stderr = 3;
 }
 
 message AuthenticateRequest {
   uint32 version = 1;
-  string token = 2;
+  string token   = 2;
 }
 
 message AuthenticateReply {
-  string agentVersion = 1;
-  string sessionId = 3;
+  string agent_version = 1;
+  string session_id    = 3;
 }
 
 message PingRequest {
@@ -288,15 +303,15 @@ message PingRequest {
 message RestoreFileRequest {
   oneof request {
     FileManifest manifest = 1; // File metadata
-    bytes chunk = 2; // File data chunk
+    bytes        chunk    = 2; // File data chunk
   }
 }
 
 // Message for file restore replies
 message RestoreFileReply {
-  bytes path = 1;
-  bool restored = 2;
-  string message = 3;
+  bytes  path     = 1;
+  bool   restored = 2;
+  string message  = 3;
 }
 
 service WoodstockClientService {

@@ -1,7 +1,6 @@
 use jsonwebtoken::{
     decode, encode, get_current_timestamp, Algorithm, DecodingKey, EncodingKey, Header, Validation,
 };
-use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -9,13 +8,14 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::Mutex;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::config::ClientConfig;
 use eyre::{eyre, Result};
 use woodstock::utils::encryption;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 /// Represents the JWT claims structure used for authentication.
 struct Claims {
     /// Issuer of the token, typically the hostname

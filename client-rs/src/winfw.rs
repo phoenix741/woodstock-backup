@@ -1,5 +1,5 @@
 use eyre::Result;
-use log::error;
+use tracing::error;
 use windows::Win32::NetworkManagement::WindowsFirewall::INetFwRule;
 use windows::Win32::NetworkManagement::WindowsFirewall::{
     INetFwPolicy2, NetFwPolicy2, NET_FW_ACTION, NET_FW_ACTION_ALLOW, NET_FW_ACTION_BLOCK,

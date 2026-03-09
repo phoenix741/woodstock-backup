@@ -40,79 +40,143 @@
 ///
 /// - [`Manifest`]: For file manifest operations
 /// - [`Backup`]: For backup metadata
+use chrono::{Duration, Local};
 use eyre::Result;
-use log::error;
+use redis::{aio::ConnectionManager, AsyncCommands};
+use serde::{Deserialize, Serialize};
 use std::{
     io::{Error, ErrorKind},
     path::PathBuf,
+    sync::Arc,
 };
 use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
+use tokio::sync::Mutex;
+use tracing::error;
+use uuid::Uuid;
 
-use crate::{manifest::Manifest, utils::path::mangle};
+use crate::{
+    manifest::Manifest,
+    utils::{
+        cache::{cache_invalidate, cache_wrap},
+        lock_redis::PoolLockRedis,
+        path::mangle,
+    },
+};
 
 use super::{Backup, Configuration};
 
+/// Redis channel on which `BackupChangedEvent` messages are published.
+pub const BACKUP_CHANGED_CHANNEL: &str = "woodstock:backup:changed";
+
+/// TTL (in seconds) for backup metadata cache entries — 24 hours.
+const CACHE_TTL_SECS: u64 = 86400;
+
+/// Returns the Redis cache key for the backup list of `hostname`.
+fn backup_cache_key(hostname: &str) -> String {
+    format!("woodstock:cache:backups:{hostname}")
+}
+
+/// Event published to Redis each time a backup is created, updated,
+/// or deleted. Serialized/deserialized as JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupChangedEvent {
+    /// Name of the host concerned by this event.
+    pub hostname: String,
+    /// UUID of the backup concerned by this event.
+    pub backup_id: Uuid,
+    /// `true` if the backup has been removed (the file no longer exists on disk).
+    pub removed: bool,
+}
+
 /// Central struct for managing backup directories and metadata for a given host.
 pub struct Backups {
-    /// Path to the directory containing host backup data.
-    config_host_path: PathBuf,
+    /// Configuration.
+    config: Arc<Configuration>,
+    /// Redis connection used to publish `BackupChangedEvent` notifications.
+    /// `None` if notification is not enabled (e.g., when used from the CLI).
+    redis_publisher: Option<Arc<Mutex<ConnectionManager>>>,
 }
 
 impl Backups {
     #[must_use]
-    pub fn new(config: &Configuration) -> Self {
+    pub fn new(config: Arc<Configuration>) -> Self {
         Self {
-            config_host_path: config.path.hosts_path.clone(),
+            config,
+            redis_publisher: None,
         }
     }
 
-    #[must_use]
-    pub fn get_backup_destination_directory(
-        &self,
-        hostname: &str,
-        backup_number: usize,
-    ) -> PathBuf {
-        self.config_host_path
-            .join(hostname)
-            .join(backup_number.to_string())
+    /// Creates a `Backups` instance that publishes a [`BackupChangedEvent`] to Redis
+    /// (`woodstock:backup:changed`) after each write or deletion.
+    ///
+    /// Use this variant from server binaries that have access to a Redis [`ConnectionManager`].
+    pub fn with_redis_publisher(
+        config: Arc<Configuration>,
+        conn_manager: ConnectionManager,
+    ) -> Self {
+        Self {
+            config,
+            redis_publisher: Some(Arc::new(Mutex::new(conn_manager))),
+        }
     }
 
-    #[must_use]
-    pub fn get_log_directory(&self, hostname: &str, backup_number: usize) -> PathBuf {
-        self.get_backup_destination_directory(hostname, backup_number)
+    /// Publishes a [`BackupChangedEvent`] to Redis if a publisher is configured,
+    /// and **invalidates** the backup cache for the affected host.
+    /// Serialization or connection errors are traced but ignored.
+    async fn notify(&self, hostname: &str, backup_id: Uuid, removed: bool) {
+        if let Some(publisher) = &self.redis_publisher {
+            // Invalidate cache first so readers see fresh data on the next request.
+            cache_invalidate(publisher, &backup_cache_key(hostname)).await;
+
+            let event = BackupChangedEvent {
+                hostname: hostname.to_string(),
+                backup_id,
+                removed,
+            };
+            match serde_json::to_string(&event) {
+                Ok(json) => {
+                    let mut conn = publisher.lock().await;
+                    if let Err(e) = conn.publish::<_, _, ()>(BACKUP_CHANGED_CHANNEL, json).await {
+                        error!("Failed to publish BackupChangedEvent to Redis: {}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to serialize BackupChangedEvent: {}", e);
+                }
+            }
+        }
     }
 
-    #[must_use]
-    pub fn get_manifest(&self, hostname: &str, backup_number: usize, share: &str) -> Manifest {
-        let share = mangle(share);
-        Manifest::new(
-            &share,
-            &self.get_backup_destination_directory(hostname, backup_number),
-        )
+    /// Reads backups directly from disk, bypassing any cache.
+    ///
+    /// Must be used by **all write operations** so that the read-modify-write
+    /// cycle always works on the authoritative on-disk state, not on a
+    /// potentially stale cache entry.
+    async fn read_backups_for_write(&self, hostname: &str) -> Vec<Backup> {
+        let path = self.get_backup_file(hostname);
+        Self::read_backups_from_disk(path).await
     }
 
-    #[must_use]
-    pub fn get_host_path(&self, hostname: &str) -> PathBuf {
-        self.config_host_path.join(hostname)
+    /// Acquires an exclusive Redis lock scoped to the `backup.yml` file of
+    /// `hostname`.  Held for the duration of any read-modify-write cycle to
+    /// prevent concurrent writes from racing on the same file.
+    async fn lock_host_for_write(&self, hostname: &str) -> Result<PoolLockRedis> {
+        let redis_url = self.config.redis_url();
+        let backup_file = self.get_backup_file(hostname);
+        let lock = PoolLockRedis::new_with_path(&redis_url, &backup_file, "write")
+            .await?
+            .lock_exclusive()
+            .await?;
+        Ok(lock)
     }
 
-    #[must_use]
-    pub async fn get_manifests(&self, hostname: &str, backup_number: usize) -> Vec<Manifest> {
-        let shares = self.get_backup_share_paths(hostname, backup_number).await;
-        shares
-            .iter()
-            .map(|share| self.get_manifest(hostname, backup_number, share))
-            .collect()
-    }
-
-    #[must_use]
-    pub async fn get_backups(&self, hostname: &str) -> Vec<Backup> {
-        let backups = read_to_string(self.get_backup_file(hostname)).await;
-
+    /// Reads the backup list for `hostname` directly from disk, without any cache.
+    async fn read_backups_from_disk(path: PathBuf) -> Vec<Backup> {
+        let backups = read_to_string(path).await;
         match backups {
             Ok(backups) => {
-                let backups: std::result::Result<Vec<Backup>, serde_yaml::Error> =
-                    serde_yaml::from_str(&backups);
+                let backups: std::result::Result<Vec<Backup>, serde_yaml_ng::Error> =
+                    serde_yaml_ng::from_str(&backups);
                 match backups {
                     Ok(backups) => backups,
                     Err(e) => {
@@ -121,53 +185,115 @@ impl Backups {
                     }
                 }
             }
-            Err(_) => vec![],
+            Err(e) => {
+                if e.kind() != ErrorKind::NotFound {
+                    error!("Failed to read backups: {e}");
+                }
+                vec![]
+            }
         }
     }
 
     #[must_use]
-    pub async fn get_backup(&self, hostname: &str, backup_number: usize) -> Option<Backup> {
-        let backups = self.get_backups(hostname).await;
-        let backup = backups
-            .iter()
-            .find(|&backup| backup.number == backup_number);
+    pub fn get_backup_destination_directory(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.config
+            .path
+            .hosts_path
+            .join(hostname)
+            .join(backup_id.to_string())
+    }
 
-        backup.cloned()
+    #[must_use]
+    pub fn get_log_directory(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+    }
+
+    #[must_use]
+    pub fn get_manifest(&self, hostname: &str, backup_id: Uuid, share: &str) -> Manifest {
+        let share = mangle(share);
+        Manifest::new(
+            &share,
+            &self.get_backup_destination_directory(hostname, backup_id),
+        )
+    }
+
+    #[must_use]
+    pub fn get_host_path(&self, hostname: &str) -> PathBuf {
+        self.config.path.hosts_path.join(hostname)
+    }
+
+    #[must_use]
+    pub async fn get_manifests(&self, hostname: &str, backup_id: Uuid) -> Vec<Manifest> {
+        let shares = self.get_backup_share_paths(hostname, backup_id).await;
+        shares
+            .iter()
+            .map(|share| self.get_manifest(hostname, backup_id, share))
+            .collect()
+    }
+
+    #[must_use]
+    pub async fn get_backups(&self, hostname: &str) -> Vec<Backup> {
+        let path = self.get_backup_file(hostname);
+        if let Some(conn) = &self.redis_publisher {
+            return cache_wrap(
+                conn,
+                &backup_cache_key(hostname),
+                CACHE_TTL_SECS,
+                || async move { Self::read_backups_from_disk(path).await },
+            )
+            .await;
+        }
+        Self::read_backups_from_disk(path).await
+    }
+
+    /// Explicitly invalidates the Redis cache entry for `hostname`'s backup list.
+    ///
+    /// Called by the `clear_cache` admin endpoint. Under normal operation,
+    /// invalidation happens automatically inside [`Self::notify`] on every write.
+    pub async fn invalidate_backup_cache(&self, hostname: &str) {
+        if let Some(conn) = &self.redis_publisher {
+            cache_invalidate(conn, &backup_cache_key(hostname)).await;
+        }
+    }
+
+    /// Get a backup by its UUID (primary key).
+    #[must_use]
+    pub async fn get_backup(&self, hostname: &str, backup_id: Uuid) -> Option<Backup> {
+        let backups = self.get_backups(hostname).await;
+        backups.into_iter().find(|b| b.id == backup_id)
+    }
+
+    /// Get a backup by its sequential display number (for CLI / backward-compat).
+    #[must_use]
+    pub async fn get_backup_by_number(&self, hostname: &str, number: usize) -> Option<Backup> {
+        let backups = self.get_backups(hostname).await;
+        backups.into_iter().find(|b| b.number == number)
     }
 
     #[must_use]
     pub async fn get_last_backup(&self, hostname: &str) -> Option<Backup> {
         let backups = self.get_backups(hostname).await;
-        let backup = backups.iter().max_by_key(|backup| backup.number);
-
-        backup.cloned()
+        // Sort by sequential number — reliable even for backups migrated with UUID v4.
+        backups.into_iter().max_by_key(|b| b.number)
     }
 
     #[must_use]
-    pub async fn get_previous_backup(
-        &self,
-        hostname: &str,
-        backup_number: usize,
-    ) -> Option<Backup> {
-        let backups = self.get_backups(hostname).await;
-        let backup = backups
-            .iter()
-            .filter(|backup| backup.number < backup_number)
-            .max_by_key(|backup| backup.number);
-
-        backup.cloned()
+    pub async fn get_time_since_last_backup(&self, hostname: &str) -> Option<Duration> {
+        let last_backup = self.get_last_backup(hostname).await;
+        last_backup.and_then(|backup| {
+            backup.end_date.map(|end_date| {
+                let now = Local::now();
+                now - end_date
+            })
+        })
     }
 
     #[must_use]
-    pub async fn get_backup_share_paths(
-        &self,
-        hostname: &str,
-        backup_number: usize,
-    ) -> Vec<String> {
-        let shares = read_to_string(self.get_share_file(hostname, backup_number)).await;
+    pub async fn get_backup_share_paths(&self, hostname: &str, backup_id: Uuid) -> Vec<String> {
+        let shares = read_to_string(self.get_share_file(hostname, backup_id)).await;
 
         match shares {
-            Ok(shares) => serde_yaml::from_str(&shares).unwrap_or(vec![]),
+            Ok(shares) => serde_yaml_ng::from_str(&shares).unwrap_or(vec![]),
             Err(_) => vec![],
         }
     }
@@ -190,23 +316,23 @@ impl Backups {
     pub async fn add_backup_share_path(
         &self,
         hostname: &str,
-        backup_number: usize,
+        backup_id: Uuid,
         share_path: &str,
     ) -> Result<()> {
-        let mut shares = self.get_backup_share_paths(hostname, backup_number).await;
+        let mut shares = self.get_backup_share_paths(hostname, backup_id).await;
 
         if !shares.contains(&share_path.to_string()) {
             shares.push(share_path.to_string());
         }
 
-        let shares = serde_yaml::to_string(&shares).map_err(|_| {
+        let shares = serde_yaml_ng::to_string(&shares).map_err(|_| {
             Error::new(
                 ErrorKind::InvalidData,
                 "Failed to serialize shares to yaml string",
             )
         })?;
 
-        let share_file = self.get_share_file(hostname, backup_number);
+        let share_file = self.get_share_file(hostname, backup_id);
         tokio::fs::write(&share_file, shares).await?;
 
         Ok(())
@@ -214,14 +340,20 @@ impl Backups {
 
     #[must_use]
     pub fn get_backup_file(&self, hostname: &str) -> PathBuf {
-        self.config_host_path.join(hostname).join("backup.yml")
+        self.config
+            .path
+            .hosts_path
+            .join(hostname)
+            .join("backup.yml")
     }
 
     #[must_use]
-    pub fn get_share_file(&self, hostname: &str, backup_number: usize) -> PathBuf {
-        self.config_host_path
+    pub fn get_share_file(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.config
+            .path
+            .hosts_path
             .join(hostname)
-            .join(backup_number.to_string())
+            .join(backup_id.to_string())
             .join("shares.yml")
     }
 
@@ -244,22 +376,21 @@ impl Backups {
     pub async fn clone_backup(
         &self,
         hostname: &str,
-        backup_number: Option<usize>,
-        destination_number: usize,
+        source_id: Option<Uuid>,
+        destination_id: Uuid,
         shares: &[&str],
     ) -> Result<()> {
-        let destination_directory =
-            self.get_backup_destination_directory(hostname, destination_number);
+        let destination_directory = self.get_backup_destination_directory(hostname, destination_id);
 
         create_dir_all(&destination_directory).await?;
 
-        if let Some(backup_number) = backup_number {
-            let source_directory = self.get_backup_destination_directory(hostname, backup_number);
+        if let Some(source_id) = source_id {
+            let source_directory = self.get_backup_destination_directory(hostname, source_id);
 
             // Copy only manifest that correspond to new shares
             for share in shares {
-                let manifest = self.get_manifest(hostname, backup_number, share);
-                let destination_manifest = self.get_manifest(hostname, destination_number, share);
+                let manifest = self.get_manifest(hostname, source_id, share);
+                let destination_manifest = self.get_manifest(hostname, destination_id, share);
 
                 // Copy only if exist
                 if manifest.manifest_path.exists() {
@@ -292,12 +423,13 @@ impl Backups {
     ///
     /// Returns an error if the backup list cannot be read or written to disk.
     pub async fn add_or_replace_backup(&self, hostname: &str, backup: &Backup) -> Result<()> {
-        let backups = self.get_backups(hostname).await;
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let backups = self.read_backups_for_write(hostname).await;
 
-        // Find the index of backup.number in backup_file if found
+        // Find the index of backup.id in backup_file if found
         let index = backups
             .iter()
-            .position(|b| b.number == backup.number)
+            .position(|b| b.id == backup.id)
             .unwrap_or(backups.len());
 
         // If found replace it, else add a new one
@@ -310,6 +442,41 @@ impl Backups {
 
         // Serialize and save in the backup file
         self.save(hostname, &backups).await?;
+        self.notify(hostname, backup.id, false).await;
+
+        Ok(())
+    }
+
+    /// Updates a specific backup by applying a closure to modify it.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname for which to update the backup.
+    /// * `backup_number` - The backup number to update.
+    /// * `f` - A closure that takes a mutable reference to the backup to modify.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the backup is successfully updated.
+    /// * `Err(eyre::Report)` if the backup cannot be found or saved.
+    pub async fn update_backup<F>(&self, hostname: &str, backup_id: Uuid, mut f: F) -> Result<()>
+    where
+        F: FnMut(&mut Backup),
+    {
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let backups = self.read_backups_for_write(hostname).await;
+
+        // Find the backup to update
+        let index = backups
+            .iter()
+            .position(|b| b.id == backup_id)
+            .ok_or_else(|| eyre::eyre!("Backup {} not found for host {}", backup_id, hostname))?;
+
+        let mut backups = backups;
+        f(&mut backups[index]);
+
+        // Save the updated backups
+        self.save(hostname, &backups).await?;
+        self.notify(hostname, backup_id, false).await;
 
         Ok(())
     }
@@ -328,20 +495,18 @@ impl Backups {
     /// # Errors
     ///
     /// Returns an error if the backup cannot be found, read, or written to disk.
-    pub async fn remove_backup(&self, hostname: &str, backup_number: usize) -> Result<Backup> {
-        let backup_destination = self.get_backup_destination_directory(hostname, backup_number);
+    pub async fn remove_backup(&self, hostname: &str, backup_id: Uuid) -> Result<Backup> {
+        let backup_destination = self.get_backup_destination_directory(hostname, backup_id);
 
-        let mut backups = self.get_backups(hostname).await;
+        let _lock = self.lock_host_for_write(hostname).await?;
+        let mut backups = self.read_backups_for_write(hostname).await;
 
-        // Find the index of backup.number in backup_file if found
+        // Find the index of backup.id in backup_file
         let index = backups
             .iter()
-            .position(|b| b.number == backup_number)
+            .position(|b| b.id == backup_id)
             .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::NotFound,
-                    format!("Backup number {backup_number} not found"),
-                )
+                Error::new(ErrorKind::NotFound, format!("Backup {backup_id} not found"))
             })?;
 
         // Remove the backup from the list
@@ -350,7 +515,20 @@ impl Backups {
         // Serialize and save in the backup file
         self.save(hostname, &backups).await?;
 
-        remove_dir_all(&backup_destination).await?;
+        // Invalidate the cache immediately after the yaml write, regardless of
+        // what happens to the directory removal below. Cache coherence must be
+        // tied to the disk write, not to the subsequent filesystem operation.
+        // Failing to do this causes stale cache entries to be written back to
+        // disk by the next job, resurrecting removed entries (infinite loop).
+        self.notify(hostname, backup_id, true).await;
+
+        match remove_dir_all(&backup_destination).await {
+            Ok(()) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                // Directory already absent — treat as already removed.
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         Ok(backup)
     }
@@ -370,7 +548,7 @@ impl Backups {
     ///
     /// Returns an error if the backups cannot be serialized or written to disk.
     async fn save(&self, hostname: &str, backups: &Vec<Backup>) -> Result<()> {
-        let backups = serde_yaml::to_string(&backups).map_err(|_| {
+        let backups = serde_yaml_ng::to_string(&backups).map_err(|_| {
             Error::new(
                 ErrorKind::InvalidData,
                 "Failed to serialize backups to yaml string",

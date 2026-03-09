@@ -44,7 +44,7 @@ impl PoolChunkInformation {
     /// This function will return an error if the serialization to YAML fails due to invalid data or other issues.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
-        let str = serde_yaml::to_string(&object)?;
+        let str = serde_yaml_ng::to_string(&object)?;
         Ok(str)
     }
 }

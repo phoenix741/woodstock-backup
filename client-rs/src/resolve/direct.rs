@@ -1,12 +1,12 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use eyre::Result;
 use if_addrs::IfAddr;
-use log::{debug, error};
 use reqwest::{Certificate, Client, Identity};
 use serde::Serialize;
 use serde_json::json;
 use tokio::{sync::Mutex, task::AbortHandle};
+use tracing::{debug, error};
 
 use super::ResolveClient;
 use crate::config::ClientConfig;
@@ -246,7 +246,8 @@ impl DirectResolveClient {
                 if let Err(err) = self_clone.refresh().await {
                     error!("Failed to refresh direct service: {:?}", err);
                 }
-                thread::sleep(Duration::from_secs(REFRESH_INTERVAL));
+                // Use async sleep to avoid blocking a Tokio worker
+                tokio::time::sleep(Duration::from_secs(REFRESH_INTERVAL)).await;
             }
         });
 

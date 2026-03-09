@@ -23,12 +23,12 @@
 mod commands;
 
 use clap::{Parser, Subcommand};
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use woodstock::ChunkAlgorithm;
 
 use crate::commands::client::list_client_files;
 use commands::client::read_chunk_from_file;
-use woodstock::config::GlobalConfiguration;
+use woodstock::config::GLOBAL_CONFIGURATION;
 
 /// Command-line interface options for the Woodstock CLI tool.
 #[derive(Parser)]
@@ -74,18 +74,20 @@ enum Commands {
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let args = Cli::parse();
 
-    let subcommand = args.subcommand.expect("No subcommand provided");
+    let subcommand = args
+        .subcommand
+        .ok_or_else(|| eyre::eyre!("No subcommand provided"))?;
     match subcommand {
         Commands::ListDirectory {
             share_path,
             config_path,
-        } => list_client_files(&share_path, &config_path, &GlobalConfiguration)
+        } => list_client_files(&share_path, &config_path, &GLOBAL_CONFIGURATION)
             .await
-            .expect("Failed to list files"),
+            .wrap_err("Failed to list files")?,
         Commands::ReadFileChunk {
             file_name,
             algorithm,
@@ -96,7 +98,7 @@ async fn main() -> Result<()> {
                 .unwrap_or(ChunkAlgorithm::Blake3.as_str_name()),
         )
         .await
-        .expect("Failed to read chunk from file"),
+        .wrap_err("Failed to read chunk from file")?,
     }
 
     Ok(())

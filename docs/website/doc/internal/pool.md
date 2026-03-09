@@ -80,10 +80,23 @@ request, we could add an option to modify the chunk size.
 All chunks should be easily accessible with a key without having to reread the content of the file. We use a hash table to store
 these chunks. As the file system already manages files as a hash table (where the filename is the key), we use the underlying file system.
 
-The key used to deduplicate the content is a Blake 3 hash of the content. Using a Blake 3 key allows us to easily check
-if the chunk already exists in the pool. Originally, we used SHA-256, but it was too slow. Blake 3 is faster.
+The key used to deduplicate the content is a **Blake3** hash of the content. Using a Blake3 key allows us to easily check
+if the chunk already exists in the pool. Originally, we used SHA-256, but it was too slow. Blake3 is faster and supports
+parallelism on multi-core machines.
 
-During pool integrity checks, we can easily verify the coherence between the Blake3 hash and the content of the file.
+> **Note on file naming**: Chunk files use a `-sha256.zz` suffix (e.g., `000003ef...-sha256.zz`) inherited from the
+> original SHA-256 implementation. Despite this filename, the hash stored inside is Blake3 for all new pools.
+> The algorithm actually used is stored in the pool's algorithm configuration file.
+
+The hash algorithm can be configured via the `CHUNK_ALGORITHM` environment variable:
+
+| Value | Algorithm |
+|-------|-----------|
+| `blake3` | Blake3 (default) |
+| `sha2_256` | SHA-2 256 |
+| `sha3_256` | SHA-3 256 |
+
+During pool integrity checks, we can easily verify the coherence between the hash and the content of the file.
 
 The risk of using a Blake3/SHA-256 key is collision. If two chunks have the same hash, the backup will fail silently (the
 problem will emerge during restoration of the files). Based on cryptographic research, SHA-256 collisions should not be
@@ -131,14 +144,19 @@ The `REFCNT` file counts the number of times each chunk is used across all backu
 The chunks themselves are stored in compressed files with a `.zz` extension, with additional metadata in `.info` files.
 New chunks are temporarily placed in the `_new` directory during creation.
 
-Currently, only zlib compression is supported for chunk storage.
+Two compression formats are supported, identified by a magic header:
+
+| Header | Format | Description |
+|--------|--------|--------------|
+| `WSC01` | Zlib | Legacy format (older backups) |
+| `WSC02` | Zstd | Default format for new chunks |
 
 ## Chunk Handling
 
 When a new chunk is created:
 
 1. A temporary file is created in the `_new` directory
-2. The data is compressed with zlib compression
+2. The data is compressed with **Zstd** compression (or Zlib for legacy compatibility)
 3. The Blake3 hash of the uncompressed data is calculated
 4. The chunk is moved to its final location based on the hash
 5. A reference count is updated in the `REFCNT` file

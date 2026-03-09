@@ -1,9 +1,8 @@
 use hyper_util::rt::TokioIo;
-use std::{path::PathBuf, vec};
+use std::{path::PathBuf, sync::Arc, vec};
 
 use eyre::Result;
 use futures::Future;
-use log;
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
@@ -11,7 +10,9 @@ use tokio::{
 use tonic::transport::{Endpoint, Server, Uri};
 use tower::service_fn;
 use woodstock::{
-    config::{BackupStatus, Configuration, ConfigurationPath, Context, OptionalConfigurationPath},
+    config::{
+        BackupStatus, Backups, Configuration, ConfigurationPath, Context, OptionalConfigurationPath,
+    },
     server::{backup::save::BackupSave, client::grpc::BackupGrpcClient},
     utils::compression::CompressionFormat,
     woodstock_client_service_client::WoodstockClientServiceClient,
@@ -29,9 +30,10 @@ fn create_context() -> Context {
 }
 
 fn create_config() -> Configuration {
+    let redis_host = std::env::var("REDIS_HOST").unwrap_or_else(|_| "localhost".to_string());
     Configuration {
         redis: woodstock::config::RedisConfiguration {
-            host: "localhost".to_string(),
+            host: redis_host,
             port: 6379,
         },
         path: ConfigurationPath::new(
@@ -42,7 +44,7 @@ fn create_config() -> Configuration {
                 ..Default::default()
             },
         ),
-        log_level: log::Level::Warn,
+        log_level: tracing::Level::WARN,
         cache_size: 1,
         chunk_algorithm: ChunkAlgorithm::Blake3,
         compression_format: CompressionFormat::Zstd,
@@ -51,7 +53,7 @@ fn create_config() -> Configuration {
 
 async fn server_and_client_stub(
     context: &Context,
-    app_config: &Configuration,
+    app_config: Arc<Configuration>,
 ) -> (impl Future<Output = ()>, BackupSave<BackupGrpcClient>) {
     let config_path = std::path::Path::new("./data");
 
@@ -110,9 +112,20 @@ async fn server_and_client_stub(
         .await
         .unwrap();
 
+    let backups = Arc::new(Backups::new(app_config.clone()));
     let client = WoodstockClientServiceClient::new(channel);
     let client = BackupGrpcClient::with_client("localhost", "127.0.0.1", client, config_path);
-    let client = BackupSave::new(client, "localhost", 0, context, app_config);
+    let backup_id = uuid::Uuid::now_v7();
+    let client = BackupSave::new(
+        client,
+        "localhost",
+        backup_id,
+        0,
+        None,
+        context,
+        app_config,
+        backups,
+    );
 
     (serve_future, client)
 }
@@ -149,8 +162,8 @@ async fn test_server_backup() {
     let share_path = current_path.to_str().unwrap().to_string();
 
     let context = create_context();
-    let config = create_config();
-    let (serve_future, client) = server_and_client_stub(&context, &config).await;
+    let config = Arc::new(create_config());
+    let (serve_future, client) = server_and_client_stub(&context, config).await;
 
     tokio::spawn(async move {
         serve_future.await;

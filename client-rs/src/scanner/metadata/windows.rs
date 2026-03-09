@@ -84,7 +84,7 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
         rdev: 0,
         ino: 0,
         nlink: 0,
-        r#type: if (metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY)
+        file_type: if (metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY)
             == FILE_ATTRIBUTE_DIRECTORY
         {
             FileManifestType::Directory.into()

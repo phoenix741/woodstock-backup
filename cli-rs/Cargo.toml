@@ -30,25 +30,27 @@ async-stream = { workspace = true }
 clap = { workspace = true }
 color-eyre = { workspace = true }
 console = { workspace = true }
-env_logger = { workspace = true }
 eyre = { workspace = true }
 async-compression = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 indicatif = { workspace = true }
-log = { workspace = true }
-multi_log = "^0.1"
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
 woodstock-rs = { workspace = true }
+chrono.workspace = true
+redis = { workspace = true }
+uuid = { workspace = true }
 
 # Fuse dependencies
 [target.'cfg(unix)'.dependencies]
 lru = { workspace = true, optional = true }
 twox-hash = { version = "^2.1", optional = true }
 libc = { version = "^0.2", optional = true }
-fuser = { version = "0.15", optional = true }
+fuser = { version = "0.16", optional = true }
 rand = { workspace = true, optional = true }

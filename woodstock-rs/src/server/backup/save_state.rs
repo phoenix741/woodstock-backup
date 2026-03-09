@@ -1,7 +1,9 @@
-use std::{collections::HashMap, time::SystemTime};
+use std::collections::HashMap;
 
+use chrono::Local;
 use eyre::Result;
-use log::{error, info};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::{
     config::{ExecuteCommandOperation, HostConfiguration},
@@ -9,7 +11,7 @@ use crate::{
     ExecuteCommandReply,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
     AuthenticationError(String),
     InitializationError(String),
@@ -21,9 +23,10 @@ pub enum ErrorState {
     Unknown(String),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BackupExecutionState {
     Waiting,
+    Skipped,
     Authenticate,
     Initialization,
     PreCommands(ExecuteCommandOperation),
@@ -36,7 +39,7 @@ pub enum BackupExecutionState {
     Completed,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupMachineCommandResult {
     pub code: i32,
     pub stdout: String,
@@ -53,7 +56,7 @@ impl From<ExecuteCommandReply> for BackupMachineCommandResult {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub enum ExecuteCommandExecutionState {
     #[default]
     Waiting,
@@ -62,13 +65,13 @@ pub enum ExecuteCommandExecutionState {
     Failed(BackupMachineCommandResult),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecuteCommandState {
     pub command: ExecuteCommandOperation,
     pub execution_state: ExecuteCommandExecutionState,
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub enum ShareExecutionState {
     #[default]
     Waiting,
@@ -78,7 +81,7 @@ pub enum ShareExecutionState {
     Failed(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShareState {
     pub share: String,
     pub file_list_progression: FileListProgression,
@@ -86,14 +89,16 @@ pub struct ShareState {
     pub execution_state: ShareExecutionState,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackupState {
     pub execution_state: BackupExecutionState,
     pub error_state: Option<ErrorState>,
     pub global_progression: BackupProgression,
-    pub pre_command_states: HashMap<ExecuteCommandOperation, ExecuteCommandState>,
+    /// Keyed by command string to ensure JSON serialization compatibility.
+    pub pre_command_states: HashMap<String, ExecuteCommandState>,
     pub share_states: HashMap<String, ShareState>,
-    pub post_command_states: HashMap<ExecuteCommandOperation, ExecuteCommandState>,
+    /// Keyed by command string to ensure JSON serialization compatibility.
+    pub post_command_states: HashMap<String, ExecuteCommandState>,
 }
 
 /// Creates a map of command states from a list of commands.
@@ -111,12 +116,12 @@ pub struct BackupState {
 /// This function does not panic.
 fn create_command_states(
     commands: Option<&[ExecuteCommandOperation]>,
-) -> HashMap<ExecuteCommandOperation, ExecuteCommandState> {
+) -> HashMap<String, ExecuteCommandState> {
     let mut states = HashMap::new();
     if let Some(cmds) = commands {
         for cmd in cmds {
             states.insert(
-                cmd.clone(),
+                cmd.command.clone(),
                 ExecuteCommandState {
                     command: cmd.clone(),
                     execution_state: ExecuteCommandExecutionState::Waiting,
@@ -320,9 +325,9 @@ impl BackupState {
     /// This function does not panic.
     fn set_command_in_progress(
         command: &ExecuteCommandOperation,
-        command_states: &mut HashMap<ExecuteCommandOperation, ExecuteCommandState>,
+        command_states: &mut HashMap<String, ExecuteCommandState>,
     ) {
-        if let Some(state) = command_states.get_mut(command) {
+        if let Some(state) = command_states.get_mut(&command.command) {
             state.execution_state = ExecuteCommandExecutionState::InProgress;
         }
     }
@@ -396,7 +401,7 @@ impl BackupState {
     fn process_command_result_internal(
         command: &ExecuteCommandOperation,
         result: Result<ExecuteCommandReply>,
-        command_states: &mut HashMap<ExecuteCommandOperation, ExecuteCommandState>,
+        command_states: &mut HashMap<String, ExecuteCommandState>,
     ) -> Result<()> {
         match result {
             Ok(reply) => {
@@ -412,7 +417,7 @@ impl BackupState {
                 }
 
                 let code = reply.code;
-                if let Some(state) = command_states.get_mut(command) {
+                if let Some(state) = command_states.get_mut(&command.command) {
                     if code != 0 {
                         state.execution_state = ExecuteCommandExecutionState::Failed(reply.into());
                         return Err(eyre::eyre!("Command {command} failed with code {code}"));
@@ -481,7 +486,7 @@ impl BackupState {
         match result {
             Ok(()) => {
                 info!("File list synchronization for share '{share}' successful");
-                let system_time = SystemTime::now();
+                let system_time = Local::now();
                 if let Some(share_state) = self.share_states.get_mut(share) {
                     share_state.execution_state = ShareExecutionState::InProgress;
                     share_state.backup_progression.start_transfer_date = Some(system_time);
@@ -507,7 +512,7 @@ impl BackupState {
     pub fn start_backup(&mut self, share: &str) {
         self.execution_state = BackupExecutionState::DownloadChunks(share.to_string());
         if let Some(share_state) = self.share_states.get_mut(share) {
-            share_state.backup_progression.start_transfer_date = Some(SystemTime::now());
+            share_state.backup_progression.start_transfer_date = Some(Local::now());
             share_state.execution_state = ShareExecutionState::InProgress;
         }
     }
@@ -654,6 +659,7 @@ impl BackupState {
         match result {
             Ok(()) => {
                 info!("Add references to pool operation successful");
+                self.execution_state = BackupExecutionState::Completed;
                 Ok(())
             }
             Err(err) => {

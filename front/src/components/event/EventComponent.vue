@@ -50,13 +50,12 @@
 </template>
 
 <script setup lang="ts">
-import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
+import { parseDateTime, toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import { useFragment } from '@/generated';
 import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
+import { formatDurationValue } from '@/utils/formatting';
 import { usePool } from '@/utils/pool';
-import type { FormatDistanceFn, FormatDistanceToken } from 'date-fns';
-import { formatDuration, intervalToDuration } from 'date-fns';
 import { computed, ref } from 'vue';
 import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
@@ -98,33 +97,15 @@ const icon = computed(() => {
   }
 });
 
-const formatDistanceLocale: Record<FormatDistanceToken, string> = {
-  xSeconds: '{{count}} s',
-  xMinutes: '{{count}} m',
-  xHours: '{{count}} h',
-  lessThanXSeconds: '< {{count}} s',
-  halfAMinute: '30 s',
-  lessThanXMinutes: '< {{count}} m',
-  aboutXHours: '≈ {{count}} h',
-  xDays: '{{count}} d',
-  aboutXWeeks: '≈ {{count}} w',
-  xWeeks: '{{count}} w',
-  aboutXMonths: '≈ {{count}} mo',
-  xMonths: '{{count}} mo',
-  aboutXYears: '≈ {{count}} y',
-  xYears: '{{count}} y',
-  overXYears: '> {{count}} y',
-  almostXYears: '≈ {{count}} y',
-};
-const shortDistance: FormatDistanceFn = (token, count) =>
-  formatDistanceLocale[token].replace('{{count}}', count.toString());
-
 const executionTime = computed(() => {
   if (props.event.endDate) {
-    const endDate = new Date(props.event.endDate);
-    const startDate = new Date(props.event.startDate);
-    const duration = intervalToDuration({ start: startDate, end: endDate });
-    return formatDuration(duration, { locale: { formatDistance: shortDistance } });
+    const endDate = parseDateTime(props.event.endDate);
+    const startDate = parseDateTime(props.event.startDate);
+    return formatDurationValue(endDate.getTime() - startDate.getTime(), {
+      unitDisplay: 'short',
+      maxParts: 2,
+      listStyle: 'short',
+    });
   }
   return undefined;
 });
@@ -179,7 +160,7 @@ const subtitle = computed(() => {
   switch (props.event?.information?.__typename) {
     case 'EventBackupInformation': {
       const backupInformation = useFragment(EventBackupInformationFragment, props.event.information);
-      return `${backupInformation?.hostname} - ${backupInformation?.number}`;
+      return `${backupInformation?.hostname} - ${toNumber(backupInformation?.number)}`;
     }
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
@@ -188,7 +169,7 @@ const subtitle = computed(() => {
       if (errorCount === 0) {
         return 'No errors found';
       }
-      return `${errorCount} errors ${poolFixed ? 'fixed' : 'found'}`;
+      return `${toNumber(errorCount)} errors ${poolFixed ? 'fixed' : 'found'}`;
     }
     case 'EventPoolCleanedInformation': {
       const poolCleanedInformation = useFragment(EventPoolCleanedInformationFragment, props.event.information);

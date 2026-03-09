@@ -1,7 +1,7 @@
 import type { FragmentFileDescriptionFragment } from '@/generated/graphql';
 
 export interface BackupSizeByDate {
-  startDate: number;
+  startDate: Date;
   fileSize: bigint;
   newFileSize: bigint;
 }

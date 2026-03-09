@@ -5,7 +5,6 @@ use crate::storage::snapshots::{select_snapshot_manager, SnapshotReference};
 use eyre::{eyre, Result};
 use futures::{pin_mut, Stream, StreamExt};
 use globset::GlobSet;
-use log;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -357,13 +356,13 @@ impl FileSystemAccessor {
             // Store the snapshot reference for cleanup later
             self.active_snapshots.push(snapshot_ref);
 
-            log::info!(
+            tracing::info!(
                 "Created snapshot for share path '{}' using {} snapshot manager",
                 share_path.display(),
                 snapshot_manager.manager_name()
             );
         } else {
-            log::debug!(
+            tracing::debug!(
                 "No snapshot manager available for share path '{}'",
                 share_path.display()
             );
@@ -421,14 +420,14 @@ impl FileSystemAccessor {
             let snapshot_path = snapshot.path();
 
             if let Err(e) = snapshot.delete_self().await {
-                log::error!(
+                tracing::error!(
                     "Failed to delete snapshot '{}': {}",
                     snapshot_path.display(),
                     e
                 );
                 errors.push(e);
             } else {
-                log::info!(
+                tracing::info!(
                     "Successfully deleted snapshot '{}'",
                     snapshot_path.display()
                 );
@@ -840,7 +839,7 @@ mod tests {
 
         let snapshot_path = "/data/.snapshots/daily/documents/report.pdf";
         let journal_entry = FileManifestJournalEntry {
-            r#type: EntryType::Add as i32,
+            entry_type: EntryType::Add as i32,
             manifest: Some(FileManifest {
                 path: snapshot_path.as_bytes().to_vec(),
                 ..Default::default()
@@ -864,7 +863,7 @@ mod tests {
 
         let original_path = "/data/documents/report.pdf";
         let journal_entry = FileManifestJournalEntry {
-            r#type: EntryType::Add as i32,
+            entry_type: EntryType::Add as i32,
             manifest: Some(FileManifest {
                 path: original_path.as_bytes().to_vec(),
                 ..Default::default()

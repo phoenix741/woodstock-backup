@@ -12,22 +12,21 @@
 
 use std::path::PathBuf;
 
-use eyre::Result;
-use woodstock::config::Configuration;
+use eyre::{Result, WrapErr};
 
-use crate::filesystem::WoodstockFileSystem;
+use crate::{commands::CliServiceState, filesystem::WoodstockFileSystem};
 
 /// Options for mounting a Woodstock backup as a FUSE filesystem.
 ///
 /// - `hostname`: The hostname of the backup server (optional).
-/// - `backup_number`: The backup number to mount (optional).
+/// - `backup_id`: The backup UUID to mount (optional).
 /// - `path`: The path within the backup to mount (optional).
 /// - `mount_point`: The local mount point for the FUSE filesystem.
 pub struct MountOption {
     /// The hostname of the backup server.
     pub hostname: Option<String>,
-    /// The backup number to mount.
-    pub backup_number: Option<usize>,
+    /// The backup UUID to mount.
+    pub backup_id: Option<String>,
     /// The path within the backup to mount.
     pub path: Option<String>,
     /// The local mount point for the FUSE filesystem.
@@ -48,10 +47,10 @@ pub struct MountOption {
 /// # Panics
 ///
 /// This function does not explicitly panic.
-pub async fn mount(config: &Configuration, options: &MountOption) -> Result<()> {
+pub async fn mount(state: CliServiceState, options: &MountOption) -> Result<()> {
     let path = vec![
         options.hostname.clone(),
-        options.backup_number.map(|x| x.to_string()),
+        options.backup_id.clone(),
         options.path.clone(),
     ];
     let path = path
@@ -69,8 +68,14 @@ pub async fn mount(config: &Configuration, options: &MountOption) -> Result<()> 
 
     let path = PathBuf::from(&path);
 
-    let fs = WoodstockFileSystem::new(config, &path);
+    let fs = WoodstockFileSystem::new(
+        state.config.clone(),
+        state.hosts.clone(),
+        state.backups.clone(),
+        &path,
+    );
     let mount_options = [];
-    fuser::mount2(fs, &options.mount_point, &mount_options).unwrap();
+    fuser::mount2(fs, &options.mount_point, &mount_options)
+        .wrap_err("Failed to mount FUSE filesystem")?;
     Ok(())
 }

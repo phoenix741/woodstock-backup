@@ -170,7 +170,7 @@ impl FileManifest {
     pub fn file_mode(&self) -> FileManifestType {
         self.stats
             .as_ref()
-            .map(FileManifestStat::r#type)
+            .map(FileManifestStat::file_type)
             .unwrap_or_default()
     }
 
@@ -233,7 +233,7 @@ impl FileManifest {
     /// Returns an error if serialization fails.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
-        let str = serde_yaml::to_string(&object)?;
+        let str = serde_yaml_ng::to_string(&object)?;
         Ok(str)
     }
 
@@ -329,7 +329,7 @@ impl FileManifestJournalEntry {
     /// Returns an error if serialization fails.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
-        let str = serde_yaml::to_string(&object)?;
+        let str = serde_yaml_ng::to_string(&object)?;
         Ok(str)
     }
 
@@ -354,7 +354,7 @@ impl FileManifestJournalEntry {
             String::new()
         };
 
-        let type_str = match self.r#type() {
+        let type_str = match self.entry_type() {
             EntryType::Add => "create",
             EntryType::Modify => "change",
             EntryType::Remove => "remove",

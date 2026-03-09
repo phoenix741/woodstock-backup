@@ -2,10 +2,10 @@
   <v-card class="pa-2" :loading="isFetching">
     <v-card-title class="d-flex justify-space-between align-center">
       <div>
-        <span>Backup #{{ backup?.number }}</span>
+        <span>Backup #{{ toNumber(backup?.number) }}</span>
 
         <v-chip class="ml-2" :color="statusColor" size="small">
-          {{ backup?.status }}
+          {{ getBackupStatusText(backup?.status) }}
         </v-chip>
       </div>
     </v-card-title>
@@ -15,11 +15,11 @@
       <v-row>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">Start</div>
-          <div>{{ backup?.startDate && toDateTime(backup?.startDate * 1000) }}</div>
+          <div>{{ backup?.startDate && toDateTime(backup?.startDate) }}</div>
         </v-col>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">End</div>
-          <div>{{ backup?.endDate && toDateTime(backup?.endDate * 1000) }}</div>
+          <div>{{ backup?.endDate && toDateTime(backup?.endDate) }}</div>
         </v-col>
         <v-col cols="3">
           <div class="text-caption text-medium-emphasis">Duration</div>
@@ -36,7 +36,7 @@
         <v-col>
           <v-alert v-if="backup?.errorCount && backup.errorCount > 0" type="error" density="compact" variant="tonal"
             class="mb-2">
-            {{ backup.errorCount }} error(s) detected
+            {{ toNumber(backup.errorCount) }} error(s) detected
           </v-alert>
         </v-col>
       </v-row>
@@ -97,20 +97,20 @@
 
 <script lang="ts" setup>
 import { defineProps, computed } from 'vue';
-import { getBackupStatusColor, useBackup } from '@/utils/backups';
+import { getBackupStatusColor, getBackupStatusText, useBackup } from '@/utils/backups';
 import filesize from '@/utils/filesize';
-import { toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
+import { parseDateTime, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
 
 const props = defineProps<{
   deviceId: string;
-  backupId: number;
+  backupId: string;
 }>();
 
 const { backup, isFetching } = useBackup(props.deviceId, props.backupId);
 
 const duration = computed(() => {
   if (backup?.value?.endDate) {
-    return toDuration((backup.value.endDate - backup.value.startDate) * 1000);
+    return toDuration(parseDateTime(backup.value.endDate).getTime() - parseDateTime(backup.value.startDate).getTime());
   }
   return undefined;
 });

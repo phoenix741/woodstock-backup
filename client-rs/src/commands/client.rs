@@ -10,13 +10,13 @@
 //!
 //! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    config::{Configuration, Hosts},
+    config::{Configuration, Hosts, Scheduler},
     utils::path::{list_to_globset, vec_to_str},
     ChunkAlgorithm, ChunkHashRequest,
 };
@@ -44,7 +44,9 @@ pub async fn list_client_files(
     config: &Configuration,
 ) -> Result<()> {
     // Start by reading the configuration file
-    let hosts = Hosts::new(config);
+    let config = Arc::new(config.clone());
+    let scheduler = Scheduler::new(config.clone());
+    let hosts = Hosts::new(config, Arc::new(scheduler));
     let host = hosts.read_host_file(config_path).await?;
 
     if let Some(operation) = host.operations.operation {

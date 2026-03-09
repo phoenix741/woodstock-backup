@@ -50,24 +50,27 @@ export function useQueueRealtimeStats() {
     graphql(/* GraphQL */ `
       query QueueStatistics {
         queueStats {
-          active
-          waiting
+          pending
+          running
+          success
           failed
-          delayed
-          completed
+          dead
         }
       }
     `),
+    // Fallback polling: stats remain up-to-date even without an active subscription
+    null,
+    { pollInterval: 10000, fetchPolicy: 'cache-and-network' },
   );
 
   const queueStats = computed(() => {
     return (
       data.value?.queueStats || {
-        active: 0,
-        waiting: 0,
+        running: 0,
+        pending: 0,
         failed: 0,
-        delayed: 0,
-        completed: 0,
+        dead: 0,
+        success: 0,
       }
     );
   });
@@ -114,6 +117,10 @@ export function usePoolStats() {
         }
       }
     `),
+    null,
+    // Automatic refresh every 30s
+    // + immediate update via cache if data is available
+    { pollInterval: 30000, fetchPolicy: 'cache-and-network' },
   );
 
   return {

@@ -11,20 +11,22 @@
 //! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
 
 use console::Term;
-use log::info;
+use eyre::{Result, WrapErr};
 use std::{
-    error::Error,
     io::{stdout, Write},
     path::Path,
 };
 use tokio::io::AsyncReadExt;
+use tracing::info;
 
 use futures::{pin_mut, StreamExt};
 use woodstock::{
-    config::{Backups, Configuration, Hosts, BUFFER_SIZE},
+    config::BUFFER_SIZE,
     pool::{PoolChunkWrapper, Refcnt},
     utils::compression::WoodstockCompressionReader,
 };
+
+use crate::commands::CliServiceState;
 
 /// Reads and prints the content of a chunk from the backup pool, decompressing it if necessary.
 ///
@@ -40,12 +42,12 @@ use woodstock::{
 /// # Panics
 ///
 /// This function may panic if writing to stdout fails.
-pub async fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Error>> {
+pub async fn read_chunk(pool_path: &Path, chunk: &str) -> Result<()> {
     let chunk = hex::decode(chunk)?;
     let chunk = PoolChunkWrapper::new(pool_path, Some(&chunk));
 
     if !chunk.exists() {
-        return Err("Chunk doesn't exist".into());
+        return Err(eyre::eyre!("Chunk doesn't exist"));
     }
 
     let chunk_path = chunk.chunk_path();
@@ -62,7 +64,9 @@ pub async fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Err
             break;
         }
 
-        stdout().write_all(&buffer[..read]).unwrap();
+        stdout()
+            .write_all(&buffer[..read])
+            .wrap_err("Failed to write chunk to stdout")?;
     }
 
     Ok(())
@@ -82,38 +86,36 @@ pub async fn read_chunk(pool_path: &Path, chunk: &str) -> Result<(), Box<dyn Err
 /// # Panics
 ///
 /// This function does not explicitly panic.
-pub async fn search_chunk(config: &Configuration, chunk: &str) -> Result<(), Box<dyn Error>> {
+pub async fn search_chunk(state: CliServiceState, chunk: &str) -> Result<()> {
     let term = Term::stdout();
 
     let chunk = hex::decode(chunk)?;
 
-    let hosts_config = Hosts::new(config);
-    let backups_config = Backups::new(config);
-
-    let hosts = hosts_config.list_hosts().await.unwrap_or_default();
+    let hosts = state.hosts.list_hosts().await.unwrap_or_default();
     for host in hosts {
         {
             // Heuristic, check if the chunk is in the host's refcnt
-            let refcnt_path = backups_config.get_host_path(&host);
+            let refcnt_path = state.backups.get_host_path(&host);
             let refcnt = Refcnt::load_refcnt_from_path(refcnt_path).await?;
             if refcnt.get_refcnt(&chunk).is_none() {
                 continue;
             }
         }
 
-        let backups = backups_config.get_backups(&host).await;
+        let backups = state.backups.get_backups(&host).await;
         for backup in backups {
             {
                 // Heuristic, check if the chunk is in the backup's refcnt
-                let refcnt_path =
-                    backups_config.get_backup_destination_directory(&host, backup.number);
+                let refcnt_path = state
+                    .backups
+                    .get_backup_destination_directory(&host, backup.id);
                 let refcnt = Refcnt::load_refcnt_from_path(refcnt_path).await?;
                 if refcnt.get_refcnt(&chunk).is_none() {
                     continue;
                 }
             }
 
-            let manifests = backups_config.get_manifests(&host, backup.number).await;
+            let manifests = state.backups.get_manifests(&host, backup.id).await;
 
             for manifest in manifests {
                 info!(

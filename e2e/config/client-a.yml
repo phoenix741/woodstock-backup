@@ -1,0 +1,11 @@
+password: "password"
+port: 3657
+addresses: []
+operations:
+  operation:
+    shares:
+      - name: "/tmp/source"
+schedule:
+  activated: true
+  backupToKeep:
+    daily: 7

@@ -27,7 +27,7 @@
           <div class="text-caption text-medium-emphasis">Last backup status</div>
           <div>
             <v-chip :color="colorState" size="small">
-              {{ state }}
+              {{ stateText }}
             </v-chip>
           </div>
         </v-col>
@@ -81,7 +81,7 @@
 <script lang="ts" setup>
 import { defineProps, computed } from 'vue';
 import { useDevice } from '@/utils/devices';
-import { getAvailabilityColor, getState, getStateColor, toDateTime, toDuration } from '../hosts.utils';
+import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration } from '../hosts.utils';
 
 const props = defineProps<{
   deviceId: string;
@@ -102,6 +102,8 @@ const timeSinceLastBackup = computed(
 );
 
 const state = computed(() => device.value && getState(device.value));
+
+const stateText = computed(() => state.value && getStateText(state.value));
 
 const colorState = computed(() => state.value && getStateColor(state.value));
 </script>

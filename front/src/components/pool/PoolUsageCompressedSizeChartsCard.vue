@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { toDate } from '@/components/hosts/hosts.utils';
 import { LineChart } from 'echarts/charts';
 import { GridComponent } from 'echarts/components';
 import { use } from 'echarts/core';
@@ -31,6 +32,7 @@ const option = computed(() => ({
       type: 'time',
       axisLabel: {
         rotate: 45,
+        formatter: (value: string | number) => toDate(value),
       },
     },
   ],
@@ -56,7 +58,7 @@ const option = computed(() => ({
       smooth: true,
       symbol: 'none',
       areaStyle: {},
-      data: props.compressedSizeRange.map(({ time, value }) => [time * 1000, Number(value / 1024n / 1024n)]),
+      data: props.compressedSizeRange.map(({ time, value }) => [time, Number(value / 1024n / 1024n)]),
     },
   ],
 }));

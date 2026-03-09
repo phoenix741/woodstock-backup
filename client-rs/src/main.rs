@@ -14,27 +14,21 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
-use eyre::Result;
-use log::{debug, error, info};
-use self_update::cargo_crate_version;
+use eyre::{Result, WrapErr};
 use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
-use tokio::time::{interval_at, Instant};
 use tonic::codec::CompressionEncoding;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
+use tracing::{debug, error, info};
 use woodstock::woodstock_client_service_server::WoodstockClientServiceServer;
-
-// Platform-specific logging imports
-#[cfg(windows)]
-use winlog;
 
 use woodstock_client_rs::config::{get_config_path, read_config, ResolutionMode};
 
 use woodstock_client_rs::resolve::{DirectResolveClient, ResolveClient};
 use woodstock_client_rs::server::WoodstockClient;
 
-#[cfg(windows)]
-const WINLOG_NAME: &str = "Woodstock Backup";
+// Ensure we have a crypto provider for rustls 0.23+
+use rustls::crypto::ring;
 
 #[cfg(feature = "mdns")]
 use woodstock_client_rs::resolve::MdnsResolveClient;
@@ -97,7 +91,7 @@ async fn start_client(
 
     debug!("Config path: {}", config_path.display());
     let config_yml = config_path.join("config.yaml");
-    let config = read_config(config_yml).expect("Failed to read config");
+    let config = read_config(config_yml).wrap_err("Failed to read client config file")?;
 
     if config.auto_update {
         let config_path_update = config_path.clone();
@@ -229,443 +223,19 @@ async fn start_client(
     Ok(())
 }
 
+mod updater;
 #[cfg(windows)]
-pub mod winfirewall {
-    use crate::winfw::{
-        create_firewall_rule, delete_firewall_rule, rule_exists, Actions, FwRule, Protocols,
-    };
-    use eyre::Result;
-    use std::net::SocketAddr;
-    use woodstock::config::DEFAULT_PORT;
-
-    fn get_port_from_address(address: &str) -> u16 {
-        match address.parse::<SocketAddr>() {
-            Ok(socket_addr) => socket_addr.port(),
-            Err(_) => DEFAULT_PORT,
-        }
-    }
-
-    pub fn add_firewall_rule(bind: &str) -> Result<()> {
-        let port = get_port_from_address(bind);
-
-        // Règle pour autoriser le trafic TCP entrant sur le port spécifique
-        let tcp_rule_name = "Woodstock Client Daemon TCP";
-        if rule_exists(tcp_rule_name)? {
-            delete_firewall_rule(tcp_rule_name)?;
-        }
-
-        let tcp_rule = FwRule {
-            name: tcp_rule_name.to_string(),
-            description: format!("Allow incoming TCP traffic on port {}", port),
-            local_ports: port.to_string(),
-            protocol: Protocols::Tcp,
-            action: Actions::Allow,
-            enabled: true,
-            ..FwRule::default()
-        };
-        create_firewall_rule(&tcp_rule)?;
-
-        // Règle pour autoriser le trafic UDP entrant et sortant sur le port mDNS (5353)
-        let udp_rule_name = "Woodstock Client Daemon mDNS";
-        if rule_exists(udp_rule_name)? {
-            delete_firewall_rule(udp_rule_name)?;
-        }
-
-        let udp_rule = FwRule {
-            name: udp_rule_name.to_string(),
-            description: "Allow incoming and outgoing UDP traffic on port 5353 for mDNS"
-                .to_string(),
-            local_ports: "5353".to_string(),
-            protocol: Protocols::Udp,
-            action: Actions::Allow,
-            enabled: true,
-            ..FwRule::default()
-        };
-        create_firewall_rule(&udp_rule)?;
-
-        Ok(())
-    }
-
-    pub fn remove_firewall_rule() -> Result<()> {
-        // Supprimer la règle TCP
-        let tcp_rule_name = "Woodstock Client Daemon TCP";
-        delete_firewall_rule(tcp_rule_name)?;
-
-        // Supprimer la règle UDP
-        let udp_rule_name = "Woodstock Client Daemon mDNS";
-        delete_firewall_rule(udp_rule_name)?;
-
-        Ok(())
-    }
-}
-
+pub mod winfirewall;
 #[cfg(windows)]
-pub mod winserv {
-    use crate::{start_client, Cli};
-    use clap::Parser;
-    use log::{error, info};
-    use std::{
-        ffi::OsString,
-        sync::{Arc, Mutex},
-        thread::sleep,
-        time::{Duration, Instant},
-    };
-    use tokio::sync::oneshot;
-    use windows_service::{
-        define_windows_service,
-        service::{
-            ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl,
-            ServiceExitCode, ServiceInfo, ServiceStartType, ServiceState, ServiceStatus,
-            ServiceType,
-        },
-        service_control_handler::{self, ServiceControlHandlerResult},
-        service_dispatcher,
-        service_manager::{ServiceManager, ServiceManagerAccess},
-        Result,
-    };
-    use windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST;
-
-    const SERVICE_NAME: &str = "woodstock_client_daemon";
-    const SERVICE_DISPLAY_NAME: &str = "Woodstock Client Daemon";
-    const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
-
-    pub fn run() -> Result<()> {
-        service_dispatcher::start(SERVICE_NAME, ffi_service_main)
-    }
-
-    define_windows_service!(ffi_service_main, woodstock_service_main);
-
-    pub fn woodstock_service_main(_arguments: Vec<OsString>) {
-        let args = Cli::parse();
-        let config_dir = args.config_dir;
-
-        info!(
-            "Starting Woodstock service with config_dir: {:?}",
-            config_dir
-        );
-
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                error!("Failed to create Tokio runtime: {:?}", e);
-                return;
-            }
-        };
-
-        rt.block_on(async {
-            if let Err(e) = run_service(config_dir).await {
-                error!("Service error: {:?}", e);
-            } else {
-                info!("Service completed successfully");
-            }
-        });
-    }
-
-    pub async fn run_service(config_dir: Option<String>) -> eyre::Result<()> {
-        // Create a channel to be able to poll a stop event from the service worker loop.
-        let (signal_tx, signal_rx) = oneshot::channel::<()>();
-        let signal_tx = Arc::new(Mutex::new(Some(signal_tx)));
-
-        // Define system service event handler that will be receiving service events.
-        let event_handler = {
-            let signal_tx = Arc::clone(&signal_tx);
-            move |control_event| -> ServiceControlHandlerResult {
-                match control_event {
-                    // Notifies a service to report its current status information to the service
-                    // control manager. Always return NoError even if not implemented.
-                    ServiceControl::Interrogate => {
-                        info!("Service control: Interrogate received");
-                        ServiceControlHandlerResult::NoError
-                    }
-
-                    // Handle stop
-                    ServiceControl::Stop => {
-                        info!("Service control: Stop signal received - initiating shutdown");
-                        if let Ok(mut signal_tx) = signal_tx.lock() {
-                            if let Some(signal_tx) = signal_tx.take() {
-                                info!("Sending shutdown signal to main service");
-                                if let Err(e) = signal_tx.send(()) {
-                                    error!("Failed to send shutdown signal: {:?}", e);
-                                } else {
-                                    info!("Shutdown signal sent successfully");
-                                }
-                            } else {
-                                info!("Shutdown signal already sent");
-                            }
-                        } else {
-                            error!("Failed to acquire lock on shutdown signal sender");
-                        }
-
-                        ServiceControlHandlerResult::NoError
-                    }
-
-                    ServiceControl::Shutdown => {
-                        info!("Service control: Shutdown signal received");
-                        if let Ok(mut signal_tx) = signal_tx.lock() {
-                            if let Some(signal_tx) = signal_tx.take() {
-                                info!("Sending shutdown signal to main service (shutdown)");
-                                let _ = signal_tx.send(());
-                            }
-                        }
-                        ServiceControlHandlerResult::NoError
-                    }
-
-                    ServiceControl::Pause => {
-                        info!("Service control: Pause received (not implemented)");
-                        ServiceControlHandlerResult::NotImplemented
-                    }
-
-                    ServiceControl::Continue => {
-                        info!("Service control: Continue received (not implemented)");
-                        ServiceControlHandlerResult::NotImplemented
-                    }
-
-                    other => {
-                        info!(
-                            "Service control: Unknown control event received: {:?}",
-                            other
-                        );
-                        ServiceControlHandlerResult::NotImplemented
-                    }
-                }
-            }
-        };
-
-        info!("Registering service control handler...");
-        let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
-
-        info!("Setting service status to Running...");
-        status_handle.set_service_status(ServiceStatus {
-            service_type: SERVICE_TYPE,
-            current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
-            exit_code: ServiceExitCode::Win32(0),
-            checkpoint: 0,
-            wait_hint: Duration::default(),
-            process_id: None,
-        })?;
-
-        info!("Service is now running, starting main client...");
-
-        // TRAITEMENT
-        start_client(config_dir, signal_rx).await?;
-
-        info!("Main client stopped, setting service status to Stopped...");
-        status_handle.set_service_status(ServiceStatus {
-            service_type: SERVICE_TYPE,
-            current_state: ServiceState::Stopped,
-            controls_accepted: ServiceControlAccept::empty(),
-            exit_code: ServiceExitCode::Win32(0),
-            checkpoint: 0,
-            wait_hint: Duration::default(),
-            process_id: None,
-        })?;
-
-        info!("Service has been marked as stopped");
-        Ok(())
-    }
-
-    pub fn install_service(config_dir: Option<String>) -> eyre::Result<()> {
-        let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
-        let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-
-        // This example installs the service defined in `examples/ping_service.rs`.
-        // In the real world code you would set the executable path to point to your own binary
-        // that implements windows service.
-        let service_binary_path =
-            ::std::env::current_exe().expect("Can't find the name of the executable");
-
-        let launch_arguments = match config_dir {
-            Some(dir) => vec![
-                OsString::from("--config-dir"),
-                OsString::from(dir),
-                OsString::from("run-service"),
-            ],
-            None => vec![OsString::from("run-service")],
-        };
-
-        let service_info = ServiceInfo {
-            name: OsString::from(SERVICE_NAME),
-            display_name: OsString::from(SERVICE_DISPLAY_NAME),
-            service_type: SERVICE_TYPE,
-            start_type: ServiceStartType::AutoStart,
-            error_control: ServiceErrorControl::Normal,
-            executable_path: service_binary_path,
-            launch_arguments: launch_arguments.clone(),
-            dependencies: vec![],
-            account_name: None, // run as System
-            account_password: None,
-        };
-        let service = service_manager.create_service(
-            &service_info,
-            ServiceAccess::CHANGE_CONFIG | ServiceAccess::START,
-        )?;
-        service.set_description("Woodstock Backup Software Daemon")?;
-
-        // Start the service
-        service.start(&launch_arguments)?;
-
-        Ok(())
-    }
-
-    pub fn uninstall_service() -> eyre::Result<()> {
-        let manager_access = ServiceManagerAccess::CONNECT;
-        let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-
-        let service_access =
-            ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::DELETE;
-        let service = service_manager.open_service(SERVICE_NAME, service_access)?;
-
-        service.delete()?;
-        if service.query_status()?.current_state != ServiceState::Stopped {
-            service.stop()?;
-        }
-        drop(service);
-
-        let start = Instant::now();
-        let timeout = Duration::from_secs(5);
-        while start.elapsed() < timeout {
-            if let Err(windows_service::Error::Winapi(e)) =
-                service_manager.open_service(SERVICE_NAME, ServiceAccess::QUERY_STATUS)
-            {
-                if e.raw_os_error() == Some(ERROR_SERVICE_DOES_NOT_EXIST as i32) {
-                    println!("{SERVICE_NAME} is deleted.");
-                    return Ok(());
-                }
-            }
-            sleep(Duration::from_secs(1));
-        }
-        println!("{SERVICE_NAME} is marked for deletion.");
-
-        Ok(())
-    }
-
-    pub fn restart_service() -> eyre::Result<()> {
-        let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
-        let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
-
-        println!("Opening service...");
-        info!("Opening service...");
-
-        let service = service_manager.open_service(
-            SERVICE_NAME,
-            ServiceAccess::CHANGE_CONFIG
-                | ServiceAccess::STOP
-                | ServiceAccess::START
-                | ServiceAccess::QUERY_STATUS,
-        )?;
-
-        if service.query_status()?.current_state == ServiceState::Running {
-            println!("Stopping service...");
-            info!("Stopping service...");
-
-            service.stop()?;
-
-            println!("Waiting for service to stop...");
-            info!("Waiting for service to stop...");
-
-            let start = Instant::now();
-            let timeout = Duration::from_secs(5);
-            while start.elapsed() < timeout {
-                if service.query_status()?.current_state == ServiceState::Stopped {
-                    break;
-                }
-                sleep(Duration::from_secs(1));
-            }
-        }
-
-        println!("Starting service...");
-        info!("Starting service...");
-
-        service.start(&Vec::<OsString>::new())?;
-
-        println!("Service restarted");
-        info!("Service restarted");
-
-        Ok(())
-    }
-}
-
-/// Update the Woodstock client to the latest version.
-///
-/// # Errors
-/// Returns an error if the update process fails.
-fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
-    println!("Checking for updates...");
-    info!("Checking for updates...");
-
-    let result = self_update::backends::gitea::Update::configure()
-        .with_host("https://gogs.shadoware.org")
-        .repo_owner("ShadowareOrg")
-        .repo_name("woodstock-backup")
-        .identifier("binaries")
-        .bin_name("ws_client_daemon")
-        .show_download_progress(true)
-        .current_version(cargo_crate_version!())
-        .no_confirm(automatic)
-        .build()?
-        .update()?;
-
-    match result {
-        self_update::Status::UpToDate(_) => {
-            println!("Already up-to-date");
-            info!("Already up-to-date");
-        }
-        self_update::Status::Updated(version) => {
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt;
-                use windows_sys::Win32::System::Threading::DETACHED_PROCESS;
-
-                let config_path = _config_path.as_ref().to_str().unwrap().to_string();
-                let _ = std::thread::spawn(move || {
-                    let result = std::process::Command::new(std::env::current_exe().unwrap())
-                        .args(["--config-dir", &config_path, "restart-service"])
-                        .creation_flags(DETACHED_PROCESS)
-                        .spawn();
-                    if let Err(err) = result {
-                        println!("Failed to restart service: {}", err);
-                        info!("Failed to restart service: {}", err);
-                    } else {
-                        println!("Service restarted");
-                        info!("Service restarted");
-                    }
-                });
-            }
-
-            println!("Updated to {version}");
-            info!("Updated to {}", version);
-        }
-    }
-
-    Ok(())
-}
-
-/// Schedule weekly updates for the Woodstock client.
-///
-/// # Errors
-/// Returns an error if the update process fails.
-async fn schedule_weekly_updates<P: AsRef<Path>>(config_path: P, update_delay: u64) {
-    let duration = Duration::from_secs(update_delay);
-    let mut interval = interval_at(Instant::now() + duration, duration);
-    info!(
-        "Weekly update scheduler started with interval of {} seconds",
-        update_delay
-    );
-
-    loop {
-        interval.tick().await;
-        info!("Running scheduled update check...");
-        if let Err(err) = update(config_path.as_ref(), true) {
-            error!("Scheduled update failed: {}", err);
-        } else {
-            info!("Scheduled update completed successfully");
-        }
-    }
-}
+pub mod winserv;
+use updater::{schedule_weekly_updates, update};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install the global crypto provider for rustls 0.23+
+    // We ignore the error if it is already installed.
+    let _ = ring::default_provider().install_default();
+
     color_eyre::install()?;
 
     let args = Cli::parse();
@@ -677,7 +247,7 @@ async fn main() -> Result<()> {
     setup_platform_logging(&config_path)?;
 
     let config_yml = config_path.join("config.yaml");
-    let config = read_config(config_yml).expect("Failed to read config");
+    let config = read_config(config_yml).wrap_err("Failed to read Woodstock config")?;
     info!("Woodstock client started for: {}", config.hostname);
 
     match args.subcommand {
@@ -685,14 +255,12 @@ async fn main() -> Result<()> {
         Some(Commands::InstallService) => {
             winfirewall::add_firewall_rule(&config.bind)?;
             winserv::install_service(args.config_dir)?;
-            winlog::register(WINLOG_NAME);
         }
 
         #[cfg(windows)]
         Some(Commands::RemoveService) => {
             winfirewall::remove_firewall_rule()?;
             winserv::uninstall_service()?;
-            winlog::deregister(WINLOG_NAME);
         }
 
         #[cfg(windows)]
@@ -728,8 +296,12 @@ async fn main() -> Result<()> {
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
             tokio::spawn(async move {
-                tokio::signal::ctrl_c().await.unwrap();
-                signal_tx.send(()).unwrap();
+                if let Err(e) = tokio::signal::ctrl_c().await {
+                    error!("Failed to watch for Ctrl-C signal: {e}");
+                }
+                if signal_tx.send(()).is_err() {
+                    error!("Failed to send shutdown signal: shutdown receiver was dropped");
+                }
 
                 info!("Ctrl-C received, shutting down");
             });
@@ -744,67 +316,58 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Common logging format configuration
+/// Platform-specific logging configuration using tracing_subscriber
+///
+/// Configures structured logging via tracing. On Linux (systemd), logs go to stdout
+/// and are automatically captured by journald. On Windows, logs go to stdout and
+/// can be captured by the Windows event system.
 #[cfg(not(windows))]
-fn create_log_dispatch() -> fern::Dispatch {
-    use chrono;
-    use log::LevelFilter;
+fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
 
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} [{}] [{}] {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                record.level(),
-                record.target(),
-                message
-            ))
-        })
-        .level(LevelFilter::Info)
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .or_else(|_| tracing_subscriber::EnvFilter::try_new(&log_level))
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(true)
+        .with_level(true)
+        .init();
+
+    info!("Logging initialized - platform logging ready");
+    Ok(())
 }
 
-/// Platform-specific logging configuration following OS best practices
+/// Platform-specific logging configuration for Windows
+///
+/// Configures two output sinks:
+/// - `stdout` (via `tracing_subscriber::fmt`) for interactive/debug sessions
+/// - Windows ETW (via `tracing_etw`) visible in the Event Viewer and WPA/PerfView
 #[cfg(windows)]
 fn setup_platform_logging(_config_path: &Path) -> Result<()> {
-    // For Windows service, use Windows Event Log only
-    match winlog::init(WINLOG_NAME) {
-        Ok(()) => {
-            println!("Windows Event Log initialized for service");
-            info!("Woodstock Client Service started - logging to Windows Event Log");
-        }
-        Err(e) => {
-            eprintln!("Failed to initialize Windows Event Log: {}", e);
+    use tracing_subscriber::prelude::*;
 
-            return Err(eyre::eyre!("Failed to initialize Windows Event Log: {}", e));
-        }
-    }
+    let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
 
-    Ok(())
-}
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .or_else(|_| tracing_subscriber::EnvFilter::try_new(&log_level))
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-#[cfg(target_os = "linux")]
-fn setup_platform_logging(_config_path: &Path) -> Result<()> {
-    // For Linux systemd services, prefer stdout/stderr which systemd
-    // automatically redirects to journald with proper metadata
-    // Users can view logs with: journalctl -u woodstock-client -f
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .with_level(true);
 
-    create_log_dispatch()
-        .chain(std::io::stdout())
-        .apply()
-        .expect("Failed to initialize logging");
+    let etw_layer = tracing_etw::LayerBuilder::new("Woodstock Backup")
+        .build()
+        .map_err(|e| eyre::eyre!("Failed to initialize ETW logging: {e}"))?;
 
-    info!(
-        "Linux systemd logging initialized - use 'journalctl -u woodstock-client -f' to view logs"
-    );
-    Ok(())
-}
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt_layer)
+        .with(etw_layer)
+        .init();
 
-#[cfg(not(any(windows, target_os = "linux")))]
-fn setup_platform_logging(_config_path: &Path) -> Result<()> {
-    // Fallback for other platforms
-    create_log_dispatch()
-        .chain(std::io::stdout())
-        .apply()
-        .expect("Failed to initialize logging");
+    info!("Woodstock Client Service started - logging initialized");
     Ok(())
 }

@@ -1,13 +1,14 @@
-use std::{sync::Arc, time::SystemTime};
+use std::sync::Arc;
 
+use chrono::Local;
 use eyre::Result;
-use log::{error, info};
 use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
-    config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
-    pool::{apply_pending_refcnt_operations, FsckUnusedCount},
-    utils::lock::PoolLock,
+    config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
+    pool::{FsckUnusedCount, PoolManager},
+    utils::lock_redis::PoolLockRedis,
     EventPoolInformation, EventSource,
 };
 
@@ -15,7 +16,7 @@ use super::{fsck::FsckProgression, fsck::PoolFsck, fsck_state::FsckState};
 
 pub struct FsckMachine {
     /// The configuration for the fsck process.
-    config: Configuration,
+    config: Arc<Configuration>,
     /// The `PoolFsck` instance responsible for performing the fsck operations on the storage pool.
     fsck: PoolFsck,
     /// The event source used to provide context or events for the fsck process.
@@ -48,18 +49,20 @@ impl FsckMachine {
     /// A new instance of `FsckMachine`.
     #[must_use]
     pub fn new(
-        config: &Configuration,
         source: EventSource,
         dry_run: bool,
         verify_chunks: bool,
         skip_ref_unused: bool,
         state_tx: Option<mpsc::Sender<FsckState>>,
+        config: Arc<Configuration>,
+        hosts: Arc<Hosts>,
+        backups: Arc<Backups>,
     ) -> Self {
-        let fsck = PoolFsck::new(config);
+        let fsck = PoolFsck::new(config.clone(), hosts, backups);
         let state = FsckState::new(dry_run);
 
         Self {
-            config: config.clone(),
+            config,
             fsck,
             source,
             dry_run,
@@ -89,24 +92,29 @@ impl FsckMachine {
     /// # Returns
     ///
     /// * `Ok(())` if the operations are applied successfully.
-    /// * `Err(eyre::Report)` if an error occurs during the operation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the refcnt operations cannot be applied.
-    async fn apply_refcnt_operations(&self) -> Result<()> {
+    /// * `Err(())` if the operations fail (non-fatal, will be handled by check_pool_integrity).
+    async fn apply_refcnt_operations(&self) -> Result<(), ()> {
         {
             let mut state = self.state.lock().await;
             state.start_applying_refcnt();
         }
         self.send_state().await;
 
-        let current_time = SystemTime::now();
-        let result = apply_pending_refcnt_operations(&self.config, &current_time).await;
+        let current_time = Local::now();
+        let result = PoolManager::new(self.config.clone())
+            .apply_pending(&current_time)
+            .await;
 
         {
             let mut state = self.state.lock().await;
-            state.process_applying_refcnt_result(result)?;
+            match state.process_applying_refcnt_result(result) {
+                Ok(_) => (),
+                Err(e) => {
+                    debug!("apply_refcnt_operations failed (will be fixed by check_pool_integrity): {}", e);
+                    self.send_state().await;
+                    return Err(());
+                }
+            }
         }
         self.send_state().await;
         Ok(())
@@ -177,22 +185,25 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut state = state_clone.lock().await;
-                state.process_verify_refcnt_progress(&progress);
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_verify_refcnt_progress(&progress);
 
-                // Send updated state
-                if let Some(tx) = &state_tx_clone {
-                    if let Err(e) = tx.send(state.clone()).await {
-                        error!(
-                            "Failed to send state update during refcnt verification: {}",
-                            e
-                        );
+                    // Send updated state
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!(
+                                "Failed to send state update during refcnt verification: {}",
+                                e
+                            );
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Execute verification
         let result = self.fsck.verify_refcnt(dry_run, Some(progress_tx)).await;
@@ -239,22 +250,25 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut state = state_clone.lock().await;
-                state.process_verify_unused_progress(&progress);
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_verify_unused_progress(&progress);
 
-                // Send updated state
-                if let Some(tx) = &state_tx_clone {
-                    if let Err(e) = tx.send(state.clone()).await {
-                        error!(
-                            "Failed to send state update during unused verification: {}",
-                            e
-                        );
+                    // Send updated state
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!(
+                                "Failed to send state update during unused verification: {}",
+                                e
+                            );
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Execute verification
         let result = self.fsck.verify_unused(dry_run, Some(progress_tx)).await;
@@ -299,22 +313,25 @@ impl FsckMachine {
         let state_clone = self.state.clone();
         let state_tx_clone = self.state_tx.clone();
 
-        let progress_task = tokio::spawn(async move {
-            while let Some(progress) = progress_rx.recv().await {
-                let mut state = state_clone.lock().await;
-                state.process_verify_chunk_progress(&progress);
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_verify_chunk_progress(&progress);
 
-                // Send updated state
-                if let Some(tx) = &state_tx_clone {
-                    if let Err(e) = tx.send(state.clone()).await {
-                        error!(
-                            "Failed to send state update during chunk verification: {}",
-                            e
-                        );
+                    // Send updated state
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!(
+                                "Failed to send state update during chunk verification: {}",
+                                e
+                            );
+                        }
                     }
                 }
             }
-        });
+            .in_current_span(),
+        );
 
         // Execute verification
         let result = self.fsck.verify_chunk(Some(progress_tx)).await;
@@ -334,35 +351,18 @@ impl FsckMachine {
         result
     }
 
-    /// Executes the fsck process.
+    /// Inner fsck work, runs after the exclusive lock is acquired.
     ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the fsck process succeeds.
-    /// * `Err(eyre::Report)` if an error occurs during the fsck process.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if any step of the fsck process fails.
-    pub async fn execute(&self) -> Result<()> {
-        info!(
-            "Starting fsck process for pool: {:?}",
-            self.config.path.pool_path
-        );
-
-        // Apply pending refcnt operations
-        self.apply_refcnt_operations().await?;
+    /// Separated from `execute()` so the latter can wrap this in a `tokio::select!`
+    /// against a cancellation token, aborting cleanly if the lock is lost mid-run.
+    async fn run_fsck_core(&self) -> Result<FsckState> {
+        // Try to apply pending refcnt operations (may fail if pool is dirty - not fatal)
+        if let Err(_) = self.apply_refcnt_operations().await {
+            debug!("Pending refcnt operations not applied (pool may be dirty - will be cleaned by check_pool_integrity)");
+        }
 
         // Create start event
         let id = self.fsck.create_event_start(self.source).await?;
-
-        info!(
-            "Acquiring exclusive lock for pool: {:?}",
-            self.config.path.pool_path
-        );
-        let _lock = PoolLock::new_with_name(&self.config.path.pool_path, "fsck")
-            .lock_exclusive()
-            .await?;
 
         info!(
             "Initializing fsck process for pool: {:?}",
@@ -375,6 +375,8 @@ impl FsckMachine {
         information.fix = !self.dry_run;
 
         if !self.skip_ref_unused {
+            debug!("Verifying reference counts...");
+
             // Reference count verification
             let refcnt_result = self.verify_refcnt(self.dry_run).await;
             match refcnt_result {
@@ -392,6 +394,8 @@ impl FsckMachine {
                     return Err(e);
                 }
             }
+
+            debug!("Verifying unused files...");
 
             let unused_result = self.verify_unused(self.dry_run).await;
             match unused_result {
@@ -414,6 +418,8 @@ impl FsckMachine {
         }
 
         if self.verify_chunks {
+            debug!("Verifying chunks...");
+
             let chunk_result = self.verify_chunk().await;
             match chunk_result {
                 Ok(chunk_info) => {
@@ -432,6 +438,7 @@ impl FsckMachine {
             }
         }
 
+        debug!("Registering fsck process completion event...");
         {
             let mut state = self.state.lock().await;
             state.complete();
@@ -442,7 +449,88 @@ impl FsckMachine {
             .create_event_refcnt_end(&id, information, self.source)
             .await?;
 
-        Ok(())
+        debug!("End of fsck process ...");
+
+        let state = {
+            let state = self.state.lock().await;
+            state.clone()
+        };
+
+        Ok(state)
+    }
+
+    /// Executes the fsck process.
+    ///
+    /// Acquires an exclusive Redis lock on the pool, then runs the fsck via
+    /// `run_fsck_core()` wrapped in a `tokio::select!` against the lock's
+    /// cancellation token.  If the lock heartbeat stops (e.g. the host goes to
+    /// sleep and the Redis TTL expires), the token fires and the fsck aborts
+    /// immediately with an error rather than running concurrently with a
+    /// re-enqueued duplicate job.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(FsckState)` if the fsck process succeeds.
+    /// * `Err(eyre::Report)` if an error occurs or the lock is lost mid-run.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any step of the fsck process fails, or if the
+    /// exclusive Redis lock is lost during execution.
+    pub async fn execute(&self) -> Result<FsckState> {
+        info!(
+            "Starting fsck process for pool: {:?}",
+            self.config.path.pool_path
+        );
+
+        // DIRTY STATE CHECK: Warn in dry-run mode only
+        if self.dry_run {
+            if let Some(dirty_file) = PoolManager::new(self.config.clone()).is_dirty().await? {
+                warn!(
+                    "Pool is DIRTY (file: {:?}) - a previous refcnt operation crashed. Run without --dry-run to clean up.",
+                    dirty_file
+                );
+            }
+        }
+
+        // Acquire EXCLUSIVE lock BEFORE any operations.
+        // This prevents race conditions with concurrent backups.
+        info!(
+            "Acquiring exclusive lock for pool: {:?}",
+            self.config.path.pool_path
+        );
+        let redis_url = self.config.redis_url();
+        let lock = PoolLockRedis::new_with_path(&redis_url, &self.config.path.pool_path, "fsck")
+            .await?
+            .lock_exclusive()
+            .await?;
+
+        // Clone the cancellation token BEFORE passing the lock into the select.
+        // The token fires if the heartbeat detects that the Redis key expired
+        // (e.g. the host slept for > LOCK_TTL seconds without a heartbeat tick).
+        let cancel_token = lock.cancellation_token().clone();
+
+        // Lock is held for the entire duration of the select!.
+        // It is dropped (and released in Redis) when execute() returns,
+        // regardless of which branch wins.
+        tokio::select! {
+            biased; // prefer work completion if both fire simultaneously
+            res = self.run_fsck_core() => res,
+            _ = cancel_token.cancelled() => {
+                warn!(
+                    "Fsck aborted: Redis lock was lost for pool {:?} (host likely suspended during sleep)",
+                    self.config.path.pool_path
+                );
+                {
+                    let mut state = self.state.lock().await;
+                    state.complete();
+                }
+                self.send_state().await;
+                Err(eyre::eyre!(
+                    "Fsck aborted: Redis lock lost (process was likely suspended during sleep)"
+                ))
+            }
+        }
     }
 
     /// Gets the current state of the fsck process.

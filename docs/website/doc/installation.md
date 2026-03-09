@@ -4,14 +4,20 @@
 
 Woodstock Backup consists of two main components:
 
-- A Rust-based agent installed on client machines
-- A Node.js server application deployed on a central host
+- A **Rust agent** (`ws_client_daemon`) installed on each machine to back up
+- A **Rust server** deployed on a central host, composed of four separate services:
+  - `api_server` — REST/GraphQL web interface (port 3000)
+  - `client_api_server` — mTLS HTTPS gateway for agent communication (port 8443)
+  - `job_worker` — Asynchronous backup/restore/maintenance worker
+  - `scheduler` — Cron-based scheduler that queues jobs
+
+All server services share the same Docker image and communicate through **Valkey** (a Redis-compatible store).
 
 ## Prerequisites
 
 - Sufficient storage space on the server for backups
-- For the server: Docker (recommended) or Node.js environment
-- For the agent: Linux, Windows, or Rust runtime environment to compile your own agent
+- For the server: Docker and Docker Compose (recommended) or a Rust toolchain to build from source
+- For the agent: A pre-built binary (download from releases) or a Rust toolchain to compile
 
 ## Docker Installation (Recommended)
 
@@ -19,76 +25,98 @@ Woodstock Backup consists of two main components:
 
 ```yaml
 services:
-  website:
-    build:
-      context: ./docs/website
-      dockerfile: Dockerfile
-    image: phoenix741/woodstock-backup-website:develop
-    ports:
-      - 8080:80
-  woodstock:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1
-        - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=debian:12-slim
-    image: phoenix741/woodstock-backup:develop
+  # REST/GraphQL API & Vue.js frontend
+  server-api:
+    image: phoenix741/woodstock-backup-server:latest
     ports:
       - 3000:3000
     depends_on:
-      - redis
+      valkey:
+        condition: service_healthy
     environment:
-      - REDIS_HOST=redis
+      - REDIS_HOST=valkey
       - REDIS_PORT=6379
-      - LOG_LEVEL=warn
-      - NODE_ENV=production
+      - LOG_LEVEL=info
       - BACKUP_PATH=/backups
-      - BACKUP_WORKER_INSTANCES=3
-      - CLIENT_API_HOSTNAME=myserver.localdomain.com
-      - CLIENT_API_PORT=8443
+      - STATIC_PATH=/app/static
     volumes:
       - "backups_storage:/backups"
 
-  woodstock_client:
-    build:
-      context: ./
-      dockerfile: Dockerfile
-      args:
-        - RUST_VERSION=1
-        - NODE_VERSION=20-slim
-        - DEBIAN_VERSION=debian:12-slim
-      target: client
-    image: phoenix741/woodstock-backup-client:develop
+  # mTLS HTTPS gateway for agents
+  server-client-api:
+    image: phoenix741/woodstock-backup-server:latest
+    command: ["/app/client_api_server"]
     ports:
-      - 3657:3657
+      - 8443:8443
+    depends_on:
+      valkey:
+        condition: service_healthy
     environment:
-      - LOG_LEVEL=debug
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
     volumes:
-      - "client_storage:/etc/woodstock"
+      - "backups_storage:/backups"
 
-  redis:
-    image: "bitnami/redis:7.4"
+  # Backup/restore/maintenance job worker
+  server-worker:
+    image: phoenix741/woodstock-backup-server:latest
+    command: ["/app/job_worker"]
+    depends_on:
+      valkey:
+        condition: service_healthy
     environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
+      - BACKUP_CONCURRENCY=2
+      - RESTORE_CONCURRENCY=8
+      - MAINTENANCE_CONCURRENCY=2
+    volumes:
+      - "backups_storage:/backups"
+
+  # Cron scheduler
+  server-scheduler:
+    image: phoenix741/woodstock-backup-server:latest
+    command: ["/app/scheduler"]
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/backups
+    volumes:
+      - "backups_storage:/backups"
+
+  # Valkey (Redis-compatible) – job queue and distributed locks
+  valkey:
+    image: "valkey/valkey:9-alpine"
+    command: valkey-server --save 60 1 --loglevel warning
     ports:
       - "6379:6379"
     volumes:
-      - "redis_data:/bitnami/redis/data"
+      - "valkey_data:/data"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
+  # Optional: Prometheus monitoring
   prometheus:
-    image: bitnami/prometheus:2
+    image: prom/prometheus:latest
     volumes:
-      - prometheus_storage:/opt/bitnami/prometheus/data
-      - ./docker/prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
+      - prometheus_storage:/prometheus
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     network_mode: "host"
 
 volumes:
-  redis_data:
+  valkey_data:
   prometheus_storage:
-  client_storage:
   backups_storage:
     driver: local
     driver_opts:
@@ -96,6 +124,9 @@ volumes:
       device: /var/lib/woodstock
       o: bind
 ```
+
+> **Note**: The `backups_storage` volume maps `/var/lib/woodstock` on the host, which is the default data directory.
+> Adjust `device: /var/lib/woodstock` to the path of your choice.
 
 ### Prometheus Integration
 
@@ -115,8 +146,11 @@ scrape_configs:
 Install the required system dependencies:
 
 ```bash
-apt install redis nodejs protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev
+apt install valkey protobuf-compiler cmake make build-essential libacl1-dev libfuse-dev
 ```
+
+> **Note**: `nodejs` and `npm` are only needed if you want to build the Vue.js frontend from source.
+> Pre-built Docker images include the frontend already.
 
 ### Build Steps
 
@@ -131,168 +165,104 @@ apt install redis nodejs protobuf-compiler cmake make build-essential git-lfs li
     ```bash
     # Clone the project
     git clone https://gogs.shadoware.org/ShadowareOrg/woodstock-backup.git woodstock-backup
-    
-    # Build the project
-    cargo build --release
+    cd woodstock-backup
 
-    # Install and build nodejs dependencies
+    # Build all server binaries (api_server, client_api_server, job_worker, scheduler, ws_console, ...)
+    cargo build --release -p woodstock-server-rs
+
+    # Optional: build the Vue.js frontend
     npm ci
-    (cd shared-rs && npm run build)
-    (cd nestjs && npm run buildall)
     (cd front && npm run build)
     ```
 
-### Service Configuration (pm2)
-
-You can run the server using PM2.
-
-```bash
-# You can use pm2 and the ecosystem.config.js file to run the server
-pm2 startup
-```
-
-With the following `ecosystem.config.js` configuration:
-
-```js
-module.exports = [
-  {
-    script: 'apps/api/main.js',
-    name: 'api',
-    cwd: '/app/nestjs',
-    exec_mode: 'cluster',
-    instances: parseInt(process.env.API_INSTANCES ?? '1'),
-  },
-  {
-    script: 'apps/clientApi/main.js',
-    name: 'clientApi',
-    cwd: '/app/nestjs',
-    exec_mode: 'cluster',
-    instances: parseInt(process.env.API_INSTANCES ?? '1'),
-  },
-  {
-    script: 'apps/backupWorker/main.js',
-    name: 'backupWorker',
-    cwd: '/app/nestjs',
-    instances: parseInt(process.env.BACKUP_WORKER_INSTANCES || '1'),
-    env: {
-      MAX_BACKUP_TASK: 1,
-    },
-  },
-  {
-    script: 'apps/refcntWorker/main.js',
-    name: 'refcntWorker',
-    cwd: '/app/nestjs',
-    instances: process.env.DISABLE_REFCNT === 'true' ? 0 : 1,
-  },
-  {
-    script: 'apps/scheduleWorker/main.js',
-    name: 'scheduleWorker',
-    cwd: '/app/nestjs',
-    instances: process.env.DISABLE_SCHEDULER === 'true' ? 0 : 1,
-  },
-];
-```
+    Built binaries are placed in `target/release/`.
 
 ### Service Configuration (systemd)
 
-As an alternative to PM2, you can use systemd to manage the services. Create the following service files:
+Create one systemd service file per component. Assuming the binaries are installed to `/opt/woodstock/bin/`:
 
-#### API Service
+#### API Server
 
 ```systemd
 # /etc/systemd/system/woodstock-api.service
 [Unit]
-Description=Woodstock API Service
-After=network.target redis.service
+Description=Woodstock API Server
+After=network.target valkey.service
 
 [Service]
 Type=simple
 User=woodstock
-WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/api/main.js
+ExecStart=/opt/woodstock/bin/api_server
 Restart=always
-Environment=NODE_ENV=production
+Environment=BACKUP_PATH=/var/lib/woodstock
+Environment=STATIC_PATH=/opt/woodstock/static
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### Client API Service
+#### Client API Server
 
 ```systemd
 # /etc/systemd/system/woodstock-client-api.service
 [Unit]
-Description=Woodstock Client API Service
-After=network.target redis.service
+Description=Woodstock Client API Server (mTLS gateway for agents)
+After=network.target valkey.service
 
 [Service]
 Type=simple
 User=woodstock
-WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/clientApi/main.js
+ExecStart=/opt/woodstock/bin/client_api_server
 Restart=always
-Environment=NODE_ENV=production
+Environment=BACKUP_PATH=/var/lib/woodstock
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### Backup Worker Service
+#### Job Worker
 
 ```systemd
-# /etc/systemd/system/woodstock-backup-worker.service
+# /etc/systemd/system/woodstock-worker.service
 [Unit]
-Description=Woodstock Backup Worker Service
-After=network.target redis.service woodstock-api.service
+Description=Woodstock Job Worker
+After=network.target valkey.service
 
 [Service]
 Type=simple
 User=woodstock
-WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/backupWorker/main.js
+ExecStart=/opt/woodstock/bin/job_worker
 Restart=always
-Environment=NODE_ENV=production
-Environment=MAX_BACKUP_TASK=1
+Environment=BACKUP_PATH=/var/lib/woodstock
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=BACKUP_CONCURRENCY=2
+Environment=RESTORE_CONCURRENCY=8
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### Reference Count Worker Service
+#### Scheduler
 
 ```systemd
-# /etc/systemd/system/woodstock-refcnt-worker.service
+# /etc/systemd/system/woodstock-scheduler.service
 [Unit]
-Description=Woodstock Reference Count Worker Service
-After=network.target redis.service woodstock-api.service
+Description=Woodstock Scheduler
+After=network.target valkey.service
 
 [Service]
 Type=simple
 User=woodstock
-WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/refcntWorker/main.js
+ExecStart=/opt/woodstock/bin/scheduler
 Restart=always
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### Schedule Worker Service
-
-```systemd
-# /etc/systemd/system/woodstock-schedule-worker.service
-[Unit]
-Description=Woodstock Schedule Worker Service
-After=network.target redis.service woodstock-api.service
-
-[Service]
-Type=simple
-User=woodstock
-WorkingDirectory=/app/nestjs
-ExecStart=/usr/bin/node apps/scheduleWorker/main.js
-Restart=always
-Environment=NODE_ENV=production
+Environment=BACKUP_PATH=/var/lib/woodstock
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
 
 [Install]
 WantedBy=multi-user.target
@@ -301,17 +271,8 @@ WantedBy=multi-user.target
 #### Enable and start the services
 
 ```bash
-systemctl enable woodstock-api.service
-systemctl enable woodstock-client-api.service
-systemctl enable woodstock-backup-worker.service
-systemctl enable woodstock-refcnt-worker.service
-systemctl enable woodstock-schedule-worker.service
-
-systemctl start woodstock-api.service
-systemctl start woodstock-client-api.service
-systemctl start woodstock-backup-worker.service
-systemctl start woodstock-refcnt-worker.service
-systemctl start woodstock-schedule-worker.service
+sudo systemctl enable woodstock-api.service woodstock-client-api.service woodstock-worker.service woodstock-scheduler.service
+sudo systemctl start  woodstock-api.service woodstock-client-api.service woodstock-worker.service woodstock-scheduler.service
 ```
 
 ## Configuration Reference
@@ -337,12 +298,12 @@ systemctl start woodstock-schedule-worker.service
 | JOBS_PATH                 | `$LOGS_PATH/jobs`                        | The path where logs of jobs will be stored                            |
 | EVENTS_PATH               | `$BACKUP_PATH/events`                    | The path where event data will be stored                              |
 
-### Redis Environment Variables
+### Valkey/Redis Environment Variables
 
 | Environment Variable      | Default Value                            | Description                                                           |
 |---------------------------|------------------------------------------|-----------------------------------------------------------------------|
-| REDIS_HOST                | `localhost`                              | The host of redis to connect                                          |
-| REDIS_PORT                | `6379`                                   | The port of redis to connect                                          |
+| REDIS_HOST                | `localhost`                              | The host of Valkey/Redis to connect                                   |
+| REDIS_PORT                | `6379`                                   | The port of Valkey/Redis to connect                                   |
 
 ### File view Environment Variables
 
@@ -353,18 +314,29 @@ systemctl start woodstock-schedule-worker.service
 | FILE_VIEW_MAX_ELEMENTS    | `10`                                     | The number of backups file list to store in the cache                 |
 | FILE_VIEW_TTL_CACHE       | `15min`                                  | The time to live of the cache of the file list                        |
 
+### API Server Environment Variables
 
-### Docker-Specific Environment Variables
+| Environment Variable      | Default Value | Description                                                       |
+|---------------------------|---------------|-------------------------------------------------------------------|
+| MANAGEMENT_API_LISTEN     | `0.0.0.0`     | Bind address for the REST/GraphQL API server                      |
+| MANAGEMENT_API_PORT       | `3000`        | Listening port for the REST/GraphQL API server                    |
 
-| Environment Variable      | Default Value                            | Description                                                           |
-|---------------------------|------------------------------------------|-----------------------------------------------------------------------|
-| API_INSTANCES             | `1`                                      | The number of instance of the api to run                              |
-| BACKUP_WORKER_INSTANCES   | `1`                                      | The number of instance of the backup worker to run                    |
-| DISABLE_REFCNT            | `false`                                  | Disable the refcnt of the backup (to be run on another container)     |
-| DISABLE_SCHEDULER         | `false`                                  | Disable the scheduler of the backup (to be run on another container)  |
-| MAX_BACKUP_TASK           | `2`                                      | The number of backup task to run in parallel in each worker instance  |
-| CLIENT_API_HOSTNAME       | -                                        | The hostname for the client API connections                           |
-| CLIENT_API_PORT           | -                                        | The port for the client API connections                               |
+### Client API Server Environment Variables
+
+| Environment Variable      | Default Value | Description                                                       |
+|---------------------------|---------------|-------------------------------------------------------------------|
+| CLIENT_API_LISTEN         | `0.0.0.0`     | Bind address for the mTLS HTTPS agent gateway                     |
+| CLIENT_API_PORT           | `8443`        | Listening port for the mTLS HTTPS agent gateway                   |
+
+### Job Worker Environment Variables
+
+| Environment Variable      | Default Value | Description                                                       |
+|---------------------------|---------------|-------------------------------------------------------------------|
+| BACKUP_CONCURRENCY        | `2`           | Number of backup jobs to run in parallel                          |
+| RESTORE_CONCURRENCY       | `8`           | Number of restore jobs to run in parallel                         |
+| MAINTENANCE_CONCURRENCY   | `2`           | Number of maintenance jobs (fsck, cleanup) to run in parallel     |
+| PROGRESS_SNAPSHOT_TTL     | `86400`       | Duration in seconds to keep progress snapshots in Redis           |
+| HOST_LOCK_TTL_MS          | `60000`       | Host-level lock TTL in milliseconds (prevents concurrent backups) |
 
 ## Used ports
 
@@ -375,4 +347,4 @@ systemctl start woodstock-schedule-worker.service
 | 3657 | TCP      | Default listening port on client agents to receive instructions from the server                                  | Yes      |
 | 5353 | UDP      | mDNS Discovery - Used to automatically discover clients on the local network (alternative method)                | No       |
 | 9090 | TCP      | Prometheus - For collecting and visualizing monitoring metrics                                                   | No       |
-| 6379 | TCP      | Redis - Storage of temporary data, queues and communication between components                                   | Yes      |
+| 6379 | TCP      | Valkey - Storage of temporary data, queues and communication between components                                  | Yes      |

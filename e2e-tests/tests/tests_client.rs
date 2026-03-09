@@ -234,10 +234,10 @@ async fn test_client_download_file_list() {
 
         let refresh_cache = tokio_stream::iter(vec![
             RefreshCacheRequest {
-                field: Some(refresh_cache_request::Field::Header(share.clone())),
+                payload: Some(refresh_cache_request::Payload::Header(share.clone())),
             },
             RefreshCacheRequest {
-                field: Some(refresh_cache_request::Field::FileManifest(FileManifest {
+                payload: Some(refresh_cache_request::Payload::FileManifest(FileManifest {
                     path: "Cargo.toml".into(),
                     stats: None,
                     hash: Vec::new(),
@@ -290,7 +290,7 @@ async fn test_client_get_chunk_hash() {
         };
 
         let refresh_cache = tokio_stream::iter(vec![RefreshCacheRequest {
-            field: Some(refresh_cache_request::Field::Header(share.clone())),
+            payload: Some(refresh_cache_request::Payload::Header(share.clone())),
         }]);
 
         let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
@@ -356,7 +356,7 @@ async fn test_client_get_chunk() {
         };
 
         let refresh_cache = tokio_stream::iter(vec![RefreshCacheRequest {
-            field: Some(refresh_cache_request::Field::Header(share.clone())),
+            payload: Some(refresh_cache_request::Payload::Header(share.clone())),
         }]);
 
         let refresh_cache = create_request(&session_id, refresh_cache).await.unwrap();
@@ -391,14 +391,14 @@ async fn test_client_get_chunk() {
             let mut footer_chunk_number = 0;
             while let Some(chunk) = result.next().await {
                 let chunk = chunk.unwrap();
-                match chunk.field {
-                    Some(file_chunk::Field::Data(data)) => {
+                match chunk.payload {
+                    Some(file_chunk::Payload::Data(data)) => {
                         size += data.data.len() as u64;
                     }
-                    Some(file_chunk::Field::Header(_)) => {
+                    Some(file_chunk::Payload::Header(_)) => {
                         header_chunk_number += 1;
                     }
-                    Some(file_chunk::Field::Footer(_)) => {
+                    Some(file_chunk::Payload::Footer(_)) => {
                         footer_chunk_number += 1;
                     }
                     _ => (),

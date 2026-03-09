@@ -4,9 +4,7 @@
   "private": true,
   "workspaces": [
     "docs/website",
-    "front",
-    "nestjs",
-    "shared-rs"
+    "front"
   ],
   "devDependencies": {
     "@saithodev/semantic-release-gitea": "^2.1.0",

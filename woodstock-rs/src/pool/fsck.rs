@@ -1,16 +1,18 @@
-use std::{path::PathBuf, time::SystemTime};
+use std::{path::PathBuf, sync::Arc};
 
 use async_walkdir::{Filtering, WalkDir};
+use chrono::Local;
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
-use log::{error, info};
 use tokio::sync::mpsc;
+use tracing::{error, info};
 
 use crate::{
-    config::{Backups, Configuration},
+    config::{Backups, Configuration, Hosts},
     pool::PoolChunkWrapper,
     PoolRefCount,
 };
+use uuid::Uuid;
 
 use super::Refcnt;
 
@@ -89,7 +91,7 @@ fn check_integrity(original_refcnt: &Refcnt, new_refcnt: &Refcnt, path: &PathBuf
 /// # Arguments
 ///
 /// * `hostname` - The hostname associated with the backup.
-/// * `backup_number` - The backup number to check.
+/// * `backup_id` - The UUID v7 identifier of the backup to check.
 /// * `dry_run` - If true, do not modify any data.
 /// * `config` - Reference to the Woodstock [`Configuration`] struct.
 ///
@@ -103,15 +105,15 @@ fn check_integrity(original_refcnt: &Refcnt, new_refcnt: &Refcnt, path: &PathBuf
 /// Returns an error if the integrity check fails.
 pub async fn check_backup_integrity(
     hostname: &str,
-    backup_number: usize,
+    backup_id: Uuid,
     dry_run: bool,
-    config: &Configuration,
+    config: Arc<Configuration>,
+    backups: Arc<Backups>,
 ) -> Result<FsckCount> {
-    let backups = Backups::new(config);
-    let destination_backup = backups.get_backup_destination_directory(hostname, backup_number);
+    let destination_backup = backups.get_backup_destination_directory(hostname, backup_id);
 
     let new_refcnt =
-        Refcnt::new_backup_refcnt_from_manifest(hostname, backup_number, config).await?;
+        Refcnt::new_backup_refcnt_from_manifest(hostname, backup_id, config.clone()).await?;
     let mut original_refcnt = Refcnt::new(&destination_backup);
     original_refcnt.load_refcnt(false).await;
 
@@ -120,12 +122,12 @@ pub async fn check_backup_integrity(
     let mut new_refcnt = new_refcnt;
 
     if !dry_run && error_count > 0 {
-        info!("Fix refcnt for {hostname}/{backup_number}");
+        info!("Fix refcnt for {hostname}/{backup_id}");
         new_refcnt
             .repair(&config.path.pool_path, config.chunk_algorithm)
             .await?;
         new_refcnt
-            .save_refcnt(&SystemTime::now(), false, config.compression_format)
+            .save_refcnt(&Local::now(), false, config.compression_format)
             .await?;
     }
 
@@ -154,12 +156,12 @@ pub async fn check_backup_integrity(
 pub async fn check_host_integrity(
     hostname: &str,
     dry_run: bool,
-    config: &Configuration,
+    config: Arc<Configuration>,
+    backups: Arc<Backups>,
 ) -> Result<FsckCount> {
-    let backups = Backups::new(config);
     let destination_directory = backups.get_host_path(hostname);
 
-    let new_refcnt = Refcnt::new_host_refcnt_from_backups(hostname, config).await?;
+    let new_refcnt = Refcnt::new_host_refcnt_from_backups(hostname, config.clone()).await?;
 
     let mut original_refcnt = Refcnt::new(&destination_directory);
     original_refcnt.load_refcnt(false).await;
@@ -174,7 +176,7 @@ pub async fn check_host_integrity(
             .repair(&config.path.pool_path, config.chunk_algorithm)
             .await?;
         new_refcnt
-            .save_refcnt(&SystemTime::now(), false, config.compression_format)
+            .save_refcnt(&Local::now(), false, config.compression_format)
             .await?;
     }
 
@@ -199,23 +201,43 @@ pub async fn check_host_integrity(
 /// # Errors
 ///
 /// Returns an error if the pool cannot be loaded or the integrity check fails.
-pub async fn check_pool_integrity(dry_run: bool, config: &Configuration) -> Result<FsckCount> {
+pub async fn check_pool_integrity(
+    dry_run: bool,
+    config: Arc<Configuration>,
+    hosts_config: Arc<Hosts>,
+    backups_config: Arc<Backups>,
+) -> Result<FsckCount> {
+    use super::PoolManager;
+
+    // Recalculate REFCNT from backups (source of truth)
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
-    let new_refcnt = Refcnt::new_pool_refcnt_from_host(config).await?;
+    let new_refcnt =
+        Refcnt::new_pool_refcnt_from_host(config.clone(), hosts_config, backups_config).await?;
 
-    let error_count = check_integrity(&pool_refcnt, &new_refcnt, &config.path.pool_path);
+    let mut error_count = check_integrity(&pool_refcnt, &new_refcnt, &config.path.pool_path);
 
     let mut new_refcnt = new_refcnt;
 
+    let dirty = PoolManager::new(config.clone()).is_dirty().await;
+    if dirty.is_err() {
+        error!(
+            "Failed to check dirty state of pool: {}",
+            // SAFETY: dirty.is_err() is true — unwrapping Err is always Some
+            dirty.err().unwrap()
+        );
+        error_count += 1;
+    }
+
     if !dry_run && error_count > 0 {
         info!("Fix refcnt for pool");
+        PoolManager::new(config.clone()).cleanup_dirty().await?;
         new_refcnt
             .repair(&config.path.pool_path, config.chunk_algorithm)
             .await?;
         new_refcnt
-            .save_refcnt(&SystemTime::now(), true, config.compression_format)
+            .save_refcnt(&Local::now(), true, config.compression_format)
             .await?;
     }
 
@@ -248,7 +270,7 @@ pub async fn check_pool_integrity(dry_run: bool, config: &Configuration) -> Resu
 pub async fn check_unused(
     dry_run: bool,
     progress_tx: mpsc::Sender<FsckUnusedCount>,
-    config: &Configuration,
+    config: Arc<Configuration>,
 ) -> Result<FsckUnusedCount> {
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
@@ -283,6 +305,7 @@ pub async fn check_unused(
 
     while let Some(hash) = entries.next().await {
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&hash));
+        // SAFETY: wrapper was created with Some(&hash) — get_hash_str() always returns Some
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
 
         let refcnt = pool_refcnt.get_refcnt(&hash);
@@ -324,7 +347,7 @@ pub async fn check_unused(
 
     if !dry_run {
         pool_refcnt
-            .save_refcnt(&SystemTime::now(), true, config.compression_format)
+            .save_refcnt(&Local::now(), true, config.compression_format)
             .await?;
     }
 

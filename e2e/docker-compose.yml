@@ -1,0 +1,248 @@
+version: "3.8"
+
+# Test E2E Ephemere
+# Usage: docker compose -f e2e/docker-compose.yml up --build
+
+networks:
+  woodstock-e2e-net:
+    driver: bridge
+
+volumes:
+  valkey_data:
+  certs_data:
+
+services:
+  # --- Setup ---
+  setup-certs:
+    image: alpine:3.18
+    command: >
+      sh -c "apk add --no-cache openssl && chmod +x /scripts/generate_certs.sh && /scripts/generate_certs.sh /certs"
+    volumes:
+      - ./generate_certs.sh:/scripts/generate_certs.sh
+      - certs_data:/certs
+    networks:
+      - woodstock-e2e-net
+
+  # --- Core Infrastructure ---
+  valkey:
+    image: valkey/valkey:9-alpine
+    # Mode ephemere: pas de persistence sur disque
+    command: valkey-server --save "" --loglevel warning
+    networks:
+      - woodstock-e2e-net
+    tmpfs:
+      - /data
+
+  # --- Server Components ---
+  server-api:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      target: server
+    image: woodstock-server:e2e
+    command: ["/app/api_server"]
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      valkey:
+        condition: service_started
+      setup-certs:
+        condition: service_completed_successfully
+    volumes:
+      - certs_data:/certs:ro
+      - ./config:/config:ro
+
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug
+      # Use /tmp as it is 1777 writable
+      - BACKUP_PATH=/tmp/backups
+      - STATIC_PATH=/app/static
+      - CERTIFICATES_PATH=/certs
+      - CONFIG_PATH=/config
+
+  server-client-api:
+    image: woodstock-server:e2e
+    command: ["/app/client_api_server"]
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      valkey:
+        condition: service_started
+      setup-certs:
+        condition: service_completed_successfully
+    volumes:
+      - certs_data:/certs:ro
+      - ./config:/config:ro
+
+    #read_only: true
+    #cap_drop:
+    #  - ALL
+    #security_opt:
+    #  - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=debug
+      - BACKUP_PATH=/tmp/backups
+      - CERTIFICATES_PATH=/certs
+      - CONFIG_PATH=/config
+
+  server-worker:
+    image: woodstock-server:e2e
+    command: ["/app/job_worker"]
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      valkey:
+        condition: service_started
+      setup-certs:
+        condition: service_completed_successfully
+    volumes:
+      - certs_data:/certs:ro
+      - ./config:/config:ro
+
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/tmp/backups
+      - CERTIFICATES_PATH=/certs
+      - CONFIG_PATH=/config
+
+  server-scheduler:
+    image: woodstock-server:e2e
+    command: ["/app/scheduler"]
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      valkey:
+        condition: service_started
+      setup-certs:
+        condition: service_completed_successfully
+    volumes:
+      - certs_data:/certs:ro
+      - ./config:/config:ro
+
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+      - BACKUP_PATH=/tmp/backups
+      - CERTIFICATES_PATH=/certs
+      - CONFIG_PATH=/config
+
+  # --- Clients ---
+  client-a:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+      target: client
+    image: woodstock-client:e2e
+    hostname: client-a
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      setup-certs:
+        condition: service_completed_successfully
+      server-client-api:
+        condition: service_started
+    volumes:
+      - certs_data:/certs
+      - ./generate_data.sh:/scripts/generate_data.sh
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      # Use /tmp for data
+      - LOG_LEVEL=debug
+    # 1. Genere 10MB de donnees dans /tmp/source
+    # 2. Genere la config dans /tmp/config.yaml
+    # 3. Lance le daemon avec config explicit
+    command: >
+      sh -c "
+        echo 'Step 1: Generating random data...' &&
+        chmod +x /scripts/generate_data.sh &&
+        /scripts/generate_data.sh /tmp/source 50 &&
+        echo 'Data generated in /tmp/source' &&
+        
+        echo 'Step 2: Configuring client...' &&
+        echo 'password: password' > /tmp/config.yaml &&
+        echo 'server: https://server-client-api:8443' >> /tmp/config.yaml &&
+        echo 'allowed_paths: [\"/tmp/source\"]' >> /tmp/config.yaml &&
+        echo 'Copying certificates...' &&
+        cp /certs/* /tmp/ &&
+        ls -l /tmp/ &&
+        
+        echo 'Step 3: Starting Woodstock Agent...' &&
+        exec /app/cli/ws_client_daemon --config-dir /tmp
+      "
+
+  client-b:
+    image: woodstock-client:e2e
+    hostname: client-b
+    networks:
+      - woodstock-e2e-net
+    depends_on:
+      setup-certs:
+        condition: service_completed_successfully
+      server-client-api:
+        condition: service_started
+    volumes:
+      - certs_data:/certs
+      - ./generate_data.sh:/scripts/generate_data.sh
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    environment:
+      - LOG_LEVEL=debug
+    command: >
+      sh -c "
+        echo 'Step 1: Generating random data...' &&
+        chmod +x /scripts/generate_data.sh &&
+        /scripts/generate_data.sh /tmp/source 50 &&
+        echo 'Data generated in /tmp/source' &&
+        
+        echo 'Step 2: Configuring client...' &&
+        echo 'password: password' > /tmp/config.yaml &&
+        echo 'server: https://server-client-api:8443' >> /tmp/config.yaml &&
+        echo 'allowed_paths: [\"/tmp/source\"]' >> /tmp/config.yaml &&
+        echo 'Copying certificates...' &&
+        cp /certs/* /tmp/ &&
+        ls -l /tmp/ &&
+        
+        echo 'Step 3: Starting Woodstock Agent...' &&
+        exec /app/cli/ws_client_daemon --config-dir /tmp
+      "

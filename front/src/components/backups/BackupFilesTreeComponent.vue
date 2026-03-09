@@ -4,7 +4,7 @@
       color="warning" density="compact" slim item-title="displayName" item-value="id" item-props="props" activatable
       transition :style="cssVars" @update:activated="onSelect" return-object>
       <template v-slot:prepend="{ item, isOpen }">
-        <v-icon v-if="item.node.type == EnumFileType.Directory">
+        <v-icon v-if="item.node.type == FileManifestTypeDto.Directory">
           {{ isOpen ? 'mdi-folder-open' : 'mdi-folder' }}
         </v-icon>
         <v-icon v-else>
@@ -22,11 +22,11 @@ import { unmangle } from '../../utils/file';
 import { useApolloClient } from '@vue/apollo-composable';
 import type { TreeViewNode } from './backups.interface';
 import type { FragmentFileDescriptionFragment } from '@/generated/graphql';
-import { EnumFileType } from '@/generated/graphql';
+import { FileManifestTypeDto } from '@/generated/graphql';
 
 const props = defineProps<{
   deviceId: string;
-  backupNumber: number;
+  backupId: string;
   hiddenFiles?: boolean;
 }>();
 
@@ -39,17 +39,17 @@ const open = ref([]);
 const items = ref<TreeViewNode[]>([]);
 
 const { client } = useApolloClient();
-const { shares, isFetching, browse } = useBackupsBrowse(props.deviceId, props.backupNumber);
+const { shares, isFetching, browse } = useBackupsBrowse(props.deviceId, props.backupId);
 
 const FILE_TYPE_MAPPING = {
-  [EnumFileType.RegularFile]: 'mdi-file',
-  [EnumFileType.BlockDevice]: 'mdi-harddisk',
-  [EnumFileType.CharacterDevice]: 'mdi-console',
-  [EnumFileType.Directory]: 'mdi-folder',
-  [EnumFileType.Fifo]: 'mdi-pipe',
-  [EnumFileType.Socket]: 'mdi-power-socket-eu',
-  [EnumFileType.Symlink]: 'mdi-link',
-  [EnumFileType.Unknown]: 'mdi-file-question',
+  [FileManifestTypeDto.RegularFile]: 'mdi-file',
+  [FileManifestTypeDto.BlockDevice]: 'mdi-harddisk',
+  [FileManifestTypeDto.CharacterDevice]: 'mdi-console',
+  [FileManifestTypeDto.Directory]: 'mdi-folder',
+  [FileManifestTypeDto.Fifo]: 'mdi-pipe',
+  [FileManifestTypeDto.Socket]: 'mdi-power-socket-eu',
+  [FileManifestTypeDto.Symlink]: 'mdi-link',
+  [FileManifestTypeDto.Unknown]: 'mdi-file-question',
 };
 
 const cssVars = computed(() => {
@@ -88,7 +88,7 @@ function mapFileNode(node: FragmentFileDescriptionFragment, parent: TreeViewNode
     sharePath: parent.sharePath,
     path,
     displayName: unmangle(node.path),
-    children: node.type === EnumFileType.Directory ? [] : undefined,
+    children: node.type === FileManifestTypeDto.Directory ? [] : undefined,
     node,
     props: { 'data-is-hidden': isHidden },
   };

@@ -1,7 +1,8 @@
 use eyre::Result;
-use log::{error, info};
+use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
     AddReferencesToPoolError(String),
     RefcntRemovalError(String),
@@ -9,7 +10,7 @@ pub enum ErrorState {
     Unknown(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub enum RemoveExecutionState {
     #[default]
     Waiting,
@@ -19,7 +20,7 @@ pub enum RemoveExecutionState {
     Completed,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RemoveState {
     pub execution_state: RemoveExecutionState,
     pub error_state: Option<ErrorState>,

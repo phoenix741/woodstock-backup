@@ -10,7 +10,7 @@
         <v-card class="mx-auto">
           <v-card-title class="text-overline">Files</v-card-title>
           <v-card-text>
-            <BackupFilesComponent :deviceId="deviceId" :backupNumber="backupId"></BackupFilesComponent>
+            <BackupFilesComponent :deviceId="deviceId" :backupId="backupId"></BackupFilesComponent>
           </v-card-text>
         </v-card>
       </v-col>
@@ -20,7 +20,7 @@
         <v-card class="mx-auto">
           <v-card-title class="text-overline">Logs</v-card-title>
           <v-card-text>
-            <BackupLogComponent :deviceId="deviceId" :backupNumber="backupId"></BackupLogComponent>
+            <BackupLogComponent :deviceId="deviceId" :backupId="backupId"></BackupLogComponent>
           </v-card-text>
         </v-card>
       </v-col>
@@ -37,5 +37,5 @@ import { useRoute } from 'vue-router';
 const route = useRoute();
 
 const deviceId = Array.isArray(route.params.deviceId) ? route.params.deviceId[0] : route.params.deviceId;
-const backupId = parseInt(Array.isArray(route.params.backupId) ? route.params.backupId[0] : route.params.backupId);
+const backupId = Array.isArray(route.params.backupId) ? route.params.backupId[0] : route.params.backupId;
 </script>

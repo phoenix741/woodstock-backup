@@ -79,10 +79,10 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
     restore_permissions(&path, file_manifest)?;
 
     let _ = restore_xattr(&path, &file_manifest.xattr).inspect_err(|err| {
-        log::warn!("Failed to restore xattr: {}", err);
+        tracing::warn!("Failed to restore xattr: {}", err);
     });
     let _ = restore_acl(&path, &file_manifest.acl).inspect_err(|err| {
-        log::warn!("Failed to restore acl: {}", err);
+        tracing::warn!("Failed to restore acl: {}", err);
     });
 
     Ok(())

@@ -10,26 +10,55 @@
 //! - File or chunk download fails due to network or server issues.
 //! - Any I/O or configuration error occurs during the backup process.
 
+mod backup_resolver;
+
 use std::cell::RefCell;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use clap::Parser;
 use console::Emoji;
 use console::Term;
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use indicatif::ProgressBar;
 use indicatif::ProgressDrawTarget;
 use indicatif::ProgressStyle;
 use tokio::sync::mpsc;
+use uuid::Uuid;
 use woodstock::config::Backups;
+use woodstock::config::Configuration;
 use woodstock::config::Context;
-use woodstock::config::GlobalConfiguration;
 use woodstock::config::Hosts;
+use woodstock::config::Scheduler;
 use woodstock::config::DEFAULT_CHANNEL_BUFFER_SIZE;
+use woodstock::config::GLOBAL_CONFIGURATION;
 use woodstock::server::backup::save_machine::SaveBackupMachine;
 use woodstock::server::backup::save_state::BackupExecutionState;
 use woodstock::server::backup::save_state::BackupState;
 use woodstock::server::client::grpc::BackupGrpcClient;
+
+use crate::backup_resolver::resolve_backup_id;
+
+/// Shared state for the `BackupPC` importer application.
+struct ServiceState {
+    pub config: Arc<Configuration>,
+    pub hosts: Arc<Hosts>,
+    pub backups: Arc<Backups>,
+}
+
+impl Default for ServiceState {
+    fn default() -> Self {
+        let config = Arc::new(GLOBAL_CONFIGURATION.clone());
+        let scheduler = Arc::new(Scheduler::new(config.clone()));
+        let hosts = Arc::new(Hosts::new(config.clone(), scheduler));
+        let backups = Arc::new(Backups::new(config.clone()));
+        ServiceState {
+            config,
+            hosts,
+            backups,
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -43,8 +72,9 @@ struct Cli {
     /// The ip used to authenticate
     ip: String,
 
-    /// The backup number (if not provided, the latest backup will be used)
-    backup_number: Option<usize>,
+    /// Optional backup identifier (UUID or sequential number) to resume an existing backup.
+    /// If omitted, a new backup is created.
+    backup_id: Option<String>,
 }
 
 /// Returns a human-readable message describing the current backup execution state.
@@ -60,6 +90,9 @@ fn message_from_state(state: &BackupExecutionState) -> String {
     match state {
         BackupExecutionState::Authenticate => format!("[1/10] {}Authenticating", Emoji("🔐 ", "")),
         BackupExecutionState::Waiting => format!("[0/10] {}Waiting", Emoji("⏳ ", "")),
+        BackupExecutionState::Skipped => {
+            format!("[0/10] {}Skipped (host unreachable)", Emoji("⏭️ ", ""))
+        }
         BackupExecutionState::Initialization => {
             format!("[2/10] {}Create backup directory", Emoji("🔨 ", ""))
         }
@@ -109,23 +142,25 @@ fn message_from_state(state: &BackupExecutionState) -> String {
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let term = Term::stdout();
 
     let context = Context::default();
     let args = Cli::parse();
 
-    let hosts = Hosts::new(&GlobalConfiguration);
-    let host_configuration = hosts.get_host(&args.hostname).await?;
-    let backups = Backups::new(&GlobalConfiguration);
+    let state = ServiceState::default();
 
-    let backup_number = match args.backup_number {
-        Some(backup_number) => backup_number,
-        None => match backups.get_last_backup(&args.hostname).await {
-            Some(backup) => backup.number + 1,
-            None => 0,
-        },
+    let host_configuration = state.hosts.get_host(&args.hostname).await?;
+
+    let (next_id, next_number, previous_id) = if let Some(ref id_arg) = args.backup_id {
+        let (id, number) = resolve_backup_id(id_arg, &args.hostname, &state.backups).await?;
+        (id, number, None)
+    } else {
+        match state.backups.get_last_backup(&args.hostname).await {
+            Some(last) => (Uuid::now_v7(), last.number + 1, Some(last.id)),
+            None => (Uuid::now_v7(), 0, None),
+        }
     };
 
     term.write_line(&format!(
@@ -133,7 +168,11 @@ async fn main() -> Result<()> {
         &args.hostname, host_configuration.addresses,
     ))?;
 
-    let grpc_client = BackupGrpcClient::new(&args.hostname, &args.ip, &GlobalConfiguration).await?;
+    let addr = args
+        .ip
+        .parse::<SocketAddr>()
+        .wrap_err("Invalid IP address for sync")?;
+    let grpc_client = BackupGrpcClient::new(&args.hostname, &addr, state.config.clone()).await?;
 
     let previous_execution_state = RefCell::new(BackupExecutionState::Waiting);
     let (tx, mut rx) = mpsc::channel::<BackupState>(DEFAULT_CHANNEL_BUFFER_SIZE);
@@ -143,6 +182,7 @@ async fn main() -> Result<()> {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:40.cyan/blue} {percent_precise}% ({bytes_per_sec}) ETA: {eta}",
         )
+        // SAFETY: hardcoded template string is always valid
         .unwrap(),
     );
 
@@ -186,10 +226,14 @@ async fn main() -> Result<()> {
     let mut client = SaveBackupMachine::new(
         grpc_client,
         &args.hostname,
-        backup_number,
+        next_id,
+        next_number,
+        previous_id,
         &context,
-        &GlobalConfiguration,
         Some(tx),
+        state.config.clone(),
+        state.backups.clone(),
+        state.hosts.clone(),
     )
     .await?;
 

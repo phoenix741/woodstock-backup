@@ -10,17 +10,18 @@
 //!
 //! Some functions may panic if system resources are unavailable or if I/O operations fail unexpectedly.
 
-use std::{error::Error, ffi::OsString};
+use eyre::Result;
+use std::ffi::OsString;
 
 use clap::ValueEnum;
 use futures::{pin_mut, StreamExt};
 
 use woodstock::{
-    config::{Backups, Configuration},
-    pool::PoolChunkInformation,
-    proto::ProtobufReader,
-    Event, FileManifest, FileManifestJournalEntry, PoolRefCount, PoolUnused,
+    pool::PoolChunkInformation, proto::ProtobufReader, Event, FileManifest,
+    FileManifestJournalEntry, PoolRefCount, PoolUnused,
 };
+
+use crate::commands::CliServiceState;
 
 /// Supported protobuf formats for reading Woodstock backup data.
 ///
@@ -67,7 +68,7 @@ pub async fn read_protobuf(
     format: &ProtobufFormat,
     filter_name: Option<&String>,
     filter_chunks: Option<&String>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     match format {
         ProtobufFormat::FileManifest => {
             let mut messages = ProtobufReader::<FileManifest>::new(path, true).await?;
@@ -221,7 +222,7 @@ pub async fn read_protobuf(
 ///
 /// * `config` - The Woodstock configuration containing backup paths.
 /// * `hostname` - The hostname of the backup server.
-/// * `backup_number` - The backup number to read the log for.
+/// * `backup_number` - The backup UUID to read the log for.
 ///
 /// # Errors
 ///
@@ -231,13 +232,12 @@ pub async fn read_protobuf(
 ///
 /// This function does not explicitly panic.
 pub async fn read_log(
-    config: &Configuration,
+    state: CliServiceState,
     hostname: &str,
-    backup_number: usize,
+    backup_id: uuid::Uuid,
     share_path: &str,
-) -> Result<(), Box<dyn Error>> {
-    let backups_services = Backups::new(config);
-    let manifest = backups_services.get_manifest(hostname, backup_number, share_path);
+) -> Result<()> {
+    let manifest = state.backups.get_manifest(hostname, backup_id, share_path);
 
     let messages = manifest.read_log_entries();
     pin_mut!(messages);

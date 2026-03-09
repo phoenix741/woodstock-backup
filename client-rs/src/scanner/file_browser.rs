@@ -17,18 +17,16 @@ use woodstock::utils::path::path_to_vec;
 use woodstock::FileManifest;
 use woodstock::{EntryState, EntryType, FileManifestJournalEntry};
 
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 use super::metadata::acl::read_acl;
 use super::metadata::create_stats_from_metadata;
 use super::metadata::xattr::read_xattr;
 
-lazy_static! {
-    /// An empty path used as a starting point for directory traversal.
-    ///
-    /// This is used to begin the file system traversal at the root of the share path.
-    static ref EMPTY_PATH: PathBuf = PathBuf::from("");
-}
+/// An empty path used as a starting point for directory traversal.
+///
+/// This is used to begin the file system traversal at the root of the share path.
+static EMPTY_PATH: LazyLock<PathBuf> = LazyLock::new(|| PathBuf::from(""));
 
 /// Options for creating file manifests.
 ///
@@ -206,7 +204,7 @@ fn create_manifest_from_file<P: AsRef<Path>>(
     };
 
     FileManifestJournalEntry {
-        r#type: EntryType::Add as i32,
+        entry_type: EntryType::Add as i32,
         manifest: Some(FileManifest {
             path: path_to_vec(&entry.path),
             stats: metadata_stats,
@@ -227,6 +225,8 @@ fn create_manifest_from_file<P: AsRef<Path>>(
         xfer_calculation: 0,
         xfer_duration: 0,
         xfer_check: 0,
+        chunk_sizes: vec![],
+        chunk_compressed_sizes: vec![],
     }
 }
 

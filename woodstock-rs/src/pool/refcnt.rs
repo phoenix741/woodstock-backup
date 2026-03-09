@@ -1,10 +1,12 @@
-use log::{debug, error, info, warn};
+use chrono::DateTime;
+use chrono::Local;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::sync::Arc;
 use tokio::fs::remove_file;
 use tokio::sync::mpsc;
+use tracing::{debug, error, info, warn};
 
 use futures::pin_mut;
 use futures::StreamExt;
@@ -62,17 +64,16 @@ pub enum RefcntApplySens {
 ///
 /// - [`PoolRefCount`], [`PoolUnused`]: For reference count and unused chunk data
 pub struct Refcnt {
-    /// The path to the reference count file.
-    path: PathBuf,
-    /// The path to the unused chunks file.
-    refcnt_path: PathBuf,
-    /// The path to the unused chunks index file.
+    /// The backup directory that contains the `REFCNT` file.
+    directory: PathBuf,
+    /// Full path to the `REFCNT` file (typically `<directory>/REFCNT`).
+    refcnt_file: PathBuf,
+    /// Path to the unused-chunks index file (if any).
     unused_path: Option<PathBuf>,
-    /// The index mapping chunk hashes to their reference counts.
+    /// In-memory index mapping chunk hashes to their reference counts.
     index: HashMap<Vec<u8>, PoolRefCount>,
 }
 
-// FIXME: Add lock (or add it on nodejs part ?)
 impl Refcnt {
     /// Creates a new [`Refcnt`] instance for managing reference counts and unused chunks.
     ///
@@ -86,8 +87,8 @@ impl Refcnt {
     #[must_use]
     pub fn new<P: AsRef<Path>>(directory: P) -> Self {
         Self {
-            path: directory.as_ref().to_path_buf(),
-            refcnt_path: directory.as_ref().join("REFCNT"),
+            directory: directory.as_ref().to_path_buf(),
+            refcnt_file: directory.as_ref().join("REFCNT"),
             unused_path: Some(directory.as_ref().join("unused")),
             index: HashMap::new(),
         }
@@ -132,8 +133,8 @@ impl Refcnt {
     /// Returns an error if the reference count file cannot be read or parsed, or if the unused chunks cannot be loaded.
     pub async fn load_refcnt_from_file<P: AsRef<Path>>(file: P) -> Result<Self> {
         let mut refcnt = Refcnt {
-            path: file.as_ref().to_path_buf(),
-            refcnt_path: file.as_ref().to_path_buf(),
+            directory: file.as_ref().to_path_buf(),
+            refcnt_file: file.as_ref().to_path_buf(),
             unused_path: None,
             index: HashMap::new(),
         };
@@ -206,13 +207,13 @@ impl Refcnt {
     /// Returns an error if the manifest cannot be loaded or processed.
     pub async fn new_backup_refcnt_from_manifest(
         hostname: &str,
-        backup_number: usize,
-        config: &Configuration,
+        backup_id: uuid::Uuid,
+        config: Arc<Configuration>,
     ) -> Result<Self> {
-        let backups = Backups::new(config);
-        let refcnt_file = backups.get_backup_destination_directory(hostname, backup_number);
+        let backups = Backups::new(config.clone());
+        let refcnt_file = backups.get_backup_destination_directory(hostname, backup_id);
 
-        let manifests = backups.get_manifests(hostname, backup_number).await;
+        let manifests = backups.get_manifests(hostname, backup_id).await;
         let mut refcnt = Refcnt::new(&refcnt_file);
         refcnt.load_refcnt(true).await;
 
@@ -245,7 +246,7 @@ impl Refcnt {
     /// Returns an error if the backup reference counts cannot be loaded or processed.
     pub async fn new_host_refcnt_from_backups(
         hostname: &str,
-        config: &Configuration,
+        config: Arc<Configuration>,
     ) -> Result<Self> {
         let backups_config = Backups::new(config);
         let refcnt_file = backups_config.get_host_path(hostname);
@@ -257,7 +258,7 @@ impl Refcnt {
 
         for backup in backups {
             let destination_backup =
-                backups_config.get_backup_destination_directory(hostname, backup.number);
+                backups_config.get_backup_destination_directory(hostname, backup.id);
 
             let mut backup_refcnt = Refcnt::new(&destination_backup);
             backup_refcnt.load_refcnt(false).await;
@@ -284,10 +285,11 @@ impl Refcnt {
     /// # Errors
     ///
     /// Returns an error if the host reference counts cannot be loaded or processed.
-    pub async fn new_pool_refcnt_from_host(config: &Configuration) -> Result<Self> {
-        let hosts_config = Hosts::new(config);
-        let backups_config = Backups::new(config);
-
+    pub async fn new_pool_refcnt_from_host(
+        config: Arc<Configuration>,
+        hosts_config: Arc<Hosts>,
+        backups_config: Arc<Backups>,
+    ) -> Result<Self> {
         let refcnt_file = config.path.pool_path.clone();
 
         let hosts = hosts_config.list_hosts().await?;
@@ -333,13 +335,13 @@ impl Refcnt {
         path: &Path,
         refcnt: &Refcnt,
         sens: &RefcntApplySens,
-        date: &SystemTime,
+        date: &DateTime<Local>,
         algorithm: ChunkAlgorithm,
         compression_format: CompressionFormat,
     ) -> Result<Self> {
         let mut new_refcnt = Refcnt::load_refcnt_from_path(path).await?;
 
-        debug!("Apply refcnt from {:?}", refcnt.path);
+        debug!("Apply refcnt from {:?}", refcnt.directory);
         new_refcnt.apply_all(&refcnt, sens);
         new_refcnt.repair(&path, algorithm).await?;
         new_refcnt
@@ -359,8 +361,8 @@ impl Refcnt {
     ///
     /// Returns an error if the file cannot be read or parsed.
     pub async fn load_refcnt(&mut self, fill_zero: bool) {
-        debug!("Load refcnt from {:?}", self.refcnt_path);
-        let messages = ProtobufReader::<PoolRefCount>::new(&self.refcnt_path, true).await;
+        debug!("Load refcnt from {:?}", self.refcnt_file);
+        let messages = ProtobufReader::<PoolRefCount>::new(&self.refcnt_file, true).await;
 
         self.index.clear();
         self.load_unused().await;
@@ -372,6 +374,16 @@ impl Refcnt {
             while let Some(refcnt) = messages.next().await {
                 if let Ok(mut refcnt) = refcnt {
                     let sha256_pool_refcnt = &refcnt.sha256;
+
+                    // Skip entries with empty hash
+                    if sha256_pool_refcnt.is_empty() {
+                        warn!(
+                            "Skipping refcnt entry with empty hash in {:?}",
+                            self.refcnt_file
+                        );
+                        continue;
+                    }
+
                     if fill_zero {
                         refcnt.ref_count = 0;
                     }
@@ -380,7 +392,7 @@ impl Refcnt {
                 }
             }
         } else {
-            info!("No refcnt file found at {:?}", self.refcnt_path);
+            info!("No refcnt file found at {:?}", self.refcnt_file);
         }
     }
 
@@ -404,6 +416,12 @@ impl Refcnt {
 
             while let Some(unused) = messages.next().await {
                 if let Ok(unused) = unused {
+                    // Skip entries with empty hash
+                    if unused.sha256.is_empty() {
+                        warn!("Skipping unused entry with empty hash in {:?}", unused_path);
+                        continue;
+                    }
+
                     self.index.insert(
                         unused.sha256.clone(),
                         PoolRefCount {
@@ -494,17 +512,32 @@ impl Refcnt {
     /// * `sens` - The sensitivity (increase or decrease).
     pub fn apply(&mut self, refcnt: &PoolRefCount, sens: &RefcntApplySens) {
         let sha256_pool_refcnt = refcnt.sha256.clone();
+
+        // Skip entries with empty hash
+        if sha256_pool_refcnt.is_empty() {
+            warn!(
+                "Skipping apply for refcnt with empty hash in {:?}",
+                self.refcnt_file
+            );
+            return;
+        }
+
         let hash_str = hex::encode(&sha256_pool_refcnt);
 
         let cnt = self
             .index
             .get(&sha256_pool_refcnt)
             .cloned()
-            .unwrap_or_default();
+            .unwrap_or_else(|| PoolRefCount {
+                sha256: sha256_pool_refcnt.clone(),
+                ref_count: 0,
+                size: 0,
+                compressed_size: 0,
+            });
 
         debug!(
             "Apply refcnt {} in {:?} {} {:?}",
-            hash_str, sens, refcnt.ref_count, self.refcnt_path
+            hash_str, sens, refcnt.ref_count, self.refcnt_file
         );
 
         let ref_count = match sens {
@@ -518,14 +551,14 @@ impl Refcnt {
         {
             error!(
                 "Registered compressed size {} (refcnt {}) is different {} (refcnt {}) for {hash_str}  in {:?}",
-                cnt.compressed_size, cnt.ref_count, refcnt.compressed_size, refcnt.ref_count, self.refcnt_path
+                cnt.compressed_size, cnt.ref_count, refcnt.compressed_size, refcnt.ref_count, self.refcnt_file
             );
         }
 
         if cnt.size != refcnt.size && cnt.size != 0 && refcnt.size != 0 {
             error!(
                 "Registered size is different for {hash_str} in {:?}",
-                self.refcnt_path
+                self.refcnt_file
             );
         }
 
@@ -555,6 +588,8 @@ impl Refcnt {
     /// actual chunk information from the pool and updates the reference count entry.
     /// For empty file hashes, no chunk information is expected and the entry is skipped.
     ///
+    /// DANGER: Very slow operation
+    ///
     /// # Arguments
     ///
     /// * `pool_path` - The root directory of the pool where chunk files are stored.
@@ -571,7 +606,7 @@ impl Refcnt {
     /// * Chunk information cannot be read from the pool
     /// * I/O operations fail during chunk inspection
     pub async fn repair(&mut self, pool_path: &Path, algorithm: ChunkAlgorithm) -> Result<()> {
-        debug!("Read chunk informations for {:?}", self.refcnt_path);
+        debug!("Read chunk informations for {:?}", self.refcnt_file);
         // For each value check chunk informations
         for (sha256_pool_refcnt, pool_refcnt) in &mut self.index {
             if pool_refcnt.size == 0 || pool_refcnt.compressed_size == 0 {
@@ -625,13 +660,13 @@ impl Refcnt {
     /// Returns an error if the save operation fails due to I/O issues.
     pub async fn save_refcnt(
         &self,
-        date: &SystemTime,
+        date: &DateTime<Local>,
         with_unused: bool,
         compression_format: CompressionFormat,
     ) -> Result<()> {
-        debug!("Save refcnt in {:?}", self.refcnt_path);
+        debug!("Save refcnt in {:?}", self.refcnt_file);
         let mut refcnt_writer = ProtobufWriter::<CompressedWriter, PoolRefCount>::new_compressed(
-            &self.refcnt_path,
+            &self.refcnt_file,
             true,
             compression_format,
         )
@@ -639,6 +674,7 @@ impl Refcnt {
         let mut unused_writer = if with_unused && self.unused_path.is_some() {
             Some(
                 ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
+                    // SAFETY: unused_path is Some — checked by the enclosing `with_unused && self.unused_path.is_some()` guard
                     self.unused_path.as_ref().unwrap(),
                     true,
                     compression_format,
@@ -654,6 +690,15 @@ impl Refcnt {
         };
 
         for pool_refcnt in self.index.values() {
+            // Skip entries with empty hash
+            if pool_refcnt.sha256.is_empty() {
+                warn!(
+                    "Skipping save for refcnt with empty hash in {:?}",
+                    self.refcnt_file
+                );
+                continue;
+            }
+
             if pool_refcnt.ref_count > 0 {
                 refcnt_writer.write(pool_refcnt).await?;
             } else if let Some(unused_writer) = &mut unused_writer {
@@ -672,9 +717,9 @@ impl Refcnt {
             unused_writer.flush().await?;
         }
 
-        debug!("Save statistics in {:?}", self.path);
+        debug!("Save statistics in {:?}", self.directory);
         let statistics = self.calculate_statistics();
-        write_statistics(&statistics, &self.path, date).await?;
+        write_statistics(&statistics, &self.directory, date).await?;
 
         Ok(())
     }
@@ -688,7 +733,7 @@ impl Refcnt {
     fn calculate_statistics(&self) -> PoolStatistics {
         let mut statistics = PoolStatistics::default();
 
-        debug!("Calculate statistics for {:?}", self.refcnt_path);
+        debug!("Calculate statistics for {:?}", self.refcnt_file);
         // For each value in the index
         for pool_refcnt in self.index.values() {
             statistics.nb_ref += pool_refcnt.ref_count;
@@ -827,7 +872,7 @@ mod tests {
         let refcnt4 = create_refcnt(vec![&SHA3_256_6, &SHA3_256_3]);
 
         // Add all refcnt to the pool
-        let now = SystemTime::now();
+        let now = Local::now();
         let pool_path = Path::new("./data/pool_refcnt");
         Refcnt::apply_all_from(
             pool_path,

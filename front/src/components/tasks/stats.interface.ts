@@ -1,7 +1,7 @@
 export interface QueueStats {
-  active: number;
-  waiting: number;
+  running: number;
+  pending: number;
   failed: number;
-  delayed: number;
-  completed: number;
+  dead: number;
+  success: number;
 }

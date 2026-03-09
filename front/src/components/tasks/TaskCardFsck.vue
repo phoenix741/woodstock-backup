@@ -1,6 +1,6 @@
 <template>
   <AbstractTaskCard :title="title" :subtitle="subtitle" icon="shield-search" :progress-percent="progressPercent"
-    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError">
+    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
     <template #tags>
       <v-chip v-if="progress?.refcntProgression" size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-counter</v-icon>
@@ -12,7 +12,7 @@
       </v-chip>
       <v-chip v-if="totalErrorCount > 0" size="small" class="ma-1" color="error" variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
-        {{ totalErrorCount }} errors
+        {{ toNumber(totalErrorCount) }} errors
       </v-chip>
       <v-chip v-if="hasError" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
@@ -118,9 +118,10 @@ import { FsckExecutionState, FsckErrorState, type JobFsckDataFragment, type Fsck
 import AbstractTaskCard from './AbstractTaskCard.vue';
 import { toNumber, toPercent } from '../hosts/hosts.utils';
 
-const { data, progress } = defineProps<{
+const { data, progress, expanded } = defineProps<{
   data: JobFsckDataFragment;
   progress: FsckTaskStateFragment | undefined | null;
+  expanded?: boolean;
 }>();
 
 const title = computed(() => {
@@ -188,15 +189,15 @@ const progressMessage = computed(() => {
 
   switch (progress?.fsckExecutionState) {
     case FsckExecutionState.Initialization:
-      return ' - Scanning pool structure';
+      return 'Scanning pool structure';
     case FsckExecutionState.ApplyingRefcnt:
-      return ' - Updating reference counts';
+      return 'Updating reference counts';
     case FsckExecutionState.VerifyRefcnt:
-      return ' - Checking reference consistency';
+      return 'Checking reference consistency';
     case FsckExecutionState.VerifyUnused:
-      return ' - Identifying unused chunks';
+      return 'Identifying unused chunks';
     case FsckExecutionState.VerifyChunk:
-      return ' - Verifying chunk data integrity';
+      return 'Verifying chunk data integrity';
     default:
       return '';
   }

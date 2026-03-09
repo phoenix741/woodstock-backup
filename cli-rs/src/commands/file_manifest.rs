@@ -46,9 +46,8 @@ pub fn generate_compare_stream(
         manifest1
             .with_extension("")
             .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap(),
+            .and_then(|n| n.to_str())
+            .unwrap_or(""),
         manifest1.parent().unwrap_or_else(|| Path::new("")),
     );
 
@@ -57,9 +56,8 @@ pub fn generate_compare_stream(
         manifest2
             .with_extension("")
             .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap(),
+            .and_then(|n| n.to_str())
+            .unwrap_or(""),
         manifest2.parent().unwrap_or_else(|| Path::new("")),
     );
 
@@ -74,7 +72,7 @@ pub fn generate_compare_stream(
                 if entry.manifest.hash.ne(&manifest.hash) {
                     yield FileManifestJournalEntry {
                         manifest: Some(manifest),
-                        r#type: EntryType::Modify as i32,
+                        entry_type: EntryType::Modify as i32,
 
                         state: EntryState::Metadata as i32,
                         state_messages: Vec::new(),
@@ -83,12 +81,14 @@ pub fn generate_compare_stream(
                         xfer_calculation: 0,
                         xfer_duration: 0,
                         xfer_check: 0,
+                        chunk_sizes: vec![],
+                        chunk_compressed_sizes: vec![],
                     };
                 }
             } else {
                 yield FileManifestJournalEntry {
                     manifest: Some(manifest),
-                    r#type: EntryType::Add as i32,
+                    entry_type: EntryType::Add as i32,
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
@@ -97,6 +97,8 @@ pub fn generate_compare_stream(
                     xfer_calculation: 0,
                     xfer_duration: 0,
                     xfer_check: 0,
+                    chunk_sizes: vec![],
+                    chunk_compressed_sizes: vec![],
                 };
             }
         }
@@ -108,7 +110,7 @@ pub fn generate_compare_stream(
             if !entry.mark_viewed {
                 yield FileManifestJournalEntry {
                     manifest: Some(entry.manifest.clone()),
-                    r#type: EntryType::Remove as i32,
+                    entry_type: EntryType::Remove as i32,
 
                     state: EntryState::Metadata as i32,
                     state_messages: Vec::new(),
@@ -117,6 +119,8 @@ pub fn generate_compare_stream(
                     xfer_calculation: 0,
                     xfer_duration: 0,
                     xfer_check: 0,
+                    chunk_sizes: vec![],
+                    chunk_compressed_sizes: vec![],
                 };
             }
         }
@@ -144,7 +148,7 @@ pub async fn compare(manifest1: &str, manifest2: &str) -> Result<()> {
     pin_mut!(stream);
 
     while let Some(entry) = stream.next().await {
-        let entry_type = entry.r#type();
+        let entry_type = entry.entry_type();
 
         let Some(manifest) = entry.manifest else {
             term.write_line("entry without path")?;

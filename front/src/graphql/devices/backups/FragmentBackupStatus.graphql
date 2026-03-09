@@ -1,0 +1,7 @@
+fragment BackupStatusFields on BackupStatusDto {
+  statusType
+  finishingStage
+  abortingStage
+  failedStage
+  removingStage
+}

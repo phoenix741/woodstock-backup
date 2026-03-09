@@ -36,8 +36,9 @@ use tokio::fs;
 use uuid::Uuid;
 
 use crate::{
+    config::Configuration,
     proto::{ProtobufReader, ProtobufWriter, UnCompressedWriter},
-    utils::lock::PoolLock,
+    utils::lock_redis::PoolLockRedis,
     woodstock::event::Information,
     Event, EventBackupInformation, EventSource, EventStatus, EventStep, EventType,
 };
@@ -46,6 +47,7 @@ use crate::{
 ///
 /// # Arguments
 ///
+/// * `config` - The application configuration.
 /// * `path` - The directory where event files are stored.
 /// * `events` - Slice of references to events to append.
 ///
@@ -61,14 +63,19 @@ use crate::{
 /// # Panics
 ///
 /// This function does not panic under normal operation.
-pub async fn append_events<P: AsRef<Path>>(path: P, events: &[&Event]) -> Result<()> {
+pub async fn append_events<P: AsRef<Path>>(
+    config: &Configuration,
+    path: P,
+    events: &[&Event],
+) -> Result<()> {
     let path = path.as_ref();
     let lockfilename = path.with_file_name("lock");
 
     // Create the directory if it does not exist
     fs::create_dir_all(path).await?;
 
-    let _lock = PoolLock::new_with_filename(&lockfilename, "events")
+    let _lock = PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, "events")
+        .await?
         .lock_exclusive()
         .await?;
 
@@ -114,6 +121,7 @@ fn list_date(start_date: NaiveDate, end_date: NaiveDate) -> Vec<String> {
 ///
 /// # Arguments
 ///
+/// * `config` - The application configuration.
 /// * `path` - The directory where event files are stored.
 /// * `start_date` - The start date (inclusive).
 /// * `end_data` - The end date (inclusive).
@@ -131,12 +139,14 @@ fn list_date(start_date: NaiveDate, end_date: NaiveDate) -> Vec<String> {
 ///
 /// This function does not panic under normal operation.
 pub async fn read_events<P: AsRef<Path>>(
+    config: &Configuration,
     path: P,
     start_date: NaiveDate,
     end_data: NaiveDate,
 ) -> Result<Vec<Event>> {
     let lockfilename = path.as_ref().with_extension("lock");
-    let _lock = PoolLock::new_with_filename(&lockfilename, "events")
+    let _lock = PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, "events")
+        .await?
         .lock_exclusive()
         .await?;
 
@@ -161,6 +171,7 @@ pub async fn read_events<P: AsRef<Path>>(
 ///
 /// # Arguments
 ///
+/// * `config` - The application configuration.
 /// * `path` - The directory where event files are stored.
 /// * `uuid` - Unique identifier for the backup operation.
 /// * `source` - Source of the event (CLI, daemon, etc.).
@@ -181,16 +192,18 @@ pub async fn read_events<P: AsRef<Path>>(
 ///
 /// This function does not panic under normal operation.
 pub async fn create_event_backup_start<P: AsRef<Path>>(
+    config: &Configuration,
     path: P,
     uuid: &[u8],
     source: EventSource,
     hostname: &str,
+    backup_id: Uuid,
     num: usize,
     shares: &[&str],
 ) -> Result<()> {
     let event = Event {
         id: uuid.to_vec(),
-        r#type: EventType::Backup as i32,
+        event_type: EventType::Backup as i32,
         step: EventStep::Start as i32,
         timestamp: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -204,10 +217,11 @@ pub async fn create_event_backup_start<P: AsRef<Path>>(
             hostname: hostname.to_string(),
             number: num as u64,
             share_path: shares.iter().map(|s| (*s).to_string()).collect(),
+            id: backup_id.to_string(),
         })),
     };
 
-    append_events(path, &[&event]).await?;
+    append_events(config, path, &[&event]).await?;
 
     Ok(())
 }
@@ -216,6 +230,7 @@ pub async fn create_event_backup_start<P: AsRef<Path>>(
 ///
 /// # Arguments
 ///
+/// * `config` - The application configuration.
 /// * `path` - The directory where event files are stored.
 /// * `id` - Unique identifier for the backup operation.
 /// * `source` - Source of the event (CLI, daemon, etc.).
@@ -237,17 +252,19 @@ pub async fn create_event_backup_start<P: AsRef<Path>>(
 ///
 /// This function does not panic under normal operation.
 pub async fn create_event_backup_end<P: AsRef<Path>>(
+    config: &Configuration,
     path: P,
     id: &[u8],
     source: EventSource,
     hostname: &str,
+    backup_id: Uuid,
     num: usize,
     shares: &[&str],
     status: EventStatus,
 ) -> Result<()> {
     let event = Event {
         id: id.to_vec(),
-        r#type: EventType::Backup as i32,
+        event_type: EventType::Backup as i32,
         step: EventStep::End as i32,
         timestamp: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -261,10 +278,11 @@ pub async fn create_event_backup_end<P: AsRef<Path>>(
             hostname: hostname.to_string(),
             number: num as u64,
             share_path: shares.iter().map(|s| (*s).to_string()).collect(),
+            id: backup_id.to_string(),
         })),
     };
 
-    append_events(path, &[&event]).await?;
+    append_events(config, path, &[&event]).await?;
 
     Ok(())
 }
@@ -273,6 +291,7 @@ pub async fn create_event_backup_end<P: AsRef<Path>>(
 ///
 /// # Arguments
 ///
+/// * `config` - The application configuration.
 /// * `path` - The directory where event files are stored.
 /// * `source` - Source of the event (CLI, daemon, etc.).
 /// * `hostname` - Hostname for which the backup is removed.
@@ -292,9 +311,11 @@ pub async fn create_event_backup_end<P: AsRef<Path>>(
 ///
 /// This function does not panic under normal operation.
 pub async fn create_event_backup_remove<P: AsRef<Path>>(
+    config: &Configuration,
     path: P,
     source: EventSource,
     hostname: &str,
+    backup_id: Uuid,
     num: usize,
     shares: &[&str],
 ) -> Result<()> {
@@ -303,7 +324,7 @@ pub async fn create_event_backup_remove<P: AsRef<Path>>(
 
     let event = Event {
         id: id.to_vec(),
-        r#type: EventType::Delete as i32,
+        event_type: EventType::Delete as i32,
         step: EventStep::Start as i32,
         timestamp: SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -317,10 +338,11 @@ pub async fn create_event_backup_remove<P: AsRef<Path>>(
             hostname: hostname.to_string(),
             number: num as u64,
             share_path: shares.iter().map(|s| (*s).to_string()).collect(),
+            id: backup_id.to_string(),
         })),
     };
 
-    append_events(path, &[&event]).await?;
+    append_events(config, path, &[&event]).await?;
 
     Ok(())
 }
@@ -338,7 +360,7 @@ impl Event {
     /// Returns an error if the event cannot be serialized to YAML.
     pub fn to_yaml(&self) -> Result<String> {
         let object = vec![self];
-        let str = serde_yaml::to_string(&object)?;
+        let str = serde_yaml_ng::to_string(&object)?;
         Ok(str)
     }
 }

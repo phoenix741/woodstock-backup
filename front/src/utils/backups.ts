@@ -3,43 +3,86 @@ import {
   BackupDocument,
   BackupsBrowseDocument,
   BackupsDocument,
-  BackupStatus,
   FragmentFileDescriptionFragmentDoc,
+  JobStatus,
   SharesBrowseDocument,
 } from '@/generated/graphql';
 import { ApolloClient } from '@apollo/client/core';
-import { useQuery } from '@vue/apollo-composable';
-import { computed } from 'vue';
-import vuetify from '../plugins/vuetify';
+import { useQuery, useSubscription } from '@vue/apollo-composable';
+import gql from 'graphql-tag';
+import { computed, watch } from 'vue';
 
-// On récupère les thèmes de Vuetify (light et dark)
-const vuetifyThemes = vuetify.theme.themes.value;
-const lightColors = vuetifyThemes.light.colors;
-const darkColors = vuetifyThemes.dark.colors;
-
-const currentTheme = computed(() => {
-  return vuetify.theme.global.current.value.dark ? darkColors : lightColors;
-});
-
-export function getBackupStatusColor(backupStatus: BackupStatus | undefined | null) {
-  switch (backupStatus) {
-    case BackupStatus.Completed:
-      return currentTheme.value.success;
-    case BackupStatus.Aborted:
-    case BackupStatus.Failed:
-      return currentTheme.value.error;
-    case BackupStatus.Finishing:
-    case BackupStatus.InProgress:
-      return currentTheme.value.info;
-    default:
-      return currentTheme.value.primary;
+/**
+ * Subscription document for real-time backup status updates.
+ * Will be fully typed after regenerating the codegen (once the server is deployed).
+ */
+const BACKUP_UPDATED_SUBSCRIPTION = gql`
+  subscription BackupUpdated($hostname: String!) {
+    backupUpdated(hostname: $hostname) {
+      id
+      number
+      status {
+        statusType
+        finishingStage
+        abortingStage
+        failedStage
+        removingStage
+      }
+      startDate
+      endDate
+      errorCount
+      fileCount
+      newFileCount
+      existingFileCount
+      removedFileCount
+      modifiedFileCount
+      fileSize
+      newFileSize
+      existingFileSize
+      speed
+    }
   }
-}
+`;
 
-export function useShare(deviceId: string, backupNumber: number) {
+/**
+ * Minimal subscription to detect the completion of a remove job.
+ * Uses the host/kind filters added to jobUpdated.
+ */
+const JOB_REMOVE_SUBSCRIPTION = gql`
+  subscription JobRemoveUpdated($host: String, $kind: String) {
+    jobUpdated(host: $host, kind: $kind) {
+      jobId
+      status
+    }
+  }
+`;
+
+/**
+ * Subscription to detect the start or completion of a backup job.
+ * Triggers a list refetch so the cache is invalidated even if
+ * the user navigated away from the Tasks page.
+ */
+const JOB_BACKUP_SUBSCRIPTION = gql`
+  subscription JobBackupUpdated($host: String, $kind: String) {
+    jobUpdated(host: $host, kind: $kind) {
+      jobId
+      status
+    }
+  }
+`;
+
+// Re-export backup status utilities for convenience
+export {
+  getBackupStatusColor,
+  getBackupStatusLabel as getBackupStatusText,
+  getBackupStatusIcon,
+  getBackupStatusKey
+} from './backup-status';
+
+export function useShare(deviceId: string, backupId: string) {
   const { result: data, loading: isFetching } = useQuery(SharesBrowseDocument, {
     hostname: deviceId,
-    number: backupNumber,
+    id: backupId,
   });
 
   const shares = computed(() =>
@@ -55,8 +98,65 @@ export function useShare(deviceId: string, backupNumber: number) {
 }
 
 export function useBackups(deviceId: string) {
-  const { result: data, loading: isFetching } = useQuery(BackupsDocument, {
+  const { result: data, loading: isFetching, subscribeToMore, refetch } = useQuery(BackupsDocument, {
     hostname: deviceId,
+  });
+
+  // Real-time updates: refreshes the status of existing backups
+  // (running, completed, being removed).
+  // Does NOT insert new rows: insertion is handled by an explicit refetch.
+  subscribeToMore(() => ({
+    document: BACKUP_UPDATED_SUBSCRIPTION,
+    variables: { hostname: deviceId },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateQuery: (previousResult, { subscriptionData }: any) => {
+      const updatedBackup = subscriptionData.data?.backupUpdated;
+      if (!updatedBackup || !previousResult?.backups) return previousResult;
+
+      const list = [...previousResult.backups];
+      const idx = list.findIndex((b) => b.id === updatedBackup.id);
+      if (idx >= 0) {
+        // Only update existing entries (status change)
+        list[idx] = updatedBackup;
+      }
+      // Do NOT insert new entries here:
+      // a new backup will appear after the next automatic refetch.
+      return { ...previousResult, backups: list };
+    },
+  }));
+
+  // Detect the end of a removal to drop the entry from the list.
+  // backupUpdated returns nothing when the backup is already deleted from disk,
+  // so we watch jobUpdated(kind=remove) and reload the list on completion.
+  const { result: removeResult } = useSubscription(JOB_REMOVE_SUBSCRIPTION, {
+    host: deviceId,
+    kind: 'remove',
+  });
+
+  watch(removeResult, (val) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((val as any)?.jobUpdated?.status === JobStatus.Completed) {
+      // Reload the full list: the deleted backup will no longer be in it.
+      refetch();
+    }
+  });
+
+  // Invalidate the cache when a backup job starts or finishes.
+  // Use case: the user triggers a backup (navigates to Tasks), then comes back
+  // to the Backups page. Without this, the new in-progress (or completed) backup
+  // would not appear because backupUpdated does not insert new entries and the
+  // Apollo cache was not refreshed while the user was away.
+  const { result: backupJobResult } = useSubscription(JOB_BACKUP_SUBSCRIPTION, {
+    host: deviceId,
+    kind: 'backup',
+  });
+
+  watch(backupJobResult, (val) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const status = (val as any)?.jobUpdated?.status;
+    if (status === JobStatus.Started || status === JobStatus.Completed || status === JobStatus.Failed) {
+      refetch();
+    }
   });
 
   const backups = computed(() => data.value?.backups);
@@ -67,11 +167,23 @@ export function useBackups(deviceId: string) {
   };
 }
 
-export function useBackup(deviceId: string, backupNumber: number) {
-  const { result: data, loading: isFetching } = useQuery(BackupDocument, {
+export function useBackup(deviceId: string, backupId: string) {
+  const { result: data, loading: isFetching, subscribeToMore } = useQuery(BackupDocument, {
     hostname: deviceId,
-    number: backupNumber,
+    id: backupId,
   });
+
+  // Real-time update: replaces the current backup data on every state change.
+  subscribeToMore(() => ({
+    document: BACKUP_UPDATED_SUBSCRIPTION,
+    variables: { hostname: deviceId },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateQuery: (previousResult, { subscriptionData }: any) => {
+      const updatedBackup = subscriptionData.data?.backupUpdated;
+      if (!updatedBackup || updatedBackup.id !== backupId) return previousResult;
+      return { ...previousResult, backup: updatedBackup };
+    },
+  }));
 
   const backup = computed(() => data.value?.backup);
 
@@ -81,15 +193,15 @@ export function useBackup(deviceId: string, backupNumber: number) {
   };
 }
 
-export function useBackupsBrowse(deviceId: string, backupNumber: number) {
-  const { shares, isFetching } = useShare(deviceId, backupNumber);
+export function useBackupsBrowse(deviceId: string, backupId: string) {
+  const { shares, isFetching } = useShare(deviceId, backupId);
 
   const browse = async <T>(client: ApolloClient<T>, sharePath: string, path: string) => {
     const { data } = await client.query({
       query: BackupsBrowseDocument,
       variables: {
         hostname: deviceId,
-        number: backupNumber,
+        id: backupId,
         sharePath,
         path,
       },
