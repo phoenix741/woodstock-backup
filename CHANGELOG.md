@@ -1,3 +1,19 @@
+# [2.0.0-alpha.52](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.51...v2.0.0-alpha.52) (2026-03-09)
+
+
+* refactor!: migrate the entire backend platform from NestJS to Rust ([652cca1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/652cca119771e819acc8814d83cdc0c46f9e9b67))
+
+
+### Features
+
+* **front:** localize dates and number formatting ([b0da7e7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b0da7e71e14949ee75faad6982cce3fbea4caaf7))
+* **retention:** implement GFS retention policy and manual purge trigger ([4ea9ab1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4ea9ab1f56540b25a9066e3a6bc7a518220ba8d2)), closes [#56](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/56)
+
+
+### BREAKING CHANGES
+
+* the application no longer ships or relies on the Node.js/NestJS backend. All backend execution paths, API behavior and operational tooling now depend on the Rust implementation.
+
 # [2.0.0-alpha.51](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.50...v2.0.0-alpha.51) (2025-07-19)
 
 
