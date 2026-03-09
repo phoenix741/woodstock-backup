@@ -24,7 +24,7 @@
 #               Default: /var/lib/woodstock/hosts
 #
 # Dependencies:
-#   python3  with PyYAML (pip install pyyaml)
+#   python3
 #
 # Exit codes:
 #   0  Success (or dry-run completed)
@@ -68,13 +68,9 @@ if ! command -v python3 &>/dev/null; then
   exit 1
 fi
 
-if ! python3 -c "import yaml" 2>/dev/null; then
-  echo "ERROR: PyYAML is required (pip install pyyaml)" >&2
-  exit 1
-fi
-
 # ── Python helper (per-host) ─────────────────────────────────────────────────
-# Reads backup.yml, assigns UUIDs to entries that are missing one, writes back.
+# Reads backup.yml as plain text, assigns UUIDs to entries that are missing one,
+# and writes back while preserving the original YAML layout.
 # Prints one line per assigned UUID (or [dry-run] prefix when applicable).
 # Last line is always: __ASSIGNED__=<count>
 read -r -d '' PYTHON_SCRIPT << 'ENDPY' || true
@@ -82,11 +78,11 @@ import sys
 import os
 import time
 import uuid
-import yaml
+import re
 from datetime import datetime, timezone
 
 
-def gen_uuid_v7(ts_ms: int) -> str:
+def gen_uuid_v7(ts_ms):
     """
     Build a UUID v7 from an explicit millisecond timestamp.
 
@@ -119,14 +115,14 @@ def gen_uuid_v7(ts_ms: int) -> str:
     return str(uuid.UUID(bytes=bytes(b)))
 
 
-def ts_ms_from_backup(backup: dict, index: int) -> int:
+def ts_ms_from_backup(backup, index):
     """
     Extract a millisecond timestamp from the backup's start_date.
     Falls back to (current time + index*1ms) so UUIDs remain unique and ordered.
     index is used as a tie-breaker when multiple backups share the same start_date.
     """
-    start_date = backup.get("start_date")
-    base_ms: int | None = None
+    start_date = backup.get("startDate") or backup.get("start_date")
+    base_ms = None
 
     if isinstance(start_date, datetime):
         dt = start_date if start_date.tzinfo else start_date.replace(tzinfo=timezone.utc)
@@ -155,22 +151,73 @@ def ts_ms_from_backup(backup: dict, index: int) -> int:
     return base_ms + index
 
 
+def parse_entries(lines):
+    entries = []
+    current = None
+
+    for idx, line in enumerate(lines):
+        if line.startswith("- "):
+            if current is not None:
+                current["end"] = idx
+                entries.append(current)
+            current = {
+                "start": idx,
+                "end": len(lines),
+                "number": None,
+                "id": None,
+                "startDate": None,
+            }
+
+        if current is None:
+            continue
+
+        number_match = re.match(r"^-\s*number:\s*(.+?)\s*$", line)
+        if number_match:
+            raw_number = number_match.group(1).strip()
+            try:
+                current["number"] = int(raw_number)
+            except ValueError:
+                current["number"] = raw_number
+            continue
+
+        field_match = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?)\s*$", line)
+        if not field_match:
+            continue
+
+        key = field_match.group(1)
+        value = field_match.group(2)
+        if key == "id":
+            current["id"] = value
+        elif key in ("startDate", "start_date"):
+            current["startDate"] = value
+
+    if current is not None:
+      entries.append(current)
+
+    return entries
+
+
 backup_file = sys.argv[1]
 dry_run     = sys.argv[2] == "1"
 hostname    = sys.argv[3]
 
 with open(backup_file, "r", encoding="utf-8") as fh:
-    backups = yaml.safe_load(fh)
+    original = fh.read()
 
-if not isinstance(backups, list):
-    backups = []
+lines = original.splitlines()
+entries = parse_entries(lines)
 
 # Sort by sequential number before assigning UUIDs so that
 # the time-ordered UUIDs reflect the backup order.
-backups.sort(key=lambda b: b.get("number", 0) if isinstance(b, dict) else 0)
+ordered_entries = sorted(
+    enumerate(entries),
+    key=lambda item: item[1].get("number", 0) if isinstance(item[1].get("number"), int) else 0,
+)
 
 assigned = 0
-for index, backup in enumerate(backups):
+insertions = []
+
+for index, (_, backup) in enumerate(ordered_entries):
     if not isinstance(backup, dict):
         continue
     if backup.get("id"):
@@ -179,19 +226,24 @@ for index, backup in enumerate(backups):
     ts_ms      = ts_ms_from_backup(backup, index)
     new_uuid   = gen_uuid_v7(ts_ms)
     number     = backup.get("number",     "?")
-    start_date = backup.get("start_date", "?")
+    start_date = backup.get("startDate") or backup.get("start_date") or "?"
 
     if dry_run:
         print(f"[dry-run] {hostname} #{number} ({start_date}) \u2192 id {new_uuid}")
     else:
-        backup["id"] = new_uuid
+        insertions.append((backup["start"] + 1, f"  id: {new_uuid}"))
         print(f"{hostname} #{number} ({start_date}): assigning id {new_uuid}")
 
     assigned += 1
 
 if not dry_run and assigned > 0:
+    for line_index, line_content in sorted(insertions, key=lambda item: item[0], reverse=True):
+        lines.insert(line_index, line_content)
+
     with open(backup_file, "w", encoding="utf-8") as fh:
-        yaml.dump(backups, fh, default_flow_style=False, allow_unicode=True)
+        fh.write("\n".join(lines))
+        if original.endswith("\n") or lines:
+            fh.write("\n")
 
 print(f"__ASSIGNED__={assigned}")
 ENDPY
@@ -251,26 +303,40 @@ fi
 # Python helper: emit one "<number> <uuid>" line per backup entry in backup.yml
 read -r -d '' RENAME_SCRIPT << 'ENDPY2' || true
 import sys
-import yaml
+import re
 
 backup_file = sys.argv[1]
 
 try:
-    with open(backup_file, "r", encoding="utf-8") as fh:
-        backups = yaml.safe_load(fh)
+  with open(backup_file, "r", encoding="utf-8") as fh:
+    lines = fh.read().splitlines()
 except Exception:
     sys.exit(0)
 
-if not isinstance(backups, list):
-    sys.exit(0)
+number = None
+backup_id = None
 
-for backup in backups:
-    if not isinstance(backup, dict):
+for line in lines:
+    if line.startswith("- "):
+        if number is not None and backup_id:
+            print(f"{number} {backup_id}")
+        number = None
+        backup_id = None
+
+        number_match = re.match(r"^-\s*number:\s*(.+?)\s*$", line)
+        if number_match:
+            number = number_match.group(1).strip()
         continue
-    number = backup.get("number")
-    uuid   = backup.get("id")
-    if number is not None and uuid:
-        print(f"{number} {uuid}")
+
+    field_match = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?)\s*$", line)
+    if not field_match:
+        continue
+
+    if field_match.group(1) == "id":
+        backup_id = field_match.group(2).strip()
+
+if number is not None and backup_id:
+  print(f"{number} {backup_id}")
 ENDPY2
 
 total_renamed=0

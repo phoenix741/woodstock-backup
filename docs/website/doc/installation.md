@@ -27,7 +27,7 @@ All server services share the same Docker image and communicate through **Valkey
 services:
   # REST/GraphQL API & Vue.js frontend
   server-api:
-    image: phoenix741/woodstock-backup-server:latest
+    image: phoenix741/woodstock-backup:latest
     ports:
       - 3000:3000
     depends_on:
@@ -44,7 +44,7 @@ services:
 
   # mTLS HTTPS gateway for agents
   server-client-api:
-    image: phoenix741/woodstock-backup-server:latest
+    image: phoenix741/woodstock-backup:latest
     command: ["/app/client_api_server"]
     ports:
       - 8443:8443
@@ -61,7 +61,7 @@ services:
 
   # Backup/restore/maintenance job worker
   server-worker:
-    image: phoenix741/woodstock-backup-server:latest
+    image: phoenix741/woodstock-backup:latest
     command: ["/app/job_worker"]
     depends_on:
       valkey:
@@ -79,7 +79,7 @@ services:
 
   # Cron scheduler
   server-scheduler:
-    image: phoenix741/woodstock-backup-server:latest
+    image: phoenix741/woodstock-backup:latest
     command: ["/app/scheduler"]
     depends_on:
       valkey:

@@ -2,10 +2,10 @@
 # -------- Base Rust -----------
 ARG RUST_VERSION=1
 ARG NODE_VERSION=24-slim
-ARG RUNTIME_VERSION=3.23
+ARG DEBIAN_VERSION=bookworm
 ARG FEATURES=all
 
-FROM rust:$RUST_VERSION AS build-chef
+FROM rust:$RUST_VERSION-$DEBIAN_VERSION AS build-chef
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -82,22 +82,27 @@ RUN npm run build
 
 #
 # -------- Build client -------
-FROM alpine:$RUNTIME_VERSION AS client
+FROM debian:$DEBIAN_VERSION-slim AS client
 
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y --no-install-recommends \
   acl \
-  fuse \
-  libgcc \
-  gcompat \
-  samba-client \
-  ca-certificates \
   btrfs-progs \
-  tzdata
+  ca-certificates \
+  fuse3 \
+  libacl1 \
+  libfuse2 \
+  liblzma5 \
+  libssl3 \
+  samba-common-bin \
+  smbclient \
+  tzdata \
+  && rm -rf /var/lib/apt/lists/*
 
 # Create a user to run the app
 ARG APP_USER=woodstock
 ARG APP_UID=1000
-RUN adduser -D -u $APP_UID $APP_USER && \
+RUN groupadd --gid $APP_UID $APP_USER && \
+  useradd --uid $APP_UID --gid $APP_UID --create-home --shell /usr/sbin/nologin $APP_USER && \
   mkdir -p /app/cli /etc/woodstock && \
   chown -R $APP_USER:$APP_USER /app /etc/woodstock
 
@@ -113,20 +118,22 @@ CMD [ "/app/cli/ws_client_daemon" ]
 
 #
 # -------- Server (Rust) -----------
-FROM alpine:$RUNTIME_VERSION AS server
+FROM debian:$DEBIAN_VERSION-slim AS server
 
-RUN apk add --no-cache \
-  acl \
-  fuse \
-  libgcc \
-  gcompat \
+RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
-  tzdata
+  libacl1 \
+  libfuse2 \
+  liblzma5 \
+  libssl3 \
+  tzdata \
+  && rm -rf /var/lib/apt/lists/*
 
 # Create a user to run the app
 ARG APP_USER=woodstock
 ARG APP_UID=1000
-RUN adduser -D -u $APP_UID $APP_USER && \
+RUN groupadd --gid $APP_UID $APP_USER && \
+  useradd --uid $APP_UID --gid $APP_UID --create-home --shell /usr/sbin/nologin $APP_USER && \
   mkdir -p /app /backups && \
   chown -R $APP_USER:$APP_USER /app /backups
 

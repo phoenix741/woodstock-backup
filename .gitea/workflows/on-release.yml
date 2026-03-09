@@ -461,6 +461,7 @@ jobs:
           file: Dockerfile
           context: .
           load: true
+          target: server
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -469,6 +470,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
+            DEBIAN_VERSION=bookworm
             FEATURES=${{matrix.features}}
 
       - name: Build Client Docker Image
@@ -488,7 +490,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
-            DEBIAN_VERSION=12-slim
+            DEBIAN_VERSION=bookworm
             FEATURES=${{matrix.features}}
 
       - name: Build Website Docker Image

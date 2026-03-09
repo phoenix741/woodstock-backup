@@ -12,7 +12,7 @@ services:
       context: ./
       dockerfile: Dockerfile
       target: server
-    image: phoenix741/woodstock-backup-server:develop
+    image: phoenix741/woodstock-backup:develop
     ports:
       - 3000:3000
     depends_on:
@@ -36,7 +36,7 @@ services:
 
   # gRPC/HTTPS Gateway for Agents
   server-client-api:
-    image: phoenix741/woodstock-backup-server:develop
+    image: phoenix741/woodstock-backup:develop
     command: ["/app/client_api_server"]
     ports:
       - 8443:8443
@@ -60,7 +60,7 @@ services:
 
   # Backup Worker ( Heavy operations)
   server-worker:
-    image: phoenix741/woodstock-backup-server:develop
+    image: phoenix741/woodstock-backup:develop
     command: ["/app/job_worker"]
     depends_on:
       valkey:
@@ -82,7 +82,7 @@ services:
 
   # Scheduler (Cron jobs)
   server-scheduler:
-    image: phoenix741/woodstock-backup-server:develop
+    image: phoenix741/woodstock-backup:develop
     command: ["/app/scheduler"]
     depends_on:
       valkey:
