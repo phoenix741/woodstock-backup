@@ -32,10 +32,9 @@ use woodstock::{FileManifest, FileManifestType};
 // extern crate libc;
 
 use fuser::{
-    FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry,
-    ReplyOpen, Request,
+    Errno, FileAttr, FileHandle, FileType, Filesystem, FopenFlags, Generation, INodeNo, LockOwner,
+    OpenFlags, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, Request,
 };
-use libc::ENOENT;
 use std::{collections::HashMap, ffi::OsStr};
 
 /// Time-to-live (TTL) for host cache entries in the FUSE filesystem (24 hours).
@@ -122,7 +121,7 @@ impl BackupPCFileAttribute {
         BackupPCFileAttribute {
             name: file.path,
             attr: FileAttr {
-                ino: child_ino,
+                ino: INodeNo(child_ino),
                 size,
                 blocks: size / 512,
                 blksize: 512,
@@ -152,7 +151,7 @@ impl BackupPCFileAttribute {
 
 /// File attributes for the root element in the FUSE filesystem.
 const ROOT_ELEMENT_ATTR: FileAttr = FileAttr {
-    ino: 1,
+    ino: INodeNo::ROOT,
     size: 0,
     blocks: 0,
     blksize: 0,
@@ -405,7 +404,7 @@ impl WoodstockFileSystemInner {
         &mut self,
         reply: &mut ReplyDirectory,
         ino: u64,
-        offset: i64,
+        offset: u64,
     ) -> Result<()> {
         let elements = self.list_attributes_with_cache(ino).await?;
 
@@ -413,8 +412,8 @@ impl WoodstockFileSystemInner {
         if ino != 1 && offset == 0 {
             let element = self.inodes.get(&ino);
             if let Some(parent) = element {
-                let _ = reply.add(ino, 1, FileType::Directory, ".");
-                let _ = reply.add(parent.parent_ino, 2, FileType::Directory, "..");
+                let _ = reply.add(INodeNo(ino), 1, FileType::Directory, ".");
+                let _ = reply.add(INodeNo(parent.parent_ino), 2, FileType::Directory, "..");
             }
         }
 
@@ -436,7 +435,7 @@ impl WoodstockFileSystemInner {
             );
             let result = reply.add(
                 cache_element.attr.ino,
-                current_offset as i64,
+                current_offset as u64,
                 cache_element.attr.kind,
                 name,
             );
@@ -473,7 +472,7 @@ impl WoodstockFileSystemInner {
 
         let attributes = self.list_attributes_with_cache(parent_ino).await;
         let attribute = match attributes {
-            Ok(attrs) => attrs.into_iter().find(|attr| attr.attr.ino == ino),
+            Ok(attrs) => attrs.into_iter().find(|attr| attr.attr.ino == INodeNo(ino)),
             Err(_) => None,
         };
 
@@ -685,9 +684,10 @@ impl WoodstockFileSystem {
 }
 
 impl Filesystem for WoodstockFileSystem {
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         let inner = Arc::clone(&self.inner);
         let name = name.to_os_string();
+        let parent = parent.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;
@@ -695,14 +695,15 @@ impl Filesystem for WoodstockFileSystem {
             debug!("Lookup parent: {parent}, name: {name:?}, attr: {attr:?}");
 
             match attr {
-                Some((ttl, attr)) => reply.entry(&ttl, &attr, 0),
-                None => reply.error(ENOENT),
+                Some((ttl, attr)) => reply.entry(&ttl, &attr, Generation(0)),
+                None => reply.error(Errno::ENOENT),
             }
         });
     }
 
-    fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&self, _req: &Request, ino: INodeNo, _fh: Option<FileHandle>, reply: ReplyAttr) {
         let inner = Arc::clone(&self.inner);
+        let ino = ino.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;
@@ -711,19 +712,20 @@ impl Filesystem for WoodstockFileSystem {
 
             match attr {
                 Some((ttl, attr)) => reply.attr(&ttl, &attr),
-                None => reply.error(ENOENT),
+                None => reply.error(Errno::ENOENT),
             }
         });
     }
 
     fn readdir(
-        &mut self,
+        &self,
         _req: &Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        ino: INodeNo,
+        _fh: FileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
+        let ino = ino.0;
         debug!("Readdir ino: {ino}, offset: {offset}");
 
         let inner = Arc::clone(&self.inner);
@@ -737,14 +739,15 @@ impl Filesystem for WoodstockFileSystem {
                 }
                 Err(e) => {
                     eprintln!("Error reading dir {ino}: {e}");
-                    reply.error(ENOENT);
+                    reply.error(Errno::ENOENT);
                 }
             }
         });
     }
 
-    fn readlink(&mut self, _req: &Request<'_>, ino: u64, reply: ReplyData) {
+    fn readlink(&self, _req: &Request, ino: INodeNo, reply: ReplyData) {
         let inner = Arc::clone(&self.inner);
+        let ino = ino.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;
@@ -756,65 +759,74 @@ impl Filesystem for WoodstockFileSystem {
                 Ok(data) => reply.data(&data),
                 Err(err) => {
                     eprintln!("Error reading link ino {ino}: {err}");
-                    reply.error(ENOENT);
+                    reply.error(Errno::ENOENT);
                 }
             }
         });
     }
 
-    fn open(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn open(&self, _req: &Request, ino: INodeNo, _flags: OpenFlags, reply: ReplyOpen) {
         let inner = Arc::clone(&self.inner);
+        let ino = ino.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;
 
             match inner.open(ino).await {
-                Ok(fh) => reply.opened(fh, 0),
+                Ok(fh) => reply.opened(FileHandle(fh), FopenFlags::empty()),
                 Err(err) => {
                     eprintln!("Error opening ino {ino}: {err}");
-                    reply.error(ENOENT);
+                    reply.error(Errno::ENOENT);
                 }
             }
         });
     }
 
     fn read(
-        &mut self,
-        _req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        fh: FileHandle,
+        offset: u64,
         size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         reply: ReplyData,
     ) {
         let inner = Arc::clone(&self.inner);
+        let ino = ino.0;
+        let fh = fh.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;
+
+            let Ok(offset) = i64::try_from(offset) else {
+                reply.error(Errno::EINVAL);
+                return;
+            };
 
             match inner.read_ino(ino, fh, offset, size).await {
                 Ok(data) => reply.data(&data),
                 Err(err) => {
                     eprintln!("Error reading ino {ino}: {err}");
-                    reply.error(ENOENT);
+                    reply.error(Errno::ENOENT);
                 }
             }
         });
     }
 
     fn release(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
-        fh: u64,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        &self,
+        _req: &Request,
+        _ino: INodeNo,
+        fh: FileHandle,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         _flush: bool,
         reply: ReplyEmpty,
     ) {
         let inner = Arc::clone(&self.inner);
+        let fh = fh.0;
 
         tokio::spawn(async move {
             let mut inner = inner.lock().await;

@@ -32,7 +32,7 @@ async-compression = { workspace = true }
 async-stream = { workspace = true }
 async-walkdir = "^2.1"
 base64 = { workspace = true }
-bytes = "^1.10"
+bytes = "^1.11"
 chrono = { workspace = true }
 dns-lookup = "^3.0"
 eyre = { workspace = true }
@@ -52,7 +52,7 @@ rsa = "^0.9"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_serializer = "^1.0"
-serde_with = { version = "^3.14", features = ["hex", "base64"] }
+serde_with = { version = "^3.17", features = ["hex", "base64"] }
 serde_yaml_ng = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true, features = ["asm"] }
@@ -66,9 +66,9 @@ rustls = { workspace = true }
 tonic = { workspace = true }
 tonic-prost = "^0.14"
 uuid = { workspace = true }
-reflink-copy = "0.1.26"
+reflink-copy = "0.1.29"
 fs4 = { version = "0.13.1", features = ["tokio"] }
-rayon = { version = "1.10" }
+rayon = { version = "1.11" }
 libc = "0.2"
 sysinfo = { workspace = true }
 cron = "0.15.0"
@@ -81,7 +81,7 @@ libm = "^0.2"
 test-log = "^0.2"
 tokio-stream = { version = "^0.1", features = ["net"] }
 tower = { version = "^0.5" }
-criterion = { version = "^0.7", features = ["html_reports"] }
+criterion = { version = "^0.8", features = ["html_reports"] }
 
 [build-dependencies]
 prost-build = "^0.14"

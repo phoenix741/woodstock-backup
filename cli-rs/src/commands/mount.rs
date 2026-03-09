@@ -13,6 +13,7 @@
 use std::path::PathBuf;
 
 use eyre::{Result, WrapErr};
+use fuser::Config;
 
 use crate::{commands::CliServiceState, filesystem::WoodstockFileSystem};
 
@@ -74,8 +75,8 @@ pub async fn mount(state: CliServiceState, options: &MountOption) -> Result<()> 
         state.backups.clone(),
         &path,
     );
-    let mount_options = [];
-    fuser::mount2(fs, &options.mount_point, &mount_options)
+    let mount_config = Config::default();
+    fuser::mount2(fs, &options.mount_point, &mount_config)
         .wrap_err("Failed to mount FUSE filesystem")?;
     Ok(())
 }

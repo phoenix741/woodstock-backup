@@ -1,6 +1,7 @@
 #
 # -------- Build --------
-FROM node:22 AS build
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION} AS build
 LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
 
 WORKDIR /src

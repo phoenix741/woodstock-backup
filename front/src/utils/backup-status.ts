@@ -43,6 +43,10 @@ const currentTheme = computed(() => {
   return vuetify.theme.global.current.value.dark ? darkColors : lightColors;
 });
 
+function asThemeColor(value: unknown): string {
+  return typeof value === 'string' ? value : String(value ?? '');
+}
+
 /**
  * Type guard to check if a value is a valid backup status
  */
@@ -152,23 +156,23 @@ export function getBackupStatusLabel(status: unknown): string {
  */
 export function getBackupStatusColor(status: unknown): string {
   if (!isBackupStatus(status)) {
-    return currentTheme.value.primary;
+    return asThemeColor(currentTheme.value.primary);
   }
 
   switch (status.statusType) {
     case BackupStatusTypeDto.Completed:
-      return currentTheme.value.success;
+      return asThemeColor(currentTheme.value.success);
 
     case BackupStatusTypeDto.Aborted:
     case BackupStatusTypeDto.Failed:
-      return currentTheme.value.error;
+      return asThemeColor(currentTheme.value.error);
 
     case BackupStatusTypeDto.InProgress:
-      return currentTheme.value.info;
+      return asThemeColor(currentTheme.value.info);
 
     case BackupStatusTypeDto.Finishing: {
       const stage = status.finishingStage as FinishingStageDto;
-      return FINISHING_COLORS[stage] || currentTheme.value.info;
+      return FINISHING_COLORS[stage] || asThemeColor(currentTheme.value.info);
     }
 
     case BackupStatusTypeDto.Aborting:
@@ -180,7 +184,7 @@ export function getBackupStatusColor(status: unknown): string {
     }
 
     default:
-      return currentTheme.value.primary;
+      return asThemeColor(currentTheme.value.primary);
   }
 }
 

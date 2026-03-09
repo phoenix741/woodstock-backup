@@ -2,7 +2,7 @@ use crate::config::DNS_RESOLVE_TIMEOUT_SEC;
 #[cfg(feature = "mdns")]
 use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX, MDNS_TIMEOUT_MSEC};
 #[cfg(feature = "mdns")]
-use mdns_sd::{HostnameResolutionEvent, ServiceDaemon, ServiceEvent, ServiceInfo};
+use mdns_sd::{HostnameResolutionEvent, ResolvedService, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use dns_lookup::lookup_host;
 use eyre::Result;
@@ -397,6 +397,7 @@ impl SocketAddrResolver {
                                 }
                             }
                         }
+                        _ => {}
                     },
                     Err(err) => {
                         // Channel closed or errored; log and exit the listener loop gracefully.
@@ -417,13 +418,13 @@ impl SocketAddrResolver {
     /// Updates the Redis database with information from an mDNS service.
     ///
     /// # Arguments
-    /// * `info` - The `ServiceInfo` containing the mDNS service information.
+    /// * `info` - The resolved mDNS service information.
     ///
     /// # Returns
     ///
     /// * `Ok(())` if the information is successfully updated.
     /// * `Err(eyre::Report)` if an error occurs during the update.
-    async fn update_host(&self, info: &ServiceInfo) -> Result<()> {
+    async fn update_host(&self, info: &ResolvedService) -> Result<()> {
         // Hostname without .local. suffix
         let hostname = info.get_fullname();
         let hostname = hostname.trim_end_matches(MDNS_SUFFIX);
@@ -435,7 +436,11 @@ impl SocketAddrResolver {
             .map(mdns_sd::TxtProperty::val_str)
             .unwrap_or_default()
             .to_string();
-        let addresses = info.get_addresses().iter().copied().collect::<Vec<_>>();
+        let addresses = info
+            .get_addresses()
+            .iter()
+            .map(ScopedIp::to_ip_addr)
+            .collect::<Vec<_>>();
 
         let socket_addr_info = SocketAddrInformation {
             refresh_date: chrono::Utc::now().timestamp(),
@@ -468,7 +473,10 @@ impl SocketAddrResolver {
         if let Ok(recv) = mdns_recv {
             let info = recv.recv_async().await;
             if let Ok(HostnameResolutionEvent::AddressesFound(_, info)) = info {
-                let info = info.into_iter().collect::<Vec<_>>();
+                let info = info
+                    .into_iter()
+                    .map(|ip| ip.to_ip_addr())
+                    .collect::<Vec<_>>();
                 let addresses = is_reachables(info, default_port).await;
 
                 return Some(

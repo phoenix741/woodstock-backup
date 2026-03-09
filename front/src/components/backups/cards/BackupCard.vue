@@ -96,7 +96,7 @@
 </template>
 
 <script lang="ts" setup>
-import { defineProps, computed } from 'vue';
+import { computed } from 'vue';
 import { getBackupStatusColor, getBackupStatusText, useBackup } from '@/utils/backups';
 import filesize from '@/utils/filesize';
 import { parseDateTime, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';

@@ -47,12 +47,12 @@ futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
 hostname = "^0.4"
-if-addrs = "0.14.0"
+if-addrs = "0.15.0"
 jsonwebtoken = { workspace = true }
 libc = { workspace = true }
 mdns-sd = { workspace = true, optional = true }
 rand = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
+reqwest = { workspace = true, features = ["rustls"] }
 shlex = { version = "^1.3" }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -76,13 +76,13 @@ chrono = { workspace = true }
 serde-env = "0.2.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "^0.30", features = ["fs"] }
-xattr = { version = "^1.5", optional = true }
+nix = { version = "^0.31", features = ["fs"] }
+xattr = { version = "^1.6", optional = true }
 posix-acl = { version = "^1.2", optional = true }
 mnt = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
-tracing-etw = "0.2.2"
+tracing-etw = "0.2.3"
 windows-service = "^0.8"
 
 [target.'cfg(windows)'.dependencies.windows-sys]

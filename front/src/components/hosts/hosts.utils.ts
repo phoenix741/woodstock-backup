@@ -32,6 +32,10 @@ const currentTheme = computed(() => {
   return vuetify.theme.global.current.value.dark ? darkColors : lightColors;
 });
 
+function asThemeColor(value: unknown): string {
+  return typeof value === 'string' ? value : String(value ?? '');
+}
+
 /**
  * Get the backup state from a host object
  *
@@ -78,10 +82,10 @@ export function getStateText(state: DeviceBackupStatus): string {
 export function getStateColor(state: DeviceBackupStatus): string {
   // Handle special states (Disabled, Idle)
   if (state === BackupStatusDisabled) {
-    return currentTheme.value.secondary;
+    return asThemeColor(currentTheme.value.secondary);
   }
   if (state === BackupStatusIdle) {
-    return currentTheme.value.primary;
+    return asThemeColor(currentTheme.value.primary);
   }
 
   return getBackupStatusColor(state);
@@ -100,13 +104,13 @@ export function getStatusIcon(status: unknown): string {
 export function getAvailabilityColor(availibilityState: HostAvailibilityState | undefined | null): string {
   switch (availibilityState) {
     case 'ONLINE':
-      return currentTheme.value.success;
+      return asThemeColor(currentTheme.value.success);
     case 'OFFLINE':
-      return currentTheme.value.error;
+      return asThemeColor(currentTheme.value.error);
     case 'UNKNOWN':
-      return currentTheme.value.primary;
+      return asThemeColor(currentTheme.value.primary);
     default:
-      return currentTheme.value.primary;
+      return asThemeColor(currentTheme.value.primary);
   }
 }
 

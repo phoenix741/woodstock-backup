@@ -1,7 +1,7 @@
 #
 # -------- Base Rust -----------
 ARG RUST_VERSION=1
-ARG NODE_VERSION=20-slim
+ARG NODE_VERSION=24-slim
 ARG RUNTIME_VERSION=3.23
 ARG FEATURES=all
 

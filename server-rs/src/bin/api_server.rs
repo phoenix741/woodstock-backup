@@ -4,6 +4,7 @@
 //! the Vue.js frontend, replacing the NestJS api application.
 
 use eyre::Result;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::{debug, error, info, Instrument};
 use woodstock::config::Configuration;
@@ -62,9 +63,10 @@ async fn main() -> Result<()> {
         "Swagger UI available at http://localhost:{}/api-docs",
         config.port
     );
+    let bind_addr: SocketAddr = bind_addr.parse()?;
 
     // Create listener and serve
-    axum_server::bind(bind_addr.parse()?)
+    axum_server::bind(bind_addr)
         .serve(app.into_make_service())
         .await?;
 

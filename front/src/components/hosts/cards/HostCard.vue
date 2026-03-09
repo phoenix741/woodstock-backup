@@ -79,7 +79,7 @@
 </template>
 
 <script lang="ts" setup>
-import { defineProps, computed } from 'vue';
+import { computed } from 'vue';
 import { useDevice } from '@/utils/devices';
 import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration } from '../hosts.utils';
 

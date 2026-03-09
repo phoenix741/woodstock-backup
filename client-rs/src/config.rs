@@ -1,5 +1,5 @@
 use dirs::config_dir;
-use rand::RngCore;
+use rand::Rng;
 use serde::Deserialize;
 use std::default::Default;
 use std::env;

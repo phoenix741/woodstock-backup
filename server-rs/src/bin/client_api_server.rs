@@ -13,6 +13,7 @@ use rustls::{
     RootCertStore,
 };
 use rustls_pemfile;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::fs;
 use tower_http::trace::TraceLayer;
@@ -59,9 +60,10 @@ async fn main() -> Result<()> {
 
     let bind_addr = client_config.client_api_address();
     info!("Client API server listening on https://{}", bind_addr);
+    let bind_addr: SocketAddr = bind_addr.parse()?;
 
     // Start HTTPS server with mTLS using our custom acceptor
-    axum_server::bind(bind_addr.parse()?)
+    axum_server::bind(bind_addr)
         .acceptor(ClientCertAcceptor::new(
             axum_server::tls_rustls::RustlsAcceptor::new(tls_config),
         ))
