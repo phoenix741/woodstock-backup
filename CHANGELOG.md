@@ -1,3 +1,10 @@
+# [2.0.0-alpha.54](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.53...v2.0.0-alpha.54) (2026-03-09)
+
+
+### Bug Fixes
+
+* 🚑️ fix the build of docker image ([6a5869b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/6a5869b3eb7590dc97fb85d2e90b1ae6f327b62f))
+
 # [2.0.0-alpha.53](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.52...v2.0.0-alpha.53) (2026-03-09)
 
 
