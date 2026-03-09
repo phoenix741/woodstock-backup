@@ -1,3 +1,10 @@
+# [2.0.0-alpha.53](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.52...v2.0.0-alpha.53) (2026-03-09)
+
+
+### Bug Fixes
+
+* ⬆️ upgrade dependencies ([1dbfb59](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1dbfb5995280ac1bf89b4f77846f255548725484))
+
 # [2.0.0-alpha.52](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.51...v2.0.0-alpha.52) (2026-03-09)
 
 
