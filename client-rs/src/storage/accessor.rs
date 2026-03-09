@@ -1,7 +1,7 @@
 use crate::scanner::{
     calculate_chunk_hash_future, get_files_with_hash, read_chunk, CreateManifestOptions,
 };
-use crate::storage::snapshots::{select_snapshot_manager, SnapshotReference};
+use crate::storage::snapshots::{select_snapshot_manager, SnapshotCompletion, SnapshotReference};
 use eyre::{eyre, Result};
 use futures::{pin_mut, Stream, StreamExt};
 use globset::GlobSet;
@@ -406,6 +406,20 @@ impl FileSystemAccessor {
     /// Each snapshot reference contains the information needed to delete itself,
     /// eliminating the need to re-detect snapshot managers.
     pub async fn cleanup_all_snapshots(&mut self) -> Result<()> {
+        self.cleanup_all_snapshots_with_completion(SnapshotCompletion::Abort)
+            .await
+    }
+
+    /// Cleans up all active snapshots after a successful backup.
+    pub async fn cleanup_all_snapshots_success(&mut self) -> Result<()> {
+        self.cleanup_all_snapshots_with_completion(SnapshotCompletion::Success)
+            .await
+    }
+
+    async fn cleanup_all_snapshots_with_completion(
+        &mut self,
+        completion: SnapshotCompletion,
+    ) -> Result<()> {
         let mut errors = Vec::new();
 
         // Collect all snapshot paths before cleanup to identify redirections to remove
@@ -419,17 +433,19 @@ impl FileSystemAccessor {
         for snapshot in self.active_snapshots.drain(..) {
             let snapshot_path = snapshot.path();
 
-            if let Err(e) = snapshot.delete_self().await {
+            if let Err(e) = snapshot.finalize_self(completion).await {
                 tracing::error!(
-                    "Failed to delete snapshot '{}': {}",
+                    "Failed to finalize snapshot '{}' with outcome {:?}: {}",
                     snapshot_path.display(),
+                    completion,
                     e
                 );
                 errors.push(e);
             } else {
                 tracing::info!(
-                    "Successfully deleted snapshot '{}'",
-                    snapshot_path.display()
+                    "Successfully finalized snapshot '{}' with outcome {:?}",
+                    snapshot_path.display(),
+                    completion
                 );
             }
         }
@@ -564,6 +580,7 @@ impl FileSystemAccessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::storage::snapshots::btrfs;
     use futures::{pin_mut, StreamExt};
     use std::fs;
@@ -1037,6 +1054,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_btrfs_snapshot_reference() {
         let redirection_path = PathBuf::from("/test/snapshot/path");
         let snapshot_root_path = PathBuf::from("/test/snapshot");

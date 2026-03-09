@@ -7,7 +7,7 @@ use eyre::{eyre, Result};
 use tokio::process::Command;
 use tonic::async_trait;
 
-use crate::storage::snapshots::{SnapshotManager, SnapshotReference};
+use crate::storage::snapshots::{SnapshotCompletion, SnapshotManager, SnapshotReference};
 
 /// Detects the mount path of the `path` parameter, provided`
 fn detect_mount_path(path: &Path) -> Result<PathBuf> {
@@ -85,7 +85,7 @@ impl SnapshotReference for BtrfsSnapshotReference {
         self
     }
 
-    async fn delete_self(&self) -> Result<()> {
+    async fn finalize_self(&self, _completion: SnapshotCompletion) -> Result<()> {
         let mut cmd = if self.sudo_required {
             let mut c = Command::new("sudo");
             c.arg("btrfs");

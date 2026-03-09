@@ -691,7 +691,7 @@ impl WoodstockClientService for WoodstockClient {
         self.fs_accessor
             .write()
             .await
-            .cleanup_all_snapshots()
+            .cleanup_all_snapshots_success()
             .await
             .map_err(|err| tonic::Status::internal(err.to_string()))?;
 
