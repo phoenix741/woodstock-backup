@@ -137,6 +137,7 @@ async fn start_client(
 
     let addr = config.bind.parse()?;
     let woodstock_client = WoodstockClient::new(std::path::Path::new(&config_path), &config);
+    let fs_accessor_shutdown = woodstock_client.fs_accessor();
 
     let identity = Identity::from_pem(public_key, private_key);
     let client_ca_root = tonic::transport::Certificate::from_pem(&root_ca);
@@ -214,6 +215,16 @@ async fn start_client(
                 info!("Shutting down daemon resolver...");
                 daemon.shutdown().await;
                 info!("Daemon resolver shutdown complete");
+            }
+
+            info!("Cleaning up active snapshots before shutdown...");
+            {
+                let mut fs = fs_accessor_shutdown.write().await;
+                if let Err(err) = fs.cleanup_all_snapshots().await {
+                    error!("Failed to clean up snapshots during shutdown: {}", err);
+                } else {
+                    info!("All snapshots cleaned up before shutdown");
+                }
             }
 
             info!("Graceful context shutdown complete");
