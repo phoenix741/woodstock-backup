@@ -207,7 +207,12 @@ impl PoolCleaner {
         );
 
         refcnt
-            .remove_unused_files(&self.config.path.pool_path, target, internal_tx)
+            .remove_unused_files(
+                &self.config.path.pool_path,
+                target,
+                internal_tx,
+                self.config.compression_format.clone(),
+            )
             .await?;
 
         if let Err(e) = progress_thread.await {

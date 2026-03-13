@@ -129,13 +129,20 @@ impl PoolChunkWrapper {
     /// # Errors
     ///
     /// Returns an error if the file cannot be removed due to I/O issues.
-    pub async fn remove(&self) {
+    pub async fn remove(&self) -> std::io::Result<()> {
         if let Err(err) = remove_file(self.chunk_path()).await {
-            error!("Failed to remove chunk file: {:?}", err);
+            if err.kind() != std::io::ErrorKind::NotFound {
+                error!("Failed to remove chunk file: {:?}", err);
+                return Err(err);
+            }
         }
         if let Err(err) = remove_file(self.chunk_path_information()).await {
-            error!("Failed to remove chunk information file: {:?}", err);
+            if err.kind() != std::io::ErrorKind::NotFound {
+                error!("Failed to remove chunk information file: {:?}", err);
+                return Err(err);
+            }
         }
+        Ok(())
     }
 
     /// Moves the chunk file to a new location.
@@ -162,7 +169,7 @@ impl PoolChunkWrapper {
         if rename(self.chunk_path(), &target_path).await.is_err() {
             // copy the file if the rename fails
             copy(self.chunk_path(), &target_path).await?;
-            self.remove().await;
+            self.remove().await?;
         }
 
         Ok(())

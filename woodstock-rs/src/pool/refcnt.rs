@@ -457,6 +457,7 @@ impl Refcnt {
         pool_path: &Path,
         target: Option<PathBuf>,
         progress_tx: mpsc::Sender<Option<PoolUnused>>,
+        compression_format: CompressionFormat,
     ) -> Result<()> {
         let Some(unused_path) = &self.unused_path else {
             debug!("No unused path defined, skipping remove unused files");
@@ -464,30 +465,59 @@ impl Refcnt {
         };
 
         debug!("Remove unused files in {:?}", self.unused_path);
+        let mut removed_hashes = Vec::new();
+
         for pool_unused in self.index.values().filter(|r| r.ref_count == 0) {
             let wrapper = PoolChunkWrapper::new(pool_path, Some(&pool_unused.sha256));
-            if let Some(target) = &target {
-                if let Err(e) = wrapper.mv(target).await {
-                    error!("Error while moving chunk: {:?}", e);
-                }
-            } else {
-                wrapper.remove().await;
-            }
 
-            if let Err(e) = progress_tx
-                .send(Some(PoolUnused {
-                    sha256: pool_unused.sha256.clone(),
-                    size: pool_unused.size,
-                    compressed_size: pool_unused.compressed_size,
-                }))
-                .await
-            {
-                error!("Failed to send unused file removal progress: {}", e);
+            let result = match &target {
+                Some(t) => wrapper
+                    .mv(t)
+                    .await
+                    .inspect_err(|e| error!("Error while moving chunk: {:?}", e)),
+                None => wrapper
+                    .remove()
+                    .await
+                    .inspect_err(|e| error!("Error while removing chunk: {:?}", e)),
+            };
+
+            if result.is_ok() {
+                removed_hashes.push(pool_unused.sha256.clone());
+                if let Err(e) = progress_tx
+                    .send(Some(PoolUnused {
+                        sha256: pool_unused.sha256.clone(),
+                        size: pool_unused.size,
+                        compressed_size: pool_unused.compressed_size,
+                    }))
+                    .await
+                {
+                    error!("Failed to send unused file removal progress: {}", e);
+                }
             }
         }
 
-        // Remove unused file if exists
-        let _ = remove_file(&unused_path).await;
+        for hash in removed_hashes {
+            self.index.remove(&hash);
+        }
+
+        // Rewrite the unused index with chunks whose removal failed (empty file = all cleared)
+        let mut unused_writer = ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
+            unused_path,
+            true,
+            compression_format,
+        )
+        .await?;
+
+        for pool_unused in self.index.values().filter(|r| r.ref_count == 0) {
+            unused_writer
+                .write(&PoolUnused {
+                    sha256: pool_unused.sha256.clone(),
+                    size: pool_unused.size,
+                    compressed_size: pool_unused.compressed_size,
+                })
+                .await?;
+        }
+        unused_writer.flush().await?;
 
         Ok(())
     }
