@@ -1,3 +1,10 @@
+# [2.0.0-alpha.55](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.54...v2.0.0-alpha.55) (2026-03-13)
+
+
+### Bug Fixes
+
+* **pool:** preserve failed chunk removals in unused index ([5c765ae](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5c765ae25f20edcf631b46427f708cf44f1aa63e))
+
 # [2.0.0-alpha.54](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.53...v2.0.0-alpha.54) (2026-03-09)
 
 
