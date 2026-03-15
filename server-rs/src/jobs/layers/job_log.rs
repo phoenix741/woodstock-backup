@@ -165,13 +165,11 @@ impl JobLogLayer {
         }
         let file_full = OpenOptions::new()
             .create(true)
-            .truncate(true)
-            .write(true)
+            .append(true)
             .open(path_full)?;
         let file_error = OpenOptions::new()
             .create(true)
-            .truncate(true)
-            .write(true)
+            .append(true)
             .open(path_error)?;
         Ok(SpanLogEntry {
             writer_full: Mutex::new(BufWriter::new(file_full)),
@@ -274,5 +272,36 @@ where
                 // entry est drop ici → les File sont fermés automatiquement
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::JobLogLayer;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn open_entry_appends_existing_logs() {
+        let tempdir = tempdir().expect("create tempdir");
+        let hosts_path = tempdir.path().join("hosts");
+        let jobs_path = tempdir.path().join("jobs");
+        let layer = JobLogLayer::new(hosts_path, jobs_path).expect("create layer");
+        let full_path = tempdir.path().join("backup.log");
+        let error_path = tempdir.path().join("backup-error.log");
+
+        fs::write(&full_path, "first crash\n").expect("seed full log");
+        fs::write(&error_path, "first error\n").expect("seed error log");
+
+        let entry = layer
+            .open_entry(&full_path, &error_path)
+            .expect("open append entry");
+        entry.flush();
+
+        let full_content = fs::read_to_string(&full_path).expect("read full log");
+        let error_content = fs::read_to_string(&error_path).expect("read error log");
+
+        assert_eq!(full_content, "first crash\n");
+        assert_eq!(error_content, "first error\n");
     }
 }
