@@ -4,6 +4,9 @@ _Woodstock backup_ is a backup software. The purpose is to backup devices to a c
 
 Instead of launching the backup from the client, it's the server that contacts the client to launch the backup.
 
+When possible, the client can create a filesystem snapshot before scanning files. This gives the backup
+worker a stable view of the data while the machine continues to run.
+
 This documentation will explain how to install, configure and use _Woodstock backup_. The Internal part of
 the documentation will explain how the software works internally for development purposes.
 
@@ -19,6 +22,7 @@ the documentation will explain how the software works internally for development
   - [From BackupPC](/doc/migration/backuppc)
 - [Internal](/doc/internal/)
   - [Pool](/doc/internal/pool)
+  - [Snapshot-backed backups](/doc/internal/snapshots)
   - [Server Authentication to Client](/doc/internal/client_auth_backup)
   - [Client Authentication to Server](/doc/internal/client_auth_dns)
   - [Colors](/doc/colors)

@@ -7,9 +7,31 @@ Woodstock Backup architecture relies on a central server communicating with agen
 Woodstock Backup agents are responsible for:
 
 - Analyzing local filesystems
+- Creating filesystem snapshots when a supported backend is available
 - Executing backup operations
 - Restoring files (if enabled)
 - Secure communication with the central server
+
+## Snapshot-backed Backups
+
+To improve consistency, the agent can read files from a snapshot instead of from the live filesystem.
+
+Supported backends today:
+
+- Linux: Btrfs snapshots
+- Windows: VSS snapshots on local drive-letter volumes such as `C:\Data`
+
+Current behavior:
+
+- The agent automatically tries to create a snapshot when a compatible backend is available.
+- If snapshot creation fails, the backup continues from the live filesystem and the agent logs the error.
+- Snapshots are finalized after a successful backup, aborted during cleanup paths, and cleaned again on
+   graceful shutdown or on the next authentication if a previous session left an orphaned snapshot.
+
+Current limitations:
+
+- Windows VSS support is limited to local drive-letter paths. UNC paths such as `\\server\share` cannot use VSS.
+- Explicit per-job or per-share snapshot policy is not exposed yet in the server-side host configuration.
 
 ## Download
 
@@ -37,13 +59,13 @@ After downloading, you will have a zip file containing:
 cd C:\ProgramData\woodstock
 ```
 
-4. Configure Windows Firewall to allow agent communications:
+1. Configure Windows Firewall to allow agent communications:
 
 ```powershell
 .\ws_client_daemon.exe --config-dir C:\ProgramData\woodstock install-fw-rule
 ```
 
-5. Install the agent as a Windows service:
+1. Install the agent as a Windows service:
 
 ```powershell
 .\ws_client_daemon.exe --config-dir C:\ProgramData\woodstock install-service
@@ -69,13 +91,13 @@ After downloading, you will have a zip file containing:
 cd /opt/woodstock
 ```
 
-4. Make the daemon executable:
+1. Make the daemon executable:
 
 ```bash
 chmod +x ws_client_daemon
 ```
 
-5. Create a systemd service file. Open a text editor with administrative privileges and create a file at `/etc/systemd/system/woodstock.service` with the following content:
+1. Create a systemd service file. Open a text editor with administrative privileges and create a file at `/etc/systemd/system/woodstock.service` with the following content:
 
 ```systemd
 [Unit]
@@ -92,7 +114,7 @@ Group=nogroup
 WantedBy=multi-user.target
 ```
 
-6. Reload the systemd daemon to recognize the new service and start it:
+1. Reload the systemd daemon to recognize the new service and start it:
 
 ```bash
 sudo systemctl daemon-reload
@@ -121,7 +143,7 @@ echo "deb [signed-by=/etc/apt/keyrings/gitea-ShadowareOrg.asc] https://gogs.shad
 sudo apt update
 ```
 
-4. Install the agent package:
+1. Install the agent package:
 
 ```bash
 sudo apt install woodstock-client-rs
@@ -150,6 +172,10 @@ The main configuration is done in the `config.yml` file. Here are all the availa
 | `auto_update` | Enable automatic updates | true on Windows, false on other platforms |
 | `update_delay` | Time in seconds between update checks | 86400 (24 hours) |
 | `log_directory` | Directory where logs will be stored | Same as the configuration directory |
+| `snapshot` | Snapshot preference flag in the client configuration schema | true |
+
+> **Note**: snapshot support is already auto-detected by the current agent implementation. Keep `snapshot: true`.
+> Explicit end-to-end disabling or per-job control is not fully wired yet.
 
 You can also start the agent with the `--config-dir` parameter to specify an alternative configuration directory, or set the `CLIENT_PATH` environment variable.
 
@@ -191,3 +217,17 @@ If the agent appears unavailable in the server interface:
 4. Verify that the firewall allows communications on necessary ports
    - TCP port 3657 (default)
    - UDP port 5353 (if mDNS is used)
+
+### Snapshot Creation Fails
+
+If backups on Windows or Linux do not use a snapshot:
+
+1. Verify that the share path is on a supported local filesystem.
+   - Windows VSS requires a local drive-letter path such as `C:\Data`.
+   - UNC paths and network shares cannot be snapshotted through VSS.
+
+2. Check the agent logs for messages similar to `Failed to create a snapshot for ...`.
+
+3. On Windows, ensure the agent runs with sufficient privileges and that the VSS service is available.
+
+4. If snapshot creation still fails, the backup should continue from the live filesystem.
