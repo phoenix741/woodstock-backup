@@ -1,3 +1,11 @@
+# [2.0.0-alpha.56](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.55...v2.0.0-alpha.56) (2026-03-15)
+
+
+### Bug Fixes
+
+* **client:** restore mTLS direct resolver with reqwest 0.13 ([ff40c7e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ff40c7e641aa05e652c4fd96f87aaa7af3e235a0))
+* **job-worker:** preserve job logs across retry attempts ([b00444d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b00444d7a10d19746b0317cbabc99d2fb7726fa1))
+
 # [2.0.0-alpha.55](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.54...v2.0.0-alpha.55) (2026-03-13)
 
 
