@@ -6,7 +6,7 @@ use apalis::{
 };
 use color_eyre::eyre::Result;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{error, info};
 use woodstock::config::Configuration;
 use woodstock_server_rs::{
     jobs::{
@@ -169,7 +169,12 @@ async fn main() -> Result<()> {
 
     monitor
         // .shutdown_timeout(Duration::from_secs(5))
-        .on_event(|e| info!("Event: {e}"))
+        .on_event(|e| match e.inner() {
+            apalis::prelude::Event::Error(err) => {
+                error!(worker = %e.id().name(), error = %err, "Apalis worker event")
+            }
+            _ => info!("Event: {e}"),
+        })
         .run()
         // .run_with_signal(async {
         //     info!("Monitor started");
