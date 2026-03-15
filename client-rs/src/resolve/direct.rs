@@ -121,10 +121,11 @@ impl DirectResolveClient {
     /// Builds a reqwest Client with appropriate TLS settings for secure communication
     /// with the server.
     ///
-    /// The option `danger_accept_invalid_hostnames` is set to true, which allows
-    /// the client to accept invalid hostnames.
-    /// This is activated in our case because when connecting to the server, we possible use
-    /// the server IP address instead of the hostname.
+    /// The resolver trusts only the Woodstock CA provided in configuration.
+    ///
+    /// Hostname verification is explicitly relaxed because the server can be
+    /// reached through its IP address instead of a DNS name. With reqwest 0.13
+    /// this requires `tls_certs_only()` instead of `add_root_certificate()`.
     ///
     /// # Returns
     /// A Result containing the configured HTTP client.
@@ -134,9 +135,9 @@ impl DirectResolveClient {
     fn create_client(&self) -> Result<Client> {
         let root_ca = self.root_ca.clone();
         let client = Client::builder()
-            .danger_accept_invalid_hostnames(true)
             .use_rustls_tls()
-            .add_root_certificate(root_ca)
+            .tls_certs_only([root_ca])
+            .tls_danger_accept_invalid_hostnames(true)
             .identity(self.identity.clone())
             .build()?;
 
