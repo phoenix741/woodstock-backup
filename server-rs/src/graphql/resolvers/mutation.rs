@@ -189,11 +189,7 @@ impl MutationRoot {
     /// Calcule immédiatement les sauvegardes à supprimer selon la politique de rétention
     /// configurée pour l'hôte, puis enqueue un job `Remove` pour chacune.
     #[graphql(name = "purgeRetention")]
-    async fn purge_retention(
-        &self,
-        ctx: &Context<'_>,
-        hostname: String,
-    ) -> GqlResult<JobResponse> {
+    async fn purge_retention(&self, ctx: &Context<'_>, hostname: String) -> GqlResult<JobResponse> {
         let state = ctx.data::<ApiServerState>()?;
 
         let hosts = state

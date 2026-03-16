@@ -23,7 +23,7 @@ use woodstock::{
         fsck_machine::FsckMachine, fsck_state::FsckExecutionState,
         pool_cleaner_machine::PoolCleanerMachine, pool_cleaner_state::CleanerExecutionState,
     },
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     EventSource,
 };
 
@@ -47,7 +47,7 @@ pub async fn check_compression(state: CliServiceState) -> Result<()> {
     let _lock = PoolLockRedis::new_with_path(
         &redis_url,
         &state.config.path.pool_path,
-        "check_compression",
+        LockOperation::Pool(PoolLockOperation::CheckCompression),
     )
     .await?
     .lock_exclusive()

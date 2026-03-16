@@ -7,7 +7,7 @@ use tracing::{error, Instrument};
 use crate::{
     config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     server::pool::convert_state::ConvertState,
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     EventSource,
 };
 
@@ -196,7 +196,7 @@ impl HashConverterMachine {
         let _lock = PoolLockRedis::new_with_path(
             &redis_url,
             &self.config.path.pool_path,
-            "execute_hash_conversion",
+            LockOperation::Pool(PoolLockOperation::ExecuteHashConversion),
         )
         .await?
         .lock_exclusive()

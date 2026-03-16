@@ -95,7 +95,8 @@ async fn main() -> Result<()> {
                                 // Check if host is available and should be backuped
                                 let should_backup =
                                     state.job_utility.should_backup_host(&host, false).await?;
-                                if should_backup {
+                                let can_launch = state.job_utility.can_launch_backup(&host).await?;
+                                if should_backup && can_launch {
                                     let host_available =
                                         state.job_utility.host_available(&host).await?;
 

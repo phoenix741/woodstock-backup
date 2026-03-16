@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use eyre::Result;
+use eyre::{eyre, Result};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, Instrument};
 use uuid::Uuid;
@@ -11,7 +11,7 @@ use crate::{
         FailedStatus, FinishingStatus, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     server::client::Client,
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     Share,
 };
 
@@ -972,10 +972,17 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
     pub async fn execute(&mut self) -> Result<BackupState> {
         let pool_directory = &self.config.path.pool_path;
         let redis_url = self.config.redis_url();
-        let _lock = PoolLockRedis::new_with_path(&redis_url, pool_directory, "save_backup")
-            .await?
-            .lock_shared()
-            .await?;
+        let _lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            pool_directory,
+            LockOperation::Pool(PoolLockOperation::SaveBackup),
+        )
+        .await?
+        .try_lock_shared_wait(Duration::from_secs(60))
+        .await?
+        .ok_or_else(|| {
+            eyre!("Timed out waiting for shared pool lock during backup finalization")
+        })?;
 
         self.send_progres().await;
 

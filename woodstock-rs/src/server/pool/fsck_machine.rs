@@ -8,7 +8,7 @@ use tracing::{debug, error, info, warn, Instrument};
 use crate::{
     config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     pool::{FsckUnusedCount, PoolManager},
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     EventPoolInformation, EventSource,
 };
 
@@ -500,10 +500,14 @@ impl FsckMachine {
             self.config.path.pool_path
         );
         let redis_url = self.config.redis_url();
-        let lock = PoolLockRedis::new_with_path(&redis_url, &self.config.path.pool_path, "fsck")
-            .await?
-            .lock_exclusive()
-            .await?;
+        let lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &self.config.path.pool_path,
+            LockOperation::Pool(PoolLockOperation::Fsck),
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
 
         // Clone the cancellation token BEFORE passing the lock into the select.
         // The token fires if the heartbeat detects that the Redis key expired

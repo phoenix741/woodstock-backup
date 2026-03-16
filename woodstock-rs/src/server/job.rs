@@ -13,6 +13,7 @@ use crate::{
         resolve::{resolve_dns_async, SocketAddrResolver},
         tools::ping,
     },
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
 };
 
 /// Central structure for job utility
@@ -153,6 +154,31 @@ impl JobUtility {
         Ok(time_to_next_backup.is_some_and(|t| t.is_zero()))
     }
 
+    /// Vérifie si le scheduler peut lancer une nouvelle sauvegarde maintenant.
+    ///
+    /// Cette décision est volontairement distincte de `should_backup_host`: une sauvegarde
+    /// déjà lancée ne doit pas être bloquée par ce test. Ici, on évite seulement de planifier
+    /// un nouveau backup pendant une opération longue sur le pool, comme un fsck.
+    pub async fn can_launch_backup(&self, host: &str) -> Result<bool> {
+        let redis_url = self.configuration.redis_url();
+        if let Some(lock) = PoolLockRedis::active_exclusive_lock_with_path(
+            &redis_url,
+            &self.configuration.path.pool_path,
+        )
+        .await?
+        {
+            if lock.operation_name == Some(LockOperation::Pool(PoolLockOperation::Fsck)) {
+                debug!(
+                    "Skip scheduling backup for host {}: pool fsck lock is active",
+                    host
+                );
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
     /// Vérifie la disponibilité réseau & retourne l'adresse ip:port atteignable si trouvée.
     pub async fn host_available(&self, host: &str) -> Result<bool> {
         let host_conf = self.hosts_config.get_host(host).await?;
@@ -169,8 +195,6 @@ impl JobUtility {
     /// Vérifie si un job (backup, remove) est déjà en cours d'exécution pour l'hôte donné.
     /// Utilise le système de lock Redis pour déterminer si un job est actif.
     pub async fn is_job_running(&self, host: &str) -> Result<bool> {
-        use crate::utils::lock_redis::PoolLockRedis;
-
         let redis_url = self.configuration.redis_url();
 
         // Passive inspection only: do not acquire a temporary lock just to probe state,

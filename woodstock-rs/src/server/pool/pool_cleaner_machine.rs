@@ -6,7 +6,9 @@ use tokio::sync::{mpsc, Mutex};
 use tracing::{error, warn, Instrument};
 
 use crate::{
-    config::Configuration, pool::PoolManager, utils::lock_redis::PoolLockRedis,
+    config::Configuration,
+    pool::PoolManager,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     EventPoolCleanedInformation, EventSource,
 };
 
@@ -250,7 +252,7 @@ impl PoolCleanerMachine {
         let lock = PoolLockRedis::new_with_path(
             &redis_url,
             &self.config.path.pool_path,
-            "execute_cleaning",
+            LockOperation::Pool(PoolLockOperation::ExecuteCleaning),
         )
         .await?
         .lock_exclusive()

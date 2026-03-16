@@ -27,7 +27,7 @@ use woodstock::server::pool::pool_cleaner_machine::PoolCleanerMachine;
 use woodstock::server::pool::pool_cleaner_state::CleanerState;
 use woodstock::server::progression::BackupProgression;
 use woodstock::statistics::{disk_stats::append_disk_history, instant_stats::get_space};
-use woodstock::utils::lock_redis::{PoolLockRedis, LOCK_TTL};
+use woodstock::utils::lock_redis::{HostLockOperation, LockOperation, PoolLockRedis, LOCK_TTL};
 
 #[derive(Clone)]
 pub struct JobExecutors {
@@ -89,10 +89,14 @@ impl JobExecutors {
         // We wait up to LOCK_TTL (30 s) — the TTL of the lock key itself — so that if the
         // previous worker died, its lock will have expired before we give up.
         let redis_url = state.config.redis_url();
-        let lock = PoolLockRedis::new(&redis_url, &host, "backup")
-            .await?
-            .try_lock_exclusive_wait(std::time::Duration::from_secs(LOCK_TTL))
-            .await?;
+        let lock = PoolLockRedis::new(
+            &redis_url,
+            &host,
+            LockOperation::Host(HostLockOperation::Backup),
+        )
+        .await?
+        .try_lock_exclusive_wait(std::time::Duration::from_secs(LOCK_TTL))
+        .await?;
         let lock = match lock {
             Some(l) => l,
             None => {
@@ -375,10 +379,14 @@ impl JobExecutors {
         // Acquire shared lock on the host for the restore operation
         // Multiple restores can run concurrently
         let redis_url = state.config.redis_url();
-        let lock = PoolLockRedis::new(&redis_url, &host, "restore")
-            .await?
-            .lock_shared()
-            .await?;
+        let lock = PoolLockRedis::new(
+            &redis_url,
+            &host,
+            LockOperation::Host(HostLockOperation::Restore),
+        )
+        .await?
+        .lock_shared()
+        .await?;
         let restore_cancel_token = lock.cancellation_token().clone();
         let _lock = lock;
 
@@ -683,10 +691,14 @@ impl JobExecutors {
 
         // Acquire exclusive lock on the host for the remove operation
         let redis_url = state.config.redis_url();
-        let lock = PoolLockRedis::new(&redis_url, &host, "remove")
-            .await?
-            .lock_exclusive()
-            .await?;
+        let lock = PoolLockRedis::new(
+            &redis_url,
+            &host,
+            LockOperation::Host(HostLockOperation::Remove),
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
         let remove_cancel_token = lock.cancellation_token().clone();
         let _lock = lock;
 

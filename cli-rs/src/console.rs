@@ -44,6 +44,7 @@ use crate::commands::read_protobuf::{read_protobuf, ProtobufFormat};
 use crate::commands::CliServiceState;
 use woodstock::config::Context;
 use woodstock::pool::PoolManager;
+use woodstock::utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis};
 
 /// Command-line interface options for the Woodstock CLI tool.
 #[derive(Parser)]
@@ -215,12 +216,11 @@ async fn main() -> Result<()> {
         }
         Commands::CompactRefcnt {} => {
             // Acquire EXCLUSIVE lock to prevent race conditions
-            use woodstock::utils::lock_redis::PoolLockRedis;
             let redis_url = state.config.redis_url();
             let _lock = PoolLockRedis::new_with_path(
                 &redis_url,
                 &state.config.path.pool_path,
-                "compact_refcnt_manual",
+                LockOperation::Pool(PoolLockOperation::CompactRefcntManual),
             )
             .await
             .wrap_err("Failed to acquire lock")?

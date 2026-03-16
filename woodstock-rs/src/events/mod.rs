@@ -38,7 +38,7 @@ use uuid::Uuid;
 use crate::{
     config::Configuration,
     proto::{ProtobufReader, ProtobufWriter, UnCompressedWriter},
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockRedis},
     woodstock::event::Information,
     Event, EventBackupInformation, EventSource, EventStatus, EventStep, EventType,
 };
@@ -74,10 +74,11 @@ pub async fn append_events<P: AsRef<Path>>(
     // Create the directory if it does not exist
     fs::create_dir_all(path).await?;
 
-    let _lock = PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, "events")
-        .await?
-        .lock_exclusive()
-        .await?;
+    let _lock =
+        PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, LockOperation::Events)
+            .await?
+            .lock_exclusive()
+            .await?;
 
     // Get the current date
     let current_date = chrono::Utc::now().format("%Y-%m-%d").to_string();
@@ -145,10 +146,11 @@ pub async fn read_events<P: AsRef<Path>>(
     end_data: NaiveDate,
 ) -> Result<Vec<Event>> {
     let lockfilename = path.as_ref().with_extension("lock");
-    let _lock = PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, "events")
-        .await?
-        .lock_exclusive()
-        .await?;
+    let _lock =
+        PoolLockRedis::new_with_path(&config.redis_url(), &lockfilename, LockOperation::Events)
+            .await?
+            .lock_exclusive()
+            .await?;
 
     let dates = list_date(start_date, end_data);
 

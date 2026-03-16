@@ -1,12 +1,12 @@
-use eyre::Result;
-use std::sync::Arc;
+use eyre::{eyre, Result};
+use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
     config::{Backups, Configuration, Context, RemovingStatus},
-    utils::lock_redis::PoolLockRedis,
+    utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
 };
 
 use super::{remove::BackupRemove, remove_state::RemoveState};
@@ -300,10 +300,15 @@ impl RemoveBackupMachine {
     pub async fn execute(&mut self) -> Result<RemoveState> {
         let pool_directory = &self.config.path.pool_path;
         let redis_url = self.config.redis_url();
-        let _lock = PoolLockRedis::new_with_path(&redis_url, pool_directory, "remove")
-            .await?
-            .lock_shared()
-            .await?;
+        let _lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            pool_directory,
+            LockOperation::Pool(PoolLockOperation::RemoveBackup),
+        )
+        .await?
+        .try_lock_shared_wait(Duration::from_secs(60))
+        .await?
+        .ok_or_else(|| eyre!("Timed out waiting for shared pool lock during backup removal"))?;
 
         self.send_progres().await;
 

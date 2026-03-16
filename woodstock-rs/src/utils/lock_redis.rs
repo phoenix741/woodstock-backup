@@ -1,6 +1,7 @@
 use eyre::{Result, WrapErr};
 use redis::aio::MultiplexedConnection;
 use redis::{AsyncCommands, Client, Script};
+use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,6 +19,153 @@ pub enum LockType {
     Shared = 0,
     /// Exclusive lock, prevents any other operation (cleaning, integrity verification)
     Exclusive = 1,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LockOperation {
+    Host(HostLockOperation),
+    Pool(PoolLockOperation),
+    Events,
+    File(FileLockOperation),
+    Import(ImportLockOperation),
+    Internal(InternalLockOperation),
+    Custom(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HostLockOperation {
+    Backup,
+    Restore,
+    Remove,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PoolLockOperation {
+    SaveBackup,
+    RemoveBackup,
+    Fsck,
+    ExecuteCleaning,
+    ExecuteHashConversion,
+    CompactRefcntManual,
+    CheckCompression,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FileLockOperation {
+    Write,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ImportLockOperation {
+    Refcnt,
+    Cleanup,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum InternalLockOperation {
+    InspectLockState,
+}
+
+impl HostLockOperation {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Backup => "backup",
+            Self::Restore => "restore",
+            Self::Remove => "remove",
+        }
+    }
+}
+
+impl PoolLockOperation {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::SaveBackup => "save_backup",
+            Self::RemoveBackup => "remove",
+            Self::Fsck => "fsck",
+            Self::ExecuteCleaning => "execute_cleaning",
+            Self::ExecuteHashConversion => "execute_hash_conversion",
+            Self::CompactRefcntManual => "compact_refcnt_manual",
+            Self::CheckCompression => "check_compression",
+        }
+    }
+}
+
+impl FileLockOperation {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Write => "write",
+        }
+    }
+}
+
+impl ImportLockOperation {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Refcnt => "backuppc_importer_refcnt",
+            Self::Cleanup => "backuppc_importer_cleanup",
+        }
+    }
+}
+
+impl InternalLockOperation {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::InspectLockState => "inspect_lock_state",
+        }
+    }
+}
+
+impl LockOperation {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Host(operation) => operation.as_str(),
+            Self::Pool(operation) => operation.as_str(),
+            Self::Events => "events",
+            Self::File(operation) => operation.as_str(),
+            Self::Import(operation) => operation.as_str(),
+            Self::Internal(operation) => operation.as_str(),
+            Self::Custom(value) => value.as_str(),
+        }
+    }
+}
+
+impl fmt::Display for LockOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl From<&str> for LockOperation {
+    fn from(value: &str) -> Self {
+        match value {
+            "backup" => Self::Host(HostLockOperation::Backup),
+            "restore" => Self::Host(HostLockOperation::Restore),
+            "remove" => Self::Host(HostLockOperation::Remove),
+            "save_backup" => Self::Pool(PoolLockOperation::SaveBackup),
+            "fsck" => Self::Pool(PoolLockOperation::Fsck),
+            "execute_cleaning" => Self::Pool(PoolLockOperation::ExecuteCleaning),
+            "execute_hash_conversion" => Self::Pool(PoolLockOperation::ExecuteHashConversion),
+            "events" => Self::Events,
+            "write" => Self::File(FileLockOperation::Write),
+            "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),
+            "check_compression" => Self::Pool(PoolLockOperation::CheckCompression),
+            "backuppc_importer_refcnt" => Self::Import(ImportLockOperation::Refcnt),
+            "backuppc_importer_cleanup" => Self::Import(ImportLockOperation::Cleanup),
+            "inspect_lock_state" => Self::Internal(InternalLockOperation::InspectLockState),
+            other => Self::Custom(other.to_string()),
+        }
+    }
+}
+
+impl From<String> for LockOperation {
+    fn from(value: String) -> Self {
+        Self::from(value.as_str())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveExclusiveLock {
+    pub operation_name: Option<LockOperation>,
 }
 
 /// Interval in seconds between lock heartbeat updates
@@ -94,8 +242,8 @@ pub struct PoolLockRedis {
     conn: Arc<Mutex<MultiplexedConnection>>,
     /// Resource identifier (e.g., pool path)
     resource: String,
-    /// Operation name identifier (e.g., "fsck", "backup", "restore")
-    operation_name: String,
+    /// Operation name identifier (e.g., fsck, backup, restore)
+    operation_name: LockOperation,
     /// Process ID that owns this lock
     pid: u64,
     /// Unique identifier for this lock instance
@@ -120,7 +268,7 @@ impl PoolLockRedis {
     ///
     /// * `redis_url` - The URL of the Redis server (e.g., "redis://localhost:6379")
     /// * `resource` - The resource identifier (e.g., pool path like "/data/pool1")
-    /// * `operation_name` - The operation name (e.g., "fsck", "backup", "restore")
+    /// * `operation_name` - The operation name identifier
     ///
     /// # Returns
     ///
@@ -129,9 +277,14 @@ impl PoolLockRedis {
     /// # Errors
     ///
     /// Returns an error if the Redis connection cannot be established.
-    pub async fn new(redis_url: &str, resource: &str, operation_name: &str) -> Result<Self> {
+    pub async fn new(
+        redis_url: &str,
+        resource: &str,
+        operation_name: impl Into<LockOperation>,
+    ) -> Result<Self> {
         let client = Client::open(redis_url)?;
         let mut conn = client.get_multiplexed_async_connection().await?;
+        let operation_name = operation_name.into();
 
         if tracing::enabled!(tracing::Level::DEBUG) {
             Self::log_connection_identity(&mut conn, "new", Some(resource)).await?;
@@ -141,7 +294,7 @@ impl PoolLockRedis {
             client,
             conn: Arc::new(Mutex::new(conn)),
             resource: resource.to_string(),
-            operation_name: operation_name.to_string(),
+            operation_name,
             pid: std::process::id() as u64,
             uuid: Uuid::new_v4(),
             lock_type: None,
@@ -159,7 +312,7 @@ impl PoolLockRedis {
     ///
     /// * `redis_url` - The URL of the Redis server (e.g., "redis://localhost:6379")
     /// * `path` - The path to the resource (e.g., pool path like "/data/pool1")
-    /// * `operation_name` - The operation name (e.g., "fsck", "backup", "restore")
+    /// * `operation_name` - The operation name identifier
     ///
     ///
     /// Returns a result containing the new lock instance.
@@ -170,7 +323,7 @@ impl PoolLockRedis {
     pub async fn new_with_path<P: AsRef<Path>>(
         redis_url: &str,
         path: P,
-        operation_name: &str,
+        operation_name: impl Into<LockOperation>,
     ) -> Result<Self> {
         let resource = mangle_path(path);
         Self::new(redis_url, &resource, operation_name).await
@@ -218,8 +371,38 @@ impl PoolLockRedis {
     /// Unlike `try_lock_exclusive_nowait`, this method never acquires or releases a
     /// lock itself. It only inspects the Redis keys already present for the resource.
     pub async fn has_active_lock(redis_url: &str, resource: &str) -> Result<bool> {
-        let probe = Self::new(redis_url, resource, "inspect_lock_state").await?;
+        let probe = Self::new(
+            redis_url,
+            resource,
+            LockOperation::Internal(InternalLockOperation::InspectLockState),
+        )
+        .await?;
         probe.has_active_lock_internal().await
+    }
+
+    /// Passively inspects whether a resource currently has an active exclusive lock and,
+    /// when available, returns the operation metadata associated with that lock.
+    pub async fn active_exclusive_lock(
+        redis_url: &str,
+        resource: &str,
+    ) -> Result<Option<ActiveExclusiveLock>> {
+        let probe = Self::new(
+            redis_url,
+            resource,
+            LockOperation::Internal(InternalLockOperation::InspectLockState),
+        )
+        .await?;
+        probe.active_exclusive_lock_internal().await
+    }
+
+    /// Same as `active_exclusive_lock`, but accepts a filesystem path and applies the
+    /// same mangling as `new_with_path`.
+    pub async fn active_exclusive_lock_with_path<P: AsRef<Path>>(
+        redis_url: &str,
+        path: P,
+    ) -> Result<Option<ActiveExclusiveLock>> {
+        let resource = mangle_path(path);
+        Self::active_exclusive_lock(redis_url, &resource).await
     }
 
     async fn has_active_lock_internal(&self) -> Result<bool> {
@@ -242,6 +425,28 @@ impl PoolLockRedis {
             .wrap_err("Failed to inspect shared lock count")?;
 
         Ok(shared_count > 0)
+    }
+
+    async fn active_exclusive_lock_internal(&self) -> Result<Option<ActiveExclusiveLock>> {
+        let mut conn = self.conn.lock().await;
+
+        let owner: Option<String> = conn
+            .get(self.exclusive_key())
+            .await
+            .wrap_err("Failed to inspect exclusive lock owner")?;
+
+        let Some(owner) = owner else {
+            return Ok(None);
+        };
+
+        let operation_name: Option<String> = conn
+            .hget(self.metadata_key_for(&owner), "operation")
+            .await
+            .wrap_err("Failed to inspect exclusive lock metadata")?;
+
+        Ok(Some(ActiveExclusiveLock {
+            operation_name: operation_name.map(LockOperation::from),
+        }))
     }
 
     /// Returns the Redis key for the exclusive lock.
@@ -267,6 +472,11 @@ impl PoolLockRedis {
     /// Returns the Redis key for this instance's metadata.
     fn metadata_key(&self) -> String {
         format!("lock:{}:meta:{}", self.resource, self.uuid)
+    }
+
+    /// Returns the Redis key for metadata associated with a specific lock owner.
+    fn metadata_key_for(&self, owner_uuid: &str) -> String {
+        format!("lock:{}:meta:{}", self.resource, owner_uuid)
     }
 
     /// Acquires a lock on the pool.
@@ -326,19 +536,23 @@ impl PoolLockRedis {
 
         // Try to acquire the lock immediately without waiting
         if self.try_acquire_lock(LockType::Exclusive).await? {
-            self.locked = true;
-
-            // Store metadata for debugging
-            self.store_metadata().await?;
-
-            // Start the heartbeat to keep the lock alive
-            let abort_handle = self.start_heartbeat();
-            self.abort_handle = Some(abort_handle);
-
+            self.finish_lock_acquisition().await?;
             Ok(Some(self))
         } else {
             Ok(None)
         }
+    }
+
+    /// Tries to acquire a shared lock, waiting up to `timeout` for it to become compatible.
+    ///
+    /// Unlike `lock_shared` (which waits up to `MAX_WAIT_TIME = 1h`), this method waits at
+    /// most `timeout`. This is useful for backup operations that should tolerate a short-lived
+    /// exclusive lock like cleanup, but should not block indefinitely behind a long-running fsck.
+    ///
+    /// Returns `Some(Self)` if the lock was acquired within the timeout, `None` otherwise.
+    pub async fn try_lock_shared_wait(self, timeout: Duration) -> Result<Option<Self>> {
+        self.try_lock_wait_internal(LockType::Shared, timeout, "Shared lock")
+            .await
     }
 
     /// Tries to acquire an exclusive lock, waiting up to `timeout` for it to become free.
@@ -350,36 +564,9 @@ impl PoolLockRedis {
     /// expired before we give up, without blocking indefinitely.
     ///
     /// Returns `Some(Self)` if the lock was acquired within the timeout, `None` otherwise.
-    pub async fn try_lock_exclusive_wait(mut self, timeout: Duration) -> Result<Option<Self>> {
-        self.lock_type = Some(LockType::Exclusive);
-        let start = std::time::Instant::now();
-
-        loop {
-            if self.try_acquire_lock(LockType::Exclusive).await? {
-                self.locked = true;
-                self.store_metadata().await?;
-                let abort_handle = self.start_heartbeat();
-                self.abort_handle = Some(abort_handle);
-                return Ok(Some(self));
-            }
-
-            let elapsed = start.elapsed();
-            if elapsed >= timeout {
-                return Ok(None);
-            }
-
-            // Sleep at most CHECK_INTERVAL but never past the deadline
-            let remaining = timeout - elapsed;
-            let wait = remaining.min(Duration::from_secs(CHECK_INTERVAL));
-            warn!(
-                "Lock {} is busy (operation: {}), retrying in {}s (timeout in {}s)",
-                self.resource,
-                self.operation_name,
-                wait.as_secs(),
-                remaining.as_secs(),
-            );
-            tokio::time::sleep(wait).await;
-        }
+    pub async fn try_lock_exclusive_wait(self, timeout: Duration) -> Result<Option<Self>> {
+        self.try_lock_wait_internal(LockType::Exclusive, timeout, "Exclusif Lock")
+            .await
     }
 
     /// Internal implementation for acquiring locks on the pool.
@@ -411,16 +598,51 @@ impl PoolLockRedis {
             lock_type, self.resource, self.operation_name
         );
 
-        self.locked = true;
-
-        // Store metadata for debugging
-        self.store_metadata().await?;
-
-        // Start the heartbeat to keep the lock alive
-        let abort_handle = self.start_heartbeat();
-        self.abort_handle = Some(abort_handle);
+        self.finish_lock_acquisition().await?;
 
         Ok(self)
+    }
+
+    async fn try_lock_wait_internal(
+        mut self,
+        lock_type: LockType,
+        timeout: Duration,
+        busy_label: &str,
+    ) -> Result<Option<Self>> {
+        self.lock_type = Some(lock_type);
+        let start = std::time::Instant::now();
+
+        loop {
+            if self.try_acquire_lock(lock_type).await? {
+                self.finish_lock_acquisition().await?;
+                return Ok(Some(self));
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed >= timeout {
+                return Ok(None);
+            }
+
+            let remaining = timeout - elapsed;
+            let wait = remaining.min(Duration::from_secs(CHECK_INTERVAL));
+            debug!(
+                "{} {} is busy (operation: {}), retrying in {}s (timeout in {}s)",
+                busy_label,
+                self.resource,
+                self.operation_name,
+                wait.as_secs(),
+                remaining.as_secs(),
+            );
+            tokio::time::sleep(wait).await;
+        }
+    }
+
+    async fn finish_lock_acquisition(&mut self) -> Result<()> {
+        self.locked = true;
+        self.store_metadata().await?;
+        let abort_handle = self.start_heartbeat();
+        self.abort_handle = Some(abort_handle);
+        Ok(())
     }
 
     /// Stores metadata about this lock instance in Redis for debugging purposes.
@@ -445,7 +667,7 @@ impl PoolLockRedis {
 
         let _: () = redis::pipe()
             .atomic()
-            .hset(&metadata_key, "operation", &self.operation_name)
+            .hset(&metadata_key, "operation", self.operation_name.as_str())
             .ignore()
             .hset(&metadata_key, "pid", self.pid)
             .ignore()
@@ -505,7 +727,7 @@ impl PoolLockRedis {
                 ));
             }
 
-            warn!(
+            debug!(
                 "Lock {} is busy, waiting {} seconds for {} with lock type {:?}",
                 self.resource, CHECK_INTERVAL, self.resource, lock_type
             );
@@ -1212,7 +1434,10 @@ mod tests {
 
         let lock = lock.unwrap();
         assert_eq!(lock.resource, resource);
-        assert_eq!(lock.operation_name, "test_new");
+        assert_eq!(
+            lock.operation_name,
+            LockOperation::Custom("test_new".to_string())
+        );
         assert!(!lock.locked);
         assert!(lock.abort_handle.is_none());
     }
@@ -1227,7 +1452,10 @@ mod tests {
         // The resource should be the mangled version of the path
         assert!(lock.resource.contains("test"));
         assert!(lock.resource.contains("path"));
-        assert_eq!(lock.operation_name, "test_path");
+        assert_eq!(
+            lock.operation_name,
+            LockOperation::Custom("test_path".to_string())
+        );
         assert!(!lock.locked);
         assert!(lock.abort_handle.is_none());
     }
@@ -1432,6 +1660,51 @@ mod tests {
     }
 
     #[test(tokio::test)]
+    async fn test_try_lock_shared_wait_succeeds_with_other_shared_lock() {
+        let resource = test_resource("test_try_shared_wait_success");
+        let locked1 = PoolLockRedis::new(&redis_url(), &resource, "backup1")
+            .await
+            .unwrap()
+            .lock_shared()
+            .await
+            .unwrap();
+
+        let locked2 = PoolLockRedis::new(&redis_url(), &resource, "backup2")
+            .await
+            .unwrap()
+            .try_lock_shared_wait(Duration::from_secs(1))
+            .await
+            .unwrap();
+
+        assert!(locked2.is_some());
+
+        locked1.unlock().await.unwrap();
+        locked2.unwrap().unlock().await.unwrap();
+    }
+
+    #[test(tokio::test)]
+    async fn test_try_lock_shared_wait_times_out_on_exclusive_lock() {
+        let resource = test_resource("test_try_shared_wait_timeout");
+        let locked1 = PoolLockRedis::new(&redis_url(), &resource, "fsck")
+            .await
+            .unwrap()
+            .lock_exclusive()
+            .await
+            .unwrap();
+
+        let locked2 = PoolLockRedis::new(&redis_url(), &resource, "backup")
+            .await
+            .unwrap()
+            .try_lock_shared_wait(Duration::from_millis(200))
+            .await
+            .unwrap();
+
+        assert!(locked2.is_none());
+
+        locked1.unlock().await.unwrap();
+    }
+
+    #[test(tokio::test)]
     async fn test_has_active_lock_is_passive() {
         let resource = test_resource("test_passive_probe");
 
@@ -1479,6 +1752,41 @@ mod tests {
         assert!(PoolLockRedis::has_active_lock(&redis_url(), &resource)
             .await
             .unwrap());
+
+        locked.unlock().await.unwrap();
+    }
+
+    #[test(tokio::test)]
+    async fn test_active_exclusive_lock_returns_none_when_unlocked() {
+        let resource = test_resource("test_active_exclusive_none");
+
+        let active = PoolLockRedis::active_exclusive_lock(&redis_url(), &resource)
+            .await
+            .unwrap();
+
+        assert!(active.is_none());
+    }
+
+    #[test(tokio::test)]
+    async fn test_active_exclusive_lock_reports_operation_name() {
+        let resource = test_resource("test_active_exclusive_operation");
+        let locked = PoolLockRedis::new(&redis_url(), &resource, "fsck")
+            .await
+            .unwrap()
+            .lock_exclusive()
+            .await
+            .unwrap();
+
+        let active = PoolLockRedis::active_exclusive_lock(&redis_url(), &resource)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            active,
+            Some(ActiveExclusiveLock {
+                operation_name: Some(LockOperation::Pool(PoolLockOperation::Fsck)),
+            })
+        );
 
         locked.unlock().await.unwrap();
     }

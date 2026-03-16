@@ -40,7 +40,7 @@ use woodstock::pool::PoolManager;
 use woodstock::server::backup::remove::BackupRemove;
 use woodstock::server::backup::save::BackupSave;
 use woodstock::server::progression::BackupProgression;
-use woodstock::utils::lock_redis::PoolLockRedis;
+use woodstock::utils::lock_redis::{ImportLockOperation, LockOperation, PoolLockRedis};
 use woodstock::Share;
 
 /// Shared state for the `BackupPC` importer application.
@@ -319,7 +319,7 @@ async fn launch_backup(
         let _lock = PoolLockRedis::new_with_path(
             &redis_url,
             &state.config.path.pool_path,
-            "backuppc_importer_refcnt",
+            LockOperation::Import(ImportLockOperation::Refcnt),
         )
         .await?
         .lock_exclusive()
@@ -606,7 +606,7 @@ async fn main() -> eyre::Result<()> {
         let _lock = PoolLockRedis::new_with_path(
             &redis_url,
             &state.config.path.pool_path,
-            "backuppc_importer_cleanup",
+            LockOperation::Import(ImportLockOperation::Cleanup),
         )
         .await?
         .lock_exclusive()

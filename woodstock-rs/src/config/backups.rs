@@ -58,7 +58,7 @@ use crate::{
     manifest::Manifest,
     utils::{
         cache::{cache_invalidate, cache_wrap},
-        lock_redis::PoolLockRedis,
+        lock_redis::{FileLockOperation, LockOperation, PoolLockRedis},
         path::mangle,
     },
 };
@@ -163,10 +163,14 @@ impl Backups {
     async fn lock_host_for_write(&self, hostname: &str) -> Result<PoolLockRedis> {
         let redis_url = self.config.redis_url();
         let backup_file = self.get_backup_file(hostname);
-        let lock = PoolLockRedis::new_with_path(&redis_url, &backup_file, "write")
-            .await?
-            .lock_exclusive()
-            .await?;
+        let lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            &backup_file,
+            LockOperation::File(FileLockOperation::Write),
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
         Ok(lock)
     }
 
