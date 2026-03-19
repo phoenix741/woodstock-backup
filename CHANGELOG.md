@@ -1,3 +1,11 @@
+# [2.0.0-alpha.57](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.56...v2.0.0-alpha.57) (2026-03-19)
+
+
+### Features
+
+* **client-rs:** add cleanup for orphaned snapshots and expose fs_accessor ([8d0f2bf](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8d0f2bff1ec68e8b9d7d4a7af80ecb455f60ca64))
+* **client-rs:** add Windows VSS snapshots for backup lifecycle ([e2784d3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e2784d37fb4d2375b03a540b41f5f5f2ad78a053)), closes [#92](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/92)
+
 # [2.0.0-alpha.56](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.55...v2.0.0-alpha.56) (2026-03-15)
 
 
