@@ -347,6 +347,41 @@ Pour Woodstock Backup, inclure systématiquement :
 - Lien vers le code source quand pertinent
 - Mention des technologies clés : Rust, gRPC (Tonic), Axum, BTRFS, Rsync, mTLS
 
+#### Site de documentation de ce dépôt
+
+- La documentation utilisateur publiée vit sous `docs/website/doc/`
+- `index.md` sert de porte d'entrée et doit pointer vers toute nouvelle page importante
+- `agent.md` couvre l'installation et la configuration du client agent
+- `configuration.md` couvre la configuration serveur et les fichiers de host
+- `roadmap.md` doit être mise à jour quand une fonctionnalité sort du statut roadmap
+- `internal/` documente l'implémentation et les choix techniques
+
+Pour une fonctionnalité qui change le comportement du backup, mettre à jour au minimum :
+
+- la documentation utilisateur visible (`agent.md` ou `configuration.md` selon le cas)
+- l'index si une nouvelle page est ajoutée
+- la documentation interne si l'architecture ou le cycle de vie change
+- la roadmap si l'état d'avancement de la fonctionnalité a changé
+
+Quand une fonctionnalité est partiellement livrée, documenter clairement :
+
+- ce qui fonctionne déjà
+- ce qui reste en limitation connue
+- ce qui n'est pas encore configurable
+
+Ne pas présenter comme configurable une option qui existe dans le schéma mais n'est pas encore branchée
+de bout en bout.
+
+#### Documentation des snapshots
+
+Pour les snapshots dans Woodstock Backup, documenter systématiquement :
+
+- les backends supportés par plateforme
+- le comportement de fallback quand la snapshot n'est pas disponible
+- le moment où la snapshot est créée et nettoyée
+- les limites de chemin, par exemple VSS sur lettres de lecteur locales uniquement
+- la différence entre comportement actuel et contrôle de politique futur
+
 #### Exemples Contextualisés
 
 - Utiliser les vrais chemins du projet (`woodstock-rs/src/`, `server-rs/src/`, etc.)

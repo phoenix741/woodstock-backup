@@ -8,5 +8,6 @@ You can also use this section to understand how the backups are stored and recov
 ## Summary
 
 - [Pool constitution](/doc/internal/pool.md)
+- [Snapshot-backed backups](/doc/internal/snapshots.md)
 - [Server authentication to Client](/doc/internal/client_auth_backup.md)
 - [Client authentication to Server](/doc/internal/client_auth_dns.md)

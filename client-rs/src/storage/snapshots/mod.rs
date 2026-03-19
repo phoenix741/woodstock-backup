@@ -58,11 +58,22 @@
 
 #[cfg(unix)]
 pub mod btrfs;
+#[cfg(windows)]
+pub mod vss;
 
 use std::path::Path;
 
 use eyre::Result;
 use tonic::async_trait;
+
+/// Describes how a snapshot-backed backup session ended.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SnapshotCompletion {
+    /// The backup reached its nominal end and backend-specific completion hooks should run.
+    Success,
+    /// The backup ended prematurely and the backend should abort its work before cleanup.
+    Abort,
+}
 
 /// Manages filesystem snapshots for backup operations
 #[async_trait]
@@ -102,7 +113,10 @@ pub trait SnapshotReference: Send + Sync {
     /// Enable downcasting to concrete types for manager-specific operations
     fn as_any(&self) -> &dyn std::any::Any;
 
-    /// Delete this snapshot using the manager that created it
+    /// Finalize this snapshot according to how the backup ended.
+    async fn finalize_self(&self, completion: SnapshotCompletion) -> Result<()>;
+
+    /// Delete this snapshot using the manager that created it.
     ///
     /// This method allows the snapshot reference to delete itself without requiring
     /// re-detection of the snapshot manager. Each implementation stores the necessary
@@ -111,7 +125,9 @@ pub trait SnapshotReference: Send + Sync {
     /// # Returns
     /// * `Ok(())` if the snapshot was deleted successfully
     /// * `Err(...)` if the deletion failed
-    async fn delete_self(&self) -> Result<()>;
+    async fn delete_self(&self) -> Result<()> {
+        self.finalize_self(SnapshotCompletion::Abort).await
+    }
 }
 
 /// Selects the best available snapshot manager for the given path
@@ -142,11 +158,10 @@ pub async fn select_snapshot_manager<P: AsRef<Path>>(
         // managers.push(Box::new(zfs::ZfsSnapshotManager::new()));
     }
 
-    // TODO: Add VSS support for Windows systems
-    // #[cfg(windows)]
-    // {
-    //     managers.push(Box::new(vss::VssSnapshotManager::new()));
-    // }
+    #[cfg(windows)]
+    {
+        managers.push(Box::new(vss::VssSnapshotManager::new()));
+    }
 
     // Sort managers by priority (highest first)
     managers.sort_by(|a, b| b.priority().cmp(&a.priority()));
@@ -177,11 +192,10 @@ pub fn get_available_managers() -> Vec<Box<dyn SnapshotManager>> {
         // TODO: Add other Unix managers (ZFS, etc.)
     }
 
-    // TODO: Add Windows managers
-    // #[cfg(windows)]
-    // {
-    //     managers.push(Box::new(vss::VssSnapshotManager::new()));
-    // }
+    #[cfg(windows)]
+    {
+        managers.push(Box::new(vss::VssSnapshotManager::new()));
+    }
 
     // Sort by priority
     managers.sort_by(|a, b| b.priority().cmp(&a.priority()));
@@ -191,6 +205,7 @@ pub fn get_available_managers() -> Vec<Box<dyn SnapshotManager>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::path::PathBuf;
     use tempfile::TempDir;
 
@@ -217,28 +232,43 @@ mod tests {
             assert_eq!(managers[0].priority(), 120);
         }
 
-        // On Windows, this would test VSS when implemented
+        // On Windows, VSS should be available as a compiled manager.
         #[cfg(windows)]
         {
-            // TODO: When VSS is implemented, test it here
-            assert!(managers.is_empty()); // Currently no Windows managers
+            assert!(!managers.is_empty());
+            assert_eq!(managers[0].manager_name(), "VSS");
         }
     }
 
     #[tokio::test]
     async fn test_snapshot_manager_trait_methods() {
-        let manager = btrfs::BtrfsSnapshotManager::new(false);
+        #[cfg(unix)]
+        {
+            let manager = btrfs::BtrfsSnapshotManager::new(false);
 
-        // Test manager properties
-        assert_eq!(manager.manager_name(), "BTRFS");
-        assert_eq!(manager.priority(), 120);
+            // Test manager properties
+            assert_eq!(manager.manager_name(), "BTRFS");
+            assert_eq!(manager.priority(), 120);
 
-        // Test cleanup_all (should not fail)
-        let result = manager.cleanup_all().await;
-        assert!(result.is_ok());
+            // Test cleanup_all (should not fail)
+            let result = manager.cleanup_all().await;
+            assert!(result.is_ok());
+        }
+
+        #[cfg(windows)]
+        {
+            let manager = vss::VssSnapshotManager::new();
+
+            assert_eq!(manager.manager_name(), "VSS");
+            assert_eq!(manager.priority(), 110);
+
+            let result = manager.cleanup_all().await;
+            assert!(result.is_ok());
+        }
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_btrfs_snapshot_reference() {
         let redirection_path = PathBuf::from("/test/snapshot/path");
         let snapshot_root_path = PathBuf::from("/test/snapshot");
@@ -254,6 +284,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_btrfs_snapshot_path_calculation() {
         // Simulate a scenario where we have /home/phoenix/Documents
         // Mount point is /home
@@ -290,6 +321,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn test_btrfs_snapshot_cleanup_tracking() {
         use std::path::PathBuf;
 
@@ -321,7 +353,7 @@ mod tests {
         // Simulate successful deletion via delete_self
         // Note: This would fail in real execution because the path doesn't exist,
         // but it demonstrates the cleanup tracking mechanism
-        let result = reference2.delete_self().await;
+        let result: eyre::Result<()> = reference2.delete_self().await;
 
         // Even if deletion fails, let's test the tracking mechanism independently
         if result.is_ok() {

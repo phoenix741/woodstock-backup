@@ -84,6 +84,14 @@ mnt = "0.3.1"
 [target.'cfg(windows)'.dependencies]
 tracing-etw = "0.2.3"
 windows-service = "^0.8"
+winapi = { version = "0.3", features = [
+    "combaseapi",
+    "objbase",
+    "vsbackup",
+    "vss",
+    "winbase",
+    "winerror",
+] }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "^0.61"

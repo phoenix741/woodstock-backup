@@ -71,6 +71,14 @@ impl WoodstockClient {
         }
     }
 
+    /// Returns a cloned reference to the shared filesystem accessor.
+    ///
+    /// This is used to perform cleanup of active snapshots from outside the gRPC
+    /// handler context, e.g. during graceful shutdown.
+    pub fn fs_accessor(&self) -> Arc<RwLock<FileSystemAccessor>> {
+        Arc::clone(&self.fs_accessor)
+    }
+
     /// Checks the context of the request and returns the session ID.
     ///
     /// # Arguments
@@ -386,6 +394,21 @@ impl WoodstockClientService for WoodstockClient {
 
         debug!("Start authentification for {} version {}", token, version);
 
+        // Clean up any snapshots left over from a previous session that ended
+        // without an explicit close_backup() call (e.g. network loss, suspend/resume).
+        {
+            let mut fs = self.fs_accessor.write().await;
+            if !fs.get_active_snapshots().is_empty() {
+                info!(
+                    "Cleaning {} orphaned snapshot(s) from previous session before authenticating",
+                    fs.get_active_snapshots().len()
+                );
+                if let Err(err) = fs.cleanup_all_snapshots().await {
+                    error!("Failed to clean up orphaned snapshots: {}", err);
+                }
+            }
+        }
+
         // Get the version in request
         if version != 0 {
             error!("Unsupported version: {}", version);
@@ -691,7 +714,7 @@ impl WoodstockClientService for WoodstockClient {
         self.fs_accessor
             .write()
             .await
-            .cleanup_all_snapshots()
+            .cleanup_all_snapshots_success()
             .await
             .map_err(|err| tonic::Status::internal(err.to_string()))?;
 
