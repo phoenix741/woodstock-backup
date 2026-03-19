@@ -27,6 +27,22 @@ harness = false
 name = "compression_benchmark"
 harness = false
 
+[[bench]]
+name = "pool_index_open_close_benchmark"
+harness = false
+
+[[bench]]
+name = "pool_index_multiprocess_benchmark"
+harness = false
+
+[[bench]]
+name = "pool_index_read_benchmark"
+harness = false
+
+[[bench]]
+name = "pool_index_write_benchmark"
+harness = false
+
 [dependencies]
 async-compression = { workspace = true }
 async-stream = { workspace = true }
@@ -39,6 +55,7 @@ eyre = { workspace = true }
 futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
+heed = "0.22"
 hyper-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 lru = { workspace = true }

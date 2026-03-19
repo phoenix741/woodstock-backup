@@ -301,7 +301,7 @@ async fn launch_backup(
     backup_bar.tick();
 
     client.count_references().await?;
-    client.add_refcnt_to_pool().await?;
+    client.finalize_pool_publication().await?;
 
     client
         .save_backup(if abort {
@@ -325,7 +325,7 @@ async fn launch_backup(
         .lock_exclusive()
         .await?;
         PoolManager::new(state.config.clone())
-            .apply_pending(&client.get_fake_date())
+            .apply_pending_operations()
             .await?;
     }
 
@@ -588,9 +588,9 @@ async fn main() -> eyre::Result<()> {
                     state.backups.clone(),
                 );
 
-                remover.add_refcnt_to_pool().await?;
+                remover.finalize_pool_removal().await?;
 
-                remover.remove_refcnt_of_host().await?;
+                remover.cleanup_host_removal_state().await?;
 
                 remover.remove_backup().await?;
             }
@@ -612,7 +612,7 @@ async fn main() -> eyre::Result<()> {
         .lock_exclusive()
         .await?;
         PoolManager::new(state.config.clone())
-            .apply_pending(&Local::now())
+            .apply_pending_operations()
             .await?;
     }
 

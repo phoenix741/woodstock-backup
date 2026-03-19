@@ -37,10 +37,7 @@ use bytes::Bytes;
 use eyre::Result;
 use futures::{pin_mut, stream::unfold};
 
-use tokio::{
-    fs::File,
-    io::{AsyncBufRead, AsyncReadExt, BufReader},
-};
+use tokio::io::{AsyncBufRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 use tracing::warn;
 
@@ -68,7 +65,8 @@ struct FileManifestReaderState {
     /// The number of the currently loaded chunk.
     current_chunk_number: usize,
     /// The currently loaded chunk decoder, if any.
-    current_chunk: Option<WoodstockCompressionReader<BufReader<File>>>,
+    current_chunk:
+        Option<WoodstockCompressionReader<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>>>,
 }
 
 impl FileManifestReaderState {
@@ -110,24 +108,20 @@ impl FileManifestReaderState {
     async fn open_chunk(
         &self,
         active_chunk: &Vec<u8>,
-    ) -> Result<WoodstockCompressionReader<BufReader<File>>> {
+    ) -> Result<WoodstockCompressionReader<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>>>
+    {
         let chunk = PoolChunkWrapper::new(&self.pool_path, Some(active_chunk));
-
-        let chunk_path = chunk.chunk_path();
-
-        // Read all the chunk content
-        let file = File::open(chunk_path).await?;
-        let file = BufReader::new(file);
-        let file = WoodstockCompressionReader::new(file);
-
-        Ok(file)
+        chunk.open_chunk_reader().await
     }
 
     /// Loads the current chunk if needed and returns a mutable reference to the decoder.
     ///
     /// # Errors
     /// Returns an error if the chunk cannot be loaded or decompressed.
-    async fn load_chunk(&mut self) -> Result<&mut WoodstockCompressionReader<BufReader<File>>> {
+    async fn load_chunk(
+        &mut self,
+    ) -> Result<&mut WoodstockCompressionReader<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>>>
+    {
         if self.current_chunk.is_none() || self.current_chunk_number != self.get_chunk_number() {
             let Some(active_chunk) = self.active_chunk() else {
                 panic!("Chunk doesn't exist");

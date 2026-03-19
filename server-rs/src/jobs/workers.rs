@@ -505,16 +505,16 @@ impl JobExecutors {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(job_type="refcnt", task_id=%task_id))]
-    pub async fn handle_cleanup_refcnt(
+    #[instrument(skip_all, fields(job_type="pool_cleanup", task_id=%task_id))]
+    pub async fn handle_cleanup_pool(
         &self,
         task_id: TaskId,
         state: Data<Arc<ApiWorkerState>>,
-        job: CleanupRefcntJobData,
+        job: CleanupPoolJobData,
         attempt: Attempt,
     ) -> Result<()> {
         info!(
-            "[{}] Starting cleanup refcnt job (attempt: {})",
+            "[{}] Starting pool cleanup job (attempt: {})",
             task_id,
             attempt.current()
         );
@@ -530,7 +530,7 @@ impl JobExecutors {
                         if let Err(e) = publi
                             .update_progress(
                                 &job_id_for_task.to_string(),
-                                ProgressUpdate::CleanupRefcnt(state),
+                                ProgressUpdate::CleanupPool(state),
                             )
                             .await
                         {
@@ -565,7 +565,7 @@ impl JobExecutors {
             Ok(state) => {
                 if let Some(publi) = &self.progress {
                     if let Err(e) = publi
-                        .update_progress(&task_id.to_string(), ProgressUpdate::CleanupRefcnt(state))
+                        .update_progress(&task_id.to_string(), ProgressUpdate::CleanupPool(state))
                         .await
                     {
                         error!("[{}] Failed to publish final cleanup state: {}", task_id, e);

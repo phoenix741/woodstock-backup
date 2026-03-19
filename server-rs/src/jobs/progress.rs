@@ -2,7 +2,7 @@
 //! Inspired by the BullMQ `job.progress()` API but externalized in Redis.
 
 use crate::jobs::types::{
-    BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData, RestoreJobData, StatsJobData,
+    BackupJobData, CleanupPoolJobData, FsckJobData, RemoveJobData, RestoreJobData, StatsJobData,
 };
 use apalis::prelude::TaskId;
 use eyre::Result;
@@ -138,7 +138,7 @@ pub enum ProgressUpdate {
     Backup(BackupState),
     Restore(RestoreState),
     Remove(RemoveState),
-    CleanupRefcnt(CleanerState),
+    CleanupPool(CleanerState),
     Fsck(FsckState),
     Stats(()), // Stats n'ont pas de progression
 }
@@ -238,7 +238,7 @@ pub enum JobKind {
     Backup(ProgressData<BackupJobData, BackupState>),
     Restore(ProgressData<RestoreJobData, RestoreState>),
     Remove(ProgressData<RemoveJobData, RemoveState>),
-    CleanupRefcnt(ProgressData<CleanupRefcntJobData, CleanerState>),
+    CleanupPool(ProgressData<CleanupPoolJobData, CleanerState>),
     Fsck(ProgressData<FsckJobData, FsckState>),
     Stats(ProgressData<StatsJobData, ()>),
 }
@@ -249,7 +249,7 @@ impl JobKind {
             JobKind::Backup(_) => "backup",
             JobKind::Restore(_) => "restore",
             JobKind::Remove(_) => "remove",
-            JobKind::CleanupRefcnt(_) => "cleanup_refcnt",
+            JobKind::CleanupPool(_) => "cleanup_pool",
             JobKind::Fsck(_) => "fsck",
             JobKind::Stats(_) => "stats",
         }
@@ -270,9 +270,9 @@ impl JobKind {
                 pd.progress = Some(progress);
                 Ok(JobKind::Remove(pd))
             }
-            (JobKind::CleanupRefcnt(mut pd), ProgressUpdate::CleanupRefcnt(progress)) => {
+            (JobKind::CleanupPool(mut pd), ProgressUpdate::CleanupPool(progress)) => {
                 pd.progress = Some(progress);
-                Ok(JobKind::CleanupRefcnt(pd))
+                Ok(JobKind::CleanupPool(pd))
             }
             (JobKind::Fsck(mut pd), ProgressUpdate::Fsck(progress)) => {
                 pd.progress = Some(progress);
@@ -309,8 +309,8 @@ impl JobKind {
         })
     }
 
-    pub fn with_cleanup_refcnt(data: CleanupRefcntJobData) -> Self {
-        JobKind::CleanupRefcnt(ProgressData {
+    pub fn with_cleanup_pool(data: CleanupPoolJobData) -> Self {
+        JobKind::CleanupPool(ProgressData {
             data,
             progress: None,
         })
@@ -360,11 +360,11 @@ impl JobKind {
         }
     }
 
-    pub fn with_cleanup_refcnt_progress(self, progress: CleanerState) -> Self {
+    pub fn with_cleanup_pool_progress(self, progress: CleanerState) -> Self {
         match self {
-            JobKind::CleanupRefcnt(mut pd) => {
+            JobKind::CleanupPool(mut pd) => {
                 pd.progress = Some(progress);
-                JobKind::CleanupRefcnt(pd)
+                JobKind::CleanupPool(pd)
             }
             other => other,
         }

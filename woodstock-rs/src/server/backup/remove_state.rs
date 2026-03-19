@@ -4,8 +4,8 @@ use tracing::{error, info};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
-    AddReferencesToPoolError(String),
-    RefcntRemovalError(String),
+    FinalizePoolRemovalError(String),
+    CleanupHostRemovalStateError(String),
     BackupRemovalError(String),
     Unknown(String),
 }
@@ -14,8 +14,8 @@ pub enum ErrorState {
 pub enum RemoveExecutionState {
     #[default]
     Waiting,
-    AddReferencesToPool,
-    RemovingRefcnt,
+    FinalizePoolRemoval,
+    CleanupHostRemovalState,
     RemovingBackup,
     Completed,
 }
@@ -36,45 +36,45 @@ impl Default for RemoveState {
 }
 
 impl RemoveState {
-    /// Starts the add references to pool operation.
-    pub fn start_add_references_to_pool(&mut self) {
-        self.execution_state = RemoveExecutionState::AddReferencesToPool;
+    /// Starts the pool removal finalization operation.
+    pub fn start_finalize_pool_removal(&mut self) {
+        self.execution_state = RemoveExecutionState::FinalizePoolRemoval;
     }
 
-    /// Processes the result of the add references to pool operation.
+    /// Processes the result of the pool removal finalization operation.
     ///     
     /// # Arguments
-    /// * `result` - The result of the add references to pool operation.
+    /// * `result` - The result of the pool removal finalization operation.
     ///
     /// # Returns
-    /// * `Ok(())` if the add references to pool operation was successful.
+    /// * `Ok(())` if the pool removal finalization operation was successful.
     /// * `Err(eyre::Report)` if an error occurred during the operation.
     ///
     /// # Errors
-    /// This function returns an error if the add references to pool operation fails.
-    pub fn process_add_references_to_pool_result(&mut self, result: Result<()>) -> Result<()> {
+    /// This function returns an error if the pool removal finalization operation fails.
+    pub fn process_finalize_pool_removal_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Add references to pool operation successful");
+                info!("Pool V3 removal finalization successful");
                 Ok(())
             }
             Err(err) => {
-                error!("Error during add references to pool operation: {}", err);
-                self.error_state = Some(ErrorState::AddReferencesToPoolError(err.to_string()));
+                error!("Error during Pool V3 removal finalization: {}", err);
+                self.error_state = Some(ErrorState::FinalizePoolRemovalError(err.to_string()));
                 Err(err)
             }
         }
     }
 
-    /// Starts the reference count removal process by updating the execution state.
-    pub fn start_refcnt_removal(&mut self) {
-        self.execution_state = RemoveExecutionState::RemovingRefcnt;
+    /// Starts the host removal state cleanup process by updating the execution state.
+    pub fn start_cleanup_host_removal_state(&mut self) {
+        self.execution_state = RemoveExecutionState::CleanupHostRemovalState;
     }
 
-    /// Processes the result of the reference count removal.
+    /// Processes the result of the host removal state cleanup.
     ///
     /// # Arguments
-    /// * `result` - The result of the reference count removal operation.
+    /// * `result` - The result of the host removal state cleanup operation.
     ///
     /// # Returns
     ///
@@ -84,15 +84,15 @@ impl RemoveState {
     /// # Errors
     ///
     /// Returns an error if the operation fails due to I/O issues.
-    pub fn process_refcnt_removal_result(&mut self, result: Result<()>) -> Result<()> {
+    pub fn process_cleanup_host_removal_state_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Reference count removal successful",);
+                info!("Host removal state cleanup successful",);
                 Ok(())
             }
             Err(err) => {
-                error!("Error removing reference counts: {}", err);
-                self.error_state = Some(ErrorState::RefcntRemovalError(err.to_string()));
+                error!("Error cleaning host removal state: {}", err);
+                self.error_state = Some(ErrorState::CleanupHostRemovalStateError(err.to_string()));
                 Err(err)
             }
         }

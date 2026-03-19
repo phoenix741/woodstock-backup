@@ -157,12 +157,12 @@ pub async fn read_protobuf(
                 if let Some(filter_chunks) = filter_chunks {
                     let filter_chunks = hex::decode(filter_chunks)?;
 
-                    if message.sha256 != filter_chunks {
+                    if message.chunk_hash != filter_chunks {
                         continue;
                     }
                 }
 
-                print!("{message}");
+                println!("{message:#?}");
             }
         }
         ProtobufFormat::Unused => {
@@ -175,12 +175,12 @@ pub async fn read_protobuf(
                 if let Some(filter_chunks) = filter_chunks {
                     let filter_chunks = hex::decode(filter_chunks)?;
 
-                    if message.sha256 != filter_chunks {
+                    if message.chunk_hash != filter_chunks {
                         continue;
                     }
                 }
 
-                print!("{message}");
+                println!("{message:#?}");
             }
         }
         ProtobufFormat::Event => {
@@ -203,7 +203,7 @@ pub async fn read_protobuf(
                 if let Some(filter_chunks) = filter_chunks {
                     let filter_chunks = hex::decode(filter_chunks)?;
 
-                    if message.sha256 != filter_chunks {
+                    if message.chunk_hash != filter_chunks {
                         continue;
                     }
                 }

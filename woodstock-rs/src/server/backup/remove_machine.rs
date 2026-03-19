@@ -5,7 +5,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    config::{Backups, Configuration, Context, RemovingStatus},
+    config::{Backups, Configuration, Context},
     utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
 };
 
@@ -14,31 +14,14 @@ use super::{remove::BackupRemove, remove_state::RemoveState};
 /// Represents the execution phase of the removal state machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RemovalPhase {
-    /// Add refcnt to pool for removal
-    AddRefcntToPool,
-    /// Remove refcnt from host
-    RemoveRefcnt,
+    /// Finalize removal publication in the shared pool index
+    FinalizePoolRemoval,
+    /// Cleanup host-side removal bookkeeping
+    CleanupHostRemovalState,
     /// Remove backup files
     RemoveBackup,
     /// Removal process completed
     Finished,
-}
-
-impl RemovalPhase {
-    /// Determines the next phase to execute based on the current backup status.
-    fn from_status(status: &crate::config::BackupStatus) -> Self {
-        match status {
-            crate::config::BackupStatus::Removing(RemovingStatus::ToRemoveInPool) => {
-                Self::AddRefcntToPool
-            }
-            crate::config::BackupStatus::Removing(RemovingStatus::RemoveFromHost) => {
-                Self::RemoveRefcnt
-            }
-            crate::config::BackupStatus::Removing(RemovingStatus::ToRemove) => Self::RemoveBackup,
-            // Default: start from beginning
-            _ => Self::AddRefcntToPool,
-        }
-    }
 }
 
 pub struct RemoveBackupMachine {
@@ -58,7 +41,7 @@ pub struct RemoveBackupMachine {
     /// The backup UUID v7 identifier (stored for resume detection)
     backup_id: Uuid,
 
-    /// Reference to backups for loading existing backup status
+    /// Backups service used for marker path resolution.
     backups: Arc<Backups>,
 }
 
@@ -96,8 +79,18 @@ impl RemoveBackupMachine {
 
             hostname: hostname.to_string(),
             backup_id,
-            backups: backups.clone(),
+            backups,
         }
+    }
+
+    fn removal_marker_path(&self) -> std::path::PathBuf {
+        self.backups
+            .get_pool_v3_removal_marker_path(&self.hostname, self.backup_id)
+    }
+
+    async fn persist_removal_marker(&self) -> Result<()> {
+        tokio::fs::write(self.removal_marker_path(), b"removing\n").await?;
+        Ok(())
     }
 
     /// Sends the current progression state to the state channel.
@@ -115,7 +108,7 @@ impl RemoveBackupMachine {
         }
     }
 
-    /// Adds a reference count to the pool for removal for the current backup.
+    /// Finalizes the Pool V3 removal publication for the current backup.
     ///
     /// # Returns
     ///
@@ -125,21 +118,21 @@ impl RemoveBackupMachine {
     /// # Errors
     ///
     /// Returns an error if the reference count cannot be added to the pool.
-    pub async fn add_refcnt_to_pool(&self) -> Result<()> {
+    pub async fn finalize_pool_removal(&self) -> Result<()> {
         self.send_progres().await;
 
         {
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.start_add_references_to_pool();
+            progression_state.start_finalize_pool_removal();
         }
         self.send_progres().await;
 
-        let result = self.client.add_refcnt_to_pool().await;
+        let result = self.client.finalize_pool_removal().await;
 
         {
             let mut progression_state = self.progression_state.lock().await;
             progression_state
-                .process_add_references_to_pool_result(result)
+                .process_finalize_pool_removal_result(result)
                 .inspect_err(|_| {
                     if let Some(tx) = &self.state_tx {
                         let _ = tx.try_send(progression_state.clone());
@@ -151,7 +144,7 @@ impl RemoveBackupMachine {
         Ok(())
     }
 
-    /// Removes reference counts for the host.
+    /// Cleans up host-side removal bookkeeping.
     ///
     /// # Returns
     ///
@@ -161,19 +154,19 @@ impl RemoveBackupMachine {
     /// # Errors
     ///
     /// Returns an error if the reference count removal fails.
-    async fn remove_refcnt(&mut self) -> Result<()> {
+    async fn cleanup_host_removal_state(&mut self) -> Result<()> {
         {
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.start_refcnt_removal();
+            progression_state.start_cleanup_host_removal_state();
         }
 
         self.send_progres().await;
 
-        let result = self.client.remove_refcnt_of_host().await;
+        let result = self.client.cleanup_host_removal_state().await;
         {
             let mut progression_state = self.progression_state.lock().await;
             progression_state
-                .process_refcnt_removal_result(result)
+                .process_cleanup_host_removal_state_result(result)
                 .inspect_err(|_| {
                     if let Some(tx) = &self.state_tx {
                         let _ = tx.try_send(progression_state.clone());
@@ -218,48 +211,36 @@ impl RemoveBackupMachine {
         Ok(())
     }
 
-    /// Executes the add refcnt to pool phase.
+    /// Executes the pool removal finalization phase.
     ///
     /// # Returns
     ///
     /// * `Ok(())` if the operation succeeds.
     /// * `Err(eyre::Report)` if an error occurs.
-    async fn execute_add_refcnt_to_pool_phase(&mut self) -> Result<()> {
+    async fn execute_finalize_pool_removal_phase(&mut self) -> Result<()> {
         info!(
-            "Executing add refcnt to pool phase for removal {}/{}",
+            "Executing pool removal finalization phase for removal {}/{}",
             self.hostname, self.backup_id
         );
 
-        self.client
-            .save_backup(crate::config::BackupStatus::Removing(
-                RemovingStatus::ToRemoveInPool,
-            ))
-            .await?;
-
-        self.add_refcnt_to_pool().await?;
+        self.finalize_pool_removal().await?;
 
         Ok(())
     }
 
-    /// Executes the remove refcnt phase.
+    /// Executes the host removal state cleanup phase.
     ///
     /// # Returns
     ///
     /// * `Ok(())` if the operation succeeds.
     /// * `Err(eyre::Report)` if an error occurs.
-    async fn execute_remove_refcnt_phase(&mut self) -> Result<()> {
+    async fn execute_cleanup_host_removal_phase(&mut self) -> Result<()> {
         info!(
-            "Executing remove refcnt phase for removal {}/{}",
+            "Executing host removal state cleanup phase for removal {}/{}",
             self.hostname, self.backup_id
         );
 
-        self.client
-            .save_backup(crate::config::BackupStatus::Removing(
-                RemovingStatus::RemoveFromHost,
-            ))
-            .await?;
-
-        self.remove_refcnt().await?;
+        self.cleanup_host_removal_state().await?;
 
         Ok(())
     }
@@ -275,12 +256,6 @@ impl RemoveBackupMachine {
             "Executing remove backup phase for removal {}/{}",
             self.hostname, self.backup_id
         );
-
-        self.client
-            .save_backup(crate::config::BackupStatus::Removing(
-                RemovingStatus::ToRemove,
-            ))
-            .await?;
 
         self.remove_backup().await?;
 
@@ -312,48 +287,41 @@ impl RemoveBackupMachine {
 
         self.send_progres().await;
 
-        // Determine initial state and starting phase
-        let existing_backup = self
-            .backups
-            .get_backup(&self.hostname, self.backup_id)
-            .await;
+        self.persist_removal_marker().await?;
 
-        let initial_status = existing_backup
-            .as_ref()
-            .map(|b| b.status.clone())
-            .unwrap_or(crate::config::BackupStatus::Completed);
-
-        let mut current_phase = RemovalPhase::from_status(&initial_status);
+        let mut current_phase = RemovalPhase::FinalizePoolRemoval;
 
         info!(
-            "Removal state machine starting for {}/{}: initial_status={:?}, starting_phase={:?}",
-            self.hostname, self.backup_id, initial_status, current_phase
+            "Removal state machine starting for {}/{}: starting_phase={:?}",
+            self.hostname, self.backup_id, current_phase
         );
 
         // State machine main loop
         loop {
             match current_phase {
-                RemovalPhase::AddRefcntToPool => {
-                    match self.execute_add_refcnt_to_pool_phase().await {
+                RemovalPhase::FinalizePoolRemoval => {
+                    match self.execute_finalize_pool_removal_phase().await {
                         Ok(()) => {
-                            current_phase = RemovalPhase::RemoveRefcnt;
+                            current_phase = RemovalPhase::CleanupHostRemovalState;
                         }
                         Err(err) => {
-                            error!("Error during add refcnt to pool phase: {err}");
+                            error!("Error during pool removal finalization phase: {err}");
                             return Err(err);
                         }
                     }
                 }
 
-                RemovalPhase::RemoveRefcnt => match self.execute_remove_refcnt_phase().await {
-                    Ok(()) => {
-                        current_phase = RemovalPhase::RemoveBackup;
+                RemovalPhase::CleanupHostRemovalState => {
+                    match self.execute_cleanup_host_removal_phase().await {
+                        Ok(()) => {
+                            current_phase = RemovalPhase::RemoveBackup;
+                        }
+                        Err(err) => {
+                            error!("Error during host removal state cleanup phase: {err}");
+                            return Err(err);
+                        }
                     }
-                    Err(err) => {
-                        error!("Error during remove refcnt phase: {err}");
-                        return Err(err);
-                    }
-                },
+                }
 
                 RemovalPhase::RemoveBackup => match self.execute_remove_backup_phase().await {
                     Ok(()) => {

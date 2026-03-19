@@ -222,11 +222,11 @@ impl Producers {
         Ok(parts.task_id.to_string())
     }
 
-    /// Enqueue un job de cleanup_refcnt (maintenance)
+    /// Enqueue un job de cleanup_pool (maintenance)
     #[instrument(skip(self))]
-    pub async fn enqueue_cleanup_refcnt(&mut self) -> Result<String, Error> {
-        let cleanup_refcnt_job_data = CleanupRefcntJobData::default();
-        let data = MaintenanceJobData::CleanupRefcnt(cleanup_refcnt_job_data.clone());
+    pub async fn enqueue_cleanup_pool(&mut self) -> Result<String, Error> {
+        let cleanup_pool_job_data = CleanupPoolJobData::default();
+        let data = MaintenanceJobData::CleanupPool(cleanup_pool_job_data.clone());
         let parts = self
             .maintenance_storage
             .push(data)
@@ -236,7 +236,7 @@ impl Producers {
         self.progress_publisher
             .create_job(
                 &parts.task_id.to_string(),
-                JobKind::with_cleanup_refcnt(cleanup_refcnt_job_data),
+                JobKind::with_cleanup_pool(cleanup_pool_job_data),
                 None,
             )
             .await

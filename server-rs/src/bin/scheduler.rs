@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         state.apalis_redis_storage.schedule_storage.clone(),
     );
 
-    // Nightly cron: persiste directement MaintenanceJobData::CleanupRefcnt dans Redis
+    // Nightly cron: persiste directement MaintenanceJobData::CleanupPool dans Redis
     // via pipe_to_storage. Le job sera consommé par le maintenance-worker du job_worker.rs
     let _nightly_backend = pipe_cron_to_maintenance_storage(
         nightly_sched,
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
     });
 
     // Note: Pas de worker pour nightly ! Le CronStream avec pipe_to_storage
-    // crée automatiquement les MaintenanceJobData::CleanupRefcnt dans Redis.
+    // crée automatiquement les MaintenanceJobData::CleanupPool dans Redis.
     // Ces jobs seront consommés par le maintenance-worker du job_worker.rs
 
     monitor.run().await?;

@@ -1,4 +1,3 @@
-use chrono::Local;
 use std::{collections::HashMap, path::Path, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
@@ -12,11 +11,11 @@ use crate::{
     config::{Backups, Configuration, Hosts},
     events::append_events,
     manifest::Manifest,
-    pool::{ConvertHashLink, PoolChunkWrapper, Refcnt, RefcntApplySens},
+    pool::{ConvertHashLink, PoolChunkWrapper, PoolIndex},
     proto::{save_file, ProtobufReader, ProtobufWriter, UnCompressedWriter},
-    utils::{compression::CompressionFormat, files::copy_files},
+    utils::files::copy_files,
     woodstock::event::Information,
-    Event, EventSource, EventStatus, EventStep, EventType, HashConversionInformation, PoolRefCount,
+    Event, EventSource, EventStatus, EventStep, EventType, HashConversionInformation,
 };
 
 #[derive(Clone)]
@@ -57,10 +56,8 @@ impl PoolConvert {
     /// # Errors
     /// This function returns an error if the retrieval fails.
     pub async fn get_max(&self) -> Result<usize> {
-        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
-        pool_refcnt.load_refcnt(false).await;
-
-        let mut count = 1 + pool_refcnt.size();
+        let pool_index = PoolIndex::open_or_create(self.config.path.pool_path.join("index"))?;
+        let mut count = 1 + pool_index.list_all_chunks()?.len();
 
         for host in self.hosts.list_hosts().await? {
             let backups = self.backups.get_backups(&host).await;
@@ -80,12 +77,12 @@ impl PoolConvert {
     /// # Errors
     /// This function returns an error if the retrieval fails.
     pub async fn get_all_chunks(&self) -> Result<Vec<Vec<u8>>> {
-        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
-        pool_refcnt.load_refcnt(false).await;
+        let pool_index = PoolIndex::open_or_create(self.config.path.pool_path.join("index"))?;
 
-        let chunks = pool_refcnt
-            .list_refcnt()
-            .map(|refcnt| refcnt.sha256.clone())
+        let chunks = pool_index
+            .list_all_chunks()?
+            .into_iter()
+            .map(|chunk| chunk.hash)
             .collect::<Vec<_>>();
 
         Ok(chunks)
@@ -237,59 +234,6 @@ impl PoolConvert {
         Ok(map)
     }
 
-    /// Converts reference counts for chunks.
-    ///
-    /// # Arguments
-    /// * `chunks_map` - A map of old to new chunk hashes.
-    /// * `source_path` - The path to the source file.
-    /// * `destination_path` - The path to the destination file.
-    ///
-    /// # Returns
-    /// * `Ok(())` if the conversion was successful.
-    /// * `Err(eyre::Report)` if an error occurred during the operation.
-    ///
-    /// # Errors
-    /// This function returns an error if the conversion fails.
-    pub async fn convert_refcnt<P1: AsRef<Path>, P2: AsRef<Path>>(
-        chunks_map: &HashMap<Vec<u8>, Vec<u8>>,
-        source_path: P1,
-        destination_path: P2,
-        compression_format: CompressionFormat,
-    ) -> Result<()> {
-        let mut refcnt = Refcnt::new(source_path);
-        refcnt.load_refcnt(false).await;
-
-        let mut new_refcnt = Refcnt::new(destination_path);
-
-        for refcnt in refcnt.list_refcnt() {
-            let old_hash = &refcnt.sha256;
-            let new_hash = chunks_map.get(old_hash);
-
-            if let Some(new_hash) = new_hash {
-                new_refcnt.apply(
-                    &PoolRefCount {
-                        sha256: new_hash.clone(),
-                        size: refcnt.size,
-                        compressed_size: refcnt.compressed_size,
-                        ref_count: refcnt.ref_count,
-                    },
-                    &RefcntApplySens::Increase,
-                );
-            } else {
-                error!(
-                    "Unused chunk {} not found in the new pool",
-                    hex::encode(old_hash)
-                );
-            }
-        }
-
-        new_refcnt
-            .save_refcnt(&Local::now(), true, compression_format)
-            .await?;
-
-        Ok(())
-    }
-
     /// Converts a single chunk.
     ///
     /// # Arguments
@@ -321,7 +265,8 @@ impl PoolConvert {
 
         for refcnt in chunks {
             let old_wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(&refcnt));
-            let mut new_wrapper = PoolChunkWrapper::new(&new_config.path.pool_path, None);
+            let mut new_wrapper = PoolChunkWrapper::new(&new_config.path.pool_path, None)
+                .with_pool_configuration(new_config.clone());
 
             if !chunks_map.contains_key(
                 // SAFETY: old_wrapper was created with Some(&refcnt) — get_hash() is always Some
@@ -349,15 +294,6 @@ impl PoolConvert {
 
         self.save_convert_hash_link(&self.config.path.pool_path, &chunks_map)
             .await?;
-
-        // Convert REFCNT and unused
-        let () = Self::convert_refcnt(
-            &chunks_map,
-            &self.config.path.pool_path,
-            &new_config.path.pool_path,
-            self.config.compression_format,
-        )
-        .await?;
 
         // Next copy if exist all yaml file (disk_history.yml, history.yml, statistics.yml)
         copy_files(
@@ -486,17 +422,6 @@ impl PoolConvert {
                     self.convert_manifest(&chunks_map, manifest, destination_manifest)
                         .await?;
 
-                    // Convert REFCNT, unused
-                    let () = Self::convert_refcnt(
-                        &chunks_map,
-                        &self
-                            .backups
-                            .get_backup_destination_directory(&host, backup.id),
-                        &new_backups_service.get_backup_destination_directory(&host, backup.id),
-                        new_config.compression_format,
-                    )
-                    .await?;
-
                     // Copy error, log, history.yml, shares.yml, statistics.yml
                     copy_files(
                         &self
@@ -516,15 +441,6 @@ impl PoolConvert {
                     }
                 }
             }
-
-            // Convert REFCNT, unused
-            let () = Self::convert_refcnt(
-                &chunks_map,
-                &self.backups.get_host_path(&host),
-                &new_backups_service.get_host_path(&host),
-                self.config.compression_format,
-            )
-            .await?;
 
             copy_files(
                 &self.backups.get_host_path(&host),

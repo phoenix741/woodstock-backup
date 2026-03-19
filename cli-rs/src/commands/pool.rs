@@ -18,7 +18,7 @@ use indicatif::{HumanBytes, HumanCount, ProgressBar, ProgressStyle};
 use tracing::error;
 
 use woodstock::{
-    pool::Refcnt,
+    pool::{PoolIndex, PoolManager},
     server::pool::{
         fsck_machine::FsckMachine, fsck_state::FsckExecutionState,
         pool_cleaner_machine::PoolCleanerMachine, pool_cleaner_state::CleanerExecutionState,
@@ -53,8 +53,8 @@ pub async fn check_compression(state: CliServiceState) -> Result<()> {
     .lock_exclusive()
     .await?;
 
-    let mut pool_refcnt = Refcnt::new(&state.config.path.pool_path);
-    pool_refcnt.load_refcnt(false).await;
+    let pool_index = PoolIndex::open_or_create(state.config.path.pool_path.join("index"))?;
+    let chunks = pool_index.list_all_chunks()?;
 
     let mut compressed_size: u64 = 0;
     let mut uncompressed_size: u64 = 0;
@@ -63,19 +63,19 @@ pub async fn check_compression(state: CliServiceState) -> Result<()> {
 
     let term = Term::stdout();
 
-    for refcnt in pool_refcnt.list_refcnt() {
+    for chunk in chunks {
         total_count += 1;
-        compressed_size += refcnt.compressed_size;
-        uncompressed_size += refcnt.size;
+        compressed_size += chunk.compressed_size;
+        uncompressed_size += chunk.size;
 
-        if refcnt.compressed_size > refcnt.size {
+        if chunk.compressed_size > chunk.size {
             error_count += 1;
-            let hash_str = hex::encode(&refcnt.sha256);
+            let hash_str = hex::encode(&chunk.hash);
             error!(
                 "{}: compressed size {} is greater than uncompressed size {}",
                 hash_str,
-                HumanBytes(refcnt.compressed_size),
-                HumanBytes(refcnt.size)
+                HumanBytes(chunk.compressed_size),
+                HumanBytes(chunk.size)
             );
         }
     }
@@ -109,8 +109,9 @@ pub async fn check_compression(state: CliServiceState) -> Result<()> {
 fn fsck_message_from_state(state: &FsckExecutionState) -> String {
     match state {
         FsckExecutionState::Initialization => "Initializing verification".to_string(),
-        FsckExecutionState::ApplyingRefcnt => "Applying reference counts".to_string(),
-        FsckExecutionState::VerifyRefcnt => "Verifying references".to_string(),
+        FsckExecutionState::ApplyingPending => "Applying pending operations".to_string(),
+        FsckExecutionState::VerifySegments => "Verifying segments".to_string(),
+        FsckExecutionState::VerifyIndex => "Verifying logical index".to_string(),
         FsckExecutionState::VerifyUnused => "Verifying unused files".to_string(),
         FsckExecutionState::VerifyChunk => "Verifying chunks".to_string(),
         FsckExecutionState::Completed => "Verification completed".to_string(),
@@ -185,11 +186,13 @@ pub async fn verify_all(
             // Calculate overall progress percentage
             match state.execution_state {
                 FsckExecutionState::Initialization
-                | FsckExecutionState::ApplyingRefcnt
-                | FsckExecutionState::VerifyRefcnt
+                | FsckExecutionState::ApplyingPending
+                | FsckExecutionState::VerifySegments
+                | FsckExecutionState::VerifyIndex
                 | FsckExecutionState::VerifyUnused
                 | FsckExecutionState::VerifyChunk => {
                     let length = state.chunk_progression.progress_max
+                        + state.segment_progression.progress_max
                         + state.refcnt_progression.progress_max
                         + state.unused_progression.progress_max;
 
@@ -199,6 +202,7 @@ pub async fn verify_all(
                     }
 
                     let position = state.refcnt_progression.progress_current
+                        + state.segment_progression.progress_current
                         + state.unused_progression.progress_current
                         + state.chunk_progression.progress_current;
                     progress_bar.set_position(position as u64);
@@ -208,6 +212,11 @@ pub async fn verify_all(
 
                     // Display summary — terminal writes are best-effort in a display task
                     let _ = term.write_line("");
+                    let _ = term.write_line(&format!(
+                        "Segment verification results: {} errors/{}",
+                        state.segment_progression.error_count,
+                        state.segment_progression.total_count
+                    ));
                     let _ = term.write_line(&format!(
                         "Reference count verification results: {} errors/{}",
                         state.refcnt_progression.error_count, state.refcnt_progression.total_count
@@ -280,6 +289,7 @@ pub async fn clean_unused_pool(
     source: EventSource,
     target: Option<String>,
 ) -> Result<()> {
+    let _pool_manager = PoolManager::new(state.config.clone());
     let target = target.map(PathBuf::from);
 
     let term = Term::stdout();
@@ -306,10 +316,10 @@ pub async fn clean_unused_pool(
             // Update the progress bar according to the state
             match state.execution_state {
                 CleanerExecutionState::Initialization => {
-                    bar.set_message("Initializing pool cleaner...");
+                    bar.set_message("Initializing Pool V3 compaction...");
                 }
-                CleanerExecutionState::ApplyingRefcnt => {
-                    bar.set_message("Applying reference counts...");
+                CleanerExecutionState::ApplyingPending => {
+                    bar.set_message("Preparing Pool V3 compaction...");
                 }
                 CleanerExecutionState::Cleaning => {
                     let total = state.progression.progress_max as u64;
@@ -341,7 +351,7 @@ pub async fn clean_unused_pool(
     display_task.abort();
 
     term.write_line(&std::format!(
-        "Total removed: {}",
+        "Total reclaimed: {}",
         HumanBytes(result.progression.compressed_file_size)
     ))?;
 

@@ -149,8 +149,8 @@ async fn main() -> Result<()> {
                     let e = execs.clone();
                     async move {
                         let res = match job {
-                            MaintenanceJobData::CleanupRefcnt(data) => {
-                                e.handle_cleanup_refcnt(task_id, state, data, attempt).await
+                            MaintenanceJobData::CleanupPool(data) => {
+                                e.handle_cleanup_pool(task_id, state, data, attempt).await
                             }
                             MaintenanceJobData::Fsck(data) => {
                                 e.handle_fsck(task_id, state, data, attempt).await

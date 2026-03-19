@@ -150,7 +150,7 @@ impl MutationRoot {
         let state = ctx.data::<ApiServerState>()?;
         let mut producers = state.producers.lock().await;
         let id = producers
-            .enqueue_cleanup_refcnt()
+            .enqueue_cleanup_pool()
             .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
         Ok(JobResponse { id })

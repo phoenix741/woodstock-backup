@@ -135,8 +135,8 @@ pub enum FinishingStatus {
 /// Represents which operation failed
 pub enum FailedStatus {
     Compact,
-    RefCount,
-    InPool,
+    FlushStaging,
+    PublishPool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -267,8 +267,8 @@ mod tests {
         assert!(!BackupStatus::Completed.is_resumable());
         assert!(!BackupStatus::Aborted.is_resumable());
         assert!(!BackupStatus::Failed(FailedStatus::Compact).is_resumable());
-        assert!(!BackupStatus::Failed(FailedStatus::RefCount).is_resumable());
-        assert!(!BackupStatus::Failed(FailedStatus::InPool).is_resumable());
+        assert!(!BackupStatus::Failed(FailedStatus::FlushStaging).is_resumable());
+        assert!(!BackupStatus::Failed(FailedStatus::PublishPool).is_resumable());
     }
 
     #[test]
@@ -283,8 +283,8 @@ mod tests {
         assert!(BackupStatus::Completed.is_finished());
         assert!(BackupStatus::Aborted.is_finished());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_finished());
-        assert!(BackupStatus::Failed(FailedStatus::RefCount).is_finished());
-        assert!(BackupStatus::Failed(FailedStatus::InPool).is_finished());
+        assert!(BackupStatus::Failed(FailedStatus::FlushStaging).is_finished());
+        assert!(BackupStatus::Failed(FailedStatus::PublishPool).is_finished());
         assert!(!BackupStatus::Removing(RemovingStatus::ToRemoveInPool).is_finished());
         assert!(!BackupStatus::Removing(RemovingStatus::RemoveFromHost).is_finished());
     }
@@ -301,8 +301,8 @@ mod tests {
         assert!(!BackupStatus::Completed.is_aborted());
         assert!(BackupStatus::Aborted.is_aborted());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_aborted());
-        assert!(BackupStatus::Failed(FailedStatus::RefCount).is_aborted());
-        assert!(BackupStatus::Failed(FailedStatus::InPool).is_aborted());
+        assert!(BackupStatus::Failed(FailedStatus::FlushStaging).is_aborted());
+        assert!(BackupStatus::Failed(FailedStatus::PublishPool).is_aborted());
         assert!(!BackupStatus::Removing(RemovingStatus::ToRemoveInPool).is_aborted());
         assert!(!BackupStatus::Removing(RemovingStatus::RemoveFromHost).is_aborted());
     }

@@ -6,7 +6,7 @@ use crate::EventPoolCleanedInformation;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
-    ApplyingRefcntError(String),
+    ApplyingPendingError(String),
     InitializationError(String),
     CleaningError(String),
     Unknown(String),
@@ -15,7 +15,7 @@ pub enum ErrorState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum CleanerExecutionState {
     Waiting,
-    ApplyingRefcnt,
+    ApplyingPending,
     Initialization,
     Cleaning,
     Completed,
@@ -65,15 +65,15 @@ impl CleanerState {
         Self::default()
     }
 
-    /// Starts the applying refcnt operations process by updating the execution state.
-    pub fn start_applying_refcnt(&mut self) {
-        self.execution_state = CleanerExecutionState::ApplyingRefcnt;
+    /// Starts the pending operation application process by updating the execution state.
+    pub fn start_applying_pending(&mut self) {
+        self.execution_state = CleanerExecutionState::ApplyingPending;
     }
 
-    /// Processes the result of the applying refcnt operations process.
+    /// Processes the result of the pending operation application process.
     ///
     /// # Arguments
-    /// * `result` - The result of the refcnt operations application.
+    /// * `result` - The result of the pending operation application.
     ///
     /// # Returns
     ///
@@ -82,17 +82,17 @@ impl CleanerState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the refcnt operations application fails.
-    pub fn process_applying_refcnt_result(&mut self, result: Result<()>) -> Result<()> {
+    /// Returns an error if the pending operation application fails.
+    pub fn process_applying_pending_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Applying pending refcnt operations completed successfully");
+                info!("Applying pending Pool V3 operations completed successfully");
                 Ok(())
             }
             Err(e) => {
-                let error_message = format!("Failed to apply pending refcnt operations: {}", e);
+                let error_message = format!("Failed to apply pending Pool V3 operations: {}", e);
                 error!("{}", error_message);
-                self.error_state = Some(ErrorState::ApplyingRefcntError(error_message));
+                self.error_state = Some(ErrorState::ApplyingPendingError(error_message));
                 Err(e)
             }
         }
@@ -120,7 +120,7 @@ impl CleanerState {
         match result {
             Ok(max) => {
                 info!(
-                    "Pool cleaner initialization successful, found {} unused files",
+                    "Pool cleaner initialization successful, found {} cleanup candidates",
                     max
                 );
                 self.progression.progress_max = max;
@@ -176,7 +176,7 @@ impl CleanerState {
         match result {
             Ok(info) => {
                 info!(
-                    "Pool cleaning completed successfully, removed {} files ({} bytes)",
+                    "Pool cleaning completed successfully, processed {} items ({} bytes)",
                     info.count, info.size
                 );
                 self.execution_state = CleanerExecutionState::Completed;

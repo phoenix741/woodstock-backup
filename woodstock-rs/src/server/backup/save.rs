@@ -16,14 +16,17 @@ use crate::{
     config::{Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},
-    pool::{PoolChunkInformation, PoolChunkWrapper, PoolManager, Refcnt},
+    pool::{
+        PoolChunkInformation, PoolChunkWrapper, PoolManager, PoolV3StagingChunkRecord,
+        PoolV3StagingFile, PoolV3StagingWriter,
+    },
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
     utils::{chunk_hasher::get_empty_hash, compression::CompressionFormat},
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
-    EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
-    RefreshCacheRequest, Share,
+    EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, RefreshCacheRequest,
+    Share,
 };
 
 use super::{super::client::Client, super::progression::BackupProgression};
@@ -55,10 +58,6 @@ pub struct BackupSave<Clt: Client> {
     /// Represents the progression state of the save operation.
     /// This includes details such as the number of files processed and errors encountered.
     progression: Arc<Mutex<BackupProgression>>,
-    /// Manages the reference count for the save operation.
-    /// This ensures proper tracking of shared resources during the backup process.
-    refcnt: Arc<Mutex<Refcnt>>,
-
     /// The source of events for the save operation.
     source: EventSource,
     /// The configuration for the save operation.
@@ -70,6 +69,8 @@ pub struct BackupSave<Clt: Client> {
     compression_format: CompressionFormat,
     /// Backups configuration
     backups: Arc<Backups>,
+    /// Long-lived buffered staging writer owned by this backup.
+    staging_writer: Arc<Mutex<Option<PoolV3StagingWriter>>>,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -116,13 +117,13 @@ impl<Clt: Client> BackupSave<Clt> {
             agent_version: Arc::new(Mutex::new(None)),
             progress_max: Arc::new(Mutex::new(HashMap::new())),
             progression: Arc::new(Mutex::new(BackupProgression::default())),
-            refcnt: Arc::new(Mutex::new(Refcnt::new(&destination_directory))),
             source: ctxt.source,
             config: config.clone(),
             algorithm: config.chunk_algorithm,
             compression_format: config.compression_format,
             fake_date: None,
             backups,
+            staging_writer: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -166,6 +167,57 @@ impl<Clt: Client> BackupSave<Clt> {
     /// The fake date as a `SystemTime`.
     pub fn get_fake_date(&self) -> DateTime<Local> {
         self.fake_date.unwrap_or_else(Local::now)
+    }
+
+    async fn ensure_staging_writer(&self) -> Result<()> {
+        let mut staging_writer = self.staging_writer.lock().await;
+        if staging_writer.is_some() {
+            return Ok(());
+        }
+
+        let staging_file = PoolV3StagingFile::new(
+            self.backups
+                .get_pool_v3_staging_path(&self.hostname, self.backup_id),
+        );
+        let writer = staging_file
+            .create_or_open_writer(&self.hostname, self.backup_id.as_bytes())
+            .await?;
+        staging_writer.replace(writer);
+        Ok(())
+    }
+
+    async fn append_staging_chunk(
+        &self,
+        chunk_information: &PoolChunkInformation,
+        publishes_new_chunk: bool,
+    ) -> Result<()> {
+        self.ensure_staging_writer().await?;
+        let mut staging_writer = self.staging_writer.lock().await;
+        let writer = staging_writer
+            .as_mut()
+            .ok_or_else(|| eyre!("staging writer not initialized"))?;
+        writer
+            .append_chunk(&PoolV3StagingChunkRecord {
+                hash: chunk_information.chunk_hash.clone(),
+                size: chunk_information.size,
+                compressed_size: chunk_information.compressed_size,
+                chunk_header_size: chunk_information.chunk_header_size,
+                compression_format: chunk_information.format,
+                ref_count_delta: 1,
+                publishes_new_chunk,
+                segment_id: chunk_information.segment_id,
+                offset: chunk_information.offset,
+            })
+            .await
+    }
+
+    async fn flush_staging_writer(&self) -> Result<()> {
+        let mut staging_writer = self.staging_writer.lock().await;
+        if let Some(writer) = staging_writer.as_mut() {
+            writer.flush().await?;
+        }
+        staging_writer.take();
+        Ok(())
     }
 
     /// Retrieves the current progression state.
@@ -292,10 +344,7 @@ impl<Clt: Client> BackupSave<Clt> {
         self.backups
             .clone_backup(&self.hostname, previous_backup, self.backup_id, shares)
             .await?;
-
-        // Load Reference count
-        self.refcnt.lock().await.load_refcnt(true).await;
-
+        self.ensure_staging_writer().await?;
         self.save_backup(BackupStatus::InProgress).await?;
 
         // Register the event
@@ -492,7 +541,6 @@ impl<Clt: Client> BackupSave<Clt> {
         let filename = chunk_information.filename.clone();
         let full = chunk_information.chunks_id.is_empty();
 
-        let pool_path = &self.config.path.pool_path;
         let readable = self.client.get_chunk(chunk_information);
         pin_mut!(readable);
 
@@ -507,7 +555,7 @@ impl<Clt: Client> BackupSave<Clt> {
 
                     debug!("Download chunk {}", current_chunk_id);
 
-                    let wrapper = PoolChunkWrapper::new(pool_path, None);
+                    let wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, None);
                     let writer = wrapper
                         .writer(self.algorithm, self.compression_format)
                         .await?;
@@ -531,9 +579,13 @@ impl<Clt: Client> BackupSave<Clt> {
                     debug!("Download chunk footer {}", current_chunk_id);
 
                     if let Some((mut wrapper, mut writer)) = current_chunk.take() {
-                        let chunk_information = writer
+                        let prepared_chunk = writer
                             .shutdown(&mut wrapper, &filename, self.compression_format)
                             .await?;
+                        let chunk_information = PoolManager::new(self.config.clone())
+                            .store_prepared_chunk(prepared_chunk)
+                            .await?;
+                        self.append_staging_chunk(&chunk_information, true).await?;
                         if let Err(e) = tx.send(chunk_information.clone()).await {
                             error!("Failed to send chunk information: {}", e);
                         }
@@ -597,7 +649,6 @@ impl<Clt: Client> BackupSave<Clt> {
         filename: &[u8],
         tx: &mpsc::Sender<PoolChunkInformation>,
     ) -> Result<(BTreeMap<usize, PoolChunkInformation>, Vec<usize>)> {
-        let pool_path = &self.config.path.pool_path;
         let reply = self
             .client
             .get_chunk_hash(ChunkHashRequest {
@@ -612,9 +663,10 @@ impl<Clt: Client> BackupSave<Clt> {
         for chunk_number in 0..reply.chunks.len() {
             let hash = reply.chunks.get(chunk_number);
             if let Some(hash) = hash {
-                let wrapper = PoolChunkWrapper::new(pool_path, Some(hash));
+                let wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(hash));
                 if wrapper.exists() {
                     let chunk_information = wrapper.chunk_information().await?;
+                    self.append_staging_chunk(&chunk_information, false).await?;
                     if let Err(e) = tx.send(chunk_information.clone()).await {
                         error!("Failed to send chunk information: {}", e);
                     }
@@ -698,10 +750,13 @@ impl<Clt: Client> BackupSave<Clt> {
                 chunks.insert(
                     chunk,
                     PoolChunkInformation {
-                        sha256: vec![],
+                        chunk_hash: vec![],
                         size: 0,
                         compressed_size: 0,
                         format: 0,
+                        segment_id: 0,
+                        offset: 0,
+                        chunk_header_size: 0,
                     },
                 );
             }
@@ -712,25 +767,12 @@ impl<Clt: Client> BackupSave<Clt> {
         let mut chunks_hash = Vec::with_capacity(chunk_count);
         let mut chunk_sizes = Vec::with_capacity(chunk_count);
         let mut chunk_compressed_sizes = Vec::with_capacity(chunk_count);
-        {
-            let mut refcnt = self.refcnt.lock().await;
-            for chunk in chunks.values() {
-                compressed_size += chunk.compressed_size;
-                size += chunk.size;
-                chunks_hash.push(chunk.sha256.clone());
-                chunk_sizes.push(chunk.size);
-                chunk_compressed_sizes.push(chunk.compressed_size);
-
-                refcnt.apply(
-                    &PoolRefCount {
-                        sha256: chunk.sha256.clone(),
-                        size: chunk.size,
-                        compressed_size: chunk.compressed_size,
-                        ref_count: 0,
-                    },
-                    &crate::pool::RefcntApplySens::Increase,
-                );
-            }
+        for chunk in chunks.values() {
+            compressed_size += chunk.compressed_size;
+            size += chunk.size;
+            chunks_hash.push(chunk.chunk_hash.clone());
+            chunk_sizes.push(chunk.size);
+            chunk_compressed_sizes.push(chunk.compressed_size);
         }
 
         let path = file_manifest.path();
@@ -1187,20 +1229,6 @@ impl<Clt: Client> BackupSave<Clt> {
             return Ok(());
         }
 
-        // Pre-seed the refcnt index with per-chunk sizes from the journal.
-        // This avoids repair() having to read individual .info files from the pool
-        // (which are small, randomly spread, and catastrophically slow on HDDs).
-        // Each entry is applied with ref_count=0: only the size metadata is seeded;
-        // the actual ref_count is incremented by the compact callback below.
-        {
-            let sizes_stream = manifest.journal_refcnt_sizes_stream();
-            pin_mut!(sizes_stream);
-            let mut refcnt = self.refcnt.lock().await;
-            while let Some(pool_refcnt) = sizes_stream.next().await {
-                refcnt.apply(&pool_refcnt, &crate::pool::RefcntApplySens::Increase);
-            }
-        }
-
         manifest
             .compact(
                 &|manifest| async {
@@ -1208,19 +1236,6 @@ impl<Clt: Client> BackupSave<Clt> {
                     progression.file_count += 1;
                     progression.file_size += manifest.size();
                     progression.compressed_file_size += manifest.compressed_size();
-
-                    let mut refcnt = self.refcnt.lock().await;
-                    for sha256 in &manifest.chunks {
-                        refcnt.apply(
-                            &PoolRefCount {
-                                sha256: sha256.clone(),
-                                ref_count: 1,
-                                size: 0,
-                                compressed_size: 0,
-                            },
-                            &crate::pool::RefcntApplySens::Increase,
-                        );
-                    }
 
                     Some(manifest)
                 },
@@ -1235,46 +1250,27 @@ impl<Clt: Client> BackupSave<Clt> {
         Ok(())
     }
 
-    /// Counts the references for the backup process.
+    /// Finalizes the local staging journal for the backup process.
     ///
     /// This operation is idempotent: it can be safely called multiple times.
-    /// The refcnt.repair() call recalculates all chunk references from scratch,
-    /// so re-running this function will produce the same result.
+    /// Re-running it only ensures the buffered Pool V3 staging writer is fully
+    /// flushed before publication is finalized.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` if the reference counting succeeds.
-    /// * `Err(eyre::Report)` if an error occurs during reference counting.
+    /// * `Ok(())` if the staging flush succeeds.
+    /// * `Err(eyre::Report)` if an error occurs during the flush.
     ///
     /// # Errors
     ///
-    /// Returns an error if the reference counting fails.
+    /// Returns an error if the staging flush fails.
     pub async fn count_references(&self) -> Result<()> {
-        info!("Count references");
-
-        let mut refcnt = self.refcnt.lock().await;
-        refcnt
-            .repair(&self.config.path.pool_path, self.algorithm)
-            .await?;
-        refcnt
-            .save_refcnt(&self.get_fake_date(), false, self.compression_format)
-            .await?;
-
-        let host_refcnt_file = self.backups.get_host_path(&self.hostname);
-        Refcnt::apply_all_from(
-            &host_refcnt_file,
-            &refcnt,
-            &crate::pool::RefcntApplySens::Increase,
-            &self.get_fake_date(),
-            self.algorithm,
-            self.compression_format,
-        )
-        .await?;
-
+        info!("Finalize pool v3 staging before merge");
+        self.flush_staging_writer().await?;
         Ok(())
     }
 
-    /// Copy the references count from the backup to the pool.
+    /// Finalizes the Pool V3 publication for this backup.
     ///
     ///# Returns
     ///
@@ -1284,15 +1280,11 @@ impl<Clt: Client> BackupSave<Clt> {
     /// # Errors
     ///
     /// Returns an error if the copy operation fails.
-    pub async fn add_refcnt_to_pool(&self) -> Result<()> {
-        info!("Add references count to pool");
-
-        let host_refcnt_file = self
-            .backups
-            .get_backup_destination_directory(&self.hostname, self.backup_id);
+    pub async fn finalize_pool_publication(&self) -> Result<()> {
+        info!("Finalize pool v3 backup publication");
 
         PoolManager::new(self.config.clone())
-            .add_refcnt(host_refcnt_file, &self.hostname, self.backup_id)
+            .finalize_backup_publication(&self.hostname, self.backup_id)
             .await?;
 
         Ok(())

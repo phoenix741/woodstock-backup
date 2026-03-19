@@ -18,8 +18,8 @@ pub enum ErrorState {
     CommandExecutionError(String),
     BackupError(String),
     CompactError(String),
-    CountReferencesError(String),
-    AddReferencesToPoolError(String),
+    FlushStagingError(String),
+    PublishPoolError(String),
     Unknown(String),
 }
 
@@ -34,8 +34,8 @@ pub enum BackupExecutionState {
     DownloadChunks(String),
     PostCommands(ExecuteCommandOperation),
     Compact(String),
-    CountReferences,
-    AddReferencesToPool,
+    FlushStaging,
+    PublishPool,
     Completed,
 }
 
@@ -605,66 +605,66 @@ impl BackupState {
         }
     }
 
-    /// Starts the count references operation.
-    pub fn start_count_references(&mut self) {
-        self.execution_state = BackupExecutionState::CountReferences;
+    /// Starts the staging flush operation.
+    pub fn start_flush_staging(&mut self) {
+        self.execution_state = BackupExecutionState::FlushStaging;
     }
 
-    /// Processes the result of the count references operation.
+    /// Processes the result of the staging flush operation.
     ///
     /// # Arguments
-    /// * `result` - The result of the count references operation.
+    /// * `result` - The result of the staging flush operation.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` if the count references operation was successful.
+    /// * `Ok(())` if the staging flush operation was successful.
     /// * `Err(eyre::Report)` if an error occurred during the operation.
     ///
     /// # Errors
-    /// This function returns an error if the count references operation fails.
+    /// This function returns an error if the staging flush operation fails.
     ///
     /// # Panics
     /// This function does not panic.
-    pub fn process_count_references_result(&mut self, result: Result<()>) -> Result<()> {
+    pub fn process_flush_staging_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Count references operation successful");
+                info!("Pool V3 staging flush successful");
                 Ok(())
             }
             Err(err) => {
-                error!("Error during count references operation: {}", err);
-                self.error_state = Some(ErrorState::CountReferencesError(err.to_string()));
+                error!("Error during Pool V3 staging flush: {}", err);
+                self.error_state = Some(ErrorState::FlushStagingError(err.to_string()));
                 Err(err)
             }
         }
     }
 
-    /// Starts the add references to pool operation.
-    pub fn start_add_references_to_pool(&mut self) {
-        self.execution_state = BackupExecutionState::AddReferencesToPool;
+    /// Starts the pool publication operation.
+    pub fn start_publish_pool(&mut self) {
+        self.execution_state = BackupExecutionState::PublishPool;
     }
 
-    /// Processes the result of the add references to pool operation.
+    /// Processes the result of the pool publication operation.
     ///     
     /// # Arguments
-    /// * `result` - The result of the add references to pool operation.
+    /// * `result` - The result of the pool publication operation.
     ///
     /// # Returns
-    /// * `Ok(())` if the add references to pool operation was successful.
+    /// * `Ok(())` if the pool publication operation was successful.
     /// * `Err(eyre::Report)` if an error occurred during the operation.
     ///
     /// # Errors
-    /// This function returns an error if the add references to pool operation fails.
-    pub fn process_add_references_to_pool_result(&mut self, result: Result<()>) -> Result<()> {
+    /// This function returns an error if the pool publication operation fails.
+    pub fn process_publish_pool_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Add references to pool operation successful");
+                info!("Pool V3 publication successful");
                 self.execution_state = BackupExecutionState::Completed;
                 Ok(())
             }
             Err(err) => {
-                error!("Error during add references to pool operation: {}", err);
-                self.error_state = Some(ErrorState::AddReferencesToPoolError(err.to_string()));
+                error!("Error during Pool V3 publication: {}", err);
+                self.error_state = Some(ErrorState::PublishPoolError(err.to_string()));
                 Err(err)
             }
         }

@@ -6,9 +6,10 @@ use crate::{pool::FsckUnusedCount, server::pool::fsck::FsckProgression};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
-    ApplyingRefcntError(String),
+    ApplyingPendingError(String),
     InitializationError(String),
-    VerifyRefcntError(String),
+    VerifySegmentsError(String),
+    VerifyIndexError(String),
     VerifyUnusedError(String),
     VerifyChunkError(String),
     Unknown(String),
@@ -17,9 +18,10 @@ pub enum ErrorState {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum FsckExecutionState {
     Waiting,
-    ApplyingRefcnt,
+    ApplyingPending,
     Initialization,
-    VerifyRefcnt,
+    VerifySegments,
+    VerifyIndex,
     VerifyUnused,
     VerifyChunk,
     Completed,
@@ -27,6 +29,14 @@ pub enum FsckExecutionState {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RefcntProgression {
+    pub progress_max: usize,
+    pub progress_current: usize,
+    pub error_count: usize,
+    pub total_count: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SegmentProgression {
     pub progress_max: usize,
     pub progress_current: usize,
     pub error_count: usize,
@@ -55,6 +65,7 @@ pub struct ChunkProgression {
 pub struct FsckState {
     pub execution_state: FsckExecutionState,
     pub error_state: Option<ErrorState>,
+    pub segment_progression: SegmentProgression,
     pub refcnt_progression: RefcntProgression,
     pub unused_progression: UnusedProgression,
     pub chunk_progression: ChunkProgression,
@@ -66,6 +77,7 @@ impl Default for FsckState {
         Self {
             execution_state: FsckExecutionState::Waiting,
             error_state: None,
+            segment_progression: SegmentProgression::default(),
             refcnt_progression: RefcntProgression::default(),
             unused_progression: UnusedProgression::default(),
             chunk_progression: ChunkProgression::default(),
@@ -113,10 +125,28 @@ impl FsckState {
     /// Returns an error if any of the initialization steps (reference count, unused, or chunk maximum calculation) fails.
     pub fn process_initialization_result(
         &mut self,
+        segment_max_result: Result<usize>,
         refcnt_max_result: Result<usize>,
         unused_max_result: Result<usize>,
         chunk_max_result: Result<Vec<Vec<u8>>>,
     ) -> Result<()> {
+        match segment_max_result {
+            Ok(max) => {
+                info!(
+                    "Fsck initialization for segments successful, found {} segments to check",
+                    max
+                );
+                self.segment_progression.progress_max = max;
+            }
+            Err(err) => {
+                error!("Error initializing fsck for segments: {}", err);
+                self.error_state = Some(ErrorState::InitializationError(format!(
+                    "Failed to initialize segment check: {err}",
+                )));
+                return Err(err);
+            }
+        }
+
         // Process the result for refcnt_max
         match refcnt_max_result {
             Ok(max) => {
@@ -175,25 +205,56 @@ impl FsckState {
         Ok(())
     }
 
-    /// Starts the reference count verification process by updating the execution state.
-    pub fn start_verify_refcnt(&mut self) {
-        self.execution_state = FsckExecutionState::VerifyRefcnt;
+    pub fn start_verify_segments(&mut self) {
+        self.execution_state = FsckExecutionState::VerifySegments;
     }
 
-    /// Updates the reference count progression state with the provided progress.
+    pub fn process_verify_segments_progress(&mut self, progress: &FsckProgression) {
+        self.segment_progression.progress_current = progress.progress_current;
+        self.segment_progression.error_count = progress.error_count;
+        self.segment_progression.total_count = progress.total_count;
+    }
+
+    pub fn process_verify_segments_result(
+        &mut self,
+        result: Result<FsckProgression>,
+    ) -> Result<FsckProgression> {
+        match result {
+            Ok(info) => {
+                info!(
+                    "Fsck segment verification completed successfully, found {}/{} errors",
+                    info.error_count, info.total_count
+                );
+
+                Ok(info)
+            }
+            Err(err) => {
+                error!("Error verifying segments: {}", err);
+                self.error_state = Some(ErrorState::VerifySegmentsError(err.to_string()));
+                Err(err)
+            }
+        }
+    }
+
+    /// Starts the logical index verification process by updating the execution state.
+    pub fn start_verify_index(&mut self) {
+        self.execution_state = FsckExecutionState::VerifyIndex;
+    }
+
+    /// Updates the logical index progression state with the provided progress.
     ///
     /// # Arguments
     /// * `progress` - The current progression state.
-    pub fn process_verify_refcnt_progress(&mut self, progress: &FsckProgression) {
+    pub fn process_verify_index_progress(&mut self, progress: &FsckProgression) {
         self.refcnt_progression.progress_current = progress.progress_current;
         self.refcnt_progression.error_count = progress.error_count;
         self.refcnt_progression.total_count = progress.total_count;
     }
 
-    /// Processes the result of the reference count verification process.
+    /// Processes the result of the logical index verification process.
     ///
     /// # Arguments
-    /// * `result` - The result of the reference count verification.
+    /// * `result` - The result of the logical index verification.
     ///
     /// # Returns
     ///
@@ -202,23 +263,23 @@ impl FsckState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the reference count verification fails or if the result contains an error.
-    pub fn process_verify_refcnt_result(
+    /// Returns an error if the logical index verification fails or if the result contains an error.
+    pub fn process_verify_index_result(
         &mut self,
         result: Result<FsckProgression>,
     ) -> Result<FsckProgression> {
         match result {
             Ok(info) => {
                 info!(
-                    "Fsck verify refcnt completed successfully, found {}/{} errors",
+                    "Fsck logical index verification completed successfully, found {}/{} errors",
                     info.error_count, info.total_count
                 );
 
                 Ok(info)
             }
             Err(err) => {
-                error!("Error verifying refcnt: {}", err);
-                self.error_state = Some(ErrorState::VerifyRefcntError(err.to_string()));
+                error!("Error verifying logical index: {}", err);
+                self.error_state = Some(ErrorState::VerifyIndexError(err.to_string()));
                 Err(err)
             }
         }
@@ -326,15 +387,15 @@ impl FsckState {
         }
     }
 
-    /// Starts the applying refcnt operations process by updating the execution state.
-    pub fn start_applying_refcnt(&mut self) {
-        self.execution_state = FsckExecutionState::ApplyingRefcnt;
+    /// Starts the pending operation application process by updating the execution state.
+    pub fn start_applying_pending(&mut self) {
+        self.execution_state = FsckExecutionState::ApplyingPending;
     }
 
-    /// Processes the result of the applying refcnt operations process.
+    /// Processes the result of the pending operation application process.
     ///
     /// # Arguments
-    /// * `result` - The result of the refcnt operations application.
+    /// * `result` - The result of the pending operation application.
     ///
     /// # Returns
     ///
@@ -343,17 +404,17 @@ impl FsckState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the refcnt operations application fails.
-    pub fn process_applying_refcnt_result(&mut self, result: Result<()>) -> Result<()> {
+    /// Returns an error if the pending operation application fails.
+    pub fn process_applying_pending_result(&mut self, result: Result<()>) -> Result<()> {
         match result {
             Ok(()) => {
-                info!("Applying pending refcnt operations completed successfully");
+                info!("Applying pending Pool V3 operations completed successfully");
                 Ok(())
             }
             Err(e) => {
-                let error_message = format!("Failed to apply pending refcnt operations: {}", e);
+                let error_message = format!("Failed to apply pending Pool V3 operations: {}", e);
                 error!("{}", error_message);
-                self.error_state = Some(ErrorState::ApplyingRefcntError(error_message));
+                self.error_state = Some(ErrorState::ApplyingPendingError(error_message));
                 Err(e)
             }
         }

@@ -14,6 +14,7 @@
 /// - [`Backups::new`]: Create a new `Backups` manager from a configuration.
 /// - [`Backups::get_backup_destination_directory`]: Get the directory for a specific backup.
 /// - [`Backups::get_manifest`]: Get the manifest for a backup/share.
+/// - [`Backups::get_pool_v3_staging_path`]: Get the Pool V3 staging file for a backup.
 /// - [`Backups::get_backups`]: List all backups for a host.
 /// - [`Backups::get_backup`]: Get a specific backup by number.
 /// - [`Backups::add_or_replace_backup`]: Add or update a backup entry.
@@ -222,6 +223,36 @@ impl Backups {
     }
 
     #[must_use]
+    pub fn get_pool_v3_staging_path(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+            .join("pool-v3.staging")
+    }
+
+    #[must_use]
+    pub fn get_pool_v3_publication_path(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+            .join("pool-v3.publication")
+    }
+
+    #[must_use]
+    pub fn get_pool_v3_removal_path(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+            .join("pool-v3.removal")
+    }
+
+    #[must_use]
+    pub fn get_pool_v3_finalize_marker_path(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+            .join("pool-v3.finalize")
+    }
+
+    #[must_use]
+    pub fn get_pool_v3_removal_marker_path(&self, hostname: &str, backup_id: Uuid) -> PathBuf {
+        self.get_backup_destination_directory(hostname, backup_id)
+            .join("pool-v3.remove")
+    }
+
+    #[must_use]
     pub fn get_host_path(&self, hostname: &str) -> PathBuf {
         self.config.path.hosts_path.join(hostname)
     }
@@ -389,7 +420,7 @@ impl Backups {
         create_dir_all(&destination_directory).await?;
 
         if let Some(source_id) = source_id {
-            let source_directory = self.get_backup_destination_directory(hostname, source_id);
+            let _source_directory = self.get_backup_destination_directory(hostname, source_id);
 
             // Copy only manifest that correspond to new shares
             for share in shares {
@@ -400,12 +431,6 @@ impl Backups {
                 if manifest.manifest_path.exists() {
                     copy(&manifest.manifest_path, &destination_manifest.manifest_path).await?;
                 }
-            }
-
-            // Copy refcnt
-            let refcnt = source_directory.join("REFCNT");
-            if refcnt.exists() {
-                copy(&refcnt, destination_directory.join("REFCNT")).await?;
             }
         }
 

@@ -46,7 +46,7 @@ pub enum PoolLockOperation {
     Fsck,
     ExecuteCleaning,
     ExecuteHashConversion,
-    CompactRefcntManual,
+    CompactPoolManual,
     CheckCompression,
 }
 
@@ -84,7 +84,7 @@ impl PoolLockOperation {
             Self::Fsck => "fsck",
             Self::ExecuteCleaning => "execute_cleaning",
             Self::ExecuteHashConversion => "execute_hash_conversion",
-            Self::CompactRefcntManual => "compact_refcnt_manual",
+            Self::CompactPoolManual => "compact_pool_manual",
             Self::CheckCompression => "check_compression",
         }
     }
@@ -147,7 +147,8 @@ impl From<&str> for LockOperation {
             "execute_hash_conversion" => Self::Pool(PoolLockOperation::ExecuteHashConversion),
             "events" => Self::Events,
             "write" => Self::File(FileLockOperation::Write),
-            "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),
+            "compact_pool_manual" => Self::Pool(PoolLockOperation::CompactPoolManual),
+            "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactPoolManual),
             "check_compression" => Self::Pool(PoolLockOperation::CheckCompression),
             "backuppc_importer_refcnt" => Self::Import(ImportLockOperation::Refcnt),
             "backuppc_importer_cleanup" => Self::Import(ImportLockOperation::Cleanup),

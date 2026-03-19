@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     config::{
-        Backups, Configuration, Context, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
+        BackupStatus, Backups, Configuration, Context, HostConfiguration, Hosts,
+        DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     server::{client::Client, progression::BackupProgression},
 };
@@ -62,6 +63,17 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         hosts: Arc<Hosts>,
         backups: Arc<Backups>,
     ) -> Result<Self> {
+        let backup = backups
+            .get_backup(hostname, backup_id)
+            .await
+            .ok_or_else(|| eyre::eyre!("Backup {hostname}/{backup_id} not found"))?;
+        if backup.status != BackupStatus::Completed {
+            return Err(eyre::eyre!(
+                "Backup {hostname}/{backup_id} is not fully published and cannot be restored (status = {:?})",
+                backup.status
+            ));
+        }
+
         let client = BackupRestore::new(client, hostname, backup_id, ctxt, config.clone(), backups);
 
         let host_configuration = hosts.get_host(hostname).await?;

@@ -1,4 +1,5 @@
 use std::{sync::Arc, time::SystemTime};
+use tokio::fs::read_dir;
 use tokio::sync::mpsc;
 
 use eyre::Result;
@@ -9,8 +10,8 @@ use crate::{
     config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::append_events,
     pool::{
-        check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
-        FsckUnusedCount, PoolChunkWrapper, Refcnt,
+        check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused, data,
+        FsckUnusedCount,
     },
     woodstock::event::Information,
     Event, EventPoolInformation, EventSource, EventStatus, EventStep, EventType,
@@ -19,7 +20,7 @@ use crate::{
 /// # Pool Filesystem Check (fsck) Module
 ///
 /// This module provides logic for verifying and repairing the integrity of the Woodstock backup pool.
-/// It includes reference count checking, unused chunk detection, chunk integrity verification, and event logging.
+/// It includes logical index verification, unused chunk detection, chunk integrity verification, and event logging.
 ///
 /// ## Main Structures
 ///
@@ -29,8 +30,8 @@ use crate::{
 ///
 /// ## Main Methods
 ///
-/// - [`PoolFsck::verify_refcnt_max`]: Calculates the maximum number of reference counts.
-/// - [`PoolFsck::verify_refcnt`]: Verifies reference counts and logs events.
+/// - [`PoolFsck::verify_index_max`]: Calculates the maximum number of logical index checks.
+/// - [`PoolFsck::verify_index`]: Verifies logical chunk visibility and logs events.
 /// - [`PoolFsck::verify_unused_max`]: Calculates the maximum number of unused chunks.
 /// - [`PoolFsck::verify_unused`]: Verifies unused chunks and logs events.
 /// - [`PoolFsck::verify_chunk_max`]: Calculates the maximum number of chunks to check.
@@ -47,7 +48,7 @@ use crate::{
 ///
 /// ## See Also
 ///
-/// - [`Refcnt`], [`PoolChunkWrapper`], [`Event`]: For related pool and event operations
+/// - [`Event`]: For related pool and event operations
 #[derive(Clone, Debug)]
 ///
 /// Tracks progress and errors during fsck operations.
@@ -141,11 +142,11 @@ impl PoolFsck {
         Ok(id.to_vec())
     }
 
-    /// Creates a new event to mark the end of a reference count operation.
+    /// Creates a new event to mark the end of a pool integrity operation.
     ///
     /// # Arguments
     /// * `id` - The identifier of the event.
-    /// * `information` - Additional information about the reference count operation.
+    /// * `information` - Additional information about the pool integrity operation.
     ///
     /// # Returns
     /// * `Ok(())` if the event was successfully created.
@@ -153,7 +154,7 @@ impl PoolFsck {
     ///
     /// # Errors
     /// This function returns an error if the event creation fails.
-    pub async fn create_event_refcnt_end(
+    pub async fn create_event_fsck_end(
         &self,
         id: &[u8],
         information: EventPoolInformation,
@@ -187,7 +188,7 @@ impl PoolFsck {
         Ok(())
     }
 
-    /// Verifies the maximum reference count.
+    /// Calculates the maximum number of logical index checks.
     ///
     /// # Returns
     /// * `Ok(usize)` if the verification was successful.
@@ -195,7 +196,7 @@ impl PoolFsck {
     ///
     /// # Errors
     /// This function returns an error if the verification fails.
-    pub async fn verify_refcnt_max(&self) -> Result<usize> {
+    pub async fn verify_index_max(&self) -> Result<usize> {
         let mut count = 1;
 
         for host in self.hosts_config.list_hosts().await? {
@@ -206,7 +207,113 @@ impl PoolFsck {
         Ok(count)
     }
 
-    /// Verifies reference counts and logs events.
+    pub async fn verify_segments_max(&self) -> Result<usize> {
+        let segments_path = data::segments_directory_path(&self.config.path.pool_path);
+        if !segments_path.exists() {
+            return Ok(0);
+        }
+
+        let mut entries = read_dir(&segments_path).await?;
+        let mut count = 0;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.extension().is_some_and(|extension| extension == "seg") {
+                count += 1;
+            }
+        }
+
+        Ok(count)
+    }
+
+    pub async fn verify_segments(
+        &self,
+        progress_tx: Option<mpsc::Sender<FsckProgression>>,
+    ) -> Result<FsckProgression> {
+        info!("Starting Pool V3 segment verification");
+
+        let (internal_tx, mut internal_rx) =
+            mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
+        let progress_thread = tokio::spawn(
+            async move {
+                while let Some(progress) = internal_rx.recv().await {
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx.send(progress).await {
+                            error!("Failed to send segment verification progress: {}", e);
+                        }
+                    }
+                }
+            }
+            .in_current_span(),
+        );
+
+        let segments_path = data::segments_directory_path(&self.config.path.pool_path);
+        let mut error_count = 0;
+        let mut total_count = 0;
+
+        if segments_path.exists() {
+            let mut entries = read_dir(&segments_path).await?;
+            let mut segment_paths = Vec::new();
+
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.extension().is_some_and(|extension| extension == "seg") {
+                    segment_paths.push(path);
+                }
+            }
+
+            segment_paths.sort();
+
+            for path in segment_paths {
+                let display_path = path.display().to_string();
+                match data::open_existing_segment(&path).await {
+                    Ok(segment_file) => match segment_file.chunks().await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error_count += 1;
+                            error!("Pool V3 segment {} scan failed: {}", display_path, err);
+                        }
+                    },
+                    Err(err) => {
+                        error_count += 1;
+                        error!(
+                            "Pool V3 segment {} header validation failed: {}",
+                            display_path,
+                            err
+                        );
+                    }
+                }
+
+                total_count += 1;
+
+                if let Err(e) = internal_tx
+                    .send(FsckProgression {
+                        error_count,
+                        total_count,
+                        progress_current: total_count,
+                    })
+                    .await
+                {
+                    error!("Failed to send segment verification progress: {}", e);
+                }
+            }
+        }
+
+        drop(internal_tx);
+        if let Err(e) = progress_thread.await {
+            error!("Error in segment verification progression task: {}", e);
+        }
+
+        info!(
+            "Segment verification completed with {total_count} total checks and {error_count} errors"
+        );
+        Ok(FsckProgression {
+            progress_current: total_count,
+            total_count,
+            error_count,
+        })
+    }
+
+    /// Verifies logical chunk visibility and logs events.
     ///
     /// # Arguments
     ///
@@ -216,18 +323,18 @@ impl PoolFsck {
     ///
     /// # Returns
     ///
-    /// * `Ok(EventRefCountInformation)` - Information about the reference count check.
+    /// * `Ok(EventRefCountInformation)` - Information about the logical index check.
     /// * `Err(eyre::Report)` if an error occurs.
     ///
     /// # Errors
     ///
-    /// Returns an error if the reference count verification or event creation fails.
-    pub async fn verify_refcnt(
+    /// Returns an error if the logical index verification or event creation fails.
+    pub async fn verify_index(
         &self,
         dry_run: bool,
         progress_tx: Option<mpsc::Sender<FsckProgression>>,
     ) -> Result<FsckProgression> {
-        info!("Starting pool reference count verification");
+        info!("Starting Pool V3 logical index verification");
 
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
@@ -237,7 +344,7 @@ impl PoolFsck {
                 while let Some(progress) = internal_rx.recv().await {
                     if let Some(tx) = &progress_tx {
                         if let Err(e) = tx.send(progress).await {
-                            error!("Failed to send verification progress: {}", e);
+                            error!("Failed to send logical index verification progress: {}", e);
                         }
                     }
                 }
@@ -275,7 +382,7 @@ impl PoolFsck {
                     })
                     .await
                 {
-                    error!("Failed to send verification progress: {}", e);
+                    error!("Failed to send logical index verification progress: {}", e);
                 }
             }
 
@@ -301,7 +408,7 @@ impl PoolFsck {
                 })
                 .await
             {
-                error!("Failed to send verification progress: {}", e);
+                error!("Failed to send logical index verification progress: {}", e);
             }
         }
 
@@ -326,16 +433,19 @@ impl PoolFsck {
             })
             .await
         {
-            error!("Failed to send verification progress: {}", e);
+            error!("Failed to send logical index verification progress: {}", e);
         }
 
         // Ensure that the progress task completes
         drop(internal_tx);
         if let Err(e) = progress_thread.await {
-            error!("Error in refcnt verification progression task: {}", e);
+            error!(
+                "Error in logical index verification progression task: {}",
+                e
+            );
         }
 
-        info!("Pool reference count verification completed with {total_count} total checks and {error_count} errors");
+        info!("Pool V3 logical index verification completed with {total_count} total checks and {error_count} errors");
         Ok(FsckProgression {
             progress_current: total_count,
             total_count,
@@ -352,12 +462,20 @@ impl PoolFsck {
     ///
     /// # Errors
     ///
-    /// Returns an error if loading the reference count or unused chunk data fails.
+    /// Returns an error if loading the materialized index or unused chunk data fails.
     pub async fn verify_unused_max(&self) -> Result<usize> {
-        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
-        pool_refcnt.load_refcnt(false).await;
+        let index_path = data::pool_index_path(&self.config.path.pool_path);
+        if !index_path.exists() {
+            return Ok(0);
+        }
 
-        Ok(pool_refcnt.size())
+        let index = data::open_pool_index(&self.config.path.pool_path)?;
+        let count = index
+            .list_segments()?
+            .into_iter()
+            .map(|segment| segment.chunk_count as usize)
+            .sum();
+        Ok(count)
     }
 
     /// Verifies unused chunks and logs events.
@@ -404,7 +522,7 @@ impl PoolFsck {
         }
 
         info!(
-            "Unused files verification completed with {} in refcnt, {} in unused, {} in nothing, and {} missing",
+            "Unused files verification completed with {} visible, {} unused, {} unindexed, and {} missing",
             result.in_refcnt, result.in_unused, result.in_nothing, result.missing
         );
         Ok(result)
@@ -419,14 +537,18 @@ impl PoolFsck {
     ///
     /// # Errors
     ///
-    /// Returns an error if loading the reference count or unused chunk data fails.
+    /// Returns an error if loading the materialized index fails.
     pub async fn verify_chunk_max(&self) -> Result<Vec<Vec<u8>>> {
-        let mut pool_refcnt = Refcnt::new(&self.config.path.pool_path);
-        pool_refcnt.load_refcnt(false).await;
+        let index_path = data::pool_index_path(&self.config.path.pool_path);
+        if !index_path.exists() {
+            return Ok(Vec::new());
+        }
 
-        let chunks = pool_refcnt
-            .list_refcnt()
-            .map(|refcnt| refcnt.sha256.clone())
+        let index = data::open_pool_index(&self.config.path.pool_path)?;
+        let chunks = index
+            .list_chunks()?
+            .into_iter()
+            .map(|chunk| chunk.hash)
             .collect::<Vec<_>>();
 
         Ok(chunks)
@@ -451,7 +573,7 @@ impl PoolFsck {
         &self,
         progress_tx: Option<mpsc::Sender<FsckProgression>>,
     ) -> Result<FsckProgression> {
-        info!("Starting chunk verification");
+        info!("Starting Pool V3 chunk verification");
         // Create an intermediate channel for progress updates
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
@@ -468,32 +590,56 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let chunks = self.verify_chunk_max().await?;
         let mut error_count = 0;
         let mut total_count = 0;
 
-        for refcnt in chunks {
-            let wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(&refcnt));
+        let index_path = data::pool_index_path(&self.config.path.pool_path);
+        if index_path.exists() {
+            let index = data::open_pool_index(&self.config.path.pool_path)?;
+            for chunk in index.list_chunks()? {
+                let segment = index.get_segment(chunk.segment_id)?;
 
-            let is_valid = wrapper
-                .check_chunk_information(self.config.chunk_algorithm)
-                .await;
+                let is_valid = if let Some(segment) = segment {
+                    let path = data::resolve_segment_path(&self.config.path.pool_path, &segment);
+                    if !path.exists() {
+                        false
+                    } else {
+                        match data::open_existing_segment(&path).await {
+                            Ok(segment_file) => {
+                                match segment_file.read_chunk_at(chunk.offset).await {
+                                    Ok((entry, _)) => {
+                                        entry.hash == chunk.hash
+                                            && entry.size == chunk.size
+                                            && entry.compressed_size == chunk.compressed_size
+                                            && entry.compression_format == chunk.compression_format
+                                            && entry.chunk_header_size == chunk.chunk_header_size
+                                    }
+                                    Err(_) => false,
+                                }
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                } else {
+                    false
+                };
 
-            if !is_valid.is_ok_and(|f| f) {
-                error_count += 1;
-            }
+                if !is_valid {
+                    error_count += 1;
+                }
 
-            total_count += 1;
+                total_count += 1;
 
-            if let Err(e) = internal_tx
-                .send(FsckProgression {
-                    error_count,
-                    total_count,
-                    progress_current: total_count,
-                })
-                .await
-            {
-                error!("Failed to send chunk verification progress: {}", e);
+                if let Err(e) = internal_tx
+                    .send(FsckProgression {
+                        error_count,
+                        total_count,
+                        progress_current: total_count,
+                    })
+                    .await
+                {
+                    error!("Failed to send chunk verification progress: {}", e);
+                }
             }
         }
 

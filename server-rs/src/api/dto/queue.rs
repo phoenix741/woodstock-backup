@@ -24,7 +24,7 @@ pub enum JobKind {
     Backup,
     Restore,
     Remove,
-    CleanupRefcnt,
+    CleanupPool,
     Fsck,
     Stats,
 }
@@ -35,7 +35,7 @@ impl From<crate::jobs::progress::JobKind> for JobKind {
             crate::jobs::progress::JobKind::Backup(_) => JobKind::Backup,
             crate::jobs::progress::JobKind::Restore(_) => JobKind::Restore,
             crate::jobs::progress::JobKind::Remove(_) => JobKind::Remove,
-            crate::jobs::progress::JobKind::CleanupRefcnt(_) => JobKind::CleanupRefcnt,
+            crate::jobs::progress::JobKind::CleanupPool(_) => JobKind::CleanupPool,
             crate::jobs::progress::JobKind::Fsck(_) => JobKind::Fsck,
             crate::jobs::progress::JobKind::Stats(_) => JobKind::Stats,
         }
@@ -165,8 +165,8 @@ impl From<crate::jobs::types::RemoveJobData> for JobRemoveData {
 pub struct JobCleanupData {
     pub target: Option<String>,
 }
-impl From<crate::jobs::types::CleanupRefcntJobData> for JobCleanupData {
-    fn from(data: crate::jobs::types::CleanupRefcntJobData) -> Self {
+impl From<crate::jobs::types::CleanupPoolJobData> for JobCleanupData {
+    fn from(data: crate::jobs::types::CleanupPoolJobData) -> Self {
         Self {
             target: data.target,
         }
@@ -264,8 +264,8 @@ impl From<woodstock::server::backup::restore_state::RestoreState> for JobRestore
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum RemoveErrorState {
-    AddReferencesToPoolError,
-    RefcntRemovalError,
+    FinalizePoolRemovalError,
+    CleanupHostRemovalStateError,
     BackupRemovalError,
     Unknown,
 }
@@ -273,8 +273,8 @@ impl From<woodstock::server::backup::remove_state::ErrorState> for RemoveErrorSt
     fn from(s: woodstock::server::backup::remove_state::ErrorState) -> Self {
         use woodstock::server::backup::remove_state::ErrorState as Src;
         match s {
-            Src::AddReferencesToPoolError(_) => Self::AddReferencesToPoolError,
-            Src::RefcntRemovalError(_) => Self::RefcntRemovalError,
+            Src::FinalizePoolRemovalError(_) => Self::FinalizePoolRemovalError,
+            Src::CleanupHostRemovalStateError(_) => Self::CleanupHostRemovalStateError,
             Src::BackupRemovalError(_) => Self::BackupRemovalError,
             Src::Unknown(_) => Self::Unknown,
         }
@@ -283,8 +283,8 @@ impl From<woodstock::server::backup::remove_state::ErrorState> for RemoveErrorSt
 fn remove_error_message(e: &woodstock::server::backup::remove_state::ErrorState) -> String {
     use woodstock::server::backup::remove_state::ErrorState as Src;
     match e {
-        Src::AddReferencesToPoolError(m)
-        | Src::RefcntRemovalError(m)
+        Src::FinalizePoolRemovalError(m)
+        | Src::CleanupHostRemovalStateError(m)
         | Src::BackupRemovalError(m)
         | Src::Unknown(m) => m.clone(),
     }
@@ -293,8 +293,8 @@ fn remove_error_message(e: &woodstock::server::backup::remove_state::ErrorState)
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum RemoveExecutionState {
     Waiting,
-    AddReferencesToPool,
-    RemovingRefcnt,
+    FinalizePoolRemoval,
+    CleanupHostRemovalState,
     RemovingBackup,
     Completed,
 }
@@ -303,8 +303,8 @@ impl From<woodstock::server::backup::remove_state::RemoveExecutionState> for Rem
         use woodstock::server::backup::remove_state::RemoveExecutionState as Src;
         match s {
             Src::Waiting => Self::Waiting,
-            Src::AddReferencesToPool => Self::AddReferencesToPool,
-            Src::RemovingRefcnt => Self::RemovingRefcnt,
+            Src::FinalizePoolRemoval => Self::FinalizePoolRemoval,
+            Src::CleanupHostRemovalState => Self::CleanupHostRemovalState,
             Src::RemovingBackup => Self::RemovingBackup,
             Src::Completed => Self::Completed,
         }
@@ -332,9 +332,10 @@ impl From<woodstock::server::backup::remove_state::RemoveState> for JobRemoveSta
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum FsckErrorState {
-    ApplyingRefcntError,
+    ApplyingPendingError,
     InitializationError,
-    VerifyRefcntError,
+    VerifySegmentsError,
+    VerifyIndexError,
     VerifyUnusedError,
     VerifyChunkError,
     Unknown,
@@ -343,9 +344,10 @@ impl From<woodstock::server::pool::fsck_state::ErrorState> for FsckErrorState {
     fn from(s: woodstock::server::pool::fsck_state::ErrorState) -> Self {
         use woodstock::server::pool::fsck_state::ErrorState as Src;
         match s {
-            Src::ApplyingRefcntError(_) => Self::ApplyingRefcntError,
+            Src::ApplyingPendingError(_) => Self::ApplyingPendingError,
             Src::InitializationError(_) => Self::InitializationError,
-            Src::VerifyRefcntError(_) => Self::VerifyRefcntError,
+            Src::VerifySegmentsError(_) => Self::VerifySegmentsError,
+            Src::VerifyIndexError(_) => Self::VerifyIndexError,
             Src::VerifyUnusedError(_) => Self::VerifyUnusedError,
             Src::VerifyChunkError(_) => Self::VerifyChunkError,
             Src::Unknown(_) => Self::Unknown,
@@ -355,9 +357,10 @@ impl From<woodstock::server::pool::fsck_state::ErrorState> for FsckErrorState {
 fn fsck_error_message(e: &woodstock::server::pool::fsck_state::ErrorState) -> String {
     use woodstock::server::pool::fsck_state::ErrorState as Src;
     match e {
-        Src::ApplyingRefcntError(m)
+        Src::ApplyingPendingError(m)
         | Src::InitializationError(m)
-        | Src::VerifyRefcntError(m)
+        | Src::VerifySegmentsError(m)
+        | Src::VerifyIndexError(m)
         | Src::VerifyUnusedError(m)
         | Src::VerifyChunkError(m)
         | Src::Unknown(m) => m.clone(),
@@ -367,9 +370,10 @@ fn fsck_error_message(e: &woodstock::server::pool::fsck_state::ErrorState) -> St
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum FsckExecutionState {
     Waiting,
-    ApplyingRefcnt,
+    ApplyingPending,
     Initialization,
-    VerifyRefcnt,
+    VerifySegments,
+    VerifyIndex,
     VerifyUnused,
     VerifyChunk,
     Completed,
@@ -379,12 +383,31 @@ impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecu
         use woodstock::server::pool::fsck_state::FsckExecutionState as Src;
         match s {
             Src::Waiting => Self::Waiting,
-            Src::ApplyingRefcnt => Self::ApplyingRefcnt,
+            Src::ApplyingPending => Self::ApplyingPending,
             Src::Initialization => Self::Initialization,
-            Src::VerifyRefcnt => Self::VerifyRefcnt,
+            Src::VerifySegments => Self::VerifySegments,
+            Src::VerifyIndex => Self::VerifyIndex,
             Src::VerifyUnused => Self::VerifyUnused,
             Src::VerifyChunk => Self::VerifyChunk,
             Src::Completed => Self::Completed,
+        }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct SegmentProgression {
+    pub progress_max: usize,
+    pub progress_current: usize,
+    pub error_count: usize,
+    pub total_count: usize,
+}
+impl From<woodstock::server::pool::fsck_state::SegmentProgression> for SegmentProgression {
+    fn from(p: woodstock::server::pool::fsck_state::SegmentProgression) -> Self {
+        Self {
+            progress_max: p.progress_max,
+            progress_current: p.progress_current,
+            error_count: p.error_count,
+            total_count: p.total_count,
         }
     }
 }
@@ -452,6 +475,7 @@ pub struct JobFsckTaskState {
     pub execution_state: FsckExecutionState,
     pub error_state: Option<FsckErrorState>,
     pub error_message: Option<String>,
+    pub segment_progression: SegmentProgression,
     pub refcnt_progression: RefcntProgression,
     pub unused_progression: UnusedProgression,
     pub chunk_progression: ChunkProgression,
@@ -467,6 +491,7 @@ impl From<woodstock::server::pool::fsck_state::FsckState> for JobFsckTaskState {
             execution_state: s.execution_state.into(),
             error_state,
             error_message,
+            segment_progression: s.segment_progression.into(),
             refcnt_progression: s.refcnt_progression.into(),
             unused_progression: s.unused_progression.into(),
             chunk_progression: s.chunk_progression.into(),
@@ -485,7 +510,7 @@ pub struct JobCleanerTaskState {
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum CleanerErrorState {
-    ApplyingRefcntError,
+    ApplyingPendingError,
     InitializationError,
     CleaningError,
     Unknown,
@@ -494,7 +519,7 @@ impl From<woodstock::server::pool::pool_cleaner_state::ErrorState> for CleanerEr
     fn from(s: woodstock::server::pool::pool_cleaner_state::ErrorState) -> Self {
         use woodstock::server::pool::pool_cleaner_state::ErrorState as Src;
         match s {
-            Src::ApplyingRefcntError(_) => Self::ApplyingRefcntError,
+            Src::ApplyingPendingError(_) => Self::ApplyingPendingError,
             Src::InitializationError(_) => Self::InitializationError,
             Src::CleaningError(_) => Self::CleaningError,
             Src::Unknown(_) => Self::Unknown,
@@ -504,7 +529,7 @@ impl From<woodstock::server::pool::pool_cleaner_state::ErrorState> for CleanerEr
 fn cleaner_error_message(e: &woodstock::server::pool::pool_cleaner_state::ErrorState) -> String {
     use woodstock::server::pool::pool_cleaner_state::ErrorState as Src;
     match e {
-        Src::ApplyingRefcntError(m)
+        Src::ApplyingPendingError(m)
         | Src::InitializationError(m)
         | Src::CleaningError(m)
         | Src::Unknown(m) => m.clone(),
@@ -514,7 +539,7 @@ fn cleaner_error_message(e: &woodstock::server::pool::pool_cleaner_state::ErrorS
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub enum CleanerExecutionState {
     Waiting,
-    ApplyingRefcnt,
+    ApplyingPending,
     Initialization,
     Cleaning,
     Completed,
@@ -526,7 +551,7 @@ impl From<woodstock::server::pool::pool_cleaner_state::CleanerExecutionState>
         use woodstock::server::pool::pool_cleaner_state::CleanerExecutionState as Src;
         match s {
             Src::Waiting => Self::Waiting,
-            Src::ApplyingRefcnt => Self::ApplyingRefcnt,
+            Src::ApplyingPending => Self::ApplyingPending,
             Src::Initialization => Self::Initialization,
             Src::Cleaning => Self::Cleaning,
             Src::Completed => Self::Completed,
@@ -586,7 +611,7 @@ impl From<crate::jobs::progress::JobKind> for Option<BackupQueueProgress> {
             crate::jobs::progress::JobKind::Remove(pd) => pd
                 .progress
                 .map(|p| BackupQueueProgress::JobRemoveState(p.into())),
-            crate::jobs::progress::JobKind::CleanupRefcnt(pd) => pd
+            crate::jobs::progress::JobKind::CleanupPool(pd) => pd
                 .progress
                 .map(|p| BackupQueueProgress::JobCleanerTaskState(p.into())),
             crate::jobs::progress::JobKind::Fsck(pd) => pd
@@ -656,8 +681,8 @@ impl From<crate::jobs::progress::ProgressEvent> for Job {
                 pd.progress
                     .map(|p| BackupQueueProgress::JobRemoveState(p.into())),
             ),
-            crate::jobs::progress::JobKind::CleanupRefcnt(pd) => (
-                JobKind::CleanupRefcnt,
+            crate::jobs::progress::JobKind::CleanupPool(pd) => (
+                JobKind::CleanupPool,
                 BackupQueueData::JobCleanupData(pd.data.into()),
                 pd.progress
                     .map(|p| BackupQueueProgress::JobCleanerTaskState(p.into())),

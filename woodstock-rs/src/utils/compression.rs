@@ -9,6 +9,7 @@ use async_compression::tokio::bufread::{
 use async_compression::tokio::write::{
     BrotliEncoder, LzmaEncoder, XzEncoder, ZlibEncoder, ZstdEncoder,
 };
+use eyre::eyre;
 use futures::ready;
 use std::io::Cursor;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter, ReadBuf};
@@ -307,6 +308,22 @@ impl TryFrom<&str> for CompressionFormat {
     }
 }
 
+impl TryFrom<u32> for CompressionFormat {
+    type Error = eyre::Report;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(CompressionFormat::None),
+            1 => Ok(CompressionFormat::Zlib),
+            2 => Ok(CompressionFormat::Zstd),
+            3 => Ok(CompressionFormat::Brotli),
+            4 => Ok(CompressionFormat::Lzma),
+            5 => Ok(CompressionFormat::Xz),
+            _ => Err(eyre!("unsupported compression format value {value}")),
+        }
+    }
+}
+
 impl Display for CompressionFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str_name())
@@ -314,6 +331,17 @@ impl Display for CompressionFormat {
 }
 
 impl CompressionFormat {
+    pub fn as_u32(self) -> u32 {
+        match self {
+            CompressionFormat::None => 0,
+            CompressionFormat::Zlib => 1,
+            CompressionFormat::Zstd => 2,
+            CompressionFormat::Brotli => 3,
+            CompressionFormat::Lzma => 4,
+            CompressionFormat::Xz => 5,
+        }
+    }
+
     /// Convert to compression header value
     fn to_header(self) -> CompressionHeader {
         match self {

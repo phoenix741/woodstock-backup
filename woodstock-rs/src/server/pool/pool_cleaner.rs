@@ -1,27 +1,28 @@
-use std::{
-    path::PathBuf,
-    sync::{atomic::AtomicU64, atomic::Ordering, Arc},
-    time::SystemTime,
-};
+use std::{path::PathBuf, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
 use eyre::Result;
-use tracing::{error, Instrument};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::{
-    config::{Configuration, DEFAULT_CHANNEL_BUFFER_SIZE},
-    events::append_events,
-    pool::Refcnt,
-    woodstock::event::Information,
-    Event, EventPoolCleanedInformation, EventSource, EventStatus, EventStep, EventType, PoolUnused,
+    config::Configuration, events::append_events, pool::PoolManager, woodstock::event::Information,
+    Event, EventPoolCleanedInformation, EventSource, EventStatus, EventStep, EventType,
 };
 
+/// Progress payload sent by the pool cleaner to CLI and job consumers.
+///
+/// In Pool V2 this tracks the cleanup of unused chunk files. In Pool V3 the same structure is
+/// reused to expose incremental compaction progress while preserving the existing public contract.
 #[derive(Clone, Debug)]
 pub struct PoolProgression {
+    /// Current number of processed items.
     pub progress_current: usize,
+    /// Total number of items expected for the current run.
     pub file_count: usize,
+    /// Number of bytes processed so far.
     pub file_size: u64,
+    /// Number of bytes reclaimed or cleaned so far.
     pub compressed_file_size: u64,
 }
 
@@ -131,13 +132,14 @@ impl PoolCleaner {
     ///
     /// Returns an error if the unused files cannot be loaded or counted due to I/O or data issues.
     pub async fn clean_unused_max(&self) -> Result<usize> {
-        let mut refcnt = Refcnt::new(&self.config.path.pool_path);
-        refcnt.load_unused().await;
-
-        Ok(refcnt.list_refcnt().count())
+        PoolManager::new(self.config.clone()).compact_pool_v3_max()
     }
 
     /// Cleans unused files from the pool.
+    ///
+    /// On a Pool V3 layout, this method runs segment compaction instead of legacy unused-file
+    /// deletion and emits incremental progress snapshots through the existing `PoolProgression`
+    /// channel.
     ///
     /// # Arguments
     /// * `target` - An optional target path for cleaning.
@@ -158,72 +160,42 @@ impl PoolCleaner {
         source: EventSource,
         progress_tx: Option<mpsc::Sender<PoolProgression>>,
     ) -> Result<EventPoolCleanedInformation> {
+        let pool_manager = PoolManager::new(self.config.clone());
+        let total = pool_manager.compact_pool_v3_max()?;
         let id = self
             .create_event_start(EventType::PoolCleaned, source)
             .await?;
-
-        let mut refcnt = Refcnt::new(&self.config.path.pool_path);
-        refcnt.load_unused().await;
-
-        let total_size = AtomicU64::new(0);
-        let total_compressed_size = Arc::new(AtomicU64::new(0));
-        let total = refcnt.size();
-
-        let total_compressed_size_progress = total_compressed_size.clone();
-
-        let (internal_tx, mut internal_rx) =
-            mpsc::channel::<Option<PoolUnused>>(DEFAULT_CHANNEL_BUFFER_SIZE);
-        let progress_thread = tokio::spawn(
-            async move {
-                let mut count = 0;
-                while let Some(unused) = internal_rx.recv().await {
-                    let compressed_size = unused
-                        .clone()
-                        .map(|f| f.compressed_size)
-                        .unwrap_or_default();
-                    let size = unused.clone().map(|f| f.size).unwrap_or_default();
-
-                    total_compressed_size_progress.fetch_add(compressed_size, Ordering::SeqCst);
-                    total_size.fetch_add(size, Ordering::SeqCst);
-                    count += 1;
-
-                    if let Some(tx) = &progress_tx {
-                        if let Err(e) = tx
-                            .send(PoolProgression {
-                                progress_current: count,
-                                file_count: total,
-                                file_size: total_size.load(Ordering::SeqCst),
-                                compressed_file_size: total_compressed_size_progress
-                                    .load(Ordering::SeqCst),
-                            })
-                            .await
-                        {
-                            error!("Failed to send unused files cleanup progress: {}", e);
-                        }
+        let compacted = pool_manager
+            .compact_pool_v3_with_progress(target.as_deref(), |progress| {
+                if let Some(tx) = &progress_tx {
+                    if let Err(error) = tx.try_send(PoolProgression {
+                        progress_current: progress.processed_segments,
+                        file_count: progress.total_segments.max(total),
+                        file_size: progress.rewritten_bytes,
+                        compressed_file_size: progress.reclaimed_size,
+                    }) {
+                        error!("Failed to send pool compaction progress: {}", error);
                     }
                 }
-            }
-            .in_current_span(),
-        );
-
-        refcnt
-            .remove_unused_files(
-                &self.config.path.pool_path,
-                target,
-                internal_tx,
-                self.config.compression_format.clone(),
-            )
+            })
             .await?;
 
-        if let Err(e) = progress_thread.await {
-            error!("Error in file list progression task: {}", e);
+        if let Some(tx) = &progress_tx {
+            if let Err(error) = tx.try_send(PoolProgression {
+                progress_current: compacted.removed_segments as usize,
+                file_count: total,
+                file_size: compacted.reclaimed_size,
+                compressed_file_size: compacted.reclaimed_size,
+            }) {
+                error!("Failed to send final pool compaction progress: {}", error);
+            }
         }
 
         let informations = EventPoolCleanedInformation {
-            count: total as u64,
-            size: total_compressed_size.load(Ordering::SeqCst),
+            count: compacted.removed_segments,
+            size: compacted.reclaimed_size,
         };
-        self.create_event_cleaned_end(&id, source, informations)
+        self.create_event_cleaned_end(&id, source, informations.clone())
             .await?;
 
         Ok(informations)

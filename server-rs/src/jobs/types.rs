@@ -79,7 +79,7 @@ pub struct RemoveJobData {
 pub struct StatsJobData {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CleanupRefcntJobData {
+pub struct CleanupPoolJobData {
     pub target: Option<String>,
 }
 
@@ -92,14 +92,14 @@ pub struct FsckJobData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "data")]
 pub enum MaintenanceJobData {
-    CleanupRefcnt(CleanupRefcntJobData),
+    CleanupPool(CleanupPoolJobData),
     Fsck(FsckJobData),
     Stats(StatsJobData),
 }
 
 impl Default for MaintenanceJobData {
     fn default() -> Self {
-        MaintenanceJobData::CleanupRefcnt(CleanupRefcntJobData { target: None })
+        MaintenanceJobData::CleanupPool(CleanupPoolJobData { target: None })
     }
 }
 

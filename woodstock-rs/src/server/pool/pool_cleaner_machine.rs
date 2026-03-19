@@ -1,6 +1,5 @@
 use std::{path::PathBuf, sync::Arc};
 
-use chrono::Local;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, warn, Instrument};
@@ -78,7 +77,7 @@ impl PoolCleanerMachine {
         }
     }
 
-    /// Applies pending refcnt operations.
+    /// Applies pending Pool V3 publication/removal integrations before compaction.
     ///
     /// # Returns
     ///
@@ -87,25 +86,11 @@ impl PoolCleanerMachine {
     ///
     /// # Errors
     ///
-    /// Returns an error if the refcnt operations cannot be applied.
-    async fn apply_refcnt_operations(&self) -> Result<()> {
-        {
-            let mut state = self.state.lock().await;
-            state.start_applying_refcnt();
-        }
-        self.send_state().await;
-
-        let current_time = Local::now();
-        let result = PoolManager::new(self.config.clone())
-            .apply_pending(&current_time)
-            .await;
-
-        {
-            let mut state = self.state.lock().await;
-            state.process_applying_refcnt_result(result)?;
-        }
-        self.send_state().await;
-        Ok(())
+    /// Returns an error if pending Pool V3 integrations cannot be applied.
+    async fn apply_pending_operations(&self) -> Result<()> {
+        PoolManager::new(self.config.clone())
+            .apply_pending_operations()
+            .await
     }
 
     /// Initializes the cleaning process.
@@ -205,8 +190,8 @@ impl PoolCleanerMachine {
     /// Separated from `execute()` so the latter can wrap this in a `tokio::select!`
     /// against the lock's cancellation token.
     async fn run_cleaner_core(&self) -> Result<CleanerState> {
-        // Apply pending refcnt operations (protected by EXCLUSIVE lock)
-        self.apply_refcnt_operations().await?;
+        // Apply pending Pool V3 integrations (protected by EXCLUSIVE lock)
+        self.apply_pending_operations().await?;
 
         // Initialize
         self.init_cleaning().await?;

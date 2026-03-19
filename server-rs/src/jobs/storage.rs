@@ -28,7 +28,7 @@ const ORPHAN_TIMEOUT_QUICK: Duration = Duration::from_secs(300);
 /// re-enqueued, while still recovering quickly after a real worker crash.
 const ORPHAN_TIMEOUT_LONG: Duration = Duration::from_secs(3_600); // 1 hour
 
-/// Orphan timeout for maintenance jobs (fsck, cleanup_refcnt).
+/// Orphan timeout for maintenance jobs (fsck, cleanup_pool).
 ///
 /// Set to 12 hours, much longer than `ORPHAN_TIMEOUT_LONG`.
 /// Rationale: maintenance jobs (especially fsck) can be re-run safely (idempotent),
@@ -84,7 +84,7 @@ impl ApalisRedisStorage {
                 .set_keep_alive(KEEP_ALIVE)
                 .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_LONG),
         );
-        // Maintenance jobs (fsck, cleanup_refcnt) scan the full pool and can run for hours.
+        // Maintenance jobs (fsck, cleanup_pool) scan the full pool and can run for hours.
         // We use ORPHAN_TIMEOUT_MAINTENANCE (12h) instead of ORPHAN_TIMEOUT_LONG (1h) so that
         // a host suspended for less than 12h does not trigger a duplicate fsck run.
         // A CancellationToken in PoolLockRedis provides a second line of defence if a

@@ -26,7 +26,6 @@ mod commands;
 mod filesystem;
 
 use crate::backup_resolver::resolve_backup_id;
-use chrono::Local;
 use clap::{Parser, Subcommand};
 use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
@@ -96,8 +95,8 @@ enum Commands {
         chunk: String,
     },
 
-    /// Add reference count to the pool for a specific backup.
-    CompactRefcnt {},
+    /// Apply pending pool operations manually.
+    CompactPool {},
 
     /// Clean unused chunks from the pool.
     CleanUnused {
@@ -214,13 +213,13 @@ async fn main() -> Result<()> {
                 .await
                 .wrap_err("Failed to search chunk")?;
         }
-        Commands::CompactRefcnt {} => {
+        Commands::CompactPool {} => {
             // Acquire EXCLUSIVE lock to prevent race conditions
             let redis_url = state.config.redis_url();
             let _lock = PoolLockRedis::new_with_path(
                 &redis_url,
                 &state.config.path.pool_path,
-                LockOperation::Pool(PoolLockOperation::CompactRefcntManual),
+                LockOperation::Pool(PoolLockOperation::CompactPoolManual),
             )
             .await
             .wrap_err("Failed to acquire lock")?
@@ -229,9 +228,9 @@ async fn main() -> Result<()> {
             .wrap_err("Failed to acquire exclusive lock")?;
 
             PoolManager::new(state.config.clone())
-                .apply_pending(&Local::now())
+                .apply_pending_operations()
                 .await
-                .wrap_err("Failed to compact refcnt")?;
+                .wrap_err("Failed to apply pending Pool V3 operations")?;
         }
         Commands::CleanUnused { target } => {
             clean_unused_pool(state, context.source, target)
@@ -248,7 +247,7 @@ async fn main() -> Result<()> {
         } => {
             verify_all(state, context.source, dry_run, chunks, skip_ref_unused)
                 .await
-                .wrap_err("Can't verify refcnt")?;
+                .wrap_err("Can't verify pool state")?;
         }
         Commands::Compare {
             file_manifest_source,

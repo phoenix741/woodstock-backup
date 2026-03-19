@@ -127,8 +127,8 @@ impl From<BackupStatus> for BackupStatusDto {
             BackupStatus::Failed(stage) => {
                 let failed_stage = match stage {
                     FailedStatus::Compact => FailedStageDto::Compact,
-                    FailedStatus::RefCount => FailedStageDto::RefCount,
-                    FailedStatus::InPool => FailedStageDto::InPool,
+                    FailedStatus::FlushStaging => FailedStageDto::RefCount,
+                    FailedStatus::PublishPool => FailedStageDto::InPool,
                 };
                 BackupStatusDto {
                     status_type: BackupStatusTypeDto::Failed,
@@ -410,8 +410,8 @@ pub enum BackupErrorState {
     CommandExecutionError,
     BackupError,
     CompactError,
-    CountReferencesError,
-    AddReferencesToPoolError,
+    FlushStagingError,
+    PublishPoolError,
     Unknown,
 }
 
@@ -424,8 +424,8 @@ impl From<woodstock::server::backup::save_state::ErrorState> for BackupErrorStat
             Src::CommandExecutionError(_) => BackupErrorState::CommandExecutionError,
             Src::BackupError(_) => BackupErrorState::BackupError,
             Src::CompactError(_) => BackupErrorState::CompactError,
-            Src::CountReferencesError(_) => BackupErrorState::CountReferencesError,
-            Src::AddReferencesToPoolError(_) => BackupErrorState::AddReferencesToPoolError,
+            Src::FlushStagingError(_) => BackupErrorState::FlushStagingError,
+            Src::PublishPoolError(_) => BackupErrorState::PublishPoolError,
             Src::Unknown(_) => BackupErrorState::Unknown,
         }
     }
@@ -439,8 +439,8 @@ fn backup_error_state_message(s: &woodstock::server::backup::save_state::ErrorSt
         Src::CommandExecutionError(e) => e,
         Src::BackupError(e) => e,
         Src::CompactError(e) => e,
-        Src::CountReferencesError(e) => e,
-        Src::AddReferencesToPoolError(e) => e,
+        Src::FlushStagingError(e) => e,
+        Src::PublishPoolError(e) => e,
         Src::Unknown(e) => e,
     }
 }
@@ -456,8 +456,8 @@ pub enum BackupExecutionState {
     DownloadChunks,
     PostCommands,
     Compact,
-    CountReferences,
-    AddReferencesToPool,
+    FlushStaging,
+    PublishPool,
     Completed,
 }
 
@@ -474,8 +474,8 @@ impl From<woodstock::server::backup::save_state::BackupExecutionState> for Backu
             Src::DownloadChunks(_) => BackupExecutionState::DownloadChunks,
             Src::PostCommands(_) => BackupExecutionState::PostCommands,
             Src::Compact(_) => BackupExecutionState::Compact,
-            Src::CountReferences => BackupExecutionState::CountReferences,
-            Src::AddReferencesToPool => BackupExecutionState::AddReferencesToPool,
+            Src::FlushStaging => BackupExecutionState::FlushStaging,
+            Src::PublishPool => BackupExecutionState::PublishPool,
             Src::Completed => BackupExecutionState::Completed,
         }
     }

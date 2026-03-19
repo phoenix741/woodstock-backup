@@ -58,8 +58,8 @@ use super::IndexManifest;
 /// Represents a chunk entry in the manifest.
 #[derive(Clone)]
 pub struct ManifestChunk {
-    /// SHA-256 hash of the chunk.
-    pub sha256: Vec<u8>,
+    /// Logical hash of the chunk.
+    pub chunk_hash: Vec<u8>,
 }
 
 /// Represents a manifest, which contains metadata and paths for backup management.
@@ -342,15 +342,15 @@ impl Manifest {
                     continue;
                 };
 
-                for (i, sha256) in manifest.chunks.iter().enumerate() {
-                    if sha256.is_empty() {
+                for (i, chunk_hash) in manifest.chunks.iter().enumerate() {
+                    if chunk_hash.is_empty() {
                         continue;
                     }
                     let size = entry.chunk_sizes.get(i).copied().unwrap_or(0);
                     let compressed_size = entry.chunk_compressed_sizes.get(i).copied().unwrap_or(0);
 
                     yield PoolRefCount {
-                        sha256: sha256.clone(),
+                        chunk_hash: chunk_hash.clone(),
                         ref_count: 0,
                         size,
                         compressed_size,
@@ -414,9 +414,9 @@ impl Manifest {
             pin_mut!(messages);
 
             while let Some(manifest) = messages.next().await {
-                for sha256 in &manifest.chunks {
+                for chunk_hash in &manifest.chunks {
                     yield ManifestChunk {
-                        sha256: sha256.clone(),
+                        chunk_hash: chunk_hash.clone(),
                     };
                 }
             }
@@ -435,13 +435,13 @@ impl Manifest {
 
             while let Some(chunk) = messages.next().await {
                 // Skip chunks with empty hash
-                if chunk.sha256.is_empty() {
+                if chunk.chunk_hash.is_empty() {
                     warn!("Skipping chunk with empty hash on {:?}", self.manifest_name);
                     continue;
                 }
 
                 yield PoolRefCount {
-                    sha256: chunk.sha256,
+                    chunk_hash: chunk.chunk_hash,
                     ref_count: 1,
                     size: 0,
                     compressed_size: 0,

@@ -93,13 +93,13 @@ enum ChunkAlgorithm {
 }
 
 message PoolUnused {
-  bytes  sha256          = 1;
+  bytes  chunk_hash      = 1;
   uint64 size            = 3;
   uint64 compressed_size = 4;
 }
 
 message PoolRefCount {
-  bytes  sha256          = 1;
+  bytes  chunk_hash      = 1;
   uint32 ref_count       = 2;
   uint64 size            = 3;
   uint64 compressed_size = 4;

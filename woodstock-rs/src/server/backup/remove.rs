@@ -1,16 +1,14 @@
 use std::sync::Arc;
 
-use chrono::Local;
 use eyre::Result;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    config::{BackupStatus, Backups, Configuration, Context},
+    config::{Backups, Configuration, Context},
     events::create_event_backup_remove,
-    pool::{PoolManager, Refcnt, RefcntApplySens},
-    utils::compression::CompressionFormat,
-    ChunkAlgorithm, EventSource,
+    pool::PoolManager,
+    EventSource,
 };
 
 pub struct BackupRemove {
@@ -20,10 +18,6 @@ pub struct BackupRemove {
     backup_id: Uuid,
     /// The source of events for the backup removal process.
     source: EventSource,
-    /// The chunk algorithm used for hash processing.
-    algorithm: ChunkAlgorithm,
-    /// The compression format used for the backup.
-    compression_format: CompressionFormat,
 
     /// The configuration for the backup removal process.
     config: Arc<Configuration>,
@@ -61,14 +55,12 @@ impl BackupRemove {
             hostname: hostname.to_string(),
             backup_id,
             source: ctxt.source,
-            algorithm: config.chunk_algorithm,
-            compression_format: config.compression_format,
             config,
             backups,
         }
     }
 
-    /// Copy the references count from the backup to the pool.
+    /// Finalizes the Pool V3 removal publication for this backup.
     ///
     ///# Returns
     ///
@@ -78,21 +70,17 @@ impl BackupRemove {
     /// # Errors
     ///
     /// Returns an error if the copy operation fails.
-    pub async fn add_refcnt_to_pool(&self) -> Result<()> {
-        info!("Add references count to pool");
-
-        let host_refcnt_file = self
-            .backups
-            .get_backup_destination_directory(&self.hostname, self.backup_id);
+    pub async fn finalize_pool_removal(&self) -> Result<()> {
+        info!("Finalize pool v3 backup removal");
 
         PoolManager::new(self.config.clone())
-            .remove_refcnt(host_refcnt_file, &self.hostname, self.backup_id)
+            .finalize_backup_removal(&self.hostname, self.backup_id)
             .await?;
 
         Ok(())
     }
 
-    /// Removes reference counts for the host.
+    /// Cleans up the host-side removal bookkeeping for this backup.
     ///
     /// # Returns
     ///
@@ -102,26 +90,11 @@ impl BackupRemove {
     /// # Errors
     ///
     /// Returns an error if the reference count removal fails.
-    pub async fn remove_refcnt_of_host(&self) -> Result<()> {
-        let from_directory = self
-            .backups
-            .get_backup_destination_directory(&self.hostname, self.backup_id);
-
-        let host_directory = self.backups.get_host_path(&self.hostname);
-
-        let mut backup_refcnt = Refcnt::new(&from_directory);
-        backup_refcnt.load_refcnt(false).await;
-
-        Refcnt::apply_all_from(
-            &host_directory,
-            &backup_refcnt,
-            &RefcntApplySens::Decrease,
-            &Local::now(),
-            self.algorithm,
-            self.compression_format,
-        )
-        .await?;
-
+    pub async fn cleanup_host_removal_state(&self) -> Result<()> {
+        info!(
+            "Pool V3 removal does not update host REFCNT files for backup {}/{}",
+            self.hostname, self.backup_id
+        );
         Ok(())
     }
 
@@ -167,36 +140,6 @@ impl BackupRemove {
             &shares,
         )
         .await?;
-
-        Ok(())
-    }
-
-    /// Saves the backup with the specified status.
-    ///
-    /// # Arguments
-    /// * `status` - The status of the backup.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the save operation succeeds.
-    /// * `Err(eyre::Report)` if an error occurs during the save operation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the save operation fails.
-    pub async fn save_backup(&self, status: BackupStatus) -> Result<()> {
-        info!("Save backup removal status (status = {status:?})");
-
-        let mut backup = self
-            .backups
-            .get_backup(&self.hostname, self.backup_id)
-            .await
-            .ok_or_else(|| eyre::eyre!("Backup {}/{} not found", self.hostname, self.backup_id))?;
-        backup.status = status;
-
-        self.backups
-            .add_or_replace_backup(&self.hostname, &backup)
-            .await?;
 
         Ok(())
     }

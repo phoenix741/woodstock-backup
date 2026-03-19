@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use chrono::Local;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info, warn, Instrument};
@@ -87,37 +86,17 @@ impl FsckMachine {
         }
     }
 
-    /// Applies pending refcnt operations.
+    /// Applies pending Pool V3 publication/removal integrations.
     ///
     /// # Returns
     ///
     /// * `Ok(())` if the operations are applied successfully.
-    /// * `Err(())` if the operations fail (non-fatal, will be handled by check_pool_integrity).
-    async fn apply_refcnt_operations(&self) -> Result<(), ()> {
-        {
-            let mut state = self.state.lock().await;
-            state.start_applying_refcnt();
-        }
-        self.send_state().await;
-
-        let current_time = Local::now();
-        let result = PoolManager::new(self.config.clone())
-            .apply_pending(&current_time)
-            .await;
-
-        {
-            let mut state = self.state.lock().await;
-            match state.process_applying_refcnt_result(result) {
-                Ok(_) => (),
-                Err(e) => {
-                    debug!("apply_refcnt_operations failed (will be fixed by check_pool_integrity): {}", e);
-                    self.send_state().await;
-                    return Err(());
-                }
-            }
-        }
-        self.send_state().await;
-        Ok(())
+    /// * `Err(())` if the operations fail (non-fatal, fsck can still rebuild from source data).
+    async fn apply_pending_operations(&self) -> Result<(), ()> {
+        PoolManager::new(self.config.clone())
+            .apply_pending_operations()
+            .await
+            .map_err(|_| ())
     }
 
     /// Initializes the fsck process.
@@ -138,7 +117,8 @@ impl FsckMachine {
         self.send_state().await;
 
         // Get initialization results for each verification type
-        let refcnt_max_result = self.fsck.verify_refcnt_max().await;
+        let segment_max_result = self.fsck.verify_segments_max().await;
+        let index_max_result = self.fsck.verify_index_max().await;
         let unused_max_result = self.fsck.verify_unused_max().await;
         let chunk_max_result = if self.verify_chunks {
             self.fsck.verify_chunk_max().await
@@ -149,14 +129,61 @@ impl FsckMachine {
         {
             let mut state = self.state.lock().await;
             return state.process_initialization_result(
-                refcnt_max_result,
+                segment_max_result,
+                index_max_result,
                 unused_max_result,
                 chunk_max_result,
             );
         }
     }
 
-    /// Verifies the reference count.
+    async fn verify_segments(&self) -> Result<FsckProgression> {
+        {
+            let mut state = self.state.lock().await;
+            state.start_verify_segments();
+        }
+        self.send_state().await;
+
+        let (progress_tx, mut progress_rx) =
+            mpsc::channel::<FsckProgression>(DEFAULT_CHANNEL_BUFFER_SIZE);
+
+        let state_clone = self.state.clone();
+        let state_tx_clone = self.state_tx.clone();
+
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_verify_segments_progress(&progress);
+
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!(
+                                "Failed to send state update during segment verification: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            .in_current_span(),
+        );
+
+        let result = self.fsck.verify_segments(Some(progress_tx)).await;
+
+        if let Err(e) = progress_task.await {
+            error!("Error in segment verification progression task: {}", e);
+        }
+
+        let result = {
+            let mut state = self.state.lock().await;
+            state.process_verify_segments_result(result)
+        };
+        self.send_state().await;
+        result
+    }
+
+    /// Verifies the logical Pool V3 index.
     ///
     /// # Arguments
     ///
@@ -169,11 +196,11 @@ impl FsckMachine {
     ///
     /// # Errors
     ///
-    /// Returns an error if any step of the reference count verification process fails.
-    async fn verify_refcnt(&self, dry_run: bool) -> Result<FsckProgression> {
+    /// Returns an error if any step of the logical index verification process fails.
+    async fn verify_index(&self, dry_run: bool) -> Result<FsckProgression> {
         {
             let mut state = self.state.lock().await;
-            state.start_verify_refcnt();
+            state.start_verify_index();
         }
         self.send_state().await;
 
@@ -189,13 +216,13 @@ impl FsckMachine {
             async move {
                 while let Some(progress) = progress_rx.recv().await {
                     let mut state = state_clone.lock().await;
-                    state.process_verify_refcnt_progress(&progress);
+                    state.process_verify_index_progress(&progress);
 
                     // Send updated state
                     if let Some(tx) = &state_tx_clone {
                         if let Err(e) = tx.send(state.clone()).await {
                             error!(
-                                "Failed to send state update during refcnt verification: {}",
+                                "Failed to send state update during logical index verification: {}",
                                 e
                             );
                         }
@@ -206,16 +233,19 @@ impl FsckMachine {
         );
 
         // Execute verification
-        let result = self.fsck.verify_refcnt(dry_run, Some(progress_tx)).await;
+        let result = self.fsck.verify_index(dry_run, Some(progress_tx)).await;
 
         // Wait for progression task to complete
         if let Err(e) = progress_task.await {
-            error!("Error in refcnt verification progression task: {}", e);
+            error!(
+                "Error in logical index verification progression task: {}",
+                e
+            );
         }
 
         let result = {
             let mut state = self.state.lock().await;
-            state.process_verify_refcnt_result(result)
+            state.process_verify_index_result(result)
         };
         self.send_state().await;
         result
@@ -356,9 +386,9 @@ impl FsckMachine {
     /// Separated from `execute()` so the latter can wrap this in a `tokio::select!`
     /// against a cancellation token, aborting cleanly if the lock is lost mid-run.
     async fn run_fsck_core(&self) -> Result<FsckState> {
-        // Try to apply pending refcnt operations (may fail if pool is dirty - not fatal)
-        if let Err(_) = self.apply_refcnt_operations().await {
-            debug!("Pending refcnt operations not applied (pool may be dirty - will be cleaned by check_pool_integrity)");
+        // Try to apply pending Pool V3 operations before rebuilding or verifying the materialized index.
+        if let Err(_) = self.apply_pending_operations().await {
+            debug!("Pending Pool V3 operations not applied before fsck; the index will be rebuilt from source data if needed");
         }
 
         // Create start event
@@ -374,18 +404,37 @@ impl FsckMachine {
         let mut information = EventPoolInformation::default();
         information.fix = !self.dry_run;
 
-        if !self.skip_ref_unused {
-            debug!("Verifying reference counts...");
+        debug!("Verifying segments...");
 
-            // Reference count verification
-            let refcnt_result = self.verify_refcnt(self.dry_run).await;
-            match refcnt_result {
-                Ok(refcnt_info) => {
-                    information.refcount = refcnt_info.total_count as u64;
-                    information.refcount_error = refcnt_info.error_count as u64;
+        let segment_result = self.verify_segments().await;
+        match segment_result {
+            Ok(segment_info) => {
+                information.refcount += segment_info.total_count as u64;
+                information.refcount_error += segment_info.error_count as u64;
+            }
+            Err(e) => {
+                error!("Error during segment verification: {}", e);
+                {
+                    let mut state = self.state.lock().await;
+                    state.complete();
+                }
+                self.send_state().await;
+                return Err(e);
+            }
+        }
+
+        if !self.skip_ref_unused {
+            debug!("Verifying logical Pool V3 index...");
+
+            // Logical index verification
+            let index_result = self.verify_index(self.dry_run).await;
+            match index_result {
+                Ok(index_info) => {
+                    information.refcount = index_info.total_count as u64;
+                    information.refcount_error = index_info.error_count as u64;
                 }
                 Err(e) => {
-                    error!("Error during refcnt verification: {}", e);
+                    error!("Error during logical index verification: {}", e);
                     {
                         let mut state = self.state.lock().await;
                         state.complete();
@@ -446,7 +495,7 @@ impl FsckMachine {
         self.send_state().await;
 
         self.fsck
-            .create_event_refcnt_end(&id, information, self.source)
+            .create_event_fsck_end(&id, information, self.source)
             .await?;
 
         debug!("End of fsck process ...");
@@ -482,16 +531,6 @@ impl FsckMachine {
             "Starting fsck process for pool: {:?}",
             self.config.path.pool_path
         );
-
-        // DIRTY STATE CHECK: Warn in dry-run mode only
-        if self.dry_run {
-            if let Some(dirty_file) = PoolManager::new(self.config.clone()).is_dirty().await? {
-                warn!(
-                    "Pool is DIRTY (file: {:?}) - a previous refcnt operation crashed. Run without --dry-run to clean up.",
-                    dirty_file
-                );
-            }
-        }
 
         // Acquire EXCLUSIVE lock BEFORE any operations.
         // This prevents race conditions with concurrent backups.

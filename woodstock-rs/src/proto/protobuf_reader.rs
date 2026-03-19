@@ -11,9 +11,115 @@ use tokio::{
 
 use crate::utils::compression::WoodstockCompressionReader;
 
+/// Reads one optional length-delimited protobuf frame into a caller-provided buffer.
+///
+/// The buffer is cleared and then filled with the complete length-delimited frame, including the
+/// encoded length prefix and the message payload. The function returns the total number of bytes
+/// written into `buf`.
+///
+/// A return value of `0` means EOF was reached before reading any byte of a new message.
+///
+/// # Errors
+/// Returns an error if the length prefix is malformed, if the total size overflows, or if the
+/// payload cannot be fully read.
+async fn read_optional_length_delimited_buffer<R>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+) -> io::Result<usize>
+where
+    R: AsyncRead + Unpin + ?Sized,
+{
+    buf.clear();
+
+    let mut encoded_length = Vec::with_capacity(10);
+
+    loop {
+        match reader.read_u8().await {
+            Ok(byte) => {
+                encoded_length.push(byte);
+
+                if byte & 0b1000_0000 == 0 || encoded_length.len() == 10 {
+                    break;
+                }
+            }
+            Err(error)
+                if error.kind() == io::ErrorKind::UnexpectedEof && encoded_length.is_empty() =>
+            {
+                return Ok(0);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    let length = prost::decode_length_delimiter(&encoded_length[..]).map_err(io::Error::other)?;
+    let real_length_size = prost::length_delimiter_len(length);
+    let total_size = length
+        .checked_add(real_length_size)
+        .ok_or_else(|| io::Error::other("protobuf message length overflow"))?;
+
+    buf.reserve(total_size);
+    buf.extend_from_slice(&encoded_length);
+    buf.resize(total_size, 0);
+
+    reader.read_exact(&mut buf[real_length_size..]).await?;
+
+    Ok(total_size)
+}
+
+/// Reads one optional length-delimited protobuf message and decodes it.
+///
+/// The provided buffer is reused to avoid repeated allocations in hot paths. On success, the
+/// function returns both the decoded message and the total serialized size of the frame, including
+/// the length prefix.
+///
+/// If EOF is reached before reading any byte of a new frame, `Ok(None)` is returned.
+///
+/// # Errors
+/// Returns an error if the frame is malformed or truncated.
+pub async fn read_optional_length_delimited_message<T, R>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+) -> io::Result<Option<(T, usize)>>
+where
+    T: Message + Default,
+    R: AsyncRead + Unpin + ?Sized,
+{
+    let total_size = read_optional_length_delimited_buffer(reader, buf).await?;
+    if total_size == 0 {
+        return Ok(None);
+    }
+
+    let message = T::decode_length_delimited(&buf[..]).map_err(io::Error::other)?;
+    Ok(Some((message, total_size)))
+}
+
+/// Reads one mandatory length-delimited protobuf message and decodes it.
+///
+/// This is the strict counterpart of [`read_optional_length_delimited_message`]. Reaching EOF
+/// before a new frame starts is treated as an error.
+///
+/// # Errors
+/// Returns an error if EOF is reached before a new frame begins, or if the frame is malformed or
+/// truncated.
+pub async fn read_length_delimited_message<T, R>(
+    reader: &mut R,
+    buf: &mut Vec<u8>,
+) -> io::Result<(T, usize)>
+where
+    T: Message + Default,
+    R: AsyncRead + Unpin + ?Sized,
+{
+    read_optional_length_delimited_message(reader, buf)
+        .await?
+        .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "missing protobuf message"))
+}
+
 /// A reader for protobuf files.
 ///
 /// The file is expected to be a sequence of length-delimited protobuf messages.
+///
+/// A single internal buffer is reused across reads to minimize allocations while iterating over a
+/// file of protobuf frames.
 pub struct ProtobufReader<T: Message + Default> {
     /// The underlying async reader.
     reader: Pin<Box<dyn AsyncRead + Send + Sync>>,
@@ -53,10 +159,10 @@ impl<T: Message + Default> ProtobufReader<T> {
         })
     }
 
-    /// Reads a single protobuf message from the file into the provided buffer.
+    /// Reads a single protobuf message from the file into the provided message value.
     ///
     /// # Arguments
-    /// * `buf` - The message buffer to fill.
+    /// * `buf` - Message instance to populate with the decoded frame.
     ///
     /// # Returns
     ///
@@ -67,30 +173,7 @@ impl<T: Message + Default> ProtobufReader<T> {
     ///
     /// Returns an error if reading or decoding fails.
     pub async fn read(&mut self, buf: &mut T) -> io::Result<()> {
-        self.buffer.clear();
-        let mut encoded_length = Vec::with_capacity(10);
-        // Read the length of the message (varint), one byte at a time. Each byte in the varint has a continuation bit that indicates if the byte that follows it is part of the varint. This is the most significant bit (MSB) of the byte (sometimes also called the sign bit). The lower 7 bits are a payload; the resulting integer is built by appending together the 7-bit payloads of its constituent bytes.
-
-        loop {
-            let byte = self.reader.read_u8().await?;
-            encoded_length.push(byte);
-
-            if byte & 0b1000_0000 == 0 || encoded_length.len() == 10 {
-                break;
-            }
-        }
-
-        let length = prost::decode_length_delimiter(&encoded_length[..])?;
-        let real_length_size = prost::length_delimiter_len(length);
-
-        self.buffer.reserve(length + real_length_size);
-        self.buffer.extend_from_slice(&encoded_length);
-
-        let mut messages_bytes = vec![0u8; length];
-        self.reader.read_exact(&mut messages_bytes).await?;
-
-        self.buffer.extend_from_slice(&messages_bytes);
-
+        read_length_delimited_message::<T, _>(&mut self.reader, &mut self.buffer).await?;
         buf.merge_length_delimited(&self.buffer[..])?;
 
         Ok(())
@@ -135,7 +218,8 @@ impl<T: Message + Default> ProtobufReader<T> {
     ///
     /// # Returns
     ///
-    /// A stream of protobuf messages, where each item is a `Result` containing a message or an `io::Error`.
+    /// A stream of protobuf messages, where each item is a `Result` containing a message or an
+    /// `io::Error`.
     pub fn into_stream(&mut self) -> Pin<Box<dyn Stream<Item = io::Result<T>> + Send + Sync + '_>> {
         Box::pin(unfold(self, |reader| async move {
             let mut message = T::default();

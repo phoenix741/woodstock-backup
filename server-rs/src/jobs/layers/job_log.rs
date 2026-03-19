@@ -6,7 +6,7 @@
 //!   - `<hosts_path>/<host>/<backup_id>/restore.log`
 //!   - `<hosts_path>/<host>/<backup_id>/restore-error.log`
 //!
-//! Pour remove, refcnt, fsck : dans `jobs_path` :
+//! Pour remove, cleanup_pool, fsck : dans `jobs_path` :
 //!   - `<jobs_path>/<job_type>-<task_id>.log`
 //!   - `<jobs_path>/<job_type>-<task_id>-error.log`
 //!
@@ -184,7 +184,7 @@ where
 {
     /// Appelé à la création de chaque span.
     /// Si le span porte les champs `job_type` (obligatoire), `host` et
-    /// `backup_number` (backup/restore) ou `task_id` (remove/refcnt/fsck),
+    /// `backup_number` (backup/restore) ou `task_id` (remove/cleanup_pool/fsck),
     /// ouvre les fichiers de log correspondants.
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, _ctx: Context<'_, S>) {
         let mut ext = SpanFieldExtractor::default();
@@ -212,7 +212,7 @@ where
                     return;
                 }
             }
-            "remove" | "refcnt" | "fsck" => {
+            "remove" | "cleanup_pool" | "fsck" => {
                 let task_id = ext.task_id.as_deref().unwrap_or("unknown");
                 let base = format!("{job_type}-{task_id}");
                 self.open_entry(

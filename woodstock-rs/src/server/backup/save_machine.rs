@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use eyre::{eyre, Result};
+use tokio::fs::{read_to_string, remove_file, write};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, Instrument};
 use uuid::Uuid;
@@ -29,7 +30,7 @@ enum BackupPhase {
     Compact,
     /// Count chunk references
     CountReferences,
-    /// Add reference count to the pool
+    /// Finalize Pool V3 publication into the shared pool index
     AddToPool,
     /// Backup process completed successfully
     Finished,
@@ -48,17 +49,24 @@ impl BackupPhase {
     ///   resume from the interrupted phase, preserve `Aborted` target
     /// - `Failed(x)` → previous attempt hard-failed at a phase, retry from that phase
     /// - Terminal states (`Completed`, `Aborted`, `Removing`) → nothing to do
-    fn from_existing(existing_status: Option<BackupStatus>) -> (Self, BackupStatus) {
+    fn from_existing(
+        existing_status: Option<BackupStatus>,
+        finalization_target: Option<BackupStatus>,
+    ) -> (Self, BackupStatus) {
         match existing_status {
             // Brand-new backup — no recovery needed
             None => (Self::Backup, BackupStatus::Completed),
 
             // Worker crashed during chunk transfer — skip re-download, close as Aborted.
             // Recover first to rebuild stats from the journal.
-            Some(BackupStatus::InProgress) => (
-                Self::Recover(Box::new(Self::Compact)),
-                BackupStatus::Aborted,
-            ),
+            Some(BackupStatus::InProgress) => {
+                let target_status = match finalization_target {
+                    Some(BackupStatus::Completed) => BackupStatus::Completed,
+                    Some(BackupStatus::Aborted) => BackupStatus::Aborted,
+                    _ => BackupStatus::Aborted,
+                };
+                (Self::Recover(Box::new(Self::Compact)), target_status)
+            }
 
             // Interrupted while finalizing a successful backup.
             // Recover first to rebuild stats from journal/log before resuming.
@@ -94,11 +102,11 @@ impl BackupPhase {
                 Self::Recover(Box::new(Self::Compact)),
                 BackupStatus::Completed,
             ),
-            Some(BackupStatus::Failed(FailedStatus::RefCount)) => (
+            Some(BackupStatus::Failed(FailedStatus::FlushStaging)) => (
                 Self::Recover(Box::new(Self::CountReferences)),
                 BackupStatus::Completed,
             ),
-            Some(BackupStatus::Failed(FailedStatus::InPool)) => (
+            Some(BackupStatus::Failed(FailedStatus::PublishPool)) => (
                 Self::Recover(Box::new(Self::AddToPool)),
                 BackupStatus::Completed,
             ),
@@ -138,18 +146,6 @@ pub struct SaveBackupMachine<Clt: Client> {
 }
 
 impl<Clt: Client> SaveBackupMachine<Clt> {
-    /// Determines the appropriate status to save based on the current context.
-    ///
-    /// If the backup is already aborted, returns `Aborting(stage)` to track
-    /// where the aborted backup stopped. Otherwise returns `Finishing(stage)`.
-    fn get_status_for_stage(current_status: &BackupStatus, stage: FinishingStatus) -> BackupStatus {
-        if current_status.is_aborted() {
-            BackupStatus::Aborting(stage)
-        } else {
-            BackupStatus::Finishing(stage)
-        }
-    }
-
     /// Creates a new instance of `SaveBackupMachine`.
     ///
     /// # Arguments
@@ -228,6 +224,44 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             backup_id,
             backups,
         })
+    }
+
+    fn finalization_marker_path(&self) -> std::path::PathBuf {
+        self.backups
+            .get_pool_v3_finalize_marker_path(&self.hostname, self.backup_id)
+    }
+
+    async fn persist_finalization_target(&self, status: &BackupStatus) -> Result<()> {
+        let marker = match status {
+            BackupStatus::Completed => "completed\n",
+            BackupStatus::Aborted => "aborted\n",
+            _ => return Ok(()),
+        };
+
+        write(self.finalization_marker_path(), marker).await?;
+        Ok(())
+    }
+
+    async fn read_finalization_target(&self) -> Result<Option<BackupStatus>> {
+        let marker_path = self.finalization_marker_path();
+        if !marker_path.exists() {
+            return Ok(None);
+        }
+
+        let marker = read_to_string(marker_path).await?;
+        Ok(match marker.trim() {
+            "completed" => Some(BackupStatus::Completed),
+            "aborted" => Some(BackupStatus::Aborted),
+            _ => None,
+        })
+    }
+
+    async fn clear_finalization_target(&self) -> Result<()> {
+        let marker_path = self.finalization_marker_path();
+        if marker_path.exists() {
+            remove_file(marker_path).await?;
+        }
+        Ok(())
     }
 
     /// Sends the current progression state to the state channel.
@@ -734,7 +768,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
 
         {
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.start_count_references();
+            progression_state.start_flush_staging();
         }
         self.send_progres().await;
 
@@ -742,7 +776,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         {
             let mut progression_state = self.progression_state.lock().await;
             progression_state
-                .process_count_references_result(result)
+                .process_flush_staging_result(result)
                 .inspect_err(|_| {
                     if let Some(tx) = &self.state_tx {
                         let _ = tx.try_send(progression_state.clone());
@@ -754,7 +788,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         Ok(())
     }
 
-    /// Add a reference count to the pool for the current backup.
+    /// Finalizes the Pool V3 publication for the current backup.
     ///
     /// # Returns
     ///
@@ -764,21 +798,21 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
     /// # Errors
     ///
     /// Returns an error if the reference count cannot be added to the pool.
-    pub async fn add_refcnt_to_pool(&self) -> Result<()> {
+    pub async fn finalize_pool_publication(&self) -> Result<()> {
         self.send_progres().await;
 
         {
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.start_add_references_to_pool();
+            progression_state.start_publish_pool();
         }
         self.send_progres().await;
 
-        let result = self.client.add_refcnt_to_pool().await;
+        let result = self.client.finalize_pool_publication().await;
 
         {
             let mut progression_state = self.progression_state.lock().await;
             progression_state
-                .process_add_references_to_pool_result(result)
+                .process_publish_pool_result(result)
                 .inspect_err(|_| {
                     if let Some(tx) = &self.state_tx {
                         let _ = tx.try_send(progression_state.clone());
@@ -892,14 +926,11 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
     ///
     /// * `Ok(())` if compaction succeeds.
     /// * `Err(eyre::Report)` if compaction fails.
-    async fn execute_compact_phase(&mut self, current_status: &BackupStatus) -> Result<()> {
+    async fn execute_compact_phase(&mut self, _current_status: &BackupStatus) -> Result<()> {
         info!(
             "Executing compact phase for {}/{}",
             self.hostname, self.backup_id
         );
-
-        let status = Self::get_status_for_stage(current_status, FinishingStatus::ToCompact);
-        self.client.save_backup(status).await?;
 
         let operation = &self.host_configuration.operations.operation;
         self.compact_backup(operation.as_ref()).await?;
@@ -918,22 +949,19 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
     /// * `Err(eyre::Report)` if counting references fails.
     async fn execute_count_references_phase(
         &mut self,
-        current_status: &BackupStatus,
+        _current_status: &BackupStatus,
     ) -> Result<()> {
         info!(
             "Executing count references phase for {}/{}",
             self.hostname, self.backup_id
         );
 
-        let status = Self::get_status_for_stage(current_status, FinishingStatus::ToCountRef);
-        self.client.save_backup(status).await?;
-
         self.count_references().await?;
 
         Ok(())
     }
 
-    /// Executes the add to pool phase.
+    /// Executes the pool publication finalization phase.
     ///
     /// # Arguments
     /// * `current_status` - Current backup status (to preserve Aborted state)
@@ -942,16 +970,13 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
     ///
     /// * `Ok(())` if adding to pool succeeds.
     /// * `Err(eyre::Report)` if adding to pool fails.
-    async fn execute_add_to_pool_phase(&mut self, current_status: &BackupStatus) -> Result<()> {
+    async fn execute_add_to_pool_phase(&mut self, _current_status: &BackupStatus) -> Result<()> {
         info!(
             "Executing add to pool phase for {}/{}",
             self.hostname, self.backup_id
         );
 
-        let status = Self::get_status_for_stage(current_status, FinishingStatus::ToAddInPool);
-        self.client.save_backup(status).await?;
-
-        self.add_refcnt_to_pool().await?;
+        self.finalize_pool_publication().await?;
 
         Ok(())
     }
@@ -993,12 +1018,13 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             .await;
 
         let existing_status = existing_backup.map(|b| b.status.clone());
+        let finalization_target = self.read_finalization_target().await?;
         let (mut current_phase, mut current_status) =
-            BackupPhase::from_existing(existing_status.clone());
+            BackupPhase::from_existing(existing_status.clone(), finalization_target.clone());
 
         info!(
-            "Backup state machine starting for {}/{}: existing_status={:?}, starting_phase={:?}, target_status={:?}",
-            self.hostname, self.backup_id, existing_status, current_phase, current_status
+            "Backup state machine starting for {}/{}: existing_status={:?}, finalization_target={:?}, starting_phase={:?}, target_status={:?}",
+            self.hostname, self.backup_id, existing_status, finalization_target, current_phase, current_status
         );
 
         // State machine main loop
@@ -1011,12 +1037,13 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                 BackupPhase::Backup => match self.execute_backup_phase().await {
                     Ok(status) => {
                         current_status = status;
+                        self.persist_finalization_target(&current_status).await?;
                         current_phase = BackupPhase::Compact;
                     }
                     Err(err) => {
                         // Even on a critical backup phase failure (e.g. host unreachable,
                         // auth error, mid-stream disconnect), we must still run
-                        // compact/count_references/add_refcnt_to_pool to properly close the
+                        // compact/count_references/finalize_pool_publication to properly close the
                         // backup. These phases are purely local and do not require the
                         // remote agent to be reachable.
                         error!(
@@ -1025,6 +1052,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                             self.hostname, self.backup_id
                         );
                         current_status = BackupStatus::Aborted;
+                        self.persist_finalization_target(&current_status).await?;
                         current_phase = BackupPhase::Compact;
                     }
                 },
@@ -1041,6 +1069,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                             BackupStatus::Failed(FailedStatus::Compact)
                         };
                         self.client.save_backup(failed_status).await?;
+                        self.clear_finalization_target().await?;
                         break;
                     }
                 },
@@ -1055,9 +1084,10 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                             let failed_status = if current_status.is_aborted() {
                                 BackupStatus::Aborted
                             } else {
-                                BackupStatus::Failed(FailedStatus::RefCount)
+                                BackupStatus::Failed(FailedStatus::FlushStaging)
                             };
                             self.client.save_backup(failed_status).await?;
+                            self.clear_finalization_target().await?;
                             break;
                         }
                     }
@@ -1073,9 +1103,10 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                             let failed_status = if current_status.is_aborted() {
                                 BackupStatus::Aborted
                             } else {
-                                BackupStatus::Failed(FailedStatus::InPool)
+                                BackupStatus::Failed(FailedStatus::PublishPool)
                             };
                             self.client.save_backup(failed_status).await?;
+                            self.clear_finalization_target().await?;
                             break;
                         }
                     }
@@ -1087,6 +1118,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         self.hostname, self.backup_id, current_status
                     );
                     self.client.save_backup(current_status).await?;
+                    self.clear_finalization_target().await?;
                     break;
                 }
             }
@@ -1107,7 +1139,7 @@ mod tests {
     #[test]
     fn test_new_backup() {
         assert_eq!(
-            BackupPhase::from_existing(None),
+            BackupPhase::from_existing(None, None),
             (BackupPhase::Backup, BackupStatus::Completed)
         );
     }
@@ -1117,7 +1149,7 @@ mod tests {
         // InProgress with an existing entry means worker crashed during chunk transfer.
         // Must NOT re-download. Must recover stats then close as Aborted.
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::InProgress)),
+            BackupPhase::from_existing(Some(BackupStatus::InProgress), None),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::Compact)),
                 BackupStatus::Aborted
@@ -1128,21 +1160,30 @@ mod tests {
     #[test]
     fn test_finishing_stages_recover_then_resume_towards_completed() {
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Finishing(FinishingStatus::ToCompact))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Finishing(FinishingStatus::ToCompact)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::Compact)),
                 BackupStatus::Completed
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Finishing(FinishingStatus::ToCountRef))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Finishing(FinishingStatus::ToCountRef)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::CountReferences)),
                 BackupStatus::Completed
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Finishing(FinishingStatus::ToAddInPool))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Finishing(FinishingStatus::ToAddInPool)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::AddToPool)),
                 BackupStatus::Completed
@@ -1153,21 +1194,30 @@ mod tests {
     #[test]
     fn test_aborting_stages_recover_then_resume_towards_aborted() {
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Aborting(FinishingStatus::ToCompact))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Aborting(FinishingStatus::ToCompact)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::Compact)),
                 BackupStatus::Aborted
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Aborting(FinishingStatus::ToCountRef))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Aborting(FinishingStatus::ToCountRef)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::CountReferences)),
                 BackupStatus::Aborted
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Aborting(FinishingStatus::ToAddInPool))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Aborting(FinishingStatus::ToAddInPool)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::AddToPool)),
                 BackupStatus::Aborted
@@ -1178,21 +1228,24 @@ mod tests {
     #[test]
     fn test_failed_stages_recover_then_retry_from_failed_phase() {
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Failed(FailedStatus::Compact))),
+            BackupPhase::from_existing(Some(BackupStatus::Failed(FailedStatus::Compact)), None),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::Compact)),
                 BackupStatus::Completed
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Failed(FailedStatus::RefCount))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Failed(FailedStatus::FlushStaging)),
+                None
+            ),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::CountReferences)),
                 BackupStatus::Completed
             )
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Failed(FailedStatus::InPool))),
+            BackupPhase::from_existing(Some(BackupStatus::Failed(FailedStatus::PublishPool)), None),
             (
                 BackupPhase::Recover(Box::new(BackupPhase::AddToPool)),
                 BackupStatus::Completed
@@ -1203,11 +1256,11 @@ mod tests {
     #[test]
     fn test_terminal_states_go_to_finished() {
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Completed)),
+            BackupPhase::from_existing(Some(BackupStatus::Completed), None),
             (BackupPhase::Finished, BackupStatus::Completed)
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Aborted)),
+            BackupPhase::from_existing(Some(BackupStatus::Aborted), None),
             (BackupPhase::Finished, BackupStatus::Aborted)
         );
     }
@@ -1215,54 +1268,32 @@ mod tests {
     #[test]
     fn test_removing_states_go_to_finished() {
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Removing(
-                RemovingStatus::ToRemoveInPool
-            ))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Removing(RemovingStatus::ToRemoveInPool)),
+                None
+            ),
             (BackupPhase::Finished, BackupStatus::Aborted)
         );
         assert_eq!(
-            BackupPhase::from_existing(Some(BackupStatus::Removing(
-                RemovingStatus::RemoveFromHost
-            ))),
+            BackupPhase::from_existing(
+                Some(BackupStatus::Removing(RemovingStatus::RemoveFromHost)),
+                None
+            ),
             (BackupPhase::Finished, BackupStatus::Aborted)
         );
     }
 
-    // ── get_status_for_stage ─────────────────────────────────────────────────
-
     #[test]
-    fn test_get_status_for_stage_normal_backup() {
-        let current = BackupStatus::Completed;
+    fn test_in_progress_with_completed_marker_resumes_towards_completed() {
         assert_eq!(
-            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::get_status_for_stage(
-                &current,
-                FinishingStatus::ToCompact
+            BackupPhase::from_existing(
+                Some(BackupStatus::InProgress),
+                Some(BackupStatus::Completed)
             ),
-            BackupStatus::Finishing(FinishingStatus::ToCompact)
-        );
-    }
-
-    #[test]
-    fn test_get_status_for_stage_aborted_backup() {
-        let current = BackupStatus::Aborted;
-        assert_eq!(
-            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::get_status_for_stage(
-                &current,
-                FinishingStatus::ToCountRef
-            ),
-            BackupStatus::Aborting(FinishingStatus::ToCountRef)
-        );
-    }
-
-    #[test]
-    fn test_get_status_for_stage_preserves_aborting() {
-        let current = BackupStatus::Aborting(FinishingStatus::ToCompact);
-        assert_eq!(
-            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::get_status_for_stage(
-                &current,
-                FinishingStatus::ToAddInPool
-            ),
-            BackupStatus::Aborting(FinishingStatus::ToAddInPool)
+            (
+                BackupPhase::Recover(Box::new(BackupPhase::Compact)),
+                BackupStatus::Completed
+            )
         );
     }
 }

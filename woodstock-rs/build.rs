@@ -20,13 +20,13 @@ fn main() -> Result<()> {
         // Add serde serialization support to all enums
         .enum_attribute(".", "#[derive(serde::Serialize)]")
         // Configure special serialization for binary fields
-        // SHA256 hashes are serialized as hexadecimal strings
+        // Chunk hashes are serialized as hexadecimal strings
         .field_attribute(
-            "PoolUnused.sha256",
+            "PoolUnused.chunk_hash",
             "#[serde_as(as = \"serde_with::hex::Hex\")]",
         )
         .field_attribute(
-            "PoolRefCount.sha256",
+            "PoolRefCount.chunk_hash",
             "#[serde_as(as = \"serde_with::hex::Hex\")]",
         )
         .field_attribute(

@@ -13,6 +13,23 @@ use tracing::{info, warn};
 
 use crate::utils::compression::{CompressionFormat, WoodstockCompressionWriter};
 
+/// Serializes one protobuf message in length-delimited form and writes it to an async writer.
+///
+/// The returned value is the total number of bytes written, including the length prefix.
+///
+/// # Errors
+/// Returns an error if protobuf serialization fails or if the writer cannot accept all bytes.
+pub async fn write_length_delimited_message<T, W>(writer: &mut W, message: &T) -> Result<usize>
+where
+    T: Message,
+    W: AsyncWrite + Unpin + Send + ?Sized,
+{
+    let buffer = message.encode_length_delimited_to_vec();
+    writer.write_all(&buffer).await?;
+
+    Ok(buffer.len())
+}
+
 /// Uncompressed protobuf writer type alias.
 pub type UnCompressedWriter = BufWriter<File>;
 /// Compressed protobuf writer type alias.
@@ -215,9 +232,7 @@ where
     /// # Errors
     /// Returns an error if writing fails.
     pub async fn write(&mut self, message: &T) -> Result<()> {
-        let mut buf = Vec::new();
-        message.encode_length_delimited(&mut buf)?;
-        self.writer.write_all(&buf).await?;
+        write_length_delimited_message(&mut self.writer, message).await?;
 
         Ok(())
     }

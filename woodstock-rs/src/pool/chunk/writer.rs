@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
-use tokio::fs::{create_dir_all, metadata, rename, File};
+use tokio::fs::{create_dir_all, metadata, File};
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, warn};
+use tracing::error;
 
 use crate::config::CHUNK_SIZE;
 use crate::utils::chunk_hasher::{create_chunk_hasher, ChunkHasher};
@@ -10,13 +10,27 @@ use crate::utils::path::vec_to_path;
 use crate::ChunkAlgorithm;
 use eyre::Result;
 
-use super::{get_temp_chunk_path, PoolChunkInformation, PoolChunkWrapper};
+use super::{PoolChunkInformation, PoolChunkWrapper};
+use crate::pool::get_temp_chunk_path;
+
+/// Prepared compressed chunk payload awaiting final publication into the pool.
+pub(crate) struct PreparedChunk {
+    tempfilename: PathBuf,
+    chunk_information: PoolChunkInformation,
+}
+
+impl PreparedChunk {
+    #[must_use]
+    pub fn into_parts(self) -> (PathBuf, PoolChunkInformation) {
+        (self.tempfilename, self.chunk_information)
+    }
+}
 
 /// # Pool Chunk Writer Module
 ///
-/// This module provides the [`PoolChunkWriter`] struct and associated methods for writing
-/// compressed chunk files in the Woodstock backup pool. It handles chunk creation, hashing,
-/// metadata, and atomic file operations.
+/// This module provides the [`PoolChunkWriter`] struct and associated methods for preparing
+/// compressed chunk payloads before publication in the Woodstock pool. It handles temporary
+/// chunk creation, hashing, and atomic payload finalization.
 ///
 /// ## Main Structure
 ///
@@ -26,7 +40,7 @@ use super::{get_temp_chunk_path, PoolChunkInformation, PoolChunkWrapper};
 ///
 /// - [`PoolChunkWriter::new`]: Create a new writer for a chunk.
 /// - [`PoolChunkWriter::write`]: Write data to the chunk.
-/// - [`PoolChunkWriter::shutdown`]: Finalize the chunk, compute hash, and move to final location.
+/// - [`PoolChunkWriter::shutdown`]: Finalize the chunk and return a prepared payload.
 ///
 /// ## Error Handling & Panics
 ///
@@ -44,7 +58,7 @@ pub struct PoolChunkWriter {
     uncompressed_size: usize,
 
     /// Optional hasher for calculating the file's hash.
-    file_hasher: Option<Box<dyn ChunkHasher + Send + Sync>>, // Updated to use Box<dyn ChunkHasher>
+    file_hasher: Option<Box<dyn ChunkHasher + Send + Sync>>,
 
     /// The temporary filename used during writing.
     tempfilename: PathBuf,
@@ -83,7 +97,6 @@ impl PoolChunkWriter {
             file,
             uncompressed_size: 0,
             file_hasher: Some(create_chunk_hasher(algorithm)),
-
             tempfilename,
         })
     }
@@ -126,18 +139,17 @@ impl PoolChunkWriter {
     /// # Errors
     ///
     /// Returns an error if the shutdown process fails due to I/O issues.
-    pub async fn shutdown(
+    pub(crate) async fn shutdown(
         &mut self,
         wrapper: &mut PoolChunkWrapper,
         debug_filename: &[u8],
         compression_format: CompressionFormat,
-    ) -> Result<PoolChunkInformation> {
+    ) -> Result<PreparedChunk> {
         self.file.shutdown().await?;
-        // SAFETY: file_hasher is always Some — set in the constructor and only taken once here in shutdown()
+
         let mut file_hasher = self.file_hasher.take().unwrap();
         let file_hash: Vec<u8> = file_hasher.finalize();
 
-        // Add a control
         if self.uncompressed_size > CHUNK_SIZE {
             if let Some(hash) = &wrapper.get_hash_str() {
                 error!(
@@ -157,43 +169,25 @@ impl PoolChunkWriter {
                 );
             }
         }
-
         let metadata = metadata(&self.tempfilename).await?;
 
         wrapper.set_hash(Some(&file_hash));
 
-        if wrapper.exists() {
-            debug!("Chunk {:?} already exists", vec_to_path(debug_filename));
-            let chunk_information = wrapper.chunk_information().await?;
-
-            // Warn if size is different
-            if chunk_information.size != u64::try_from(self.uncompressed_size)? {
-                warn!(
-                    "Chunk {:?} has not the right size length {}",
-                    vec_to_path(debug_filename),
-                    self.uncompressed_size
-                );
-            }
-
-            // Return information of existing chunk
-            Ok(chunk_information)
-        } else {
-            let chunk_information = PoolChunkInformation {
+        let tempfilename = std::mem::take(&mut self.tempfilename);
+        let prepared_chunk = PreparedChunk {
+            tempfilename,
+            chunk_information: PoolChunkInformation {
                 size: u64::try_from(self.uncompressed_size)?,
                 compressed_size: metadata.len(),
-                sha256: file_hash.clone(),
+                chunk_hash: file_hash.clone(),
                 format: compression_format as u32,
-            };
+                segment_id: 0,
+                offset: 0,
+                chunk_header_size: 0,
+            },
+        };
 
-            let chunk_path = wrapper.chunk_path();
-            if let Some(path) = chunk_path.parent() {
-                create_dir_all(path).await?;
-            }
-
-            wrapper.write_chunk_information(&chunk_information).await?;
-            rename(&self.tempfilename, chunk_path).await?;
-            Ok(chunk_information)
-        }
+        Ok(prepared_chunk)
     }
 }
 

@@ -266,12 +266,15 @@ impl QueryRoot {
     }
 
     /// Gets the health status of the storage pool.
-    /// Checks for dirty state (crashed refcnt operations).
+    /// Checks for dirty state and unapplied pending Pool V3 operations.
     async fn pool_health(&self, ctx: &Context<'_>) -> GqlResult<PoolHealthStatusDto> {
         let state = ctx.data::<ApiServerState>()?;
 
         let pool = PoolManager::new(state.config.clone());
-        let pending_count = pool.count_pending().await.map_err(super::util::map_err)?;
+        let pending_count = pool
+            .count_pending_operations()
+            .await
+            .map_err(super::util::map_err)?;
         let is_dirty = pool
             .is_dirty()
             .await

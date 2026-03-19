@@ -128,11 +128,11 @@ fn message_from_state(state: &BackupExecutionState) -> String {
                 Emoji("📦 ", "")
             )
         }
-        BackupExecutionState::CountReferences => {
-            format!("[8/10] {}Count reference of backup", Emoji("📏 ", ""))
+        BackupExecutionState::FlushStaging => {
+            format!("[8/10] {}Flush Pool V3 staging", Emoji("📏 ", ""))
         }
-        BackupExecutionState::AddReferencesToPool => {
-            format!("[9/10] {}Add references to pool", Emoji("📥 ", ""))
+        BackupExecutionState::PublishPool => {
+            format!("[9/10] {}Publish backup to pool index", Emoji("📥 ", ""))
         }
         BackupExecutionState::Completed => "[10/10] End".to_string(),
     }

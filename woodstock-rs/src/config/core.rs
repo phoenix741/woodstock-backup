@@ -58,15 +58,6 @@ pub struct ConfigurationPath {
     /// Directory for the chunk pool (deduplicated file chunks).
     pub pool_path: PathBuf,
 
-    /// Directory for the refcnt waiting to be processed.
-    pub pool_refcnt_path: PathBuf,
-
-    /// Directory for pending refcnt operations (Phase 6 Volet A: Dirty File Marker System).
-    pub pool_refcnt_pending_path: PathBuf,
-
-    /// Path to the dirty file marker (indicates crashed refcnt operations).
-    pub pool_refcnt_dirty_file: PathBuf,
-
     /// Directory for job logs and status information.
     pub jobs_path: PathBuf,
 
@@ -153,10 +144,6 @@ impl ConfigurationPath {
 
         let config_path_pool_algorithm = pool_path.join("algorithm");
 
-        let pool_refcnt_path = pool_path.join("refcnt");
-        let pool_refcnt_pending_path = pool_refcnt_path.join("pending");
-        let pool_refcnt_dirty_file = pool_path.join("REFCNT.dirty");
-
         Self {
             backup_path,
             certificates_path,
@@ -164,9 +151,6 @@ impl ConfigurationPath {
             hosts_path,
             logs_path,
             pool_path,
-            pool_refcnt_path,
-            pool_refcnt_pending_path,
-            pool_refcnt_dirty_file,
             jobs_path,
             events_path,
             config_path_hosts,
