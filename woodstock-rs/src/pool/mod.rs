@@ -38,6 +38,8 @@
 
 /// Module with method to check the integrity of the pool
 mod fsck;
+/// Internal module on pool
+mod internal;
 /// Module with chunk information and metadata
 mod pool_chunk_information;
 /// Module with chunk file operations and metadata
@@ -57,6 +59,7 @@ pub use fsck::{
     check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused, FsckCount,
     FsckUnusedCount,
 };
+pub use internal::{SegmentReader, SegmentWriter};
 pub use pool_chunk_information::{ConvertHashLink, PoolChunkInformation};
 pub use pool_chunk_wrapper::PoolChunkWrapper;
 pub use pool_chunk_wrapper_writer::PoolChunkWriter;

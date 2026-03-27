@@ -17,12 +17,16 @@ use tokio::sync::mpsc;
 
 use woodstock::{
     config::{Configuration, ConfigurationPath, DEFAULT_CHANNEL_BUFFER_SIZE},
+    pool::{PoolChunkWrapper, Refcnt, SegmentWriter},
     server::pool::{
         convert_state::{ConvertExecutionState, ConvertState},
         hash_converter_machine::HashConverterMachine,
     },
+    utils::compression::CompressionFormat,
     ChunkAlgorithm, EventSource,
 };
+
+use crate::commands::CliServiceState;
 
 /// Returns a human-readable message describing the current conversion execution state.
 ///
@@ -141,6 +145,50 @@ pub async fn convert_hash_repo(backup_path: &str, hash: &str) -> Result<()> {
     let _ = progress_task.await;
 
     bar.finish();
+
+    Ok(())
+}
+
+pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
+    // Read all existing chunk (and metadata) and write them to a segment file with the new format
+    let mut refcnt = Refcnt::new(&state.config.path.pool_path);
+    refcnt.load_refcnt(false).await;
+
+    let mut segment =
+        SegmentWriter::create(state.config.path.pool_path.join("segment"), 1, 500).await?;
+
+    let list = refcnt.list_refcnt();
+    for chunk in list {
+        let wrapper = PoolChunkWrapper::new(&state.config.path.pool_path, Some(&chunk.sha256));
+        let Ok(metadata) = wrapper.chunk_information().await else {
+            eprintln!(
+                "Failed to read chunk information for chunk with hash {} - refcount {}",
+                hex::encode(&chunk.sha256),
+                chunk.ref_count
+            );
+            continue;
+        };
+
+        let Ok(_) = segment
+            .append_chunk_from_path(
+                chunk.sha256.clone(),
+                metadata.size,
+                metadata.compressed_size,
+                CompressionFormat::try_from(metadata.format)?,
+                &wrapper.chunk_path(),
+            )
+            .await
+        else {
+            eprintln!(
+                "Failed to append chunk with hash {} to segment file - refcount {}",
+                hex::encode(&chunk.sha256),
+                chunk.ref_count
+            );
+            continue;
+        };
+    }
+
+    segment.shutdown().await?;
 
     Ok(())
 }

@@ -7,5 +7,7 @@ mod protobuf_reader;
 /// Handles writing protobuf files.
 mod protobuf_writer;
 
-pub use protobuf_reader::ProtobufReader;
-pub use protobuf_writer::{save_file, CompressedWriter, ProtobufWriter, UnCompressedWriter};
+pub use protobuf_reader::{read_length_delimited_message, ProtobufReader};
+pub use protobuf_writer::{
+    save_file, write_length_delimited_message, CompressedWriter, ProtobufWriter, UnCompressedWriter,
+};

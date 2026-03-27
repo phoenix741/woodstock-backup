@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 use std::io::{ErrorKind, Result as IoResult};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use thiserror::Error;
 
 use async_compression::tokio::bufread::{
     BrotliDecoder, LzmaDecoder, XzDecoder, ZlibDecoder, ZstdDecoder,
@@ -36,7 +37,7 @@ impl CompressionHeader {
 }
 
 impl TryFrom<u32> for CompressionHeader {
-    type Error = ();
+    type Error = CompressionFormatError;
 
     /// Convert from u32 to compression header
     fn try_from(value: u32) -> Result<Self, Self::Error> {
@@ -47,7 +48,7 @@ impl TryFrom<u32> for CompressionHeader {
             x if x == CompressionHeader::Brotli as u32 => Ok(Self::Brotli),
             x if x == CompressionHeader::Lzma as u32 => Ok(Self::Lzma),
             x if x == CompressionHeader::Xz as u32 => Ok(Self::Xz),
-            _ => Err(()),
+            x => Err(CompressionFormatError::InvalidFormat(x)),
         }
     }
 }
@@ -232,7 +233,7 @@ impl<R: AsyncRead + Unpin> WoodstockCompressionReader<R> {
                 self.state = Some(ReaderState::Xz(XzDecoder::new(reader)));
             }
 
-            Err(()) => {
+            Err(_) => {
                 // No valid header found - assume legacy zlib and rewind
                 // Create a chain reader that includes the header bytes we already read
                 let header_bytes = self.header_buffer.to_vec();
@@ -274,6 +275,14 @@ impl<R: AsyncRead + Unpin> AsyncRead for WoodstockCompressionReader<R> {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum CompressionFormatError {
+    #[error("Invalid compression format: {0}")]
+    InvalidFormat(u32),
+    #[error("Invalid compression format string: {0}")]
+    InvalidString(String),
+}
+
 /// Compression format to use for writing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompressionFormat {
@@ -292,7 +301,7 @@ pub enum CompressionFormat {
 }
 
 impl TryFrom<&str> for CompressionFormat {
-    type Error = ();
+    type Error = CompressionFormatError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
@@ -302,7 +311,38 @@ impl TryFrom<&str> for CompressionFormat {
             "brotli" => Ok(CompressionFormat::Brotli),
             "lzma" => Ok(CompressionFormat::Lzma),
             "xz" => Ok(CompressionFormat::Xz),
-            _ => Err(()),
+            _ => Err(CompressionFormatError::InvalidString(value.to_string())),
+        }
+    }
+}
+
+impl TryFrom<&CompressionHeader> for CompressionFormat {
+    type Error = CompressionFormatError;
+
+    fn try_from(value: &CompressionHeader) -> Result<Self, Self::Error> {
+        match value {
+            CompressionHeader::None => Ok(CompressionFormat::None),
+            CompressionHeader::Zlib => Ok(CompressionFormat::Zlib),
+            CompressionHeader::Zstd => Ok(CompressionFormat::Zstd),
+            CompressionHeader::Brotli => Ok(CompressionFormat::Brotli),
+            CompressionHeader::Lzma => Ok(CompressionFormat::Lzma),
+            CompressionHeader::Xz => Ok(CompressionFormat::Xz),
+        }
+    }
+}
+
+impl TryFrom<u32> for CompressionFormat {
+    type Error = CompressionFormatError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == CompressionFormat::None as u32 => Ok(CompressionFormat::None),
+            x if x == CompressionFormat::Zlib as u32 => Ok(CompressionFormat::Zlib),
+            x if x == CompressionFormat::Zstd as u32 => Ok(CompressionFormat::Zstd),
+            x if x == CompressionFormat::Brotli as u32 => Ok(CompressionFormat::Brotli),
+            x if x == CompressionFormat::Lzma as u32 => Ok(CompressionFormat::Lzma),
+            x if x == CompressionFormat::Xz as u32 => Ok(CompressionFormat::Xz),
+            _ => Err(CompressionFormatError::InvalidFormat(value)),
         }
     }
 }
@@ -324,6 +364,10 @@ impl CompressionFormat {
             CompressionFormat::Lzma => CompressionHeader::Lzma,
             CompressionFormat::Xz => CompressionHeader::Xz,
         }
+    }
+
+    pub fn as_u32(self) -> u32 {
+        self as u32
     }
 
     fn as_str_name(&self) -> &'static str {

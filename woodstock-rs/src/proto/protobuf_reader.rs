@@ -11,6 +11,85 @@ use tokio::{
 
 use crate::utils::compression::WoodstockCompressionReader;
 
+async fn read_length_delimited_message_with_allocated_buffer<R, T>(
+    reader: &mut R,
+    cache: &mut Vec<u8>,
+    buf: &mut T,
+) -> io::Result<usize>
+where
+    T: Message + Default,
+    R: AsyncRead + Unpin + ?Sized,
+{
+    let mut encoded_length = Vec::with_capacity(10);
+    // Read the length of the message (varint), one byte at a time. Each byte in the varint has a continuation bit that indicates if the byte that follows it is part of the varint. This is the most significant bit (MSB) of the byte (sometimes also called the sign bit). The lower 7 bits are a payload; the resulting integer is built by appending together the 7-bit payloads of its constituent bytes.
+
+    loop {
+        match reader.read_u8().await {
+            Ok(byte) => {
+                encoded_length.push(byte);
+
+                if byte & 0b1000_0000 == 0 || encoded_length.len() == 10 {
+                    break;
+                }
+            }
+            Err(error)
+                if error.kind() == io::ErrorKind::UnexpectedEof && encoded_length.is_empty() =>
+            {
+                return Ok(0);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    let length = prost::decode_length_delimiter(&encoded_length[..])?;
+    let encoded_length_size = encoded_length.len();
+    let buffer_length = encoded_length_size + length;
+
+    cache.clear();
+    cache.reserve(buffer_length);
+    cache.extend_from_slice(&encoded_length);
+    cache.resize(buffer_length, 0);
+    reader.read_exact(&mut cache[encoded_length_size..]).await?;
+
+    buf.merge_length_delimited(&cache[..])?;
+
+    Ok(buffer_length)
+}
+
+/// Reads a length-delimited protobuf message from the given async reader into a new instance of the message type `T`.
+///
+/// # Arguments
+/// * `reader` - The async reader to read from.
+///
+/// # Returns
+/// * `Ok((T, usize))` - A tuple containing the decoded message and the total number of bytes read (including the length
+/// delimiter).
+/// * `Err(io::Error)` if reading from the reader or decoding the message fails.
+///
+/// # Errors
+/// Returns an error if reading from the reader or decoding the message fails.
+///
+/// # Notes
+/// This function reads the length of the message as a varint, then reads the message bytes
+/// into a provided buffer, and finally decodes the message from the buffer.
+pub async fn read_length_delimited_message<R, T>(reader: &mut R) -> io::Result<Option<(T, usize)>>
+where
+    T: Message + Default,
+    R: AsyncRead + Unpin + ?Sized,
+{
+    let mut cache = Vec::with_capacity(T::encoded_len(&T::default()) + 10); // Initial buffer size, can be adjusted based on expected message sizes
+    let mut message = T::default();
+    let size =
+        read_length_delimited_message_with_allocated_buffer(reader, &mut cache, &mut message)
+            .await?;
+
+    if size == 0 {
+        Ok(None)
+    } else {
+        Ok(Some((message, size)))
+    }
+}
+
 /// A reader for protobuf files.
 ///
 /// The file is expected to be a sequence of length-delimited protobuf messages.
@@ -67,31 +146,18 @@ impl<T: Message + Default> ProtobufReader<T> {
     ///
     /// Returns an error if reading or decoding fails.
     pub async fn read(&mut self, buf: &mut T) -> io::Result<()> {
-        self.buffer.clear();
-        let mut encoded_length = Vec::with_capacity(10);
-        // Read the length of the message (varint), one byte at a time. Each byte in the varint has a continuation bit that indicates if the byte that follows it is part of the varint. This is the most significant bit (MSB) of the byte (sometimes also called the sign bit). The lower 7 bits are a payload; the resulting integer is built by appending together the 7-bit payloads of its constituent bytes.
-
-        loop {
-            let byte = self.reader.read_u8().await?;
-            encoded_length.push(byte);
-
-            if byte & 0b1000_0000 == 0 || encoded_length.len() == 10 {
-                break;
-            }
+        let size = read_length_delimited_message_with_allocated_buffer(
+            &mut self.reader,
+            &mut self.buffer,
+            buf,
+        )
+        .await?;
+        if size == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "End of file reached",
+            ));
         }
-
-        let length = prost::decode_length_delimiter(&encoded_length[..])?;
-        let real_length_size = prost::length_delimiter_len(length);
-
-        self.buffer.reserve(length + real_length_size);
-        self.buffer.extend_from_slice(&encoded_length);
-
-        let mut messages_bytes = vec![0u8; length];
-        self.reader.read_exact(&mut messages_bytes).await?;
-
-        self.buffer.extend_from_slice(&messages_bytes);
-
-        buf.merge_length_delimited(&self.buffer[..])?;
 
         Ok(())
     }

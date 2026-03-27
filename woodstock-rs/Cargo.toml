@@ -27,6 +27,10 @@ harness = false
 name = "compression_benchmark"
 harness = false
 
+[[bench]]
+name = "cow_copy_benchmark"
+harness = false
+
 [dependencies]
 async-compression = { workspace = true }
 async-stream = { workspace = true }
@@ -72,6 +76,7 @@ rayon = { version = "1.11" }
 libc = "0.2"
 sysinfo = { workspace = true }
 cron = "0.15.0"
+thiserror = "2.0.18"
 
 
 [target.'cfg(target_env = "musl")'.dependencies]

@@ -26,6 +26,7 @@ mod commands;
 mod filesystem;
 
 use crate::backup_resolver::resolve_backup_id;
+use crate::commands::convertion::convert_flat_to_segment;
 use chrono::Local;
 use clap::{Parser, Subcommand};
 use commands::convertion::convert_hash_repo;
@@ -149,6 +150,9 @@ enum Commands {
         hash: String,
     },
 
+    /// Convert to Segment File
+    ConvertFlatToSegment {},
+
     #[cfg(all(unix, feature = "fuse_unix"))]
     /// Mount a backup to a specified mount point.
     Mount {
@@ -267,6 +271,11 @@ async fn main() -> Result<()> {
             convert_hash_repo(&backup_path, &hash)
                 .await
                 .wrap_err("Failed to convert hash repository")?;
+        }
+        Commands::ConvertFlatToSegment {} => {
+            convert_flat_to_segment(state)
+                .await
+                .wrap_err("Failed to convert flat to segment")?;
         }
         #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {

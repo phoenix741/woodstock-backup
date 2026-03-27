@@ -14,6 +14,9 @@
 pub mod cache;
 /// Provides functionality for hashing data chunks.
 pub mod chunk_hasher;
+/// Copy-on-Write file copy using `copy_file_range(2)` on Linux, with a
+/// standard tokio I/O fallback on other platforms.
+pub mod cow_copy;
 /// Provides utililties for compress / uncompress
 pub mod compression;
 /// Handles encryption and decryption operations.
