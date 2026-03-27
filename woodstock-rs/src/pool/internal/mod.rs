@@ -4,5 +4,6 @@ mod segment_protobuf;
 mod segment_reader;
 mod segment_writer;
 
+pub use segment_model::{SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata, SegmentFileState};
 pub use segment_reader::SegmentReader;
 pub use segment_writer::SegmentWriter;

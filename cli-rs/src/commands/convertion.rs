@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 
 use woodstock::{
     config::{Configuration, ConfigurationPath, DEFAULT_CHANNEL_BUFFER_SIZE},
-    pool::{PoolChunkWrapper, Refcnt, SegmentWriter},
+    pool::{PoolChunkWrapper, Refcnt, Segments},
     server::pool::{
         convert_state::{ConvertExecutionState, ConvertState},
         hash_converter_machine::HashConverterMachine,
@@ -154,8 +154,8 @@ pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
     let mut refcnt = Refcnt::new(&state.config.path.pool_path);
     refcnt.load_refcnt(false).await;
 
-    let mut segment =
-        SegmentWriter::create(state.config.path.pool_path.join("segment"), 1, 500).await?;
+    let segments = Segments::new(state.config.clone());
+    let mut segment = segments.get_writer().await?;
 
     let list = refcnt.list_refcnt();
     for chunk in list {
