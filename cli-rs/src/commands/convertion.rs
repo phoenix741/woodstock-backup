@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 
 use woodstock::{
     config::{Configuration, ConfigurationPath, DEFAULT_CHANNEL_BUFFER_SIZE},
-    pool::{PoolChunkWrapper, Refcnt, Segments},
+    pool::{ChunkDescriptor, ChunkIndex, PoolChunkWrapper, Refcnt, Segments},
     server::pool::{
         convert_state::{ConvertExecutionState, ConvertState},
         hash_converter_machine::HashConverterMachine,
@@ -157,6 +157,11 @@ pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
     let segments = Segments::new(state.config.clone());
     let mut segment = segments.get_writer().await?;
 
+    let mut chunk_index = ChunkIndex::new(state.config.clone());
+    let mut index_writer = chunk_index.get_writer().await?;
+
+    println!("[memory] avant conversion : RSS = {} KiB", read_rss_kib());
+
     let list = refcnt.list_refcnt();
     for chunk in list {
         let wrapper = PoolChunkWrapper::new(&state.config.path.pool_path, Some(&chunk.sha256));
@@ -169,7 +174,11 @@ pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
             continue;
         };
 
-        let Ok(_) = segment
+        // Capture the segment_id BEFORE the append — the writer may rotate
+        // internally after the write, changing `segment.header()`.
+        let segment_id = segment.header().segment_id;
+
+        let Ok(entry) = segment
             .append_chunk_from_path(
                 chunk.sha256.clone(),
                 metadata.size,
@@ -186,9 +195,51 @@ pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
             );
             continue;
         };
+
+        let descriptor = ChunkDescriptor {
+            hash: entry.hash,
+            segment_id,
+            offset: entry.header_offset,
+            size: entry.size,
+            compressed_size: entry.compressed_size,
+            header_size: u32::try_from(entry.chunk_header_size).unwrap_or(u32::MAX),
+            compression_format: entry.compression_format.as_u32(),
+            refcount: u64::from(chunk.ref_count),
+        };
+
+        if let Err(e) = index_writer.add(descriptor).await {
+            eprintln!(
+                "Failed to queue index entry for chunk {} : {e}",
+                hex::encode(&chunk.sha256)
+            );
+        }
     }
 
+    println!(
+        "[memory] avant flush de l'index : RSS = {} KiB",
+        read_rss_kib()
+    );
+
+    index_writer.shutdown().await?;
     segment.shutdown().await?;
 
     Ok(())
+}
+
+/// Reads the current resident set size (RSS) of the process from `/proc/self/status`.
+///
+/// Returns the value in KiB, or 0 if the file cannot be read or parsed.
+fn read_rss_kib() -> u64 {
+    let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+        return 0;
+    };
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("VmRSS:") {
+            // Format: "VmRSS:  12345 kB"
+            if let Some(kib) = rest.split_whitespace().next().and_then(|s| s.parse().ok()) {
+                return kib;
+            }
+        }
+    }
+    0
 }

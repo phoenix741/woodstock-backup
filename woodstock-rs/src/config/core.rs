@@ -87,6 +87,9 @@ pub struct ConfigurationPath {
 
     /// Directory for Pool V3 append-only segment files (`pool/segments/`).
     pub pool_segments_path: PathBuf,
+
+    /// Directory for the Pool V3 chunk index shards (`pool/index/`).
+    pub pool_index_path: PathBuf,
 }
 
 /// Allows overriding configuration paths via environment variables.
@@ -160,6 +163,7 @@ impl ConfigurationPath {
         let pool_refcnt_pending_path = pool_refcnt_path.join("pending");
         let pool_refcnt_dirty_file = pool_path.join("REFCNT.dirty");
         let pool_segments_path = pool_path.join("segments");
+        let pool_index_path = pool_path.join("index");
 
         Self {
             backup_path,
@@ -172,6 +176,7 @@ impl ConfigurationPath {
             pool_refcnt_pending_path,
             pool_refcnt_dirty_file,
             pool_segments_path,
+            pool_index_path,
             jobs_path,
             events_path,
             config_path_hosts,

@@ -59,6 +59,7 @@ pub use fsck::{
     check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused, FsckCount,
     FsckUnusedCount,
 };
+pub use internal::{ChunkDescriptor, ChunkIndex, IndexWriter, ShardReader, ShardWriter};
 pub use internal::{
     SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata, SegmentFileState, SegmentReader,
     SegmentWriter,

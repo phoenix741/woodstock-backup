@@ -26,6 +26,7 @@ pub enum LockOperation {
     Host(HostLockOperation),
     Pool(PoolLockOperation),
     Segment(SegmentLockTarget),
+    Index(IndexLockTarget),
     Events,
     File(FileLockOperation),
     Import(ImportLockOperation),
@@ -73,6 +74,13 @@ pub enum SegmentLockTarget {
     File,
     /// Lock on the `segments.info` directory-wide metadata file.  Redis key: `"segments_info"`.
     Info,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum IndexLockTarget {
+    /// Exclusive lock held by the single writer that modifies the chunk index shards.
+    /// Redis key: `"index_writer"`.
+    Writer,
 }
 
 impl HostLockOperation {
@@ -134,12 +142,21 @@ impl SegmentLockTarget {
     }
 }
 
+impl IndexLockTarget {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Writer => "index_writer",
+        }
+    }
+}
+
 impl LockOperation {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Host(operation) => operation.as_str(),
             Self::Pool(operation) => operation.as_str(),
             Self::Segment(operation) => operation.as_str(),
+            Self::Index(operation) => operation.as_str(),
             Self::Events => "events",
             Self::File(operation) => operation.as_str(),
             Self::Import(operation) => operation.as_str(),
@@ -167,6 +184,7 @@ impl From<&str> for LockOperation {
             "execute_hash_conversion" => Self::Pool(PoolLockOperation::ExecuteHashConversion),
             "segment" => Self::Segment(SegmentLockTarget::File),
             "segments_info" => Self::Segment(SegmentLockTarget::Info),
+            "index_writer" => Self::Index(IndexLockTarget::Writer),
             "events" => Self::Events,
             "write" => Self::File(FileLockOperation::Write),
             "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),
