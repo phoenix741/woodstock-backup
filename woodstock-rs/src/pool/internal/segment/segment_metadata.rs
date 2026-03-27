@@ -4,7 +4,7 @@ use eyre::{bail, eyre, Result};
 use tokio::fs::{create_dir_all, metadata, File};
 use tokio::io::{AsyncWriteExt, BufReader};
 
-use crate::pool::internal::segment_protobuf::{SegmentFileMetadataRecord, SegmentHeader};
+use super::segment_protobuf::{SegmentFileMetadataRecord, SegmentHeader};
 use crate::proto::{read_length_delimited_message, write_length_delimited_message};
 
 use super::segment_model::{SegmentFileHeader, SegmentFileMetadata};

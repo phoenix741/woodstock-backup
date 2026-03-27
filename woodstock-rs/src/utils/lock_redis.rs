@@ -25,7 +25,7 @@ pub enum LockType {
 pub enum LockOperation {
     Host(HostLockOperation),
     Pool(PoolLockOperation),
-    Segment,
+    Segment(SegmentLockTarget),
     Events,
     File(FileLockOperation),
     Import(ImportLockOperation),
@@ -65,6 +65,14 @@ pub enum ImportLockOperation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InternalLockOperation {
     InspectLockState,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SegmentLockTarget {
+    /// Lock on a specific segment file (`.seg`).  Redis key: `"segment"`.
+    File,
+    /// Lock on the `segments.info` directory-wide metadata file.  Redis key: `"segments_info"`.
+    Info,
 }
 
 impl HostLockOperation {
@@ -116,12 +124,22 @@ impl InternalLockOperation {
     }
 }
 
+impl SegmentLockTarget {
+    fn as_str(&self) -> &'static str {
+        match self {
+            // Keep "segment" for backward-compat with existing Redis keys.
+            Self::File => "segment",
+            Self::Info => "segments_info",
+        }
+    }
+}
+
 impl LockOperation {
     pub fn as_str(&self) -> &str {
         match self {
             Self::Host(operation) => operation.as_str(),
             Self::Pool(operation) => operation.as_str(),
-            Self::Segment => "segment",
+            Self::Segment(operation) => operation.as_str(),
             Self::Events => "events",
             Self::File(operation) => operation.as_str(),
             Self::Import(operation) => operation.as_str(),
@@ -147,7 +165,8 @@ impl From<&str> for LockOperation {
             "fsck" => Self::Pool(PoolLockOperation::Fsck),
             "execute_cleaning" => Self::Pool(PoolLockOperation::ExecuteCleaning),
             "execute_hash_conversion" => Self::Pool(PoolLockOperation::ExecuteHashConversion),
-            "segment" => Self::Segment,
+            "segment" => Self::Segment(SegmentLockTarget::File),
+            "segments_info" => Self::Segment(SegmentLockTarget::Info),
             "events" => Self::Events,
             "write" => Self::File(FileLockOperation::Write),
             "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),

@@ -43,3 +43,24 @@ pub struct SegmentFileMetadataRecord {
     #[prost(uint64, tag = "6")]
     pub chunk_count: u64,
 }
+
+/// Metadata record persisted in `segments/segments.info`.
+///
+/// Acts as a low-cost cache for the segment directory: avoids scanning all `.seg`
+/// files on every `get_segment_writer()` call.  Fields are hints — a stale value
+/// causes a single extra file open at most before the index self-corrects.
+#[serde_as]
+#[derive(Clone, PartialEq, ::prost::Message, serde::Serialize)]
+pub struct SegmentsInformation {
+    /// ID of the oldest segment still open (hint; may lag behind if a segment
+    /// was filled by another writer before this record was refreshed).
+    #[prost(uint64, tag = "1")]
+    pub first_open_segment_id: u64,
+    /// ID to assign to the next newly created segment.
+    #[prost(uint64, tag = "2")]
+    pub next_segment_id: u64,
+    /// Monotonically increasing counter incremented on every write to this file.
+    /// Useful to detect stale cached copies.
+    #[prost(uint64, tag = "3")]
+    pub generation: u64,
+}

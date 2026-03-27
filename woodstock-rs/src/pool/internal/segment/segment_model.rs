@@ -13,7 +13,7 @@
 //! 2. zero or more length-delimited [`crate::SegmentChunkHeader`] values;
 //! 3. after each chunk header, exactly `compressed_size` bytes of payload.
 
-use crate::pool::internal::segment_protobuf::{SegmentFileMetadataRecord, SegmentHeader};
+use super::segment_protobuf::{SegmentFileMetadataRecord, SegmentHeader};
 use crate::utils::compression::CompressionFormat;
 
 /// Current on-disk format version used for Pool V3 segment files.

@@ -7,8 +7,8 @@ use tokio::io::AsyncWriteExt;
 
 use crate::utils::cow_copy;
 
-use crate::pool::internal::segment_metadata::read_persisted_segment_file_metadata;
-use crate::pool::internal::segment_protobuf::{SegmentChunkHeader, SegmentHeader};
+use super::segment_metadata::read_persisted_segment_file_metadata;
+use super::segment_protobuf::{SegmentChunkHeader, SegmentHeader};
 use crate::proto::write_length_delimited_message;
 use crate::utils::compression::CompressionFormat;
 

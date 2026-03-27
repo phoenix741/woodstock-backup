@@ -5,7 +5,7 @@ use eyre::{bail, eyre, Result};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, BufReader, SeekFrom};
 
-use crate::pool::internal::segment_protobuf::SegmentChunkHeader;
+use super::segment_protobuf::SegmentChunkHeader;
 use crate::proto::read_length_delimited_message;
 use crate::utils::compression::CompressionFormat;
 

@@ -5,17 +5,32 @@
 //! its numeric ID, and always returns a writable handle to the oldest
 //! non-full segment (creating a new one when all existing segments have
 //! reached their target size).
+//!
+//! ## `segments.info` — directory-wide metadata
+//!
+//! To avoid scanning every `.seg` file on each writer request, the manager
+//! maintains a small protobuf file `segments/segments.info` that caches:
+//!
+//! - the oldest still-open segment ID,
+//! - the next ID to allocate for a new segment,
+//! - a monotone generation counter.
+//!
+//! Reads and writes to this file are coordinated with an exclusive Redis lock
+//! (`LockOperation::Segment(SegmentLockTarget::Info)`) so that concurrent
+//! processes never corrupt it and never allocate the same segment ID.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use eyre::{bail, eyre, Result};
+use eyre::{eyre, Result};
 use tokio::fs::{create_dir_all, read_dir};
 use tracing::{debug, warn};
 
+use super::segment_protobuf::SegmentsInformation;
 use crate::config::Configuration;
-use crate::utils::lock_redis::{LockOperation, PoolLockRedis};
+use crate::utils::lock_redis::{LockOperation, PoolLockRedis, SegmentLockTarget};
 
+use super::segments_info::{read_segments_info, segments_info_path, write_segments_info_atomic};
 use super::segments_writer::SegmentsWriter;
 use super::{SegmentReader, SegmentWriter};
 
@@ -120,87 +135,158 @@ impl Segments {
     }
 
     /// Returns a [`SegmentWriter`] and its associated exclusive Redis lock for the
-    /// oldest non-full, unlocked segment. If all open segments are currently locked
-    /// by another writer, a new segment is created immediately (no blocking wait).
+    /// oldest non-full, unlocked segment.  If the open segment is currently locked
+    /// by another writer, a new segment is created immediately.
     ///
-    /// The lock must be held for the lifetime of the write session and released via
-    /// [`PoolLockRedis::unlock`] (or automatically on drop) when writing is complete.
-    ///
-    /// This is the low-level building block used by [`Segments::get_writer`] and
-    /// [`SegmentsWriter`] for rotation.  Prefer [`get_writer`](Self::get_writer)
-    /// for normal use.
+    /// **Coordination** — before choosing or allocating a segment, this method
+    /// acquires a blocking exclusive Redis lock on `segments.info`
+    /// (`LockOperation::Segment(SegmentLockTarget::Info)`).  The lock is held only
+    /// for the duration of the metadata read-modify-write cycle (a few
+    /// microseconds), so contention is minimal. The per-segment lock
+    /// (`SegmentLockTarget::File`) is acquired separately and returned to the
+    /// caller, who holds it for the entire write session.
     ///
     /// # Errors
     ///
-    /// Returns an error if segments cannot be listed, locked, opened, or created,
-    /// or if all retry attempts are exhausted.
+    /// Returns an error if the segment directory cannot be created, the metadata
+    /// file cannot be read or written, or a segment cannot be opened/created.
     pub(super) async fn get_segment_writer(&self) -> Result<(SegmentWriter, PoolLockRedis)> {
-        create_dir_all(&self.config.path.pool_segments_path).await?;
+        let dir = &self.config.path.pool_segments_path;
+        create_dir_all(dir).await?;
 
         let redis_url = self.config.redis_url();
-        let lock_op = LockOperation::Segment;
 
-        let segments = self.list_segments().await?;
+        // ── Step 1: acquire the exclusive metadata lock ───────────────────────
+        let info_lock = PoolLockRedis::new_with_path(
+            &redis_url,
+            segments_info_path(dir),
+            LockOperation::Segment(SegmentLockTarget::Info),
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
 
-        // Try each open (non-full) segment in ascending ID order.
-        for (id, path, _) in segments.iter().filter(|&&(_, _, full)| !full) {
-            let lock = PoolLockRedis::new_with_path(&redis_url, path, lock_op.clone())
-                .await?
-                .try_lock_exclusive_nowait()
-                .await?;
+        // ── Step 2: read or bootstrap SegmentsInformation ────────────────────
+        let info = read_segments_info(dir).await?;
 
-            if let Some(lock) = lock {
-                debug!(
-                    segment_id = id,
-                    "Reusing open segment {:?}",
-                    path.file_name().unwrap_or_default()
-                );
-                let writer = SegmentWriter::open(path).await?;
-                return Ok((writer, lock));
+        let (mut first_open, mut next_id) = match &info {
+            Some(i) => (i.first_open_segment_id, i.next_segment_id),
+            None => {
+                // First run or legacy directory — fall back to a full scan.
+                let segments = self.list_segments().await?;
+                let first_open = segments
+                    .iter()
+                    .find(|&&(_, _, full)| !full)
+                    .map_or(0, |&(id, _, _)| id);
+                let next_id = segments.last().map_or(0, |&(id, _, _)| id + 1);
+                (first_open, next_id)
             }
-            debug!(
-                segment_id = id,
-                "Segment {:?} is locked by another writer, skipping",
-                path.file_name().unwrap_or_default()
-            );
-        }
+        };
+        let generation = info.as_ref().map_or(0, |i| i.generation);
 
-        // All open segments are locked or none exist — create a new segment.
-        // In the rare case where two concurrent writers compute the same new_id and
-        // one loses the lock race, it simply increments new_id and tries the next slot.
-        // Each iteration targets a path no other writer holds, so this terminates quickly.
-        const MAX_NEW_ATTEMPTS: u32 = 10;
-        let mut new_id = segments.last().map_or(0, |&(id, _, _)| id + 1);
-        for _ in 0..MAX_NEW_ATTEMPTS {
-            let new_path = self.segment_path(new_id);
+        // ── Step 3: try the open segment, fall through to creation if locked ──
+        let seg_lock_op = LockOperation::Segment(SegmentLockTarget::File);
+
+        // `cursor` walks forward independently of `first_open`.
+        // `first_open` is the persisted hint and is only advanced when the segment
+        // AT the current `first_open` boundary is confirmed full — never when it is
+        // merely locked by another writer.
+        //
+        // Example layout: FFFFFOOOFFFOOO (F=full, O=open)
+        //   first_open starts at 5 (first O). If 5 is locked, cursor moves to 6 but
+        //   first_open stays at 5. Encountering a full segment at 8 should NOT move
+        //   first_open because segment 5 is still open.
+        let mut cursor = first_open;
+
+        let (writer, seg_lock) = 'pick: {
+            loop {
+                // All existing segments scanned — none was available.
+                if cursor >= next_id {
+                    break;
+                }
+
+                let candidate_path = self.segment_path(cursor);
+
+                let is_open = match SegmentReader::open(&candidate_path).await {
+                    Ok(reader) => !reader.is_full(),
+                    Err(_) => false, // file missing or corrupt — treat as done
+                };
+
+                if !is_open {
+                    // Only advance the persisted hint when we are at its boundary;
+                    // a full segment further ahead must not move first_open past
+                    // still-open (but locked) segments that precede it.
+                    if cursor == first_open {
+                        first_open += 1;
+                    }
+                    cursor += 1;
+                    continue;
+                }
+
+                // Segment is open — try to grab the per-file lock without blocking.
+                let lock =
+                    PoolLockRedis::new_with_path(&redis_url, &candidate_path, seg_lock_op.clone())
+                        .await?
+                        .try_lock_exclusive_nowait()
+                        .await?;
+
+                if let Some(lock) = lock {
+                    debug!(
+                        segment_id = cursor,
+                        "Reusing open segment {:?}",
+                        candidate_path.file_name().unwrap_or_default()
+                    );
+                    let writer = SegmentWriter::open(&candidate_path).await?;
+                    break 'pick (writer, lock);
+                }
+
+                // Segment is locked by another writer — try the next one.
+                // Do NOT advance first_open: the segment is open, just busy.
+                debug!(
+                    segment_id = cursor,
+                    "Open segment {:?} locked by another writer — trying next",
+                    candidate_path.file_name().unwrap_or_default()
+                );
+                cursor += 1;
+            }
+
+            // No available open segment found — create a new one at next_id.
+            let new_path = self.segment_path(next_id);
             debug!(
-                segment_id = new_id,
-                "All open segments locked — trying new segment {:?}",
+                segment_id = next_id,
+                "No available open segment — creating new segment {:?}",
                 new_path.file_name().unwrap_or_default()
             );
 
-            let lock = PoolLockRedis::new_with_path(&redis_url, &new_path, lock_op.clone())
+            let lock = PoolLockRedis::new_with_path(&redis_url, &new_path, seg_lock_op)
                 .await?
-                .try_lock_exclusive_nowait()
+                .lock_exclusive()
                 .await?;
 
-            if let Some(lock) = lock {
-                let writer =
-                    SegmentWriter::create(&new_path, new_id, DEFAULT_SEGMENT_TARGET_SIZE).await?;
-                return Ok((writer, lock));
+            let writer =
+                SegmentWriter::create(&new_path, next_id, DEFAULT_SEGMENT_TARGET_SIZE).await?;
+
+            // Update first_open only when all previous segments were full (first_open
+            // advanced all the way to next_id). If first_open < next_id there are
+            // still open (but locked) segments earlier — keep pointing at the first one.
+            if first_open >= next_id {
+                first_open = next_id;
             }
+            next_id += 1;
 
-            // Another writer grabbed this ID — increment and try the next slot.
-            warn!(
-                segment_id = new_id,
-                "Race on new segment creation — trying next ID"
-            );
-            new_id += 1;
-        }
+            (writer, lock)
+        };
 
-        bail!(
-            "Could not acquire a segment writer lock after {MAX_NEW_ATTEMPTS} new-segment attempts."
-        );
+        // ── Step 4: persist updated SegmentsInformation and release meta lock ─
+        let updated = SegmentsInformation {
+            first_open_segment_id: first_open,
+            next_segment_id: next_id,
+            generation: generation + 1,
+        };
+        write_segments_info_atomic(dir, &updated).await?;
+        drop(info_lock);
+
+        Ok((writer, seg_lock))
     }
 
     /// Returns a [`SegmentsWriter`] backed by this segment collection.
