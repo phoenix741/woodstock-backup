@@ -9,11 +9,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use eyre::{eyre, Result};
+use eyre::{bail, eyre, Result};
 use tokio::fs::{create_dir_all, read_dir};
 use tracing::{debug, warn};
 
 use crate::config::Configuration;
+use crate::utils::lock_redis::{LockOperation, PoolLockRedis};
 
 use super::segments_writer::SegmentsWriter;
 use super::{SegmentReader, SegmentWriter};
@@ -118,36 +119,88 @@ impl Segments {
             .map_err(|e| eyre!("Segment {segment_id} not found or unreadable: {e}"))
     }
 
-    /// Returns a [`SegmentWriter`] for the oldest non-full segment, creating a
-    /// fresh one if all existing segments have reached their target size.
+    /// Returns a [`SegmentWriter`] and its associated exclusive Redis lock for the
+    /// oldest non-full, unlocked segment. If all open segments are currently locked
+    /// by another writer, a new segment is created immediately (no blocking wait).
+    ///
+    /// The lock must be held for the lifetime of the write session and released via
+    /// [`PoolLockRedis::unlock`] (or automatically on drop) when writing is complete.
     ///
     /// This is the low-level building block used by [`Segments::get_writer`] and
     /// [`SegmentsWriter`] for rotation.  Prefer [`get_writer`](Self::get_writer)
     /// for normal use.
-    pub(super) async fn get_segment_writer(&self) -> Result<SegmentWriter> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if segments cannot be listed, locked, opened, or created,
+    /// or if all retry attempts are exhausted.
+    pub(super) async fn get_segment_writer(&self) -> Result<(SegmentWriter, PoolLockRedis)> {
         create_dir_all(&self.config.path.pool_segments_path).await?;
+
+        let redis_url = self.config.redis_url();
+        let lock_op = LockOperation::Segment;
 
         let segments = self.list_segments().await?;
 
-        // Return the oldest (lowest ID) open segment.
-        if let Some((id, path, _)) = segments.iter().find(|&&(_, _, full)| !full) {
+        // Try each open (non-full) segment in ascending ID order.
+        for (id, path, _) in segments.iter().filter(|&&(_, _, full)| !full) {
+            let lock = PoolLockRedis::new_with_path(&redis_url, path, lock_op.clone())
+                .await?
+                .try_lock_exclusive_nowait()
+                .await?;
+
+            if let Some(lock) = lock {
+                debug!(
+                    segment_id = id,
+                    "Reusing open segment {:?}",
+                    path.file_name().unwrap_or_default()
+                );
+                let writer = SegmentWriter::open(path).await?;
+                return Ok((writer, lock));
+            }
             debug!(
                 segment_id = id,
-                "Reusing open segment {:?}",
+                "Segment {:?} is locked by another writer, skipping",
                 path.file_name().unwrap_or_default()
             );
-            return SegmentWriter::open(path).await;
         }
 
-        // All segments are full or none exist — allocate a new one.
-        let new_id = segments.last().map_or(0, |&(id, _, _)| id + 1);
-        let new_path = self.segment_path(new_id);
-        debug!(
-            segment_id = new_id,
-            "Creating new segment {:?}",
-            new_path.file_name().unwrap_or_default()
+        // All open segments are locked or none exist — create a new segment.
+        // In the rare case where two concurrent writers compute the same new_id and
+        // one loses the lock race, it simply increments new_id and tries the next slot.
+        // Each iteration targets a path no other writer holds, so this terminates quickly.
+        const MAX_NEW_ATTEMPTS: u32 = 10;
+        let mut new_id = segments.last().map_or(0, |&(id, _, _)| id + 1);
+        for _ in 0..MAX_NEW_ATTEMPTS {
+            let new_path = self.segment_path(new_id);
+            debug!(
+                segment_id = new_id,
+                "All open segments locked — trying new segment {:?}",
+                new_path.file_name().unwrap_or_default()
+            );
+
+            let lock = PoolLockRedis::new_with_path(&redis_url, &new_path, lock_op.clone())
+                .await?
+                .try_lock_exclusive_nowait()
+                .await?;
+
+            if let Some(lock) = lock {
+                let writer =
+                    SegmentWriter::create(&new_path, new_id, DEFAULT_SEGMENT_TARGET_SIZE).await?;
+                return Ok((writer, lock));
+            }
+
+            // Another writer grabbed this ID — increment and try the next slot.
+            warn!(
+                segment_id = new_id,
+                "Race on new segment creation — trying next ID"
+            );
+            new_id += 1;
+        }
+
+        bail!(
+            "Could not acquire a segment writer lock after {MAX_NEW_ATTEMPTS} new-segment attempts."
         );
-        SegmentWriter::create(&new_path, new_id, DEFAULT_SEGMENT_TARGET_SIZE).await
     }
 
     /// Returns a [`SegmentsWriter`] backed by this segment collection.

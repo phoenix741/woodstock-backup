@@ -52,10 +52,6 @@ pub mod pool_manager;
 mod pool_refcnt;
 /// Module with reference count and unused chunk management
 mod refcnt;
-/// Module managing the collection of segment files that form the pool storage layer
-mod segments;
-/// Multi-segment rotating writer built on top of the segment collection
-mod segments_writer;
 /// Module with utility functions for chunk path and temp file management
 mod utils;
 
@@ -67,11 +63,10 @@ pub use internal::{
     SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata, SegmentFileState, SegmentReader,
     SegmentWriter,
 };
+pub use internal::{Segments, SegmentsWriter};
 pub use pool_chunk_information::{ConvertHashLink, PoolChunkInformation};
 pub use pool_chunk_wrapper::PoolChunkWrapper;
 pub use pool_chunk_wrapper_writer::PoolChunkWriter;
 pub use pool_manager::PoolManager;
 pub use refcnt::{Refcnt, RefcntApplySens};
-pub use segments::{Segments, DEFAULT_SEGMENT_TARGET_SIZE};
-pub use segments_writer::SegmentsWriter;
 pub use utils::{calculate_chunk_path, get_temp_chunk_path};

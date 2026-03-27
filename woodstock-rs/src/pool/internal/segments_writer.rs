@@ -11,6 +11,7 @@ use eyre::Result;
 use tracing::debug;
 
 use crate::utils::compression::CompressionFormat;
+use crate::utils::lock_redis::PoolLockRedis;
 
 use super::{
     segments::Segments, SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata,
@@ -45,6 +46,9 @@ use super::{
 pub struct SegmentsWriter<'a> {
     segments: &'a Segments,
     current: SegmentWriter,
+    /// Exclusive Redis lock held on the current segment file.
+    /// Released when the writer rotates to a new segment or is shut down.
+    lock: Option<PoolLockRedis>,
 }
 
 impl<'a> SegmentsWriter<'a> {
@@ -57,8 +61,12 @@ impl<'a> SegmentsWriter<'a> {
     ///
     /// Returns an error if the underlying segment cannot be opened or created.
     pub(super) async fn new(segments: &'a Segments) -> Result<Self> {
-        let current = segments.get_segment_writer().await?;
-        Ok(Self { segments, current })
+        let (current, lock) = segments.get_segment_writer().await?;
+        Ok(Self {
+            segments,
+            current,
+            lock: Some(lock),
+        })
     }
 
     /// Returns the filesystem path of the **current** segment file.
@@ -118,7 +126,11 @@ impl<'a> SegmentsWriter<'a> {
     ///
     /// Returns an error if flushing or closing the underlying file fails.
     pub async fn shutdown(&mut self) -> Result<()> {
-        self.current.shutdown().await
+        self.current.shutdown().await?;
+        if let Some(lock) = self.lock.take() {
+            lock.unlock().await?;
+        }
+        Ok(())
     }
 
     /// Appends a chunk payload (stored at `source_path`) to the **current**
@@ -158,7 +170,12 @@ impl<'a> SegmentsWriter<'a> {
                 "Segment is full after append — rotating to next segment"
             );
             self.current.shutdown().await?;
-            self.current = self.segments.get_segment_writer().await?;
+            let (new_writer, new_lock) = self.segments.get_segment_writer().await?;
+            // Release the old lock after acquiring the new one to avoid a gap.
+            if let Some(old_lock) = self.lock.replace(new_lock) {
+                old_lock.unlock().await?;
+            }
+            self.current = new_writer;
         }
 
         Ok(entry)

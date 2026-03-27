@@ -25,6 +25,7 @@ pub enum LockType {
 pub enum LockOperation {
     Host(HostLockOperation),
     Pool(PoolLockOperation),
+    Segment,
     Events,
     File(FileLockOperation),
     Import(ImportLockOperation),
@@ -120,6 +121,7 @@ impl LockOperation {
         match self {
             Self::Host(operation) => operation.as_str(),
             Self::Pool(operation) => operation.as_str(),
+            Self::Segment => "segment",
             Self::Events => "events",
             Self::File(operation) => operation.as_str(),
             Self::Import(operation) => operation.as_str(),
@@ -145,6 +147,7 @@ impl From<&str> for LockOperation {
             "fsck" => Self::Pool(PoolLockOperation::Fsck),
             "execute_cleaning" => Self::Pool(PoolLockOperation::ExecuteCleaning),
             "execute_hash_conversion" => Self::Pool(PoolLockOperation::ExecuteHashConversion),
+            "segment" => Self::Segment,
             "events" => Self::Events,
             "write" => Self::File(FileLockOperation::Write),
             "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),
