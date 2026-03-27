@@ -6874,6 +6874,7 @@ dependencies = [
  "libm",
  "lru 0.16.3",
  "mdns-sd",
+ "memmap2",
  "percent-encoding",
  "prost",
  "prost-build",

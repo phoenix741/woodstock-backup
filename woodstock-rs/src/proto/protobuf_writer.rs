@@ -237,6 +237,31 @@ where
         Ok(())
     }
 
+    /// Writes a single protobuf message and returns the total number of bytes written
+    /// (including the length-delimiter prefix).
+    ///
+    /// This is identical to [`write`](Self::write) but exposes the byte count, which is
+    /// useful for callers that track byte offsets (e.g., shard index writers).
+    ///
+    /// # Errors
+    /// Returns an error if writing fails.
+    pub async fn write_size(&mut self, message: &T) -> Result<usize> {
+        write_length_delimited_message(&mut self.writer, message).await
+    }
+
+    /// Writes raw bytes directly to the underlying writer.
+    ///
+    /// This bypasses protobuf framing and is intended for appending non-protobuf
+    /// data such as an offset table footer.
+    ///
+    /// # Errors
+    /// Returns an error if writing fails.
+    pub async fn write_raw(&mut self, bytes: &[u8]) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+        self.writer.write_all(bytes).await?;
+        Ok(())
+    }
+
     /// Writes all protobuf messages from an iterator to the file.
     ///
     /// # Arguments

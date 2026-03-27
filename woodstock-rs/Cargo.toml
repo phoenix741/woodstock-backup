@@ -70,6 +70,7 @@ rustls = { workspace = true }
 tonic = { workspace = true }
 tonic-prost = "^0.14"
 uuid = { workspace = true }
+memmap2 = { workspace = true }
 reflink-copy = "0.1.29"
 fs4 = { version = "0.13.1", features = ["tokio"] }
 rayon = { version = "1.11" }
