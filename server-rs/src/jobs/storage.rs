@@ -46,6 +46,7 @@ const ORPHAN_TIMEOUT_MAINTENANCE: Duration = Duration::from_secs(43_200); // 12 
 #[derive(Clone)]
 pub struct ApalisRedisStorage {
     pub schedule_storage: RedisStorage<ScheduleQueueJob>,
+    pub nightly_storage: RedisStorage<ScheduleQueueJob>,
     pub backup_storage: RedisStorage<BackupQueueJob>,
     pub interactive_storage: RedisStorage<RestoreJobData>,
     pub maintenance_storage: RedisStorage<MaintenanceJobData>,
@@ -54,6 +55,7 @@ pub struct ApalisRedisStorage {
 impl ApalisRedisStorage {
     pub async fn new(redis_url: &str) -> Result<Self> {
         let conn_schedule = connect(redis_url).await?;
+        let conn_nightly = connect(redis_url).await?;
         let conn_backup = connect(redis_url).await?;
         let conn_interactive = connect(redis_url).await?;
         let conn_maintenance = connect(redis_url).await?;
@@ -63,6 +65,15 @@ impl ApalisRedisStorage {
             conn_schedule,
             RedisConfig::default()
                 .set_namespace(QueueName::Schedule.as_str())
+                .set_keep_alive(KEEP_ALIVE)
+                .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_QUICK),
+        );
+        // Nightly trigger: same as schedule but on a dedicated queue so the cron-nightly
+        // worker can be registered independently of cron-scanner.
+        let nightly_storage: RedisStorage<ScheduleQueueJob> = RedisStorage::new_with_config(
+            conn_nightly,
+            RedisConfig::default()
+                .set_namespace(QueueName::Nightly.as_str())
                 .set_keep_alive(KEEP_ALIVE)
                 .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_QUICK),
         );
@@ -99,6 +110,7 @@ impl ApalisRedisStorage {
 
         Ok(Self {
             schedule_storage,
+            nightly_storage,
             backup_storage,
             interactive_storage,
             maintenance_storage,

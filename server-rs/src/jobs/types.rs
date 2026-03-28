@@ -14,6 +14,7 @@ pub enum QueueName {
     Backup,
     Interactive,
     Maintenance,
+    Nightly,
 }
 
 impl QueueName {
@@ -23,6 +24,7 @@ impl QueueName {
             QueueName::Backup => "backup",
             QueueName::Interactive => "interactive",
             QueueName::Maintenance => "maintenance",
+            QueueName::Nightly => "nightly",
         }
     }
 }
