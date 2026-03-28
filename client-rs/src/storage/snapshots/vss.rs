@@ -39,6 +39,8 @@ struct WindowsSnapshotTarget {
 pub struct VssSnapshotReference {
     redirection_path: PathBuf,
     snapshot_device_root: PathBuf,
+    snapshot_id: String,
+    snapshot_set_id: String,
     cleaned_up: Arc<AtomicBool>,
     session: Arc<Mutex<VssSessionController>>,
 }
@@ -47,11 +49,15 @@ impl VssSnapshotReference {
     fn new(
         redirection_path: PathBuf,
         snapshot_device_root: PathBuf,
+        snapshot_id: String,
+        snapshot_set_id: String,
         session: Arc<Mutex<VssSessionController>>,
     ) -> Self {
         Self {
             redirection_path,
             snapshot_device_root,
+            snapshot_id,
+            snapshot_set_id,
             cleaned_up: Arc::new(AtomicBool::new(false)),
             session,
         }
@@ -72,10 +78,14 @@ impl SnapshotReference for VssSnapshotReference {
         let cleanup_flag = Arc::clone(&self.cleaned_up);
         let session = Arc::clone(&self.session);
         let snapshot_path = self.snapshot_device_root.clone();
+        let snapshot_id = self.snapshot_id.clone();
+        let snapshot_set_id = self.snapshot_set_id.clone();
 
         spawn_blocking_vss(move || {
             tracing::info!(
-                "Finalizing VSS snapshot '{}' with outcome {:?}",
+                "WOODSTOCK_VSS finalize start snapshot_id={} snapshot_set_id={} device_root='{}' outcome={:?}",
+                snapshot_id,
+                snapshot_set_id,
                 snapshot_path.display(),
                 completion
             );
@@ -85,7 +95,9 @@ impl SnapshotReference for VssSnapshotReference {
             session.finalize(completion)?;
             cleanup_flag.store(true, Ordering::Release);
             tracing::info!(
-                "VSS snapshot '{}' finalized with outcome {:?}",
+                "WOODSTOCK_VSS finalize complete snapshot_id={} snapshot_set_id={} device_root='{}' outcome={:?}",
+                snapshot_id,
+                snapshot_set_id,
                 snapshot_path.display(),
                 completion
             );
@@ -99,7 +111,9 @@ impl Drop for VssSnapshotReference {
     fn drop(&mut self) {
         if !self.cleaned_up.load(Ordering::Acquire) {
             tracing::warn!(
-                "VSS snapshot '{}' was dropped without explicit finalization. The session worker will abort cleanup as a fallback.",
+                "WOODSTOCK_VSS dropped without explicit finalization snapshot_id={} snapshot_set_id={} device_root='{}'. The session worker will abort cleanup as a fallback.",
+                self.snapshot_id,
+                self.snapshot_set_id,
                 self.snapshot_device_root.display()
             );
         }
@@ -109,6 +123,7 @@ impl Drop for VssSnapshotReference {
 #[derive(Clone)]
 struct VssCreatedSnapshot {
     snapshot_id: VSS_ID,
+    snapshot_set_id: VSS_ID,
     snapshot_device_root: PathBuf,
 }
 
@@ -165,24 +180,33 @@ impl SnapshotManager for VssSnapshotManager {
                 source_path.display()
             );
             let target = normalize_snapshot_target(&source_path)?;
-            let (_snapshot_id, snapshot_device_root, session) =
-                create_snapshot_for_volume(&target.volume_root)?;
+            let (created_snapshot, session) = create_snapshot_for_volume(&target.volume_root)?;
             let redirection_path = if target.relative_path.as_os_str().is_empty() {
-                snapshot_device_root.clone()
+                created_snapshot.snapshot_device_root.clone()
             } else {
-                snapshot_device_root.join(&target.relative_path)
+                created_snapshot
+                    .snapshot_device_root
+                    .join(&target.relative_path)
             };
 
+            let snapshot_id = format_vss_id(&created_snapshot.snapshot_id);
+            let snapshot_set_id = format_vss_id(&created_snapshot.snapshot_set_id);
+
             tracing::info!(
-                "Created VSS snapshot for '{}' on volume '{}' with redirection '{}'",
+                "WOODSTOCK_VSS created snapshot_id={} snapshot_set_id={} source='{}' volume='{}' device_root='{}' redirection='{}'",
+                snapshot_id,
+                snapshot_set_id,
                 source_path.display(),
                 target.volume_root.display(),
+                created_snapshot.snapshot_device_root.display(),
                 redirection_path.display()
             );
 
             Ok(Box::new(VssSnapshotReference::new(
                 redirection_path,
-                snapshot_device_root,
+                created_snapshot.snapshot_device_root,
+                snapshot_id,
+                snapshot_set_id,
                 session,
             )) as Box<dyn SnapshotReference>)
         })
@@ -339,7 +363,7 @@ fn is_volume_supported(volume_root: &Path) -> Result<bool> {
 
 fn create_snapshot_for_volume(
     volume_root: &Path,
-) -> Result<(VSS_ID, PathBuf, Arc<Mutex<VssSessionController>>)> {
+) -> Result<(VssCreatedSnapshot, Arc<Mutex<VssSessionController>>)> {
     tracing::info!(
         "Starting VSS session worker for volume '{}'",
         volume_root.display()
@@ -375,17 +399,14 @@ fn create_snapshot_for_volume(
     }));
 
     tracing::info!(
-        "VSS session worker created snapshot {} on '{}' mapped to '{}'",
+        "WOODSTOCK_VSS worker registered snapshot_id={} snapshot_set_id={} volume='{}' device_root='{}'",
         format_vss_id(&created_snapshot.snapshot_id),
+        format_vss_id(&created_snapshot.snapshot_set_id),
         volume_root.display(),
         created_snapshot.snapshot_device_root.display()
     );
 
-    Ok((
-        created_snapshot.snapshot_id,
-        created_snapshot.snapshot_device_root,
-        session,
-    ))
+    Ok((created_snapshot, session))
 }
 
 fn vss_session_worker(
@@ -414,8 +435,9 @@ fn vss_session_worker(
     };
 
     tracing::info!(
-        "VSS session worker created snapshot {} for volume '{}' with device root '{}'",
+        "WOODSTOCK_VSS worker created snapshot_id={} snapshot_set_id={} volume='{}' device_root='{}'",
         format_vss_id(&created_snapshot.snapshot_id),
+        format_vss_id(&created_snapshot.snapshot_set_id),
         volume_root.display(),
         created_snapshot.snapshot_device_root.display()
     );
@@ -496,7 +518,7 @@ fn create_snapshot_in_worker(
         "IVssBackupComponents::StartSnapshotSet",
     )?;
     tracing::debug!(
-        "Started VSS snapshot set {} for volume '{}'",
+        "WOODSTOCK_VSS start snapshot_set_id={} volume='{}'",
         format_vss_id(&snapshot_set_id),
         volume_root.display()
     );
@@ -511,7 +533,7 @@ fn create_snapshot_in_worker(
         "IVssBackupComponents::AddToSnapshotSet",
     )?;
     tracing::debug!(
-        "Added volume '{}' to snapshot set {} with snapshot id {}",
+        "WOODSTOCK_VSS add volume='{}' snapshot_set_id={} snapshot_id={}",
         volume_root.display(),
         format_vss_id(&snapshot_set_id),
         format_vss_id(&snapshot_id)
@@ -548,8 +570,9 @@ fn create_snapshot_in_worker(
 
     let snapshot_device_root = unsafe { wide_ptr_to_path(properties.m_pwszSnapshotDeviceObject) }?;
     tracing::info!(
-        "VSS snapshot {} for volume '{}' is exposed through device root '{}'",
+        "WOODSTOCK_VSS properties snapshot_id={} snapshot_set_id={} volume='{}' device_root='{}'",
         format_vss_id(&snapshot_id),
+        format_vss_id(&snapshot_set_id),
         volume_root.display(),
         snapshot_device_root.display()
     );
@@ -561,6 +584,7 @@ fn create_snapshot_in_worker(
 
     Ok(VssCreatedSnapshot {
         snapshot_id,
+        snapshot_set_id,
         snapshot_device_root,
     })
 }
