@@ -62,11 +62,13 @@ pub use fsck::{
     FsckUnusedCount,
 };
 pub use internal::{
-    ChunkDescriptor, ChunkIndex, IndexWriter, ShardReader, ShardWriter, SignedChunkDescriptor,
+    ChunkDescriptor, ChunkIndex, DeadChunkRecord, IndexSweeper, IndexWriter, ShardReader,
+    ShardWriter, SignedChunkDescriptor, SweepResult,
 };
 pub use internal::{
-    SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata, SegmentFileState, SegmentReader,
-    SegmentWriter,
+    CompactionProgression, CompactionReport, SegmentChunkEntry, SegmentCompactor, SegmentFileHeader,
+    SegmentFileMetadata, SegmentFileState, SegmentFillReport, SegmentReader, SegmentWriter,
+    SweepProgression,
 };
 pub use internal::{Segments, SegmentsWriter};
 pub use pool_chunk_information::{ConvertHashLink, PoolChunkInformation};

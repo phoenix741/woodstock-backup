@@ -3,9 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use eyre::{bail, eyre, Result, WrapErr};
 use tokio::fs::{create_dir_all, metadata, File, OpenOptions};
-use tokio::io::AsyncWriteExt;
-
-use crate::utils::cow_copy;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 use super::segment_metadata::read_persisted_segment_file_metadata;
 use super::segment_protobuf::{SegmentChunkHeader, SegmentHeader};
@@ -75,6 +73,7 @@ impl SegmentWriter {
             size_effective: 0,
             size_limit: target_size,
             chunk_count: 0,
+            dead_stored_bytes: 0,
         };
         write_segment_file_metadata(&path, &file_metadata).await?;
 
@@ -185,10 +184,13 @@ impl SegmentWriter {
 
     /// Appends a chunk payload already stored in a source file.
     ///
-    /// Uses `copy_file_range(2)` on Linux for an in-kernel copy that COW-capable
-    /// filesystems (btrfs, XFS) can satisfy by sharing data blocks without
-    /// duplicating them. Falls back to a standard buffered copy when the syscall
-    /// is unavailable or when source and destination are on different filesystems.
+    /// Opens the file at `source_path`, validates its length against
+    /// `compressed_size`, and copies the payload with a buffered async copy.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the writer is shut down, the file size does not match
+    /// `compressed_size`, or any I/O operation fails.
     pub async fn append_chunk_from_path(
         &mut self,
         hash: Vec<u8>,
@@ -207,6 +209,37 @@ impl SegmentWriter {
             );
         }
 
+        let source_file = File::open(source_path).await?;
+        self.append_chunk_from_reader(hash, size, compressed_size, compression_format, source_file)
+            .await
+    }
+
+    /// Appends a chunk payload from an arbitrary [`AsyncRead`] source.
+    ///
+    /// Exactly `compressed_size` bytes are read from `reader` and appended to
+    /// the segment.  The caller is responsible for ensuring that `reader` yields
+    /// exactly that many bytes (e.g. by wrapping it in [`tokio::io::Take`]).
+    ///
+    /// This is the preferred path when the payload is already open (e.g.
+    /// during segment compaction, where the source is a [`SegmentChunkReader`]
+    /// obtained from [`super::segment_reader::SegmentReader::chunk_reader`]),
+    /// as no temporary file or path lookup is needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the writer is shut down or any I/O operation fails.
+    pub async fn append_chunk_from_reader(
+        &mut self,
+        hash: Vec<u8>,
+        size: u64,
+        compressed_size: u64,
+        compression_format: CompressionFormat,
+        reader: impl AsyncRead + Unpin,
+    ) -> Result<SegmentChunkEntry> {
+        if self.shutdown {
+            bail!("segment writer is shut down");
+        }
+
         let chunk_header = SegmentChunkHeader {
             hash,
             size,
@@ -215,10 +248,9 @@ impl SegmentWriter {
         };
         let header_offset = self.size_total;
 
-        // Write the chunk header first and record the exact byte count.
+        // Write the chunk header and record the exact serialised byte count.
         let written_header_size = {
-            let writer = &mut self.file;
-            let written = write_length_delimited_message(writer, &chunk_header).await?;
+            let written = write_length_delimited_message(&mut self.file, &chunk_header).await?;
             u64::try_from(written)?
         };
 
@@ -226,12 +258,10 @@ impl SegmentWriter {
             .checked_add(written_header_size)
             .ok_or_else(|| eyre!("segment chunk payload offset overflow"))?;
 
-        // Copy the payload using COW when possible (copy_file_range on Linux),
-        // with a transparent fallback to a standard buffered copy otherwise.
-        {
-            let writer = &mut self.file;
-            cow_copy::copy_file_to_writer(source_path, writer, compressed_size, payload_offset)
-                .await?;
+        // Copy exactly `compressed_size` bytes from the reader into the file.
+        let copied = tokio::io::copy(&mut reader.take(compressed_size), &mut self.file).await?;
+        if copied != compressed_size {
+            bail!("short read during chunk append: expected {compressed_size} bytes, got {copied}");
         }
 
         self.size_total = self

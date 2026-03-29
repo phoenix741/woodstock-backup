@@ -81,6 +81,10 @@ pub enum IndexLockTarget {
     /// Exclusive lock held by the single writer that modifies the chunk index shards.
     /// Redis key: `"index_writer"`.
     Writer,
+    /// Exclusive lock held by [`IndexSweeper`] during GC sweeps of the chunk index.
+    /// Mutually exclusive with `Writer` since both rewrite shard files atomically.
+    /// Redis key: `"index_sweeper"`.
+    Sweeper,
 }
 
 impl HostLockOperation {
@@ -146,6 +150,7 @@ impl IndexLockTarget {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Writer => "index_writer",
+            Self::Sweeper => "index_sweeper",
         }
     }
 }
@@ -185,6 +190,7 @@ impl From<&str> for LockOperation {
             "segment" => Self::Segment(SegmentLockTarget::File),
             "segments_info" => Self::Segment(SegmentLockTarget::Info),
             "index_writer" => Self::Index(IndexLockTarget::Writer),
+            "index_sweeper" => Self::Index(IndexLockTarget::Sweeper),
             "events" => Self::Events,
             "write" => Self::File(FileLockOperation::Write),
             "compact_refcnt_manual" => Self::Pool(PoolLockOperation::CompactRefcntManual),

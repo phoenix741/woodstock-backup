@@ -42,6 +42,12 @@ pub struct SegmentFileMetadataRecord {
     pub size_limit: u64,
     #[prost(uint64, tag = "6")]
     pub chunk_count: u64,
+    /// Compressed bytes known to be dead (refcount == 0 in the index).
+    /// Populated by [`IndexSweeper`] after a sweep pass.
+    /// Bytes occupied by dead (refcount=0) chunks: header + compressed payload each.
+    /// Updated by `IndexSweeper` after each sweep run.
+    #[prost(uint64, tag = "7")]
+    pub dead_stored_bytes: u64,
 }
 
 /// Metadata record persisted in `segments/segments.info`.

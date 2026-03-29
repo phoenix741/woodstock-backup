@@ -29,6 +29,9 @@ pub enum SegmentFileState {
     Open,
     /// The segment reached or exceeded its configured target size.
     Full,
+    /// The segment has been compacted: its live chunks were copied to a new
+    /// segment and the index updated.  The file can be deleted safely.
+    Compacted,
 }
 
 impl SegmentFileState {
@@ -37,6 +40,7 @@ impl SegmentFileState {
         match self {
             Self::Open => 0,
             Self::Full => 1,
+            Self::Compacted => 2,
         }
     }
 }
@@ -48,6 +52,7 @@ impl TryFrom<u32> for SegmentFileState {
         match value {
             0 => Ok(Self::Open),
             1 => Ok(Self::Full),
+            2 => Ok(Self::Compacted),
             _ => Err("invalid segment file state"),
         }
     }
@@ -78,7 +83,8 @@ pub struct SegmentFileMetadata {
     /// Monotonically increasing identifier that deterministically maps to a file path under
     /// `pool/segments/<id>.seg`.
     pub segment_id: u64,
-    /// Lifecycle state of the segment: `Open` accepts new chunks, `Full` is sealed.
+    /// Lifecycle state of the segment: `Open` accepts new chunks, `Full` is sealed,
+    /// `Compacted` marks segments whose live chunks have been moved and can be deleted.
     pub state: SegmentFileState,
     /// Physical file size in bytes (total bytes written including headers).
     pub size_total: u64,
@@ -88,6 +94,12 @@ pub struct SegmentFileMetadata {
     pub size_limit: u64,
     /// Number of chunk entries recorded in this segment.
     pub chunk_count: u64,
+    /// Bytes occupied by chunks that have been swept from the index (`refcount == 0`).
+    /// This is the sum of each dead entry's full stored footprint (chunk header +
+    /// compressed payload), matching what [`SegmentChunkEntry::stored_len`] returns.
+    /// Used to compute an accurate fill-rate: a segment whose physical bytes are
+    /// mostly dead can be compacted even if `size_total` is large.
+    pub dead_stored_bytes: u64,
 }
 
 impl From<&SegmentFileMetadata> for SegmentFileMetadataRecord {
@@ -99,6 +111,7 @@ impl From<&SegmentFileMetadata> for SegmentFileMetadataRecord {
             size_effective: value.size_effective,
             size_limit: value.size_limit,
             chunk_count: value.chunk_count,
+            dead_stored_bytes: value.dead_stored_bytes,
         }
     }
 }
@@ -114,6 +127,7 @@ impl TryFrom<SegmentFileMetadataRecord> for SegmentFileMetadata {
             size_effective: value.size_effective,
             size_limit: value.size_limit,
             chunk_count: value.chunk_count,
+            dead_stored_bytes: value.dead_stored_bytes,
         })
     }
 }
@@ -157,4 +171,82 @@ impl From<SegmentHeader> for SegmentFileHeader {
             created_at: value.created_at,
         }
     }
+}
+
+// ── Fill-rate reporting ───────────────────────────────────────────────────────
+
+/// A snapshot of one segment's fill metrics, suitable for monitoring and
+/// compaction scheduling.
+///
+/// Obtained via [`super::segments::Segments::list_segments_metadata`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SegmentFillReport {
+    /// Numeric segment identifier.
+    pub segment_id: u64,
+    /// Current lifecycle state of the segment.
+    pub state: SegmentFileState,
+    /// Physical file size in bytes (all headers + payloads).
+    pub size_total: u64,
+    /// Sum of uncompressed chunk sizes for all chunks written.
+    pub size_effective: u64,
+    /// Bytes occupied by chunks confirmed dead by [`IndexSweeper`] (refcount = 0).
+    /// Includes both the chunk header and the compressed payload for each dead entry.
+    pub dead_stored_bytes: u64,
+}
+
+impl SegmentFillReport {
+    /// Fraction of `size_total` that is still referenced by at least one live
+    /// backup (after deducting known dead bytes).
+    ///
+    /// Returns `1.0` when `size_total == 0` (empty segment → treat as full to
+    /// avoid spurious compaction triggers).
+    #[must_use]
+    pub fn fill_rate(&self) -> f64 {
+        if self.size_total == 0 {
+            return 1.0;
+        }
+        let live = self.size_total.saturating_sub(self.dead_stored_bytes);
+        live as f64 / self.size_total as f64
+    }
+}
+
+impl From<&SegmentFileMetadata> for SegmentFillReport {
+    fn from(m: &SegmentFileMetadata) -> Self {
+        Self {
+            segment_id: m.segment_id,
+            state: m.state,
+            size_total: m.size_total,
+            size_effective: m.size_effective,
+            dead_stored_bytes: m.dead_stored_bytes,
+        }
+    }
+}
+
+// ── Progress types ────────────────────────────────────────────────────────────
+
+/// Progress update emitted by [`super::super::index::IndexSweeper`] during a sweep run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SweepProgression {
+    /// Total number of index shards to process (always 256).
+    pub shards_total: usize,
+    /// Number of shards fully processed so far.
+    pub shards_done: usize,
+    /// Cumulative number of dead index entries removed.
+    pub dead_entries_found: usize,
+    /// Cumulative compressed bytes accounted for as dead.
+    pub dead_bytes_accounted: u64,
+}
+
+/// Progress update emitted by [`super::segment_compactor::SegmentCompactor`]
+/// during a compaction run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompactionProgression {
+    /// Total number of candidate segments to compact.
+    pub segments_total: usize,
+    /// Number of segments fully compacted so far.
+    pub segments_done: usize,
+    /// Cumulative number of live chunks copied to new segments.
+    pub chunks_moved: u64,
+    /// Cumulative compressed bytes freed (size of deleted source segments).
+    pub bytes_freed: u64,
 }

@@ -1,3 +1,4 @@
+mod segment_compactor;
 mod segment_metadata;
 mod segment_model;
 mod segment_protobuf;
@@ -7,8 +8,10 @@ mod segments;
 mod segments_info;
 mod segments_writer;
 
+pub use segment_compactor::{CompactionReport, SegmentCompactor};
 pub use segment_model::{
-    SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata, SegmentFileState,
+    CompactionProgression, SegmentChunkEntry, SegmentFileHeader, SegmentFileMetadata,
+    SegmentFileState, SegmentFillReport, SweepProgression,
 };
 pub use segment_reader::SegmentReader;
 pub use segment_writer::SegmentWriter;

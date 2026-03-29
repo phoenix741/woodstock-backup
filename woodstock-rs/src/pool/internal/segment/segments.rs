@@ -23,13 +23,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use eyre::{eyre, Result};
-use tokio::fs::{create_dir_all, read_dir};
+use tokio::fs::{create_dir_all, read_dir, remove_file};
 use tracing::{debug, warn};
 
 use super::segment_protobuf::SegmentsInformation;
 use crate::config::Configuration;
 use crate::utils::lock_redis::{LockOperation, PoolLockRedis, SegmentLockTarget};
 
+use super::segment_metadata::{
+    read_persisted_segment_file_metadata, segment_sidecar_metadata_path,
+    write_segment_file_metadata,
+};
+use super::segment_model::{SegmentFileMetadata, SegmentFileState, SegmentFillReport};
 use super::segments_info::{read_segments_info, segments_info_path, write_segments_info_atomic};
 use super::segments_writer::SegmentsWriter;
 use super::{SegmentReader, SegmentWriter};
@@ -302,6 +307,184 @@ impl Segments {
     /// created.
     pub async fn get_writer(&self) -> Result<SegmentsWriter<'_>> {
         SegmentsWriter::new(self).await
+    }
+
+    // ── Compaction helpers ─────────────────────────────────────────────────
+
+    /// Returns the persisted sidecar metadata for every segment file found in
+    /// the segment directory.
+    ///
+    /// Files whose sidecar (`.seg.meta`) is missing or unreadable are silently
+    /// skipped with a warning.  The list is sorted by `segment_id` ascending.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only if the segment directory itself cannot be read.
+    pub async fn list_segments_metadata(&self) -> Result<Vec<SegmentFileMetadata>> {
+        let dir = &self.config.path.pool_segments_path;
+
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut result: Vec<SegmentFileMetadata> = Vec::new();
+        let mut entries = read_dir(dir).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("seg") {
+                continue;
+            }
+
+            match read_persisted_segment_file_metadata(&path).await {
+                Ok(meta) => result.push(meta),
+                Err(e) => {
+                    warn!(
+                        "Cannot read sidecar for {:?}, skipping: {e}",
+                        path.file_name().unwrap_or_default()
+                    );
+                }
+            }
+        }
+
+        result.sort_by_key(|m| m.segment_id);
+        Ok(result)
+    }
+
+    /// Returns fill reports for all segments in the directory (sorted by id).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error only if the segment directory cannot be read.
+    pub async fn list_fill_reports(&self) -> Result<Vec<SegmentFillReport>> {
+        let metas = self.list_segments_metadata().await?;
+        Ok(metas.iter().map(SegmentFillReport::from).collect())
+    }
+
+    /// Returns only the segments that are candidates for compaction.
+    ///
+    /// A segment is a candidate when:
+    /// - its state is `Full` (sealed, no new writes expected), and
+    /// - its fill rate is strictly below `threshold` (0.0–1.0).
+    ///
+    /// The list is sorted by fill rate ascending (worst-utilised first).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the segment directory cannot be read.
+    pub async fn find_compaction_candidates(
+        &self,
+        threshold: f64,
+    ) -> Result<Vec<SegmentFileMetadata>> {
+        let mut candidates: Vec<SegmentFileMetadata> = self
+            .list_segments_metadata()
+            .await?
+            .into_iter()
+            .filter(|m| {
+                m.state == SegmentFileState::Full
+                    && SegmentFillReport::from(m).fill_rate() < threshold
+            })
+            .collect();
+
+        // Worst-utilised segments first so the caller can compact in priority order.
+        candidates.sort_by(|a, b| {
+            SegmentFillReport::from(a)
+                .fill_rate()
+                .partial_cmp(&SegmentFillReport::from(b).fill_rate())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        Ok(candidates)
+    }
+
+    /// Marks a segment as `Compacted` by rewriting its sidecar metadata.
+    ///
+    /// After this call the segment file is safe to delete: its live chunks have
+    /// already been copied to a new segment and the index has been updated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sidecar cannot be read or written.
+    pub async fn mark_segment_compacted(&self, segment_id: u64) -> Result<()> {
+        let seg_path = self.segment_path(segment_id);
+        let mut meta = read_persisted_segment_file_metadata(&seg_path).await?;
+        meta.state = SegmentFileState::Compacted;
+        write_segment_file_metadata(&seg_path, &meta).await
+    }
+
+    /// Deletes the segment file and its sidecar for `segment_id`.
+    ///
+    /// Both files are removed independently; a missing sidecar is silently
+    /// ignored so that partially-written compaction states are handled cleanly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the main `.seg` file cannot be removed.
+    pub async fn delete_segment(&self, segment_id: u64) -> Result<()> {
+        let seg_path = self.segment_path(segment_id);
+        let meta_path = segment_sidecar_metadata_path(&seg_path);
+
+        remove_file(&seg_path)
+            .await
+            .map_err(|e| eyre!("failed to delete segment {segment_id}: {e}"))?;
+
+        // Sidecar removal is best-effort; ignore NotFound.
+        if let Err(e) = remove_file(&meta_path).await {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                warn!("Failed to delete sidecar for segment {segment_id}: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Scans the segment directory for segments whose state is `Compacted` and
+    /// deletes them.
+    ///
+    /// Call this at startup to clean up any segments that were marked as
+    /// `Compacted` but not yet deleted before the process was interrupted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the segment directory cannot be read.
+    pub async fn recover_compacted_segments(&self) -> Result<()> {
+        let metas = self.list_segments_metadata().await?;
+        for meta in metas {
+            if meta.state == SegmentFileState::Compacted {
+                debug!(
+                    segment_id = meta.segment_id,
+                    "Recovering: deleting compacted segment"
+                );
+                self.delete_segment(meta.segment_id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Updates the `dead_stored_bytes` field in the sidecar for `segment_id`.
+    ///
+    /// `dead_stored_bytes` is the total footprint of dead index entries (chunk
+    /// header + compressed payload for each), as returned by
+    /// [`IndexSweeper::sweep`].  The update is used by
+    /// [`SegmentFillReport::fill_rate`] to decide whether a segment is a
+    /// compaction candidate.
+    ///
+    /// The operation is **best-effort**: if the sidecar cannot be updated, the
+    /// segment will appear more full than it actually is and might be skipped
+    /// by the next compaction pass.  The following sweep run will recover the
+    /// correct value.
+    ///
+    /// The update is performed atomically: the existing sidecar is read,
+    /// `dead_stored_bytes` is replaced, and the sidecar is rewritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sidecar cannot be read or written.
+    pub async fn update_dead_stored_bytes(&self, segment_id: u64, dead_bytes: u64) -> Result<()> {
+        let seg_path = self.segment_path(segment_id);
+        let mut meta = read_persisted_segment_file_metadata(&seg_path).await?;
+        meta.dead_stored_bytes = dead_bytes;
+        write_segment_file_metadata(&seg_path, &meta).await
     }
 }
 

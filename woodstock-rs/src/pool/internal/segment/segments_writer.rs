@@ -8,6 +8,7 @@
 use std::path::Path;
 
 use eyre::Result;
+use tokio::io::AsyncRead;
 use tracing::debug;
 
 use crate::utils::compression::CompressionFormat;
@@ -161,23 +162,62 @@ impl<'a> SegmentsWriter<'a> {
             .current
             .append_chunk_from_path(hash, size, compressed_size, compression_format, source_path)
             .await?;
-
-        // If the segment reached its target size, rotate to the next one so
-        // that subsequent appends don't have to wait.
-        if self.current.is_full() {
-            debug!(
-                segment_id = self.current.header().segment_id,
-                "Segment is full after append — rotating to next segment"
-            );
-            self.current.shutdown().await?;
-            let (new_writer, new_lock) = self.segments.get_segment_writer().await?;
-            // Release the old lock after acquiring the new one to avoid a gap.
-            if let Some(old_lock) = self.lock.replace(new_lock) {
-                old_lock.unlock().await?;
-            }
-            self.current = new_writer;
-        }
-
+        self.rotate_if_needed().await?;
         Ok(entry)
+    }
+
+    /// Appends a chunk payload from an arbitrary [`AsyncRead`] source.
+    ///
+    /// Like [`append_chunk_from_path`](Self::append_chunk_from_path) but
+    /// accepts any `AsyncRead + Unpin` (e.g. a [`SegmentChunkReader`] obtained
+    /// from [`SegmentReader::chunk_reader`](super::segment_reader::SegmentReader::chunk_reader)).
+    ///
+    /// Returns `(entry, segment_id)` where `segment_id` is the ID of the
+    /// segment that received the chunk — needed when the rotation boundary is
+    /// crossed between calls, so that the caller can build a correct
+    /// [`super::super::index::ChunkDescriptor`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the append fails or the segment rotation fails.
+    pub async fn append_chunk_from_reader(
+        &mut self,
+        hash: Vec<u8>,
+        size: u64,
+        compressed_size: u64,
+        compression_format: CompressionFormat,
+        reader: impl AsyncRead + Unpin,
+    ) -> Result<(SegmentChunkEntry, u64)> {
+        // Capture segment_id BEFORE the write so we attribute the entry to
+        // the correct segment even if a rotation happens right after.
+        let segment_id = self.current.header().segment_id;
+        let entry = self
+            .current
+            .append_chunk_from_reader(hash, size, compressed_size, compression_format, reader)
+            .await?;
+        self.rotate_if_needed().await?;
+        Ok((entry, segment_id))
+    }
+
+    /// Rotates to the next segment when the current one has reached its target size.
+    ///
+    /// Called after every successful append.  If the current segment is not yet
+    /// full this is a no-op (one `is_full` check only).
+    async fn rotate_if_needed(&mut self) -> Result<()> {
+        if !self.current.is_full() {
+            return Ok(());
+        }
+        debug!(
+            segment_id = self.current.header().segment_id,
+            "Segment is full after append — rotating to next segment"
+        );
+        self.current.shutdown().await?;
+        let (new_writer, new_lock) = self.segments.get_segment_writer().await?;
+        // Acquire the new lock before releasing the old one to avoid a gap.
+        if let Some(old_lock) = self.lock.replace(new_lock) {
+            old_lock.unlock().await?;
+        }
+        self.current = new_writer;
+        Ok(())
     }
 }
