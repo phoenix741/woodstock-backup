@@ -56,3 +56,46 @@ pub struct ChunkDescriptor {
     #[prost(uint64, tag = "8")]
     pub refcount: u64,
 }
+
+/// A [`ChunkDescriptor`] paired with a signed delta to apply to the index.
+///
+/// The `delta` encodes the direction and magnitude of the reference-count
+/// change:
+///
+/// - `delta > 0` — add references (typically `descriptor.refcount` reference
+///   units); treated as an *add* operation during flush.
+/// - `delta < 0` — remove references; treated as a *remove* operation during
+///   flush.
+/// - `delta == 0` — no-op (allowed but has no effect on the shard).
+///
+/// Create instances via [`SignedChunkDescriptor::for_add`] or
+/// [`SignedChunkDescriptor::for_remove`] rather than constructing directly.
+#[derive(Debug, Clone)]
+pub struct SignedChunkDescriptor {
+    /// The chunk descriptor carrying metadata and the base refcount.
+    pub descriptor: ChunkDescriptor,
+    /// Signed delta to apply to the stored refcount.
+    pub delta: i64,
+}
+
+impl SignedChunkDescriptor {
+    /// Wraps `descriptor` as an *add* operation.
+    ///
+    /// The delta is set to `+descriptor.refcount` (clamped to [`i64::MAX`] on
+    /// overflow, which is practically impossible for real refcounts).
+    #[must_use]
+    pub fn for_add(descriptor: ChunkDescriptor) -> Self {
+        let delta = i64::try_from(descriptor.refcount).unwrap_or(i64::MAX);
+        Self { descriptor, delta }
+    }
+
+    /// Wraps `descriptor` as a *remove* operation.
+    ///
+    /// The delta is set to `−descriptor.refcount` (clamped to [`i64::MIN`] on
+    /// overflow, which is practically impossible for real refcounts).
+    #[must_use]
+    pub fn for_remove(descriptor: ChunkDescriptor) -> Self {
+        let delta = -i64::try_from(descriptor.refcount).unwrap_or(i64::MAX);
+        Self { descriptor, delta }
+    }
+}

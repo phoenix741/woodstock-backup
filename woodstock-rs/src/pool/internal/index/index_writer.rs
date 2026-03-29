@@ -16,6 +16,7 @@
 //!
 //! // Queue chunk descriptors — they accumulate in memory.
 //! // writer.add(descriptor).await?;
+//! // writer.remove(descriptor).await?;
 //!
 //! // Atomically flush each modified shard and release the lock.
 //! writer.shutdown().await?;
@@ -26,28 +27,38 @@
 //! # Flush semantics
 //!
 //! Each call to [`shutdown`](IndexWriter::shutdown) processes every shard bucket
-//! that received at least one [`add`](IndexWriter::add) call:
+//! that received at least one [`add`](IndexWriter::add) or
+//! [`remove`](IndexWriter::remove) call:
 //!
 //! 1. The existing shard (if any) is read entirely into memory.
-//! 2. Existing entries are merged with the pending entries via a `HashMap` keyed
-//!    by hash: when the same hash appears in both, the metadata comes from the
-//!    **new** entry and the refcount is the **sum** of both refcounts.
-//! 3. The merged list is sorted by hash ascending.
-//! 4. A new shard file is written atomically (temp file → `rename`) by
+//! 2. Pending entries are pre-merged into a `(descriptor, delta: i64)` map keyed
+//!    by hash: deltas are cumulated; metadata comes from the last **add** entry
+//!    (positive delta).
+//! 3. The pre-merged map is combined with the existing shard entries:
+//!    - `final_refcount = (existing.refcount as i64 + total_delta).max(0) as u64`
+//!    - Metadata wins from the pending add entry when present; otherwise the
+//!      existing shard metadata is kept unchanged.
+//!    - New hashes (not yet in the shard) are inserted only when `delta > 0`.
+//!    - Existing entries whose refcount drops to 0 are **kept** (GC delegated to
+//!      `ws_console clean-unused`).
+//! 4. The merged list is sorted by hash ascending.
+//! 5. A new shard file is written atomically (temp file → `rename`) by
 //!    [`ShardWriter`] with an incremented generation counter.
-//! 5. The corresponding shard is evicted from the [`ChunkIndex`] cache so that
+//! 6. The corresponding shard is evicted from the [`ChunkIndex`] cache so that
 //!    the next read reloads the fresh file.
 
 use std::collections::HashMap;
 use std::path::Path;
 
 use eyre::Result;
+use futures::StreamExt;
 use tokio::fs::create_dir_all;
 use tracing::debug;
 
+use crate::pool::staging::StagingReader;
 use crate::utils::lock_redis::{IndexLockTarget, LockOperation, PoolLockRedis};
 
-use super::{index::ChunkIndex, ChunkDescriptor, ShardReader, ShardWriter};
+use super::{index::ChunkIndex, ChunkDescriptor, ShardReader, ShardWriter, SignedChunkDescriptor};
 
 /// Exclusive, atomic writer for the pool chunk index.
 ///
@@ -57,8 +68,8 @@ pub struct IndexWriter<'a> {
     /// Exclusive Redis lock on the index directory, held for the duration of the
     /// write session.  Dropped (i.e. released) when `shutdown` is called.
     lock: PoolLockRedis,
-    /// Accumulated entries, bucketed by shard id (= `hash[0]`).
-    pending: HashMap<u8, Vec<ChunkDescriptor>>,
+    /// Accumulated signed entries, bucketed by shard id (= `hash[0]`).
+    pending: HashMap<u8, Vec<SignedChunkDescriptor>>,
 }
 
 impl<'a> IndexWriter<'a> {
@@ -92,11 +103,11 @@ impl<'a> IndexWriter<'a> {
         })
     }
 
-    /// Queues a [`ChunkDescriptor`] to be written on [`shutdown`](Self::shutdown).
+    /// Queues a [`ChunkDescriptor`] for *addition* on [`shutdown`](Self::shutdown).
     ///
-    /// Entries are bucketed by `descriptor.hash[0]` (the shard id).  Multiple
-    /// entries for the same hash are merged during flush (the refcounts are
-    /// accumulated and the metadata from the last-seen entry wins).
+    /// The descriptor's `refcount` is used as the positive delta applied to the
+    /// stored refcount during flush.  Entries are bucketed by `descriptor.hash[0]`
+    /// (the shard id).
     ///
     /// # Errors
     ///
@@ -107,20 +118,105 @@ impl<'a> IndexWriter<'a> {
         }
 
         let shard_id = descriptor.hash[0];
-        self.pending.entry(shard_id).or_default().push(descriptor);
+        self.pending
+            .entry(shard_id)
+            .or_default()
+            .push(SignedChunkDescriptor::for_add(descriptor));
+        Ok(())
+    }
+
+    /// Queues a [`ChunkDescriptor`] for *removal* on [`shutdown`](Self::shutdown).
+    ///
+    /// The descriptor's `refcount` is used as the magnitude of the negative delta
+    /// applied to the stored refcount during flush.  If the stored refcount would
+    /// drop below 0 it is clamped to 0; the entry is **not** deleted from the
+    /// shard (GC is handled separately by `ws_console clean-unused`).
+    ///
+    /// Entries are bucketed by `descriptor.hash[0]` (the shard id).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the hash is empty.
+    pub async fn remove(&mut self, descriptor: ChunkDescriptor) -> Result<()> {
+        if descriptor.hash.is_empty() {
+            return Err(eyre::eyre!("chunk descriptor hash must not be empty"));
+        }
+
+        let shard_id = descriptor.hash[0];
+        self.pending
+            .entry(shard_id)
+            .or_default()
+            .push(SignedChunkDescriptor::for_remove(descriptor));
+        Ok(())
+    }
+
+    /// Reads every entry from the staging file at `path` and queues each one as
+    /// an *add* operation.
+    ///
+    /// This is equivalent to calling [`add`](Self::add) for every
+    /// [`ChunkDescriptor`] yielded by a [`StagingReader`] opened on `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened, read, or if any descriptor
+    /// has an empty hash.
+    pub async fn add_staging(&mut self, path: &Path) -> Result<()> {
+        let mut reader = StagingReader::open(path)
+            .await
+            .map_err(|e| eyre::eyre!("failed to open staging file {}: {}", path.display(), e))?;
+
+        let stream = reader.into_stream();
+        futures::pin_mut!(stream);
+
+        while let Some(item) = stream.next().await {
+            let descriptor = item.map_err(|e| {
+                eyre::eyre!(
+                    "failed to read staging entry from {}: {}",
+                    path.display(),
+                    e
+                )
+            })?;
+            self.add(descriptor).await?;
+        }
+        Ok(())
+    }
+
+    /// Reads every entry from the staging file at `path` and queues each one as
+    /// a *remove* operation.
+    ///
+    /// This is equivalent to calling [`remove`](Self::remove) for every
+    /// [`ChunkDescriptor`] yielded by a [`StagingReader`] opened on `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file cannot be opened, read, or if any descriptor
+    /// has an empty hash.
+    pub async fn remove_staging(&mut self, path: &Path) -> Result<()> {
+        let mut reader = StagingReader::open(path)
+            .await
+            .map_err(|e| eyre::eyre!("failed to open staging file {}: {}", path.display(), e))?;
+
+        let stream = reader.into_stream();
+        futures::pin_mut!(stream);
+
+        while let Some(item) = stream.next().await {
+            let descriptor = item.map_err(|e| {
+                eyre::eyre!(
+                    "failed to read staging entry from {}: {}",
+                    path.display(),
+                    e
+                )
+            })?;
+            self.remove(descriptor).await?;
+        }
         Ok(())
     }
 
     /// Flushes all pending entries to disk and releases the Redis lock.
     ///
-    /// For each modified shard:
-    ///
-    /// 1. The existing shard file (if any) is read into memory.
-    /// 2. Existing and new entries are merged (refcount additive, new metadata
-    ///    wins for duplicate hashes).
-    /// 3. The merged, sorted entries are written to a temp file and atomically
-    ///    renamed to the final shard path (`ShardWriter::flush`).
-    /// 4. The shard is evicted from the [`ChunkIndex`] cache.
+    /// For each modified shard the signed deltas are merged with the on-disk
+    /// state (see [module docs](self) for the detailed algorithm), the result is
+    /// sorted by hash, and written atomically via [`ShardWriter`].
     ///
     /// The Redis lock is released when this method returns (or on drop if it
     /// panics).
@@ -131,7 +227,7 @@ impl<'a> IndexWriter<'a> {
     pub async fn shutdown(mut self) -> Result<()> {
         // Collect first to avoid a double-mutable-borrow: `drain()` holds a
         // borrow on `self.pending` while `flush_shard` borrows `self` again.
-        let buckets: Vec<(u8, Vec<ChunkDescriptor>)> = self.pending.drain().collect();
+        let buckets: Vec<(u8, Vec<SignedChunkDescriptor>)> = self.pending.drain().collect();
         for (shard_id, new_entries) in buckets {
             self.flush_shard(shard_id, new_entries).await?;
         }
@@ -141,9 +237,13 @@ impl<'a> IndexWriter<'a> {
         Ok(())
     }
 
-    /// Merges `new_entries` into the shard identified by `shard_id` and writes
-    /// the result atomically.
-    async fn flush_shard(&mut self, shard_id: u8, new_entries: Vec<ChunkDescriptor>) -> Result<()> {
+    /// Merges `new_entries` (signed) into the shard identified by `shard_id`
+    /// and writes the result atomically.
+    async fn flush_shard(
+        &mut self,
+        shard_id: u8,
+        new_entries: Vec<SignedChunkDescriptor>,
+    ) -> Result<()> {
         let shard_path = self.index.shard_path(shard_id);
 
         // ── Step 1: read the existing shard (if any) ─────────────────────────
@@ -157,37 +257,74 @@ impl<'a> IndexWriter<'a> {
             "flushing shard"
         );
 
-        // ── Step 2: merge by hash ─────────────────────────────────────────────
-        // Build a map from the existing entries first; new entries will overwrite
-        // metadata but their refcounts are *added* to the existing refcount.
+        // ── Step 2: pre-merge pending entries into (descriptor, delta) map ───
+        // For each hash we accumulate the total signed delta.  Metadata is taken
+        // from the last entry that carries a positive (add) delta; if no add
+        // entry exists for that hash, we fall back to the existing shard entry
+        // later.
+        let mut pre_merged: HashMap<Vec<u8>, (ChunkDescriptor, i64)> = HashMap::new();
+        for signed in new_entries {
+            let hash = signed.descriptor.hash.clone();
+            let entry = pre_merged.entry(hash).or_insert_with(|| {
+                // Seed with a zeroed-refcount clone of the descriptor as the
+                // initial metadata placeholder.
+                let mut seed = signed.descriptor.clone();
+                seed.refcount = 0;
+                (seed, 0_i64)
+            });
+            entry.1 = entry.1.saturating_add(signed.delta);
+            // Last positive-delta entry wins for metadata.
+            if signed.delta > 0 {
+                entry.0 = signed.descriptor;
+                entry.0.refcount = 0; // refcount is managed via delta; reset here
+            }
+        }
+
+        // ── Step 3: merge pre_merged with existing entries ───────────────────
         let mut merged: HashMap<Vec<u8>, ChunkDescriptor> = existing_entries
             .into_iter()
             .map(|d| (d.hash.clone(), d))
             .collect();
 
-        for mut new in new_entries {
-            let existing_refcount = merged.get(&new.hash).map_or(0, |e| e.refcount);
-            new.refcount = new.refcount.saturating_add(existing_refcount);
-            merged.insert(new.hash.clone(), new);
+        for (hash, (pending_meta, total_delta)) in pre_merged {
+            if let Some(existing) = merged.get_mut(&hash) {
+                // Hash exists in the shard: adjust refcount and update metadata
+                // when we have a positive delta (i.e. an add operation).
+                existing.refcount = existing.refcount.saturating_add_signed(total_delta);
+                if total_delta > 0 {
+                    // Update storage metadata from the pending add entry,
+                    // preserving the freshly computed refcount.
+                    let refcount = existing.refcount;
+                    *existing = pending_meta;
+                    existing.refcount = refcount;
+                }
+            } else if total_delta > 0 {
+                // New hash: insert only when we are adding references.
+                #[allow(clippy::cast_sign_loss)]
+                let mut new_entry = pending_meta;
+                new_entry.refcount = total_delta as u64;
+                merged.insert(hash, new_entry);
+            }
+            // total_delta <= 0 and hash absent → nothing to remove; ignore.
         }
 
-        // ── Step 3: sort by hash ascending ───────────────────────────────────
+        // ── Step 4: sort by hash ascending ───────────────────────────────────
         let mut sorted: Vec<ChunkDescriptor> = merged.into_values().collect();
         sorted.sort_unstable_by(|a, b| a.hash.cmp(&b.hash));
 
-        // ── Step 4: ensure directory exists ──────────────────────────────────
+        // ── Step 5: ensure directory exists ──────────────────────────────────
         if let Some(parent) = shard_path.parent() {
             create_dir_all(parent).await?;
         }
 
-        // ── Step 5: write atomically via ShardWriter ──────────────────────────
+        // ── Step 6: write atomically via ShardWriter ──────────────────────────
         let mut writer = ShardWriter::create(&shard_path, next_generation).await?;
         for entry in &sorted {
             writer.write(entry).await?;
         }
         writer.flush().await?;
 
-        // ── Step 6: invalidate the cache entry ────────────────────────────────
+        // ── Step 7: invalidate the cache entry ────────────────────────────────
         self.index.invalidate_shard(shard_id);
 
         Ok(())
