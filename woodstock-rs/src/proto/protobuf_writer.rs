@@ -185,6 +185,20 @@ where
 
         Ok(count)
     }
+
+    /// Flushes the internal `BufWriter` buffer to the underlying file without
+    /// finalizing the writer (no `shutdown`, no temp-file rename).
+    ///
+    /// Use this after each [`write`](Self::write) call when durability between
+    /// individual records is required (e.g. staging files that survive crashes).
+    ///
+    /// # Errors
+    /// Returns an error if flushing fails.
+    pub async fn flush_buffer(&mut self) -> Result<()> {
+        use tokio::io::AsyncWriteExt;
+        self.writer.flush().await?;
+        Ok(())
+    }
 }
 
 impl<T> ProtobufWriter<CompressedWriter, T>

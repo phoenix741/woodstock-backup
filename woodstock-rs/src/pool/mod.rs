@@ -52,6 +52,8 @@ pub mod pool_manager;
 mod pool_refcnt;
 /// Module with reference count and unused chunk management
 mod refcnt;
+/// Per-backup staging file: accumulates ChunkDescriptors before index integration
+pub mod staging;
 /// Module with utility functions for chunk path and temp file management
 mod utils;
 
@@ -70,4 +72,5 @@ pub use pool_chunk_wrapper::PoolChunkWrapper;
 pub use pool_chunk_wrapper_writer::PoolChunkWriter;
 pub use pool_manager::PoolManager;
 pub use refcnt::{Refcnt, RefcntApplySens};
+pub use staging::{StagingReader, StagingWriter, STAGING_FILENAME};
 pub use utils::{calculate_chunk_path, get_temp_chunk_path};

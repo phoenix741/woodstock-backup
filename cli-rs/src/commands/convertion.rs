@@ -211,7 +211,7 @@ pub async fn convert_flat_to_segment(state: CliServiceState) -> Result<()> {
             eprintln!(
                 "Failed to queue index entry for chunk {} : {e}",
                 hex::encode(&chunk.sha256)
-            );
+            ); 
         }
     }
 
