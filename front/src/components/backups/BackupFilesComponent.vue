@@ -1,8 +1,12 @@
 <template>
   <v-row>
     <v-col cols="6">
-      <BackupFilesTreeComponent :deviceId="props.deviceId" :backupId="props.backupId" :hiddenFiles="false"
-        @select="selected = $event"></BackupFilesTreeComponent>
+      <BackupFilesTreeComponent
+        :deviceId="props.deviceId"
+        :backupId="props.backupId"
+        :hiddenFiles="false"
+        @select="selected = $event"
+      ></BackupFilesTreeComponent>
     </v-col>
     <v-col cols="6">
       <v-table v-if="selected">
@@ -44,8 +48,12 @@
           <tr>
             <td colspan="2" class="text-right">
               <v-btn color="primary" :href="selectedPath" target="_blank">Download</v-btn>
-              <BackupRestore :device-id="deviceId" :backup-id="backupId" :share-path="selected.sharePath"
-                :path="selected.path.join('/')"></BackupRestore>
+              <BackupRestore
+                :device-id="deviceId"
+                :backup-id="backupId"
+                :share-path="selected.sharePath"
+                :path="selected.path.join('/')"
+              ></BackupRestore>
             </td>
           </tr>
         </tfoot>
@@ -71,7 +79,8 @@ const props = defineProps<{
 const selected = ref<TreeViewNode | undefined>(undefined);
 const selectedPath = computed(
   () =>
-    `/api/hosts/${props.deviceId}/backups/${props.backupId}/files/download?sharePath=${selected.value?.sharePath
+    `/api/hosts/${props.deviceId}/backups/${props.backupId}/files/download?sharePath=${
+      selected.value?.sharePath
     }&path=${selected.value?.path.join('/')}`,
 );
 </script>

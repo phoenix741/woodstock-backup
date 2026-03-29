@@ -1,11 +1,18 @@
 <template>
-  <AbstractTaskCard :title="title" :subtitle="subtitle" icon="broom" :progress-percent="progressPercent"
-    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
+  <AbstractTaskCard
+    :title="title"
+    :subtitle="subtitle"
+    icon="broom"
+    :progress-percent="progressPercent"
+    :progress-message="progressMessage"
+    :error-message="errorMessage"
+    :backup-error-state="hasError"
+    :expanded="expanded"
+  >
     <template #tags>
       <v-chip v-if="progress?.cleanerProgress" size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-progress-check</v-icon>
-        {{ toNumber(progress.cleanerProgress.progressCurrent) }} / {{
-          toNumber(progress.cleanerProgress.progressMax) }}
+        {{ toNumber(progress.cleanerProgress.progressCurrent) }} / {{ toNumber(progress.cleanerProgress.progressMax) }}
       </v-chip>
       <v-chip v-if="progress?.cleanerProgress" size="small" class="ma-1" color="green" variant="outlined">
         <v-icon start size="small">mdi-harddisk</v-icon>
@@ -25,11 +32,15 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { CleanerExecutionState, CleanerErrorState, type JobCleanupDataFragment, type CleanerTaskStateFragment } from '@/generated/graphql';
+import {
+  CleanerExecutionState,
+  CleanerErrorState,
+  type JobCleanupDataFragment,
+  type CleanerTaskStateFragment,
+} from '@/generated/graphql';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 import { toNumber } from '../hosts/hosts.utils';
 import filesize from '@/utils/filesize';
-
 
 const { data, progress, expanded } = defineProps<{
   data: JobCleanupDataFragment;
@@ -66,7 +77,7 @@ const progressPercent = computed(() => {
   }
 
   if ((progress?.cleanerProgress?.progressMax ?? 0) > 0) {
-    return ((progress?.cleanerProgress?.progressCurrent ?? 0) / (progress?.cleanerProgress?.progressMax ?? 1) * 100);
+    return ((progress?.cleanerProgress?.progressCurrent ?? 0) / (progress?.cleanerProgress?.progressMax ?? 1)) * 100;
   }
   return 0;
 });
@@ -116,5 +127,4 @@ const errorMessage = computed(() => {
 });
 
 const hasError = computed(() => !!progress?.cleanerErrorState || !!progress?.cleanerErrorMessage);
-
 </script>

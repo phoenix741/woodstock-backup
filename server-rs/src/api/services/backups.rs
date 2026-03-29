@@ -6,7 +6,7 @@ use eyre::Result;
 use std::sync::Arc;
 use uuid::Uuid;
 use woodstock::{
-    config::{Backup as WoodstockBackup, Backups},
+    config::{Backup as WoodstockBackup, Backups, ShareRecord},
     manifest::Manifest,
     server::job::JobUtility,
 };
@@ -111,6 +111,17 @@ impl BackupsService {
     pub async fn get_backup_share_paths(&self, hostname: &str, backup_id: Uuid) -> Vec<String> {
         self.backups
             .get_backup_share_paths(hostname, backup_id)
+            .await
+    }
+
+    /// Get backup share records (with snapshot info)
+    pub async fn get_backup_share_records(
+        &self,
+        hostname: &str,
+        backup_id: Uuid,
+    ) -> Vec<ShareRecord> {
+        self.backups
+            .get_backup_share_records(hostname, backup_id)
             .await
     }
 

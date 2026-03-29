@@ -2,16 +2,19 @@
   <v-row>
     <v-col cols="2">
       <v-list>
-        <v-list-item
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.log?tailable=false`">
+        <v-list-item @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.log?tailable=false`">
           <v-list-item-title>Transfert Logs</v-list-item-title>
         </v-list-item>
         <v-list-item
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.error.log?tailable=false`">
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/log/backup.error.log?tailable=false`"
+        >
           <v-list-item-title>Error Logs</v-list-item-title>
         </v-list-item>
-        <v-list-item v-for="share in shares" :key="share.path"
-          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/xferLog/${share.path}`">
+        <v-list-item
+          v-for="share in shares"
+          :key="share.path"
+          @click="logComponent = `/api/hosts/${deviceId}/backups/${backupId}/xferLog/${share.path}`"
+        >
           <v-list-item-title>{{ unmangle(share.path) }}</v-list-item-title>
         </v-list-item>
       </v-list>

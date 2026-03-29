@@ -83,6 +83,7 @@ pub fn generate_compare_stream(
                         xfer_check: 0,
                         chunk_sizes: vec![],
                         chunk_compressed_sizes: vec![],
+                        snapshot_result: None,
                     };
                 }
             } else {
@@ -99,6 +100,7 @@ pub fn generate_compare_stream(
                     xfer_check: 0,
                     chunk_sizes: vec![],
                     chunk_compressed_sizes: vec![],
+                    snapshot_result: None,
                 };
             }
         }
@@ -121,6 +123,7 @@ pub fn generate_compare_stream(
                     xfer_check: 0,
                     chunk_sizes: vec![],
                     chunk_compressed_sizes: vec![],
+                    snapshot_result: None,
                 };
             }
         }
@@ -168,6 +171,7 @@ pub async fn compare(manifest1: &str, manifest2: &str) -> Result<()> {
             EntryType::Remove => {
                 term.write_line(&style(format!("-{path:?} {size}")).red().to_string())?;
             }
+            EntryType::SnapshotInfo => {}
         }
     }
     Ok(())

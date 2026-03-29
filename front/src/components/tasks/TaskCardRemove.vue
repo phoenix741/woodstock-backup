@@ -1,6 +1,13 @@
 <template>
-  <AbstractTaskCard :title="title" :subtitle="globalProgressText" icon="delete" :progress-percent="globalProgress"
-    :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
+  <AbstractTaskCard
+    :title="title"
+    :subtitle="globalProgressText"
+    icon="delete"
+    :progress-percent="globalProgress"
+    :error-message="errorMessage"
+    :backup-error-state="hasError"
+    :expanded="expanded"
+  >
   </AbstractTaskCard>
 </template>
 
@@ -10,7 +17,7 @@ import {
   RemoveErrorState,
   RemoveExecutionState,
   type JobRemoveDataFragment,
-  type RemoveTaskStateFragment
+  type RemoveTaskStateFragment,
 } from '@/generated/graphql';
 import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import AbstractTaskCard from './AbstractTaskCard.vue';
@@ -21,7 +28,10 @@ const { data, progress, expanded } = defineProps<{
   expanded?: boolean;
 }>();
 
-const title = computed(() => `Remove Backup ${data.host} #${toNumber(data.number)}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`);
+const title = computed(
+  () =>
+    `Remove Backup ${data.host} #${toNumber(data.number)}${data.startDate ? ' - ' + toDateTime(data.startDate) : ''}`,
+);
 
 const hasError = computed(() => progress?.removeErrorState !== null && progress?.removeErrorState !== undefined);
 

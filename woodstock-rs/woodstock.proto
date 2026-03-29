@@ -178,6 +178,20 @@ message FileManifest {
   map<string, bytes> metadata = 7;
 }
 
+// Snapshot method used to protect a share before backup
+enum SnapshotMethod {
+  SNAPSHOT_METHOD_NONE  = 0;
+  SNAPSHOT_METHOD_BTRFS = 1;
+  SNAPSHOT_METHOD_VSS   = 2;
+}
+
+// Result of a snapshot creation attempt, sent as the first entry in a
+// SynchronizeFileList stream (entry_type = ENTRY_TYPE_SNAPSHOT_INFO).
+message ShareSnapshotResult {
+  SnapshotMethod method         = 1;
+  optional string failure_reason = 2;
+}
+
 enum EntryType {
   // Add a new file
   ENTRY_TYPE_ADD = 0;
@@ -185,6 +199,8 @@ enum EntryType {
   ENTRY_TYPE_MODIFY = 1;
   // Remove a file
   ENTRY_TYPE_REMOVE = 2;
+  // First entry of a SynchronizeFileList stream: snapshot metadata for the share
+  ENTRY_TYPE_SNAPSHOT_INFO = 3;
 }
 
 enum EntryState {
@@ -215,6 +231,9 @@ message FileManifestJournalEntry {
   // Absent (empty) means old format: fallback to repair() reading .info files.
   repeated uint64 chunk_sizes            = 9;
   repeated uint64 chunk_compressed_sizes = 10;
+
+  // Only set when entry_type == ENTRY_TYPE_SNAPSHOT_INFO (first entry of a stream).
+  optional ShareSnapshotResult snapshot_result = 11;
 }
 
 message Share {

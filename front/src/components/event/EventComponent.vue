@@ -4,13 +4,24 @@
       {{ startDate }}
       {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
     </template>
-    <v-card :prepend-icon="icon" :append-icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'" class="mx-auto"
-      :width="344" :subtitle="subtitle" :title="title" @click="show = !show">
+    <v-card
+      :prepend-icon="icon"
+      :append-icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+      class="mx-auto"
+      :width="344"
+      :subtitle="subtitle"
+      :title="title"
+      @click="show = !show"
+    >
       <v-card-text v-if="show">
         <div class="d-flex flex-wrap">
-          <v-chip v-if="event.status && event.status !== EventStatus.None" :color="eventStatusColor" class="ma-2"
-            label>{{
-              event.status }}</v-chip>
+          <v-chip
+            v-if="event.status && event.status !== EventStatus.None"
+            :color="eventStatusColor"
+            class="ma-2"
+            label
+            >{{ event.status }}</v-chip
+          >
           <v-chip title="Source" v-if="event.source" class="ma-2" label>
             <v-icon icon="mdi-target" start></v-icon>{{ event.source }}
           </v-chip>
@@ -21,15 +32,22 @@
             <v-icon icon="mdi-timer" start></v-icon>{{ executionTime }}
           </v-chip>
 
-          <EventBackupInformationComponent v-if="event.information?.__typename === 'EventBackupInformation'"
-            :information="event.information"></EventBackupInformationComponent>
-          <EventPoolInformationComponent v-else-if="event.information?.__typename === 'EventPoolInformation'"
-            :information="event.information"></EventPoolInformationComponent>
+          <EventBackupInformationComponent
+            v-if="event.information?.__typename === 'EventBackupInformation'"
+            :information="event.information"
+          ></EventBackupInformationComponent>
+          <EventPoolInformationComponent
+            v-else-if="event.information?.__typename === 'EventPoolInformation'"
+            :information="event.information"
+          ></EventPoolInformationComponent>
           <EventPoolCleanedInformationComponent
             v-else-if="event.information?.__typename === 'EventPoolCleanedInformation'"
-            :information="event.information"></EventPoolCleanedInformationComponent>
-          <EventHashConversionComponent v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
-            :information="event.information"></EventHashConversionComponent>
+            :information="event.information"
+          ></EventPoolCleanedInformationComponent>
+          <EventHashConversionComponent
+            v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
+            :information="event.information"
+          ></EventHashConversionComponent>
         </div>
 
         <template v-if="event.errorMessages?.length">
@@ -164,7 +182,11 @@ const subtitle = computed(() => {
     }
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
-      const errorCount = poolInformation?.inNothing + poolInformation?.missing + poolInformation?.refcountError + poolInformation?.chunkError;
+      const errorCount =
+        poolInformation?.inNothing +
+        poolInformation?.missing +
+        poolInformation?.refcountError +
+        poolInformation?.chunkError;
       const poolFixed = poolInformation?.fix;
       if (errorCount === 0) {
         return 'No errors found';
@@ -189,7 +211,10 @@ const shoudFix = computed(() => {
   switch (props.event?.information?.__typename) {
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
-      return !poolInformation?.fix && (poolInformation?.missing + poolInformation?.inNothing + poolInformation?.refcountError) > 0;
+      return (
+        !poolInformation?.fix &&
+        poolInformation?.missing + poolInformation?.inNothing + poolInformation?.refcountError > 0
+      );
     }
     default:
       return false;

@@ -13,6 +13,7 @@ use woodstock::{
     manifest::{IndexManifest, PathManifest},
     utils::path::{path_to_vec, vec_to_path},
     ChunkHashReply, ChunkHashRequest, ChunkInformation, FileChunk, FileManifestJournalEntry,
+    ShareSnapshotResult, SnapshotMethod,
 };
 
 /// Represents a single path redirection mapping.
@@ -319,9 +320,7 @@ impl FileSystemAccessor {
     /// * `share_path` - The path to create a snapshot for and add redirection
     ///
     /// # Returns
-    /// * `Ok(())` if the snapshot was created and redirection added successfully
-    /// * `Ok(())` if no snapshot manager is available (no redirection added)
-    /// * `Err(...)` if snapshot creation failed
+    /// * `Ok(ShareSnapshotResult)` describing which snapshot method was used and any failure reason.
     ///
     /// # Example
     /// ```no_run
@@ -332,43 +331,69 @@ impl FileSystemAccessor {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn add_share_path<P: AsRef<Path>>(&mut self, share_path: P) -> Result<()> {
+    pub async fn add_share_path<P: AsRef<Path>>(
+        &mut self,
+        share_path: P,
+    ) -> Result<ShareSnapshotResult> {
         let share_path = share_path.as_ref();
 
         // Try to find an available snapshot manager for this path
         if let Some(snapshot_manager) = select_snapshot_manager(share_path).await {
+            let method = snapshot_manager.snapshot_method() as i32;
             // Create a snapshot
-            let snapshot_ref = snapshot_manager.create_snapshot(share_path).await?;
-            let snapshot_path = snapshot_ref.path().to_path_buf();
+            match snapshot_manager.create_snapshot(share_path).await {
+                Ok(snapshot_ref) => {
+                    let snapshot_path = snapshot_ref.path().to_path_buf();
 
-            // Create a path redirection from the original path to the snapshot
-            let redirection = PathRedirection::new(share_path, snapshot_path);
+                    // Create a path redirection from the original path to the snapshot
+                    let redirection = PathRedirection::new(share_path, snapshot_path);
 
-            // Add the redirection to our list, maintaining the sort order (most specific first)
-            self.redirections.push(redirection);
-            self.redirections.sort_by(|a, b| {
-                b.origin_path
-                    .as_os_str()
-                    .len()
-                    .cmp(&a.origin_path.as_os_str().len())
-            });
+                    // Add the redirection to our list, maintaining the sort order (most specific first)
+                    self.redirections.push(redirection);
+                    self.redirections.sort_by(|a, b| {
+                        b.origin_path
+                            .as_os_str()
+                            .len()
+                            .cmp(&a.origin_path.as_os_str().len())
+                    });
 
-            // Store the snapshot reference for cleanup later
-            self.active_snapshots.push(snapshot_ref);
+                    // Store the snapshot reference for cleanup later
+                    self.active_snapshots.push(snapshot_ref);
 
-            tracing::info!(
-                "Created snapshot for share path '{}' using {} snapshot manager",
-                share_path.display(),
-                snapshot_manager.manager_name()
-            );
+                    tracing::info!(
+                        "Created snapshot for share path '{}' using {} snapshot manager",
+                        share_path.display(),
+                        snapshot_manager.manager_name()
+                    );
+
+                    Ok(ShareSnapshotResult {
+                        method,
+                        failure_reason: None,
+                    })
+                }
+                Err(err) => {
+                    tracing::error!(
+                        "Failed to create snapshot for share path '{}' using {} manager: {}",
+                        share_path.display(),
+                        snapshot_manager.manager_name(),
+                        err
+                    );
+                    Ok(ShareSnapshotResult {
+                        method: SnapshotMethod::None as i32,
+                        failure_reason: Some(err.to_string()),
+                    })
+                }
+            }
         } else {
             tracing::debug!(
                 "No snapshot manager available for share path '{}'",
                 share_path.display()
             );
+            Ok(ShareSnapshotResult {
+                method: SnapshotMethod::None as i32,
+                failure_reason: None,
+            })
         }
-
-        Ok(())
     }
 
     /// Gets the list of active snapshots managed by this accessor.

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::{
-    config::{ExecuteCommandOperation, HostConfiguration},
+    config::{ShareSnapshotMethod, ExecuteCommandOperation, HostConfiguration},
     server::progression::{BackupProgression, FileListProgression},
     ExecuteCommandReply,
 };
@@ -87,6 +87,8 @@ pub struct ShareState {
     pub file_list_progression: FileListProgression,
     pub backup_progression: BackupProgression,
     pub execution_state: ShareExecutionState,
+    pub snapshot_method: ShareSnapshotMethod,
+    pub snapshot_failure_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -155,6 +157,8 @@ fn create_share_states(shares: &[String]) -> HashMap<String, ShareState> {
                 file_list_progression: FileListProgression::default(),
                 backup_progression: BackupProgression::default(),
                 execution_state: ShareExecutionState::Waiting,
+                snapshot_method: ShareSnapshotMethod::None,
+                snapshot_failure_reason: None,
             },
         );
     }
@@ -667,6 +671,22 @@ impl BackupState {
                 self.error_state = Some(ErrorState::AddReferencesToPoolError(err.to_string()));
                 Err(err)
             }
+        }
+    }
+
+    /// Records snapshot method and optional failure for a share.
+    pub fn set_share_snapshot_result(
+        &mut self,
+        share: &str,
+        method: ShareSnapshotMethod,
+        failure_reason: Option<String>,
+    ) {
+        if let Some(ref reason) = failure_reason {
+            tracing::warn!(share = share, reason = %reason, "Snapshot failed for share");
+        }
+        if let Some(share_state) = self.share_states.get_mut(share) {
+            share_state.snapshot_method = method;
+            share_state.snapshot_failure_reason = failure_reason;
         }
     }
 }

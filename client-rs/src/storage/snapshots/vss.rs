@@ -26,6 +26,7 @@ use winapi::um::vss::{
 use winapi::um::winbase::INFINITE;
 
 use crate::storage::snapshots::{SnapshotCompletion, SnapshotManager, SnapshotReference};
+use woodstock;
 
 const VSS_E_OBJECT_NOT_FOUND: HRESULT = 0x80042308u32 as i32;
 
@@ -236,6 +237,10 @@ impl SnapshotManager for VssSnapshotManager {
 
     fn manager_name(&self) -> &'static str {
         "VSS"
+    }
+
+    fn snapshot_method(&self) -> woodstock::SnapshotMethod {
+        woodstock::SnapshotMethod::Vss
     }
 
     fn priority(&self) -> u8 {

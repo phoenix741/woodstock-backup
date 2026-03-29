@@ -357,6 +357,7 @@ mod tests {
             xfer_check: 0,
             chunk_sizes: vec![],
             chunk_compressed_sizes: vec![],
+            snapshot_result: None,
         });
         let fake_stream = stream::iter(fake_entries);
 

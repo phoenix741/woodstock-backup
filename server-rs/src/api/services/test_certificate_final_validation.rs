@@ -218,7 +218,9 @@ mod tests {
                 cert_file
             );
             assert!(
-                content.ends_with("-----END CERTIFICATE-----\n"),
+                content
+                    .trim_end_matches(['\n', '\r'])
+                    .ends_with("-----END CERTIFICATE-----"),
                 "Certificate {} should end with END marker",
                 cert_file
             );

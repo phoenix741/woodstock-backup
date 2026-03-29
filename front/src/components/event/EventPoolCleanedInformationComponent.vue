@@ -1,8 +1,10 @@
 <template>
-  <v-chip title="File count" class="ma-2" label><v-icon icon="mdi-file-outline" start></v-icon>{{
-    toNumber(information.count) }}</v-chip>
-  <v-chip title="Total size" class="ma-2" label><v-icon icon="mdi-weight" start></v-icon>{{ filesize(information.size)
-    }}</v-chip>
+  <v-chip title="File count" class="ma-2" label
+    ><v-icon icon="mdi-file-outline" start></v-icon>{{ toNumber(information.count) }}</v-chip
+  >
+  <v-chip title="Total size" class="ma-2" label
+    ><v-icon icon="mdi-weight" start></v-icon>{{ filesize(information.size) }}</v-chip
+  >
 </template>
 
 <script setup lang="ts">

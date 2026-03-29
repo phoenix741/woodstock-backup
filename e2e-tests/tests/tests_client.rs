@@ -15,8 +15,8 @@ use woodstock::{
     file_chunk, refresh_cache_request, utils::encryption::create_authentification_token,
     woodstock_client_service_client::WoodstockClientServiceClient,
     woodstock_client_service_server::WoodstockClientServiceServer, AuthenticateRequest,
-    ChunkAlgorithm, ChunkHashRequest, ChunkInformation, ExecuteCommandRequest, FileManifest,
-    RefreshCacheRequest, Share,
+    ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryType, ExecuteCommandRequest,
+    FileManifest, RefreshCacheRequest, Share,
 };
 use woodstock_client_rs::config::{ClientConfig, ResolutionMode};
 use woodstock_client_rs::server::WoodstockClient;
@@ -305,15 +305,21 @@ async fn test_client_get_chunk_hash() {
             if file.is_special_file() {
                 continue;
             }
+            if file.entry_type() == EntryType::SnapshotInfo {
+                continue;
+            }
 
+            println!("Requesting chunk hash for {file:?}");
             let path = file.path();
             let chunk_request = ChunkHashRequest {
                 share_path: current_path.to_str().unwrap().into(),
                 filename: path.to_str().unwrap().into(),
                 algorithm: ChunkAlgorithm::Blake3 as i32,
             };
+            println!("Requesting chunk hash for {chunk_request:?}");
             let chunk = create_request(&session_id, chunk_request).await.unwrap();
 
+            println!("Requesting chunk hash for {chunk:?}");
             let request = client.get_chunk_hash(chunk).await.unwrap();
 
             let hash = request.get_ref();
@@ -370,6 +376,9 @@ async fn test_client_get_chunk() {
         let mut count = 0;
         for file in result {
             if file.is_special_file() {
+                continue;
+            }
+            if file.entry_type() == EntryType::SnapshotInfo {
                 continue;
             }
 

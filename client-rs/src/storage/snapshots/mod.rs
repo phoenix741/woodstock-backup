@@ -93,6 +93,11 @@ pub trait SnapshotManager: Send + Sync {
     /// Get the name/identifier of this snapshot manager
     fn manager_name(&self) -> &'static str;
 
+    /// Get the snapshot method type reported by this manager
+    fn snapshot_method(&self) -> woodstock::SnapshotMethod {
+        woodstock::SnapshotMethod::None
+    }
+
     /// Get the priority of this manager (higher = preferred)
     fn priority(&self) -> u8 {
         100 // Default priority

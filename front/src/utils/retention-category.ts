@@ -1,8 +1,6 @@
 import { RetentionCategoryDto } from '@/generated/graphql';
 
-export function getRetentionCategoryColor(
-  cat?: RetentionCategoryDto | null,
-): string {
+export function getRetentionCategoryColor(cat?: RetentionCategoryDto | null): string {
   switch (cat) {
     case RetentionCategoryDto.Surplus:
       return 'error';
@@ -23,9 +21,7 @@ export function getRetentionCategoryColor(
   }
 }
 
-export function getRetentionCategoryLabel(
-  cat?: RetentionCategoryDto | null,
-): string {
+export function getRetentionCategoryLabel(cat?: RetentionCategoryDto | null): string {
   switch (cat) {
     case RetentionCategoryDto.Surplus:
       return 'À supprimer';

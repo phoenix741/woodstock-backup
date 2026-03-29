@@ -358,6 +358,7 @@ impl FileManifestJournalEntry {
             EntryType::Add => "create",
             EntryType::Modify => "change",
             EntryType::Remove => "remove",
+            EntryType::SnapshotInfo => "snapshot_info",
         };
 
         let state = match self.state() {

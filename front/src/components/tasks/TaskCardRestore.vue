@@ -1,7 +1,14 @@
 <template>
-  <AbstractTaskCard :title="title" :subtitle="executionStateMessage" icon="cloud-upload"
-    :progress-percent="progress?.restoreProgression?.percent ?? 0" :progress-message="progressMessage"
-    :error-message="errorMessage" :backup-error-state="!!progress?.restoreErrorState" :expanded="expanded">
+  <AbstractTaskCard
+    :title="title"
+    :subtitle="executionStateMessage"
+    icon="cloud-upload"
+    :progress-percent="progress?.restoreProgression?.percent ?? 0"
+    :progress-message="progressMessage"
+    :error-message="errorMessage"
+    :backup-error-state="!!progress?.restoreErrorState"
+    :expanded="expanded"
+  >
     <template #tags>
       <v-chip size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-file-multiple</v-icon>
@@ -15,8 +22,13 @@
         <v-icon start size="small">mdi-zip-box</v-icon>
         {{ filesize(progress?.restoreProgression?.compressedFileSize ?? 0n) }}
       </v-chip>
-      <v-chip v-if="(progress?.restoreProgression?.errorCount ?? 0) > 0" size="small" class="ma-1" color="error"
-        variant="outlined">
+      <v-chip
+        v-if="(progress?.restoreProgression?.errorCount ?? 0) > 0"
+        size="small"
+        class="ma-1"
+        color="error"
+        variant="outlined"
+      >
         <v-icon start size="small">mdi-alert</v-icon>
         {{ toNumber(progress?.restoreProgression?.errorCount) }} errors
       </v-chip>
@@ -94,5 +106,4 @@ const executionStateMessage = computed(() => {
       return 'In progress...';
   }
 });
-
 </script>

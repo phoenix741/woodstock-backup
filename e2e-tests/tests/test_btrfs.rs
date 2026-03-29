@@ -2,8 +2,11 @@
 // This test requires a Btrfs filesystem and may need root privileges.
 // It will be skipped if Btrfs is not available or the environment is not suitable.
 
+#[cfg(unix)]
 use eyre::Result;
+#[cfg(unix)]
 use woodstock_client_rs::storage::snapshots::btrfs::BtrfsSnapshotManager;
+#[cfg(unix)]
 use woodstock_client_rs::storage::snapshots::SnapshotManager;
 
 #[tokio::test]

@@ -13,16 +13,28 @@
     <v-row>
       <v-col>
         <v-sheet rounded="lg">
-          <v-data-table show-select v-model="selection" v-model:items-per-page="itemsPerPage" :headers="headers"
-            :items="backupsDataTable" :loading="isFetching" :sort-by="[{ key: 'number', order: 'desc' }]"
-            loading-title="Loading... Please wait" item-value="id" class="elevation-1" @click:row="navigateTo">
+          <v-data-table
+            show-select
+            v-model="selection"
+            v-model:items-per-page="itemsPerPage"
+            :headers="headers"
+            :items="backupsDataTable"
+            :loading="isFetching"
+            :sort-by="[{ key: 'number', order: 'desc' }]"
+            loading-title="Loading... Please wait"
+            item-value="id"
+            class="elevation-1"
+            @click:row="navigateTo"
+          >
             <template v-slot:[`item.number`]="{ item }">{{ toNumber(item.number) }}</template>
             <template v-slot:[`item.startDate`]="{ item }">{{ toDateTime(item.startDate) }}</template>
             <template v-slot:[`item.duration`]="{ item }">{{ toDuration(item.duration) }}</template>
-            <template v-slot:[`item.fileCount`]="{ item }">{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize)
-              }})</template>
-            <template v-slot:[`item.newFileCount`]="{ item }">{{ toNumber(item.newFileCount) }} ({{
-              filesize(item.newFileSize) }})</template>
+            <template v-slot:[`item.fileCount`]="{ item }"
+              >{{ toNumber(item.fileCount) }} ({{ filesize(item.fileSize) }})</template
+            >
+            <template v-slot:[`item.newFileCount`]="{ item }"
+              >{{ toNumber(item.newFileCount) }} ({{ filesize(item.newFileSize) }})</template
+            >
             <template v-slot:[`item.removedFileCount`]="{ item }">{{ toNumber(item.removedFileCount) }}</template>
             <template v-slot:[`item.modifiedFileCount`]="{ item }">{{ toNumber(item.modifiedFileCount) }}</template>
 
@@ -42,8 +54,13 @@
             </template>
 
             <template v-slot:[`item.completed`]="{ item }">
-              <v-progress-circular v-if="!item.endDate" indeterminate color="primary" width="20"
-                size="20"></v-progress-circular>
+              <v-progress-circular
+                v-if="!item.endDate"
+                indeterminate
+                color="primary"
+                width="20"
+                size="20"
+              ></v-progress-circular>
 
               <v-chip :color="item.statusColor" size="small" label :text="getBackupStatusText(item.status)"> </v-chip>
             </template>
@@ -123,7 +140,7 @@ const backupsDataTable = computed(() => {
     const endDate = parseDateTime(backup.endDate ? backup.endDate : Date.now());
     const startDate = parseDateTime(backup.startDate);
     return {
-      duration: (endDate.getTime() - startDate.getTime()),
+      duration: endDate.getTime() - startDate.getTime(),
       statusColor: getBackupStatusColor(backup.status),
       retentionColor: getRetentionCategoryColor(backup.retentionCategory),
       retentionLabel: getRetentionCategoryLabel(backup.retentionCategory),

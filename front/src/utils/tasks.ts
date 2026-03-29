@@ -7,10 +7,7 @@ import { JobFragmentDoc } from './tasks.fragment';
 import type { JobStatus } from '@/generated/graphql';
 
 /** Simple debounce without an external dependency */
-function createDebounce<Args extends unknown[]>(
-  fn: (...args: Args) => void,
-  delay: number,
-): (...args: Args) => void {
+function createDebounce<Args extends unknown[]>(fn: (...args: Args) => void, delay: number): (...args: Args) => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   return (...args: Args) => {
     if (timer !== null) clearTimeout(timer);

@@ -75,13 +75,13 @@ impl FilesService {
         let start_date = backup.start_date.timestamp();
         let shares = self
             .backups_service
-            .get_backup_share_paths(hostname, backup_id)
+            .get_backup_share_records(hostname, backup_id)
             .await;
 
         Ok(shares
             .into_iter()
-            .map(|share| {
-                let mut share: FileDescription = share.into();
+            .map(|record| {
+                let mut share: FileDescription = record.into();
                 if let Some(ref mut stats) = share.stats {
                     stats.last_read = start_date;
                     stats.last_modified = start_date;

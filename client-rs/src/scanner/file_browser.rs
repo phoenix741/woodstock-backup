@@ -227,6 +227,7 @@ fn create_manifest_from_file<P: AsRef<Path>>(
         xfer_check: 0,
         chunk_sizes: vec![],
         chunk_compressed_sizes: vec![],
+        snapshot_result: None,
     }
 }
 

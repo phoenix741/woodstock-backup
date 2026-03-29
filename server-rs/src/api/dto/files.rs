@@ -4,8 +4,8 @@ use async_graphql::SimpleObject;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use woodstock::{
-    FileManifest, FileManifestAcl, FileManifestAclQualifier, FileManifestStat, FileManifestType,
-    FileManifestXAttr,
+    config::ShareRecord, FileManifest, FileManifestAcl, FileManifestAclQualifier, FileManifestStat,
+    FileManifestType, FileManifestXAttr,
 };
 
 use crate::graphql::scalars::{BigIntScalar, BufferScalar};
@@ -217,6 +217,36 @@ impl From<String> for FileDescription {
         use super::FileManifestTypeDto;
         Self {
             path: BufferScalar(s.into()),
+            stats: Some(FileStat {
+                owner_id: 0,
+                group_id: 0,
+                size: BigIntScalar(0),
+                compressed_size: BigIntScalar(0),
+                last_read: 0,
+                last_modified: 0,
+                created: 0,
+                mode: 0x755,
+                r#type: FileManifestTypeDto::Directory,
+                dev: BigIntScalar(0),
+                rdev: BigIntScalar(0),
+                ino: BigIntScalar(0),
+                nlink: BigIntScalar(0),
+            }),
+            symlink: BufferScalar(Vec::new()),
+            xattr: Vec::new(),
+            acl: Vec::new(),
+            chunks: Vec::new(),
+            hash: BufferScalar(Vec::new()),
+            metadata: HashMap::new(),
+        }
+    }
+}
+
+impl From<ShareRecord> for FileDescription {
+    fn from(record: ShareRecord) -> Self {
+        use super::FileManifestTypeDto;
+        Self {
+            path: BufferScalar(record.path.into()),
             stats: Some(FileStat {
                 owner_id: 0,
                 group_id: 0,

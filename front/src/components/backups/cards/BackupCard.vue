@@ -34,8 +34,13 @@
       <!-- Errors -->
       <v-row>
         <v-col>
-          <v-alert v-if="backup?.errorCount && backup.errorCount > 0" type="error" density="compact" variant="tonal"
-            class="mb-2">
+          <v-alert
+            v-if="backup?.errorCount && backup.errorCount > 0"
+            type="error"
+            density="compact"
+            variant="tonal"
+            class="mb-2"
+          >
             {{ toNumber(backup.errorCount) }} error(s) detected
           </v-alert>
         </v-col>
@@ -91,6 +96,38 @@
           </v-table>
         </v-col>
       </v-row>
+
+      <!-- Shares -->
+      <v-row v-if="backup?.shareRecords?.length">
+        <v-col>
+          <div class="text-subtitle-2 mb-1">Shares</div>
+          <v-list density="compact" class="bg-transparent pa-0">
+            <v-list-item v-for="share in backup.shareRecords" :key="share.path" :title="share.path" class="px-0">
+              <template #append>
+                <v-tooltip v-if="share.snapshotMethod === SnapshotMethodDto.Btrfs" text="Btrfs snapshot" location="top">
+                  <template #activator="{ props: tooltipProps }">
+                    <v-chip v-bind="tooltipProps" size="x-small" color="blue" label>Btrfs</v-chip>
+                  </template>
+                </v-tooltip>
+                <v-tooltip
+                  v-else-if="share.snapshotMethod === SnapshotMethodDto.Vss"
+                  text="VSS snapshot"
+                  location="top"
+                >
+                  <template #activator="{ props: tooltipProps }">
+                    <v-chip v-bind="tooltipProps" size="x-small" color="deep-purple" label>VSS</v-chip>
+                  </template>
+                </v-tooltip>
+                <v-tooltip v-else-if="share.snapshotFailureReason" :text="share.snapshotFailureReason" location="top">
+                  <template #activator="{ props: tooltipProps }">
+                    <v-chip v-bind="tooltipProps" size="x-small" color="warning" label>No Snapshot</v-chip>
+                  </template>
+                </v-tooltip>
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-col>
+      </v-row>
     </v-card-text>
   </v-card>
 </template>
@@ -100,6 +137,7 @@ import { computed } from 'vue';
 import { getBackupStatusColor, getBackupStatusText, useBackup } from '@/utils/backups';
 import filesize from '@/utils/filesize';
 import { parseDateTime, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
+import { SnapshotMethodDto } from '@/generated/graphql';
 
 const props = defineProps<{
   deviceId: string;

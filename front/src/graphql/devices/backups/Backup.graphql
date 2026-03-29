@@ -25,5 +25,11 @@ query Backup($hostname: String!, $id: String!) {
     existingFileSize
 
     speed
+
+    shareRecords {
+      path
+      snapshotMethod
+      snapshotFailureReason
+    }
   }
 }

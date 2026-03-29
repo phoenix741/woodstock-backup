@@ -76,7 +76,7 @@ export {
   getBackupStatusColor,
   getBackupStatusLabel as getBackupStatusText,
   getBackupStatusIcon,
-  getBackupStatusKey
+  getBackupStatusKey,
 } from './backup-status';
 
 export function useShare(deviceId: string, backupId: string) {
@@ -98,7 +98,12 @@ export function useShare(deviceId: string, backupId: string) {
 }
 
 export function useBackups(deviceId: string) {
-  const { result: data, loading: isFetching, subscribeToMore, refetch } = useQuery(BackupsDocument, {
+  const {
+    result: data,
+    loading: isFetching,
+    subscribeToMore,
+    refetch,
+  } = useQuery(BackupsDocument, {
     hostname: deviceId,
   });
 
@@ -168,7 +173,11 @@ export function useBackups(deviceId: string) {
 }
 
 export function useBackup(deviceId: string, backupId: string) {
-  const { result: data, loading: isFetching, subscribeToMore } = useQuery(BackupDocument, {
+  const {
+    result: data,
+    loading: isFetching,
+    subscribeToMore,
+  } = useQuery(BackupDocument, {
     hostname: deviceId,
     id: backupId,
   });

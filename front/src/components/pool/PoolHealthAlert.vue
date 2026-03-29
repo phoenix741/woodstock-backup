@@ -1,23 +1,15 @@
 <template>
   <div v-if="poolHealth && !poolHealth.healthy" class="pool-health-alert">
-    <v-alert
-      type="error"
-      variant="tonal"
-      prominent
-      border="start"
-      class="mb-4"
-    >
+    <v-alert type="error" variant="tonal" prominent border="start" class="mb-4">
       <template v-slot:prepend>
         <v-icon size="large">mdi-alert-circle</v-icon>
       </template>
       <v-alert-title class="text-h6">Pool Integrity Warning: Dirty State Detected</v-alert-title>
       <div class="text-body-1 mt-2">
-        The storage pool is in a corrupted state (dirty file detected). This indicates that reference
-        counting operations were interrupted during a previous backup or removal.
+        The storage pool is in a corrupted state (dirty file detected). This indicates that reference counting
+        operations were interrupted during a previous backup or removal.
       </div>
-      <div class="text-body-2 mt-2">
-        <strong>Pending operations:</strong> {{ toNumber(poolHealth.pendingCount) }}
-      </div>
+      <div class="text-body-2 mt-2"><strong>Pending operations:</strong> {{ toNumber(poolHealth.pendingCount) }}</div>
       <div class="mt-4">
         <v-btn
           color="primary"

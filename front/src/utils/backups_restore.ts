@@ -18,13 +18,7 @@ export function useBackupRestore() {
     `),
   );
 
-  const restoreBackup = (
-    hostname: string,
-    id: string,
-    share: string,
-    path: string,
-    destinationDirectory: string,
-  ) => {
+  const restoreBackup = (hostname: string, id: string, share: string, path: string, destinationDirectory: string) => {
     return mutate({
       input: {
         hostname,

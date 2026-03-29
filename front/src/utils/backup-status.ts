@@ -5,10 +5,7 @@
  * It supports both regular BackupStatusDto and GraphQL fragments.
  */
 
-import type {
-  BackupStatusDto,
-  BackupStatusFieldsFragment,
-} from '@/generated/graphql';
+import type { BackupStatusDto, BackupStatusFieldsFragment } from '@/generated/graphql';
 import {
   BackupStatusTypeDto,
   FinishingStageDto,
@@ -90,18 +87,18 @@ const STAGE_LABELS = {
  * Stage colors for Finishing status
  */
 const FINISHING_COLORS = {
-  [FinishingStageDto.ToCompact]: '#FF9800',    // Orange
-  [FinishingStageDto.ToCountRef]: '#FFC107',   // Amber/Yellow
-  [FinishingStageDto.ToAddInPool]: '#03A9F4',  // Light Blue
+  [FinishingStageDto.ToCompact]: '#FF9800', // Orange
+  [FinishingStageDto.ToCountRef]: '#FFC107', // Amber/Yellow
+  [FinishingStageDto.ToAddInPool]: '#03A9F4', // Light Blue
 } as const;
 
 /**
  * Stage colors for Removing status
  */
 const REMOVING_COLORS = {
-  [RemovingStageDto.ToRemove]: '#FFCDD2',        // Very Light Red
-  [RemovingStageDto.ToRemoveInPool]: '#EF9A9A',  // Light Red
-  [RemovingStageDto.RemoveFromHost]: '#E57373',  // Medium Red
+  [RemovingStageDto.ToRemove]: '#FFCDD2', // Very Light Red
+  [RemovingStageDto.ToRemoveInPool]: '#EF9A9A', // Light Red
+  [RemovingStageDto.RemoveFromHost]: '#E57373', // Medium Red
 } as const;
 
 /**

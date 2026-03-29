@@ -3,8 +3,8 @@ use chrono::{DateTime, Local};
 
 use super::super::scalars::BigIntScalar;
 use crate::api::dto::{
-    BackupStatusDto, FileDescription, FileManifestTypeDto, Host, HostAvailibilityState,
-    HostConfiguration, RetentionCategoryDto,
+    BackupShareRecord, BackupStatusDto, FileDescription, FileManifestTypeDto, Host,
+    HostAvailibilityState, HostConfiguration, RetentionCategoryDto,
 };
 use crate::api::ApiServerState;
 use crate::graphql::scalars::BufferScalar;
@@ -102,6 +102,20 @@ impl BackupEx {
             .map_err(super::util::map_err)?;
 
         Ok(shares.into_iter().map(Into::into).collect())
+    }
+
+    async fn share_records(
+        &self,
+        ctx: &Context<'_>,
+    ) -> async_graphql::Result<Vec<BackupShareRecord>> {
+        let state = ctx.data::<ApiServerState>()?;
+        let backup_id = uuid::Uuid::parse_str(&self.inner.id)
+            .map_err(|e| async_graphql::Error::new(format!("Invalid backup ID: {e}")))?;
+        let records = state
+            .backups_service
+            .get_backup_share_records(&self.hostname, backup_id)
+            .await;
+        Ok(records.into_iter().map(Into::into).collect())
     }
 
     async fn files(

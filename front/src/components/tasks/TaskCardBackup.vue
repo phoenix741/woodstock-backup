@@ -1,28 +1,48 @@
 <template>
-  <AbstractTaskCard :title="title" :subtitle="executionStateMessage" icon="cloud-download"
-    :progress-percent="progress?.globalProgression?.percent ?? 0" :progress-message="progressMessage"
-    :error-message="errorMessage" :backup-error-state="!!progress?.backupErrorState" :expanded="expanded">
+  <AbstractTaskCard
+    :title="title"
+    :subtitle="executionStateMessage"
+    icon="cloud-download"
+    :progress-percent="progress?.globalProgression?.percent ?? 0"
+    :progress-message="progressMessage"
+    :error-message="errorMessage"
+    :backup-error-state="!!progress?.backupErrorState"
+    :expanded="expanded"
+  >
     <template #tags>
       <v-chip size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-file-multiple</v-icon>
-        {{ toNumber((progress?.globalProgression?.newFileCount ?? 0) + (progress?.globalProgression?.modifiedFileCount
-          ?? 0))
+        {{
+          toNumber(
+            (progress?.globalProgression?.newFileCount ?? 0) + (progress?.globalProgression?.modifiedFileCount ?? 0),
+          )
         }}
         files
       </v-chip>
       <v-chip size="small" class="ma-1" color="green" variant="outlined">
         <v-icon start size="small">mdi-harddisk</v-icon>
-        {{ filesize((progress?.globalProgression?.newFileSize ?? 0n) + (progress?.globalProgression?.modifiedFileSize ??
-          0n))
+        {{
+          filesize(
+            (progress?.globalProgression?.newFileSize ?? 0n) + (progress?.globalProgression?.modifiedFileSize ?? 0n),
+          )
         }}
       </v-chip>
       <v-chip size="small" class="ma-1" color="orange" variant="outlined">
         <v-icon start size="small">mdi-zip-box</v-icon>
-        {{ filesize((progress?.globalProgression?.newCompressedFileSize ?? 0n) +
-          (progress?.globalProgression?.modifiedCompressedFileSize ?? 0n)) }}
+        {{
+          filesize(
+            (progress?.globalProgression?.newCompressedFileSize ?? 0n) +
+              (progress?.globalProgression?.modifiedCompressedFileSize ?? 0n),
+          )
+        }}
       </v-chip>
-      <v-chip v-if="progress?.globalProgression?.errorCount ?? 0 > 0" size="small" class="ma-1" color="error"
-        variant="outlined">
+      <v-chip
+        v-if="progress?.globalProgression?.errorCount ?? 0 > 0"
+        size="small"
+        class="ma-1"
+        color="error"
+        variant="outlined"
+      >
         <v-icon start size="small">mdi-alert</v-icon>
         {{ toNumber(progress?.globalProgression?.errorCount) }} errors
       </v-chip>
@@ -71,14 +91,19 @@
               <!-- Progress bar: Only show for InProgress shares with backup progression -->
               <v-progress-linear
                 v-if="share.executionState === ShareExecutionState.InProgress && share.backupProgression"
-                :color="shareStateColor(share.executionState)" :model-value="share.backupProgression.percent"
-                height="20" class="mb-2">
+                :color="shareStateColor(share.executionState)"
+                :model-value="share.backupProgression.percent"
+                height="20"
+                class="mb-2"
+              >
                 <small>{{ toPercent(share.backupProgression.percent) }}</small>
               </v-progress-linear>
 
               <!-- FileList phase: Show file scanning progress (uses fileListProgression) -->
-              <div v-if="share.executionState === ShareExecutionState.FileList && share.fileListProgression"
-                class="text-caption text-secondary">
+              <div
+                v-if="share.executionState === ShareExecutionState.FileList && share.fileListProgression"
+                class="text-caption text-secondary"
+              >
                 <!-- Indeterminate progress bar for file scanning -->
                 <v-progress-linear color="orange" indeterminate height="20" class="mb-2">
                   <span class="text-orange">Scanning files...</span>
@@ -107,8 +132,12 @@
 
               <!-- InProgress phase: Show backup progression (uses backupProgression) -->
               <div
-                v-else-if="[ShareExecutionState.InProgress, ShareExecutionState.InProgress].includes(share.executionState) && share.backupProgression"
-                class="text-caption text-secondary">
+                v-else-if="
+                  [ShareExecutionState.InProgress, ShareExecutionState.InProgress].includes(share.executionState) &&
+                  share.backupProgression
+                "
+                class="text-caption text-secondary"
+              >
                 <span class="mr-4">
                   <v-icon size="small">mdi-file-plus</v-icon>
                   {{ toNumber(share.backupProgression.fileCount) }} files
@@ -185,7 +214,12 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import type { BackupTaskStateFragment, JobBackupDataFragment } from '@/generated/graphql';
-import { BackupExecutionState, ShareExecutionState, ExecuteCommandExecutionState, BackupErrorState } from '@/generated/graphql';
+import {
+  BackupExecutionState,
+  ShareExecutionState,
+  ExecuteCommandExecutionState,
+  BackupErrorState,
+} from '@/generated/graphql';
 import { toDateTime, toPercent, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
