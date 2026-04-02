@@ -382,3 +382,10 @@ pub fn pipe_cron_to_maintenance_storage(
 ) -> CronPipe<RedisStorage<MaintenanceJobData>> {
     CronStream::new(schedule).pipe_to_storage(storage)
 }
+
+pub fn pipe_cron_to_nightly_storage(
+    schedule: apalis_cron::Schedule,
+    storage: RedisStorage<ScheduleQueueJob>,
+) -> CronPipe<RedisStorage<ScheduleQueueJob>> {
+    CronStream::new(schedule).pipe_to_storage(storage)
+}

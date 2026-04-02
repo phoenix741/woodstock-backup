@@ -1,5 +1,6 @@
 <template>
-  <v-btn class="ml-1" color="primary" variant="text">Launch backup
+  <v-btn class="ml-1" color="primary" variant="text"
+    >Launch backup
     <v-dialog v-model="dialog" activator="parent" width="auto">
       <v-card v-if="dialogState == ProgressDialogState.Waiting">
         <v-card-text class="justify-center">
@@ -26,7 +27,9 @@
 
           <p class="mb-4 text-medium-emphasis text-body-2">
             Your backup is launch successfully. You can check the status of your tasks (<router-link
-              to="/tasks/started">{{ jobId }}</router-link>) in the task list.
+              to="/tasks/started"
+              >{{ jobId }}</router-link
+            >) in the task list.
           </p>
         </v-card-text>
         <v-card-actions class="justify-end">

@@ -8,11 +8,12 @@ use uuid::Uuid;
 use crate::{
     config::{
         BackupOperation, BackupStatus, Backups, Configuration, Context, ExecuteCommandOperation,
-        FailedStatus, FinishingStatus, HostConfiguration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE,
+        FailedStatus, FinishingStatus, HostConfiguration, Hosts, ShareSnapshotMethod,
+        DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     server::client::Client,
     utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
-    Share,
+    Share, SnapshotMethod,
 };
 
 use super::{save::BackupSave, save_state::BackupState};
@@ -507,6 +508,19 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         let _ = tx.try_send(progression_state.clone());
                     }
                 })?;
+        }
+
+        // Read and propagate snapshot result from agent
+        if let Some(sr) = self.client.get_snapshot_result(&share.share_path).await {
+            let method = SnapshotMethod::try_from(sr.method)
+                .map(|m| match m {
+                    SnapshotMethod::Btrfs => ShareSnapshotMethod::Btrfs,
+                    SnapshotMethod::Vss => ShareSnapshotMethod::Vss,
+                    SnapshotMethod::None => ShareSnapshotMethod::None,
+                })
+                .unwrap_or(ShareSnapshotMethod::None);
+            let mut progression_state = self.progression_state.lock().await;
+            progression_state.set_share_snapshot_result(&share.share_path, method, sr.failure_reason);
         }
 
         self.send_progres().await;

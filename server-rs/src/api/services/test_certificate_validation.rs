@@ -277,10 +277,12 @@ mod tests {
         let service = CertificateService::new(config);
 
         // Test various hostname formats
+        // Note: IPv6 addresses with `:` are excluded on Windows as `:` is invalid in filenames
         let hostnames = vec![
             "simple-host",
             "complex.hostname.domain",
             "192.168.1.1",
+            #[cfg(not(windows))]
             "2001:db8::1",
             "localhost",
         ];

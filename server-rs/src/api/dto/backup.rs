@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use woodstock::config::{
     Backup as WoodstockBackup, BackupStatus, FailedStatus, FinishingStatus, RemovingStatus,
+    ShareRecord,
 };
 
 use crate::graphql::scalars::BigIntScalar;
@@ -362,6 +363,45 @@ impl From<woodstock::server::backup::save_state::ExecuteCommandState> for Execut
     }
 }
 
+#[derive(
+    async_graphql::Enum, Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize, ToSchema,
+)]
+pub enum SnapshotMethodDto {
+    None,
+    Btrfs,
+    Vss,
+}
+
+impl From<woodstock::config::ShareSnapshotMethod> for SnapshotMethodDto {
+    fn from(m: woodstock::config::ShareSnapshotMethod) -> Self {
+        use woodstock::config::ShareSnapshotMethod as Src;
+        match m {
+            Src::None => SnapshotMethodDto::None,
+            Src::Btrfs => SnapshotMethodDto::Btrfs,
+            Src::Vss => SnapshotMethodDto::Vss,
+        }
+    }
+}
+
+/// A share record for a completed backup — path + snapshot method used.
+#[derive(SimpleObject, Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupShareRecord {
+    pub path: String,
+    pub snapshot_method: SnapshotMethodDto,
+    pub snapshot_failure_reason: Option<String>,
+}
+
+impl From<ShareRecord> for BackupShareRecord {
+    fn from(r: ShareRecord) -> Self {
+        Self {
+            path: r.path,
+            snapshot_method: r.snapshot_method.into(),
+            snapshot_failure_reason: r.snapshot_failure_reason,
+        }
+    }
+}
+
 #[derive(async_graphql::Enum, Copy, Clone, Eq, PartialEq)]
 pub enum ShareExecutionState {
     Waiting,
@@ -390,6 +430,8 @@ pub struct ShareState {
     pub file_list_progression: FileListProgression,
     pub backup_progression: BackupProgression,
     pub execution_state: ShareExecutionState,
+    pub snapshot_method: SnapshotMethodDto,
+    pub snapshot_failure_reason: Option<String>,
 }
 
 impl From<woodstock::server::backup::save_state::ShareState> for ShareState {
@@ -399,6 +441,8 @@ impl From<woodstock::server::backup::save_state::ShareState> for ShareState {
             file_list_progression: s.file_list_progression.into(),
             backup_progression: s.backup_progression.into(),
             execution_state: s.execution_state.into(),
+            snapshot_method: s.snapshot_method.into(),
+            snapshot_failure_reason: s.snapshot_failure_reason,
         }
     }
 }

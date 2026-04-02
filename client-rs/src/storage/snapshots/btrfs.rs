@@ -8,6 +8,7 @@ use tokio::process::Command;
 use tonic::async_trait;
 
 use crate::storage::snapshots::{SnapshotCompletion, SnapshotManager, SnapshotReference};
+use woodstock;
 
 /// Detects the mount path of the `path` parameter, provided`
 fn detect_mount_path(path: &Path) -> Result<PathBuf> {
@@ -223,6 +224,10 @@ impl SnapshotManager for BtrfsSnapshotManager {
 
     fn manager_name(&self) -> &'static str {
         "BTRFS"
+    }
+
+    fn snapshot_method(&self) -> woodstock::SnapshotMethod {
+        woodstock::SnapshotMethod::Btrfs
     }
 
     fn priority(&self) -> u8 {

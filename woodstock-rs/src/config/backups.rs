@@ -20,7 +20,6 @@
 /// - [`Backups::remove_backup`]: Remove a backup and its directory.
 /// - [`Backups::clone_backup`]: Clone backup data for incremental backups.
 /// - [`Backups::get_backup_share_paths`]: List all share paths for a backup.
-/// - [`Backups::add_backup_share_path`]: Add a share path to a backup.
 ///
 /// ## Error Handling
 ///
@@ -64,6 +63,48 @@ use crate::{
 };
 
 use super::{Backup, Configuration};
+
+/// Snapshot method used to protect a share before backup.
+/// Stored in YAML for human readability.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareSnapshotMethod {
+    #[default]
+    None,
+    Btrfs,
+    Vss,
+}
+
+/// Per-share record stored in `shares.yml`, including snapshot metadata.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ShareRecord {
+    pub path: String,
+    #[serde(default)]
+    pub snapshot_method: ShareSnapshotMethod,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot_failure_reason: Option<String>,
+}
+
+/// Allows deserializing both the legacy `Vec<String>` format and the new `Vec<ShareRecord>` format.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum ShareEntry {
+    Path(String),
+    Record(ShareRecord),
+}
+
+impl From<ShareEntry> for ShareRecord {
+    fn from(entry: ShareEntry) -> Self {
+        match entry {
+            ShareEntry::Path(path) => ShareRecord {
+                path,
+                snapshot_method: ShareSnapshotMethod::None,
+                snapshot_failure_reason: None,
+            },
+            ShareEntry::Record(record) => record,
+        }
+    }
+}
 
 /// Redis channel on which `BackupChangedEvent` messages are published.
 pub const BACKUP_CHANGED_CHANNEL: &str = "woodstock:backup:changed";
@@ -293,46 +334,51 @@ impl Backups {
     }
 
     #[must_use]
-    pub async fn get_backup_share_paths(&self, hostname: &str, backup_id: Uuid) -> Vec<String> {
+    pub async fn get_backup_share_records(
+        &self,
+        hostname: &str,
+        backup_id: Uuid,
+    ) -> Vec<ShareRecord> {
         let shares = read_to_string(self.get_share_file(hostname, backup_id)).await;
 
         match shares {
-            Ok(shares) => serde_yaml_ng::from_str(&shares).unwrap_or(vec![]),
+            Ok(shares) => {
+                let entries: Vec<ShareEntry> = serde_yaml_ng::from_str(&shares).unwrap_or_default();
+                entries.into_iter().map(ShareRecord::from).collect()
+            }
             Err(_) => vec![],
         }
     }
 
-    /// Adds a share path to the backup configuration for a given host and backup number.
-    ///
-    /// # Arguments
-    /// * `hostname` - The hostname for which to add the share path.
-    /// * `backup_number` - The backup number to which the share path should be added.
-    /// * `share_path` - The share path to add.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(())` if the share path is successfully added.
-    /// * `Err(eyre::Report)` if an error occurs during the operation.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the share paths cannot be serialized or written to disk.
-    pub async fn add_backup_share_path(
+    #[must_use]
+    pub async fn get_backup_share_paths(&self, hostname: &str, backup_id: Uuid) -> Vec<String> {
+        self.get_backup_share_records(hostname, backup_id)
+            .await
+            .into_iter()
+            .map(|r| r.path)
+            .collect()
+    }
+
+    /// Adds a share record (with snapshot metadata) to the backup configuration for a given host and backup.
+    pub async fn add_backup_share_record(
         &self,
         hostname: &str,
         backup_id: Uuid,
-        share_path: &str,
+        record: ShareRecord,
     ) -> Result<()> {
-        let mut shares = self.get_backup_share_paths(hostname, backup_id).await;
+        let mut records = self.get_backup_share_records(hostname, backup_id).await;
 
-        if !shares.contains(&share_path.to_string()) {
-            shares.push(share_path.to_string());
+        // Replace existing entry for this path or add new one
+        if let Some(existing) = records.iter_mut().find(|r| r.path == record.path) {
+            *existing = record;
+        } else {
+            records.push(record);
         }
 
-        let shares = serde_yaml_ng::to_string(&shares).map_err(|_| {
+        let shares = serde_yaml_ng::to_string(&records).map_err(|_| {
             Error::new(
                 ErrorKind::InvalidData,
-                "Failed to serialize shares to yaml string",
+                "Failed to serialize share records to yaml string",
             )
         })?;
 

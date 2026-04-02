@@ -1,8 +1,22 @@
 <template>
   <v-skeleton-loader :loading="isFetching" type="list-item-two-line">
-    <v-treeview v-model:activated="active" v-model:opened="open" :items="items" :load-children="fetchNodes"
-      color="warning" density="compact" slim item-title="displayName" item-value="id" item-props="props" activatable
-      transition :style="cssVars" @update:activated="onSelect" return-object>
+    <v-treeview
+      v-model:activated="active"
+      v-model:opened="open"
+      :items="items"
+      :load-children="fetchNodes"
+      color="warning"
+      density="compact"
+      slim
+      item-title="displayName"
+      item-value="id"
+      item-props="props"
+      activatable
+      transition
+      :style="cssVars"
+      @update:activated="onSelect"
+      return-object
+    >
       <template v-slot:prepend="{ item, isOpen }">
         <v-icon v-if="item.node.type == FileManifestTypeDto.Directory">
           {{ isOpen ? 'mdi-folder-open' : 'mdi-folder' }}

@@ -17,6 +17,7 @@ use crate::execute_command::execute_command;
 use crate::scanner::create_file_from_manifest;
 use crate::scanner::CreateManifestOptions;
 use crate::storage::accessor::FileSystemAccessor;
+use woodstock;
 use woodstock::utils::path::path_to_vec;
 use woodstock::{manifest::FileManifestLight, PingRequest};
 use woodstock::{manifest::IndexManifest, ChunkHashRequest};
@@ -25,7 +26,7 @@ use woodstock::{
     woodstock_client_service_server::WoodstockClientService, AuthenticateReply,
     AuthenticateRequest, ChunkHashReply, Empty as EmptyProto, EntryState, EntryType,
     ExecuteCommandReply, ExecuteCommandRequest, FileChunk, FileManifest, FileManifestJournalEntry,
-    RefreshCacheRequest, RestoreFileReply, RestoreFileRequest,
+    RefreshCacheRequest, RestoreFileReply, RestoreFileRequest, ShareSnapshotResult,
 };
 use woodstock::{
     utils::path::{list_to_globset, vec_to_str},
@@ -43,6 +44,8 @@ pub struct WoodstockClient {
     create_manifest_options: CreateManifestOptions,
     /// File system accessor for backup operations.
     fs_accessor: Arc<RwLock<FileSystemAccessor>>,
+    /// Whether snapshot creation is enabled.
+    snapshot_enabled: bool,
 }
 
 impl WoodstockClient {
@@ -68,6 +71,7 @@ impl WoodstockClient {
                 with_xattr: config.xattr,
             },
             fs_accessor: Arc::new(RwLock::new(FileSystemAccessor::new())),
+            snapshot_enabled: config.snapshot,
         }
     }
 
@@ -557,15 +561,36 @@ impl WoodstockClientService for WoodstockClient {
         let share = share.as_ref().unwrap().clone();
 
         debug!("Launch backup for share: {}", share.share_path);
-        {
+        let snapshot_result: ShareSnapshotResult = if self.snapshot_enabled {
             let mut fs_accessor = self.fs_accessor.write().await;
-            if let Err(err) = fs_accessor.add_share_path(&share.share_path).await {
-                error!(
-                    "Failed to create a snapshot for {}: {}",
-                    share.share_path, err
-                );
+            match fs_accessor.add_share_path(&share.share_path).await {
+                Ok(result) => {
+                    if result.failure_reason.is_some() {
+                        error!(
+                            "Snapshot failed for {}: {}",
+                            share.share_path,
+                            result.failure_reason.as_deref().unwrap_or("")
+                        );
+                    }
+                    result
+                }
+                Err(err) => {
+                    error!(
+                        "Failed to create a snapshot for {}: {}",
+                        share.share_path, err
+                    );
+                    ShareSnapshotResult {
+                        method: woodstock::SnapshotMethod::None as i32,
+                        failure_reason: Some(err.to_string()),
+                    }
+                }
             }
-        }
+        } else {
+            ShareSnapshotResult {
+                method: woodstock::SnapshotMethod::None as i32,
+                failure_reason: None,
+            }
+        };
 
         let includes = vec_to_str(&share.includes);
         let includes = list_to_globset(&includes)
@@ -579,6 +604,17 @@ impl WoodstockClientService for WoodstockClient {
 
         let (tx, rx) = mpsc::channel(100_000);
         tokio::spawn(async move {
+            // First: emit the snapshot info entry so the server can record the snapshot method
+            let snapshot_entry = FileManifestJournalEntry {
+                entry_type: EntryType::SnapshotInfo as i32,
+                snapshot_result: Some(snapshot_result),
+                ..Default::default()
+            };
+            if tx.send(Ok(snapshot_entry)).await.is_err() {
+                error!("Failed to send snapshot info entry");
+                return;
+            }
+
             // Add and modify file
             {
                 let fs_accessor = fs_accessor.read().await;
@@ -628,6 +664,7 @@ impl WoodstockClientService for WoodstockClient {
                     xfer_check: 0,
                     chunk_sizes: vec![],
                     chunk_compressed_sizes: vec![],
+                    snapshot_result: None,
                 };
                 let result = tx.send(Ok(entry)).await;
                 if result.is_err() {

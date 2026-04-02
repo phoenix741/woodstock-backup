@@ -1,13 +1,14 @@
 <template>
-  <v-btn class="ml-1" color="warning" variant="text">Purge
+  <v-btn class="ml-1" color="warning" variant="text"
+    >Purge
     <v-dialog v-model="dialog" activator="parent" width="auto">
       <v-card v-if="dialogState == ProgressDialogState.Waiting">
         <v-card-text class="justify-center">
           <h2 class="text-h5 mb-6">Purge surplus backups</h2>
 
           <p class="mb-4 text-medium-emphasis text-body-2">
-            This will immediately delete all backups marked as <strong>Surplus</strong> for this
-            host, according to the configured retention policy.
+            This will immediately delete all backups marked as <strong>Surplus</strong> for this host, according to the
+            configured retention policy.
           </p>
           <p class="mb-4 text-medium-emphasis text-body-2">This action cannot be undone.</p>
         </v-card-text>

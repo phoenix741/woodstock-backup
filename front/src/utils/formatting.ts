@@ -161,11 +161,10 @@ export function formatDurationValue(durationInMs: number, options: DurationOptio
   const locale = getAppLocale();
   const { unitDisplay = 'long', maxParts, listStyle = 'long' } = options;
   const duration = normalizeDuration(durationInMs);
-  const parts = durationUnits
-    .flatMap(([key, unit]) => {
-      const value = duration[key] ?? 0;
-      return value > 0 ? [formatUnit(value, unit, unitDisplay)] : [];
-    });
+  const parts = durationUnits.flatMap(([key, unit]) => {
+    const value = duration[key] ?? 0;
+    return value > 0 ? [formatUnit(value, unit, unitDisplay)] : [];
+  });
 
   if (parts.length === 0) {
     return '';

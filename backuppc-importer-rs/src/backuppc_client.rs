@@ -323,6 +323,7 @@ impl BackupPCClient {
                         xfer_check: 0,
                         chunk_sizes: vec![],
                         chunk_compressed_sizes: vec![],
+                        snapshot_result: None,
                     });
                 }
 
@@ -339,6 +340,7 @@ impl BackupPCClient {
                     xfer_check: 0,
                     chunk_sizes: vec![],
                     chunk_compressed_sizes: vec![],
+                    snapshot_result: None,
                 })
             }
         });
@@ -372,6 +374,7 @@ impl BackupPCClient {
                     xfer_check: 0,
                     chunk_sizes: vec![],
                     chunk_compressed_sizes: vec![],
+                    snapshot_result: None,
                 };
             }
         });

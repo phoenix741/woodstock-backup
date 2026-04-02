@@ -17,7 +17,20 @@
 </template>
 
 <script setup lang="ts">
-import { BackupTaskStateFragmentDoc, CleanerTaskStateFragmentDoc, FsckTaskStateFragmentDoc, JobBackupDataFragmentDoc, JobCleanupDataFragmentDoc, JobFsckDataFragmentDoc, JobKind, JobRemoveDataFragmentDoc, JobRestoreDataFragmentDoc, RemoveTaskStateFragmentDoc, RestoreTaskStateFragmentDoc, type JobFragment } from '@/generated/graphql';
+import {
+  BackupTaskStateFragmentDoc,
+  CleanerTaskStateFragmentDoc,
+  FsckTaskStateFragmentDoc,
+  JobBackupDataFragmentDoc,
+  JobCleanupDataFragmentDoc,
+  JobFsckDataFragmentDoc,
+  JobKind,
+  JobRemoveDataFragmentDoc,
+  JobRestoreDataFragmentDoc,
+  RemoveTaskStateFragmentDoc,
+  RestoreTaskStateFragmentDoc,
+  type JobFragment,
+} from '@/generated/graphql';
 import { useFragment } from '@/generated';
 import { computed } from 'vue';
 import TaskCardBackup from './TaskCardBackup.vue';
@@ -75,5 +88,4 @@ const cleanupProgress = computed(() => {
   if (!job.progress || job.progress.__typename !== 'JobCleanerTaskState') return null;
   return useFragment(CleanerTaskStateFragmentDoc, job.progress);
 });
-
 </script>

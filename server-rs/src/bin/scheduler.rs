@@ -45,14 +45,13 @@ async fn main() -> Result<()> {
         state.apalis_redis_storage.schedule_storage.clone(),
     );
 
-    // Nightly cron: persiste directement MaintenanceJobData::CleanupRefcnt dans Redis
-    // via pipe_to_storage. Le job sera consommé par le maintenance-worker du job_worker.rs
-    let _nightly_backend = pipe_cron_to_maintenance_storage(
+    // Nightly cron: utilise un storage dédié (QueueName::Nightly) pour être enregistré
+    // comme backend indépendant dans le Monitor. C'est la seule façon de faire tourner
+    // le pipe_heartbeat interne à CronPipe (cf. apalis-cron CronPipe::poll).
+    let nightly_backend = pipe_cron_to_nightly_storage(
         nightly_sched,
-        state.apalis_redis_storage.maintenance_storage.clone(),
+        state.apalis_redis_storage.nightly_storage.clone(),
     );
-    // Note: On n'enregistre PAS de worker pour nightly_backend car pipe_to_storage
-    // persiste déjà le job dans Redis. Un worker consommerait le job inutilement.
 
     // Producers to enqueue jobs when cron ticks are persisted
     let redis_client = redis::Client::open(redis_url.clone())?;
@@ -115,9 +114,29 @@ async fn main() -> Result<()> {
             )
     });
 
-    // Note: Pas de worker pour nightly ! Le CronStream avec pipe_to_storage
-    // crée automatiquement les MaintenanceJobData::CleanupRefcnt dans Redis.
-    // Ces jobs seront consommés par le maintenance-worker du job_worker.rs
+    // Nightly: enqueue le job de cleanup refcnt dans maintenance_storage.
+    // Le CronPipe doit impérativement être enregistré dans le Monitor pour que
+    // pipe_heartbeat (qui pousse les ticks dans Redis) soit pollé.
+    monitor = monitor.register({
+        let producers_nightly = producers.clone();
+        WorkerBuilder::new("cron-nightly")
+            .catch_panic()
+            .concurrency(1)
+            .backend(nightly_backend)
+            .build_fn(move |_: ScheduleQueueJob| {
+                let producers = producers_nightly.clone();
+                async move {
+                    let mut prod = producers.lock().await;
+                    let res = prod.enqueue_cleanup_refcnt().await;
+                    if let Err(e) = &res {
+                        tracing::error!("Failed to enqueue nightly cleanup refcnt: {e}");
+                    } else {
+                        info!("Nightly cleanup refcnt job enqueued");
+                    }
+                    res.map(|_| ())
+                }
+            })
+    });
 
     monitor.run().await?;
 

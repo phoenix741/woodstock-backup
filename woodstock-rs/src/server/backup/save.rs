@@ -13,7 +13,10 @@ use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
 use crate::{
-    config::{Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE},
+    config::{
+        Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
+        ShareRecord, ShareSnapshotMethod,
+    },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},
     pool::{PoolChunkInformation, PoolChunkWrapper, PoolManager, Refcnt},
@@ -23,7 +26,7 @@ use crate::{
     utils::{chunk_hasher::get_empty_hash, compression::CompressionFormat},
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
-    RefreshCacheRequest, Share,
+    RefreshCacheRequest, Share, ShareSnapshotResult, SnapshotMethod,
 };
 
 use super::{super::client::Client, super::progression::BackupProgression};
@@ -70,6 +73,8 @@ pub struct BackupSave<Clt: Client> {
     compression_format: CompressionFormat,
     /// Backups configuration
     backups: Arc<Backups>,
+    /// Snapshot results received from the agent, keyed by share path.
+    share_snapshot_results: Arc<Mutex<HashMap<String, ShareSnapshotResult>>>,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -123,7 +128,14 @@ impl<Clt: Client> BackupSave<Clt> {
             compression_format: config.compression_format,
             fake_date: None,
             backups,
+            share_snapshot_results: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Returns the snapshot result for a given share path, if any.
+    pub async fn get_snapshot_result(&self, share_path: &str) -> Option<ShareSnapshotResult> {
+        let results = self.share_snapshot_results.lock().await;
+        results.get(share_path).cloned()
     }
 
     /// Enables file consistency checks during the backup process.
@@ -392,13 +404,26 @@ impl<Clt: Client> BackupSave<Clt> {
         let response = self.client.synchronize_file_list(refresh_cache_stream);
 
         let progression = Arc::new(Mutex::new(FileListProgression::default()));
+        let share_snapshot_results = Arc::clone(&self.share_snapshot_results);
 
         let response = response.filter_map(|entry| {
             let progression = Arc::clone(&progression);
             let file_list_tx = file_list_tx.clone();
+            let share_snapshot_results = Arc::clone(&share_snapshot_results);
+            let share = share.clone();
             async move {
                 match entry {
                     Ok(entry) => {
+                        // Intercept SnapshotInfo before accumulating progression
+                        if entry.entry_type() == EntryType::SnapshotInfo {
+                            if let Some(sr) = entry.snapshot_result.clone() {
+                                let share_path = share.share_path.clone();
+                                let mut results = share_snapshot_results.lock().await;
+                                results.insert(share_path, sr);
+                            }
+                            return None;
+                        }
+
                         let file_size = entry
                             .manifest
                             .as_ref()
@@ -419,6 +444,7 @@ impl<Clt: Client> BackupSave<Clt> {
                             EntryType::Remove => {
                                 progression.removed_file_count += 1;
                             }
+                            EntryType::SnapshotInfo => {}
                         }
 
                         // Send file list progress if a channel is provided
@@ -957,6 +983,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         let mut progression = progression.lock().await;
                         progression.removed_file_count += 1;
                     }
+                    EntryType::SnapshotInfo => {}
                 }
             }
 
@@ -1106,6 +1133,7 @@ impl<Clt: Client> BackupSave<Clt> {
                             modified_compressed_file_size += compressed;
                         }
                         EntryType::Remove => removed_file_count += 1,
+                        EntryType::SnapshotInfo => {}
                     }
                 }
                 _ => {}
@@ -1228,8 +1256,33 @@ impl<Clt: Client> BackupSave<Clt> {
             )
             .await?;
 
+        let snapshot_result = {
+            let results = self.share_snapshot_results.lock().await;
+            results.get(share_path).cloned()
+        };
+        let (snapshot_method, snapshot_failure_reason) = match snapshot_result {
+            Some(sr) => {
+                let method = SnapshotMethod::try_from(sr.method)
+                    .map(|m| match m {
+                        SnapshotMethod::Btrfs => ShareSnapshotMethod::Btrfs,
+                        SnapshotMethod::Vss => ShareSnapshotMethod::Vss,
+                        SnapshotMethod::None => ShareSnapshotMethod::None,
+                    })
+                    .unwrap_or(ShareSnapshotMethod::None);
+                (method, sr.failure_reason)
+            }
+            None => (ShareSnapshotMethod::None, None),
+        };
         self.backups
-            .add_backup_share_path(&self.hostname, self.backup_id, share_path)
+            .add_backup_share_record(
+                &self.hostname,
+                self.backup_id,
+                ShareRecord {
+                    path: share_path.to_string(),
+                    snapshot_method,
+                    snapshot_failure_reason,
+                },
+            )
             .await?;
 
         Ok(())

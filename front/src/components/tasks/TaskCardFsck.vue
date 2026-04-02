@@ -1,6 +1,14 @@
 <template>
-  <AbstractTaskCard :title="title" :subtitle="subtitle" icon="shield-search" :progress-percent="progressPercent"
-    :progress-message="progressMessage" :error-message="errorMessage" :backup-error-state="hasError" :expanded="expanded">
+  <AbstractTaskCard
+    :title="title"
+    :subtitle="subtitle"
+    icon="shield-search"
+    :progress-percent="progressPercent"
+    :progress-message="progressMessage"
+    :error-message="errorMessage"
+    :backup-error-state="hasError"
+    :expanded="expanded"
+  >
     <template #tags>
       <v-chip v-if="progress?.refcntProgression" size="small" class="ma-1" color="blue" variant="outlined">
         <v-icon start size="small">mdi-counter</v-icon>
@@ -38,8 +46,8 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-counter</v-icon>
-                  {{ toNumber(progress?.refcntProgression?.progressCurrent) }} / {{
-                    toNumber(progress?.refcntProgression?.progressMax) }} items
+                  {{ toNumber(progress?.refcntProgression?.progressCurrent) }} /
+                  {{ toNumber(progress?.refcntProgression?.progressMax) }} items
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-database</v-icon>
@@ -61,8 +69,8 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-delete</v-icon>
-                  {{ toNumber(progress?.unusedProgression?.progressCurrent) }} / {{
-                    toNumber(progress?.unusedProgression?.progressMax) }} items
+                  {{ toNumber(progress?.unusedProgression?.progressCurrent) }} /
+                  {{ toNumber(progress?.unusedProgression?.progressMax) }} items
                 </span>
                 <span v-if="progress?.unusedProgression?.missing > 0" class="mr-4 text-error">
                   <v-icon size="small">mdi-help-circle</v-icon>
@@ -92,8 +100,8 @@
               <div class="text-caption text-secondary">
                 <span class="mr-4">
                   <v-icon size="small">mdi-cube</v-icon>
-                  {{ toNumber(progress?.chunkProgression?.progressCurrent) }} / {{
-                    toNumber(progress?.chunkProgression?.progressMax) }} chunks
+                  {{ toNumber(progress?.chunkProgression?.progressCurrent) }} /
+                  {{ toNumber(progress?.chunkProgression?.progressMax) }} chunks
                 </span>
                 <span class="mr-4">
                   <v-icon size="small">mdi-database</v-icon>
@@ -114,7 +122,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { FsckExecutionState, FsckErrorState, type JobFsckDataFragment, type FsckTaskStateFragment } from '@/generated/graphql';
+import {
+  FsckExecutionState,
+  FsckErrorState,
+  type JobFsckDataFragment,
+  type FsckTaskStateFragment,
+} from '@/generated/graphql';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 import { toNumber, toPercent } from '../hosts/hosts.utils';
 
@@ -157,16 +170,16 @@ const subtitle = computed(() => {
 });
 
 const progressPercent = computed(() => {
-  const progressMax = (progress?.refcntProgression?.progressMax ?? 0) +
+  const progressMax =
+    (progress?.refcntProgression?.progressMax ?? 0) +
     (progress?.unusedProgression?.progressMax ?? 0) +
     (progress?.chunkProgression?.progressMax ?? 0);
-  const progressCurrent = (progress?.refcntProgression?.progressCurrent ?? 0) +
+  const progressCurrent =
+    (progress?.refcntProgression?.progressCurrent ?? 0) +
     (progress?.unusedProgression?.progressCurrent ?? 0) +
     (progress?.chunkProgression?.progressCurrent ?? 0);
 
-  return progressMax > 0
-    ? (progressCurrent / progressMax) * 100
-    : 0;
+  return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
 });
 
 const refcntProgressionPercent = computed(() => {
@@ -238,10 +251,11 @@ const hasError = computed(() => progress?.fsckErrorState !== null && progress?.f
 const totalErrorCount = computed((): number => {
   if (!progress) return 0;
 
-  return (progress?.refcntProgression?.errorCount ?? 0) +
+  return (
+    (progress?.refcntProgression?.errorCount ?? 0) +
     (progress?.unusedProgression?.missing ?? 0) +
     (progress?.unusedProgression?.inNothing ?? 0) +
-    (progress?.chunkProgression?.errorCount ?? 0);
+    (progress?.chunkProgression?.errorCount ?? 0)
+  );
 });
-
 </script>

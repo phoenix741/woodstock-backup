@@ -49,7 +49,7 @@ mod scheduler;
 /// Module defining data models for configuration entities.
 mod model;
 
-pub use backups::{BackupChangedEvent, Backups, BACKUP_CHANGED_CHANNEL};
+pub use backups::{BackupChangedEvent, Backups, ShareRecord, ShareSnapshotMethod, BACKUP_CHANGED_CHANNEL};
 pub use constants::{
     BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64, DEFAULT_BACKUP_TIMEOUT_SECS,
     DEFAULT_CHANNEL_BUFFER_SIZE, DEFAULT_PORT, DNS_RESOLVE_MAX_CONCURRENCY,

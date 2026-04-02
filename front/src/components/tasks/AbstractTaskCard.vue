@@ -18,11 +18,14 @@
             <!-- Global Progress -->
             <v-row class="pt-5" no-gutters>
               <v-col cols="12">
-                <v-progress-linear :color="progressColor" striped :model-value="progressPercent" :indeterminate="false"
-                  height="25">
-                  <strong v-if="backupErrorState">
-                    ERROR: {{ errorMessage }}
-                  </strong>
+                <v-progress-linear
+                  :color="progressColor"
+                  striped
+                  :model-value="progressPercent"
+                  :indeterminate="false"
+                  height="25"
+                >
+                  <strong v-if="backupErrorState"> ERROR: {{ errorMessage }} </strong>
                   <strong v-else>
                     {{ toPercent(progressPercent) }}
                     <template v-if="progressMessage">- {{ progressMessage }}</template>
@@ -74,5 +77,4 @@ const progressColor = computed(() => {
   }
   return 'primary';
 });
-
 </script>

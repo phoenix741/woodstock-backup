@@ -1,14 +1,11 @@
-import type {
-  BackupStatusDto,
-  HostAvailibilityState
-} from '@/generated/graphql';
+import type { BackupStatusDto, HostAvailibilityState } from '@/generated/graphql';
 import { computed } from 'vue';
 import vuetify from '../../plugins/vuetify';
 import {
   getBackupStatusLabel,
   getBackupStatusColor,
   getBackupStatusIcon,
-  getBackupStatusKey
+  getBackupStatusKey,
 } from '@/utils/backup-status';
 import {
   formatDateTimeValue,

@@ -2,13 +2,23 @@
   <v-container>
     <v-row dense>
       <v-col cols="12" md="6">
-        <v-date-input label="First event date" prepend-icon="" prepend-inner-icon="$calendar" variant="solo"
-          v-model="startDate"></v-date-input>
+        <v-date-input
+          label="First event date"
+          prepend-icon=""
+          prepend-inner-icon="$calendar"
+          variant="solo"
+          v-model="startDate"
+        ></v-date-input>
       </v-col>
 
       <v-col cols="12" md="6">
-        <v-date-input label="Last event date" prepend-icon="" prepend-inner-icon="$calendar" variant="solo"
-          v-model="endDate"></v-date-input>
+        <v-date-input
+          label="Last event date"
+          prepend-icon=""
+          prepend-inner-icon="$calendar"
+          variant="solo"
+          v-model="endDate"
+        ></v-date-input>
       </v-col>
     </v-row>
     <v-timeline :hide-opposite="mobile" :density="mobile ? 'compact' : 'default'" side="end">
@@ -17,7 +27,12 @@
     <div class="d-flex justify-center align-center mt-4 ga-2">
       <v-btn :disabled="page <= 1" variant="tonal" icon="mdi-chevron-left" @click="page--"></v-btn>
       <span class="text-body-2">Page {{ toNumber(page) }}</span>
-      <v-btn :disabled="mergedEvents.length < pageSize" variant="tonal" icon="mdi-chevron-right" @click="page++"></v-btn>
+      <v-btn
+        :disabled="mergedEvents.length < pageSize"
+        variant="tonal"
+        icon="mdi-chevron-right"
+        @click="page++"
+      ></v-btn>
     </div>
   </v-container>
 </template>
@@ -40,7 +55,9 @@ const endDate = ref(new Date());
 const page = ref(1);
 
 // Reset to page 1 when the date range changes
-watch([startDate, endDate], () => { page.value = 1; });
+watch([startDate, endDate], () => {
+  page.value = 1;
+});
 
 const { events, pageSize } = useEvents(startDate, endDate, page);
 const { mobile } = useDisplay();

@@ -61,7 +61,9 @@
             <div class="d-flex align-center mb-2">
               <v-icon color="info" class="mr-2">mdi-play-circle</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Running</span>
-              <v-chip size="x-small" color="info" variant="tonal" class="ml-2">{{ toNumber(runningFiltered.length) }}</v-chip>
+              <v-chip size="x-small" color="info" variant="tonal" class="ml-2">{{
+                toNumber(runningFiltered.length)
+              }}</v-chip>
             </div>
           </v-col>
         </v-row>
@@ -79,7 +81,9 @@
             <div class="d-flex align-center mb-2">
               <v-icon color="warning" class="mr-2">mdi-clock-outline</v-icon>
               <span class="text-subtitle-1 font-weight-bold">Pending</span>
-              <v-chip size="x-small" color="warning" variant="tonal" class="ml-2">{{ toNumber(pendingFiltered.length) }}</v-chip>
+              <v-chip size="x-small" color="warning" variant="tonal" class="ml-2">{{
+                toNumber(pendingFiltered.length)
+              }}</v-chip>
             </div>
           </v-col>
         </v-row>
@@ -93,7 +97,7 @@
       <!-- ── HISTORIQUE ── -->
       <!-- Affiché dès qu'il y a des tâches terminées/échouées, même si le filtre courant en masque certaines -->
       <template v-if="historyTotal > 0">
-        <v-row :class="(runningFiltered.length > 0 || pendingFiltered.length > 0) ? 'mt-6' : 'mt-2'">
+        <v-row :class="runningFiltered.length > 0 || pendingFiltered.length > 0 ? 'mt-6' : 'mt-2'">
           <v-col cols="12">
             <div class="d-flex align-center mb-2">
               <v-icon class="mr-2">mdi-history</v-icon>
@@ -121,9 +125,7 @@
         </v-row>
         <!-- Aucun résultat après application des filtres, mais des tâches existent -->
         <v-row v-if="historyFiltered.length === 0">
-          <v-col class="text-center text-grey text-body-2 py-4">
-            No tasks match the selected filters.
-          </v-col>
+          <v-col class="text-center text-grey text-body-2 py-4"> No tasks match the selected filters. </v-col>
         </v-row>
       </template>
 
@@ -154,18 +156,10 @@ const { refetch } = useQueueRealtimeStats();
 const { tasks: allTasks, isFetching } = useTasks(ref(undefined), ref(undefined), refetch);
 
 // Derived lists by status
-const runningTasks = computed(() =>
-  allTasks.value.filter((t) => t.status === JobStatus.Started),
-);
-const pendingTasks = computed(() =>
-  allTasks.value.filter((t) => t.status === JobStatus.Created),
-);
-const completedTasks = computed(() =>
-  allTasks.value.filter((t) => t.status === JobStatus.Completed),
-);
-const failedTasks = computed(() =>
-  allTasks.value.filter((t) => t.status === JobStatus.Failed),
-);
+const runningTasks = computed(() => allTasks.value.filter((t) => t.status === JobStatus.Started));
+const pendingTasks = computed(() => allTasks.value.filter((t) => t.status === JobStatus.Created));
+const completedTasks = computed(() => allTasks.value.filter((t) => t.status === JobStatus.Completed));
+const failedTasks = computed(() => allTasks.value.filter((t) => t.status === JobStatus.Failed));
 
 // Initial loading
 const isLoading = computed(() => isFetching.value);
@@ -176,11 +170,11 @@ const selectedKind = ref<JobKind | null>(null);
 const historySubFilter = ref<string[]>(['completed', 'failed']);
 
 const availableKinds = [
-  { value: JobKind.Backup,        label: 'Backup',   icon: 'mdi-cloud-download' },
-  { value: JobKind.Fsck,          label: 'Fsck',     icon: 'mdi-shield-search'  },
-  { value: JobKind.Remove,        label: 'Remove',   icon: 'mdi-delete'         },
-  { value: JobKind.Restore,       label: 'Restore',  icon: 'mdi-restore'        },
-  { value: JobKind.CleanupRefcnt, label: 'Cleanup',  icon: 'mdi-broom'          },
+  { value: JobKind.Backup, label: 'Backup', icon: 'mdi-cloud-download' },
+  { value: JobKind.Fsck, label: 'Fsck', icon: 'mdi-shield-search' },
+  { value: JobKind.Remove, label: 'Remove', icon: 'mdi-delete' },
+  { value: JobKind.Restore, label: 'Restore', icon: 'mdi-restore' },
+  { value: JobKind.CleanupRefcnt, label: 'Cleanup', icon: 'mdi-broom' },
 ];
 
 function filterByKind<T extends { kind?: string | null }>(tasks: T[]): T[] {
@@ -188,13 +182,13 @@ function filterByKind<T extends { kind?: string | null }>(tasks: T[]): T[] {
   return tasks.filter((t) => t.kind === selectedKind.value);
 }
 
-const runningFiltered  = computed(() => filterByKind(runningTasks.value));
-const pendingFiltered  = computed(() => filterByKind(pendingTasks.value));
+const runningFiltered = computed(() => filterByKind(runningTasks.value));
+const pendingFiltered = computed(() => filterByKind(pendingTasks.value));
 
 const historyAll = computed(() => {
   const all = [];
   if (historySubFilter.value.includes('completed')) all.push(...completedTasks.value);
-  if (historySubFilter.value.includes('failed'))    all.push(...failedTasks.value);
+  if (historySubFilter.value.includes('failed')) all.push(...failedTasks.value);
   return all;
 });
 const historyFiltered = computed(() => filterByKind(historyAll.value));
@@ -205,8 +199,8 @@ const historyTotal = computed(() => completedTasks.value.length + failedTasks.va
 const isEmpty = computed(
   () =>
     !isLoading.value &&
-    runningFiltered.value.length  === 0 &&
-    pendingFiltered.value.length  === 0 &&
-    historyTotal.value            === 0,
+    runningFiltered.value.length === 0 &&
+    pendingFiltered.value.length === 0 &&
+    historyTotal.value === 0,
 );
 </script>

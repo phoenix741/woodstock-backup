@@ -12,9 +12,17 @@
     <v-row>
       <v-col>
         <v-sheet rounded="lg">
-          <v-data-table v-model:items-per-page="itemsPerPage" :headers="headers" :items="devicesDataTable"
-            :loading="isDeviceFetching" loading-text="Loading... Please wait" item-value="name" item-title="name"
-            class="elevation-1" @click:row="navigateTo">
+          <v-data-table
+            v-model:items-per-page="itemsPerPage"
+            :headers="headers"
+            :items="devicesDataTable"
+            :loading="isDeviceFetching"
+            loading-text="Loading... Please wait"
+            item-value="name"
+            item-title="name"
+            class="elevation-1"
+            @click:row="navigateTo"
+          >
             <template v-slot:[`item.state`]="{ item }">
               <v-chip v-if="item.state" :color="getStateColor(item.state)">{{ getStateText(item.state) }}</v-chip>
             </template>
@@ -29,14 +37,16 @@
             </template>
             <template v-slot:[`item.lastBackupNumber`]="{ item }">
               <template v-if="item.lastBackupNumber !== null && item.lastBackupNumber !== undefined">{{
-                toNumber(item.lastBackupNumber) }}</template>
+                toNumber(item.lastBackupNumber)
+              }}</template>
             </template>
             <template v-slot:[`item.agentVersion`]="{ item }">
               {{ item.agentVersion || 'unknown' }}
             </template>
             <template v-slot:[`item.availibility`]="{ item }">
-              <v-chip :color="item.availibilityColor" rounded>{{ item.availibilityState?.toLocaleLowerCase() ||
-                'unknown' }}</v-chip>
+              <v-chip :color="item.availibilityColor" rounded>{{
+                item.availibilityState?.toLocaleLowerCase() || 'unknown'
+              }}</v-chip>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -57,7 +67,15 @@
 import HostRepartitionChartsComponent from '@/components/hosts/cards/HostRepartitionChartsComponent.vue';
 import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSuccessFailureChartsComponent.vue';
 
-import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration, toNumber } from '@/components/hosts/hosts.utils';
+import {
+  getAvailabilityColor,
+  getState,
+  getStateColor,
+  getStateText,
+  toDateTime,
+  toDuration,
+  toNumber,
+} from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
