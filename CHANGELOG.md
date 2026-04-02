@@ -1,3 +1,16 @@
+# [2.0.0-alpha.58](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.57...v2.0.0-alpha.58) (2026-04-02)
+
+
+### Bug Fixes
+
+* **scheduler:** register cron-nightly worker in Monitor to trigger CleanupRefcnt ([70c1ff4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/70c1ff4dfc25527ea7078ea61fa0bf576ca7ec68))
+
+
+### Features
+
+* 🔊 add log on vss snapshot ([d1be4c8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d1be4c8baa337c2f37775c24032952f100dac9c6))
+* add snapshot method and share records to backup functionality ([74303df](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/74303dfa8c841b0435f7d24153dbd9701c10b0ee))
+
 # [2.0.0-alpha.57](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.56...v2.0.0-alpha.57) (2026-03-19)
 
 
