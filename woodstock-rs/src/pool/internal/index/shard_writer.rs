@@ -5,7 +5,7 @@ use eyre::{eyre, Result};
 
 use crate::proto::{ProtobufWriter, UnCompressedWriter};
 
-use super::index_protobuf::ChunkDescriptor;
+use super::index_model::ChunkDescriptor;
 
 /// Byte size of a single offset table entry (u64 little-endian).
 const OFFSET_SIZE: usize = size_of::<u64>();
