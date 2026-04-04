@@ -8,7 +8,7 @@ use crate::{pool::ChunkDescriptor, proto::ProtobufReader};
 ///
 /// A staging file is a flat, non-compressed sequence of length-delimited
 /// [`ChunkDescriptor`] protobuf messages.  It lives in the backup directory
-/// alongside the `REFCNT` file and records every chunk encountered during the
+/// and records every chunk encountered during the
 /// backup (duplicates included).
 ///
 /// Use [`StagingWriter::compact`] to aggregate duplicates before integrating

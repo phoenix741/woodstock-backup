@@ -121,12 +121,20 @@ impl SegmentWriter {
     }
 
     /// Flushes and closes the persistent writer handle.
+    ///
+    /// The data file is flushed to disk **before** the sidecar is written so that
+    /// a crash between the two steps leaves a state the reader can detect: the
+    /// sidecar will be absent (or stale from the previous write) and the
+    /// truncation guard in [`Self::open`] will catch any size mismatch.
     pub async fn shutdown(&mut self) -> Result<()> {
         self.shutdown = true;
-        write_segment_file_metadata(&self.path, &self.file_metadata).await?;
 
+        // Flush data FIRST so the sidecar never claims a size larger than what
+        // is physically on disk.
         self.file.flush().await?;
         self.file.shutdown().await?;
+
+        write_segment_file_metadata(&self.path, &self.file_metadata).await?;
         Ok(())
     }
 

@@ -17,7 +17,7 @@
 //!   index writer can integrate it.
 //!
 //! The file is named [`STAGING_FILENAME`] (`staging.idx`) and lives in the
-//! backup directory alongside `REFCNT`.
+//! backup directory.
 
 mod staging_reader;
 mod staging_writer;

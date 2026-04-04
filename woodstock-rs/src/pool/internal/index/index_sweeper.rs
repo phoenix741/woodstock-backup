@@ -56,9 +56,9 @@ use tracing::debug;
 
 use crate::utils::lock_redis::{IndexLockTarget, LockOperation, PoolLockRedis};
 
+use super::super::segment::{Segments, SweepProgression};
 use super::index::ChunkIndex;
 use super::{ChunkDescriptor, ShardReader, ShardWriter};
-use super::super::segment::{Segments, SweepProgression};
 
 /// A single entry removed from the index during a sweep pass.
 ///
@@ -200,7 +200,10 @@ impl<'a> IndexSweeper<'a> {
         };
 
         for (segment_id, dead_bytes) in result.dead_bytes_per_segment() {
-            if let Err(e) = segments.update_dead_stored_bytes(segment_id, dead_bytes).await {
+            if let Err(e) = segments
+                .update_dead_stored_bytes(segment_id, dead_bytes)
+                .await
+            {
                 tracing::warn!(
                     segment_id,
                     "Failed to update dead_stored_bytes for segment after sweep: {e}.  \

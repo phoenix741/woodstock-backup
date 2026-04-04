@@ -17,7 +17,6 @@
 //! shard cache (`HashMap<u8, ShardReader>`) requires no locking.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use eyre::Result;
@@ -52,7 +51,7 @@ impl ChunkIndex {
     }
 
     /// Returns the filesystem path for the shard file corresponding to `shard_id`.
-    pub(super) fn shard_path(&self, shard_id: u8) -> PathBuf {
+    pub(super) fn shard_path(&self, shard_id: u8) -> std::path::PathBuf {
         self.config
             .path
             .pool_index_path

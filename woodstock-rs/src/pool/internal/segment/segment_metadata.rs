@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use eyre::{bail, eyre, Result};
 use tokio::fs::{create_dir_all, metadata, File};
 use tokio::io::{AsyncWriteExt, BufReader};
+use uuid::Uuid;
 
 use super::segment_protobuf::{SegmentFileMetadataRecord, SegmentHeader};
 use crate::proto::{read_length_delimited_message, write_length_delimited_message};
@@ -68,10 +69,22 @@ pub(crate) async fn write_segment_file_metadata<P: AsRef<Path>>(
         create_dir_all(parent).await?;
     }
 
-    let mut file = File::create(&metadata_path).await?;
+    // Write to a uniquely-named adjacent temporary file, then rename atomically.
+    // This guarantees that a concurrent reader (or a crash mid-write) never sees
+    // a partial or empty sidecar.
+    let tmp_name = format!(".meta.tmp.{}", Uuid::new_v4());
+    let tmp_path = metadata_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join(tmp_name);
+
+    let mut file = File::create(&tmp_path).await?;
     let record = SegmentFileMetadataRecord::from(metadata);
     write_length_delimited_message(&mut file, &record).await?;
     file.flush().await?;
     file.shutdown().await?;
+    drop(file);
+
+    tokio::fs::rename(&tmp_path, &metadata_path).await?;
     Ok(())
 }

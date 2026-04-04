@@ -76,19 +76,24 @@ impl ShardWriter {
 
     /// Writes a single `ChunkDescriptor` to the shard file.
     ///
-    /// Entries **must** be provided in ascending hash order.
+    /// Entries **must** be provided in ascending hash order.  Violating this
+    /// invariant returns an error in all build profiles (including release),
+    /// because a mis-sorted shard would silently corrupt the binary-search
+    /// and interpolation-search results in [`super::shard_reader::ShardReader`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the write fails.
+    /// Returns an error if the write fails or if `descriptor.hash` is not
+    /// greater than or equal to the hash of the previously written entry.
     pub async fn write(&mut self, descriptor: &ChunkDescriptor) -> Result<()> {
-        debug_assert!(
-            descriptor.hash >= self.max_hash,
-            "ChunkDescriptor entries must be written in ascending hash order; \
-             previous hash: {:?}, current hash: {:?}",
-            hex::encode(&self.max_hash),
-            hex::encode(&descriptor.hash),
-        );
+        if !self.max_hash.is_empty() && descriptor.hash < self.max_hash {
+            return Err(eyre!(
+                "ChunkDescriptor entries must be written in ascending hash order; \
+                 previous hash: {}, current hash: {}",
+                hex::encode(&self.max_hash),
+                hex::encode(&descriptor.hash),
+            ));
+        }
 
         self.offsets.push(self.current_offset);
 
