@@ -80,8 +80,8 @@ The execution engine. Uses **Apalis** to manage Redis job queues.
 The planner.
 
 * **Role**: Two persistent CRON jobs:
-  * **`wakeup`** (every 10 min by default): Iterates configured hosts, enqueues `BackupQueueJob::Save` when the scheduling window is reached. Uses `SET NX PX 30s` to prevent duplicates.
-  * **`nightly`** (02:30 UTC by default): Enqueues `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup.
+  * **`wakeup`** (every 15 min by default): Iterates configured hosts, enqueues `BackupQueueJob::Save` when the scheduling window is reached. Uses `SET NX PX 30s` to prevent duplicates.
+  * **`nightly`** (midnight UTC by default): Enqueues `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup.
 * **Note**: It *never* contacts clients directly.
 
 ## State Management

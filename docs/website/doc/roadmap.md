@@ -2,8 +2,7 @@
 
 These are the features I would like to develop:
 
-- Automatic backup deletion (based on scheduler)
-- Additional snapshot backends and policy controls (LVM, ZFS, explicit enable/disable per job)
-- More unit tests and e2e testing
+- Additional snapshot backends (LVM, ZFS) and explicit per-job snapshot policy controls
+- More unit tests and end-to-end testing
 - Custom chunk size configuration
-- Options to control the hash collision handling (currently using Blake3)
+- Options to handle hash collisions (currently Blake3 is used; collision probability is negligible but not zero)

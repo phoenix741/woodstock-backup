@@ -110,8 +110,7 @@ In a sample of 3,500,000 files, we didn't encounter any collision using MD5.
 
 ### Structure of the pool
 
-The pool uses the file system as a hash table. The pool must be stored on a filesystem where the number of files has no limit. A SHA-256 can
-have approximately `1.15 x 10^77` different possible values.
+The pool uses the file system as a hash table. The pool must be stored on a filesystem where the number of files has no limit. A SHA-256 or Blake3 hash can have approximately `1.15 x 10^77` different possible values.
 
 Even with the pool split into different directories, the potential number of files would still be very high.
 
@@ -119,23 +118,30 @@ Older filesystems like FAT32 and EXT2 cannot be used efficiently (even if it dep
 
 Recommended filesystems include: EXT4, Btrfs, XFS, NTFS, and other modern filesystems.
 
-The pool is organized in a directory structure with three levels. The first three levels use the first 3 bytes of the SHA-256 hash.
+The pool is organized in a directory structure with three levels. The first three levels use the first 3 bytes of the hash.
 This directory structure helps limit the number of locks on chunk and reference count files.
 
-```bash
- pool
-   ├── aa
-   │    ├── aa
-   │    │    ├── aa
-   │    │    │    └── aaaaaacdefghih-sha256.zz
-   │    │    │    └── aaaaaacdefghih-sha256.info
-   ├── unused
-   ├── statistics.yml
-   ├── REFCNT
-   ├── history.yml
-   ├── disk_history.yml
-   └── _new (temporary directory for chunk creation)
 ```
+pool/
+├── algorithm               # Active hash algorithm (blake3, sha2_256, sha3_256)
+├── REFCNT                  # Binary reference count database
+├── REFCNT.dirty            # Consistency marker (present while a refcount operation is in progress)
+├── refcnt/                 # Pending refcount operations
+│   └── pending/
+├── unused                  # List of chunks with zero references (candidates for deletion)
+├── statistics.yml          # Pool statistics
+├── history.yml             # Historical pool stats
+├── _new/                   # Temporary directory for chunk creation
+└── <xx>/                   # First byte of hash (hex)
+     └── <xx>/              # Second byte of hash (hex)
+          └── <xx>/         # Third byte of hash (hex)
+               ├── <hash>-sha256.zz    # Compressed chunk data
+               └── <hash>-sha256.info  # Chunk metadata (Protobuf)
+```
+
+> **Note on file naming**: Despite the `-sha256.zz` suffix, the hash algorithm used is determined by the `algorithm` file,
+> not by the filename. New pools may use Blake3 while still storing chunks with the `-sha256.zz` naming convention
+> inherited from the original implementation.
 
 The `unused` file lists all the chunks that are not used in any backup. This file is used to purge the pool.
 The `REFCNT` file counts the number of times each chunk is used across all backups. A lock mechanism is used when the

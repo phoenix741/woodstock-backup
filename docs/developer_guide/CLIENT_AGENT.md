@@ -32,7 +32,7 @@ The agent operates in "passive gRPC server" mode. It listens on a configurable T
 3. **Snapshot Manager (`src/storage/snapshots/`)**
     * Before any file read operation, the agent attempts to create a consistent snapshot.
     * **Linux (Btrfs)**: `btrfs.rs` driver — Implemented. Creates a read-only snapshot via `btrfs subvolume snapshot`. Optional sudo support.
-    * **Windows (VSS)**: Not yet implemented (planned).
+    * **Windows (VSS)**: `vss.rs` driver — Implemented. Supports local drive-letter volumes (e.g. `C:\`, `D:\`). UNC paths (`\\server\share`) are not supported.
     * **Linux (ZFS)**: Not yet implemented (planned).
     * `FileSystemAccessor` (`src/storage/accessor.rs`): Unified abstraction managing path redirections to the mounted snapshot.
 

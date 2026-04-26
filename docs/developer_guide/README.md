@@ -31,7 +31,7 @@ This folder contains the technical documentation for developers who want to cont
 5. **[Client & Agent](CLIENT_AGENT.md)**
     * Binaries: `ws_client_daemon`, `ws_client_console`.
     * Implemented gRPC methods (`WoodstockClientService`).
-    * Snapshot drivers (Btrfs implemented; ZFS, VSS planned).
+    * Snapshot drivers (Btrfs and VSS/Windows implemented; ZFS planned).
     * File scanner and metadata handling (ACL, Xattr).
     * Network discovery (mDNS) and automatic updates.
 

@@ -41,7 +41,7 @@ Unlike systems where clients push their backups, Woodstock uses a Pull model:
 The "Server" is not a single process but a collection of specialised binaries working in concert:
 
 * **API Server (`api_server`)**: Management interface for the Frontend (Vue.js). Exposes a REST API and a **GraphQL** API (with WebSocket Subscriptions for real-time progress). Does not perform heavy work.
-* **Scheduler (`scheduler`)**: Lightweight metronome that injects tasks into the job queue via two CRON jobs (wakeup every 10 min + nightly maintenance).
+* **Scheduler (`scheduler`)**: Lightweight metronome that injects tasks into the job queue via two CRON jobs (wakeup every 15 min + nightly maintenance at midnight UTC).
 * **Job Worker (`job_worker`)**: Heavy-duty worker that processes backups, restores, and maintenance. Consumes 4 distinct Redis queues via **Apalis**. Can be scaled horizontally.
 * **Client API (`client_api_server`)**: HTTP server with mTLS. Allows agents to register themselves (notify their network address). This is *not* a gRPC server — it is an Axum endpoint secured by client certificate.
 

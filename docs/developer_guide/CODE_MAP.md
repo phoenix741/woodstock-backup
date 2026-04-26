@@ -95,7 +95,8 @@ Internal modules:
   * `metadata/` : OS metadata abstraction (ACLs, Xattrs, permissions — Unix/Windows split with feature gating).
 * `src/storage/` : Snapshot management.
   * `snapshots/btrfs.rs` : **Btrfs** driver (implemented, Linux).
-  * `snapshots/` : ZFS and VSS (Windows) — **planned, not yet implemented**.
+  * `snapshots/vss.rs` : **VSS** driver (implemented, Windows — local drive-letter volumes only).
+  * `snapshots/` : ZFS — **planned, not yet implemented**.
   * `accessor.rs` : `FileSystemAccessor` — unified access with path redirections for snapshots.
 * `src/authentification.rs` : JWT authentication and session management (configurable timeout).
 * `src/resolve/` : Server discovery — Direct or **mDNS** (feature gated).
