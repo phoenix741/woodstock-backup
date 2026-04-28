@@ -1,3 +1,10 @@
+# [2.0.0-alpha.59](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.58...v2.0.0-alpha.59) (2026-04-28)
+
+
+### Bug Fixes
+
+* **api:** align ClientType serialization between front and back ([12dc0b3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/12dc0b31c07db4781f321ec9c9126113c373cba8)), closes [#104](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/104)
+
 # [2.0.0-alpha.58](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0-alpha.57...v2.0.0-alpha.58) (2026-04-02)
 
 
