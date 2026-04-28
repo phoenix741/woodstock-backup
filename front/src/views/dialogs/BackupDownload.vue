@@ -14,13 +14,9 @@
           <AgentWindowsMD></AgentWindowsMD>
         </v-card-text>
         <v-card-text v-else-if="client == ClientType.Linux || client == ClientType.LinuxLite">
-          <v-alert
-            v-if="client == ClientType.LinuxLite"
+          <v-alert v-if="client == ClientType.LinuxLite"
             text="The Lite agent does not handle reading ACLs (Access Control Lists) or XATTRs (Extended Attributes). The advantage of the Lite agent is that it has fewer dependencies on the system, making it easier to install and run in environments with limited resources or permissions."
-            title="Agent lite"
-            type="info"
-            variant="tonal"
-          ></v-alert>
+            title="Agent lite" type="info" variant="tonal"></v-alert>
           <AgentLinuxMD></AgentLinuxMD>
         </v-card-text>
         <v-card-text v-else-if="client == ClientType.LinuxDeb">
@@ -35,14 +31,8 @@
         <v-card-actions class="my-2 d-flex justify-end">
           <v-btn class="text-none" rounded="xl" text="Cancel" @click="isActive.value = false"></v-btn>
 
-          <v-btn
-            class="text-none"
-            color="primary"
-            rounded="xl"
-            text="Download"
-            variant="flat"
-            @click="downloadClientAgent()"
-          ></v-btn>
+          <v-btn class="text-none" color="primary" rounded="xl" text="Download" variant="flat"
+            @click="downloadClientAgent()"></v-btn>
         </v-card-actions>
       </v-card>
     </template>
@@ -54,36 +44,16 @@
 
       <v-menu activator="parent" location="bottom end" transition="fade-transition">
         <v-list density="compact" min-width="250" rounded="lg" slim>
-          <v-list-item
-            prepend-icon="mdi-microsoft-windows"
-            title="Download Windows agent"
-            link
-            @click="openDialog(ClientType.Windows)"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-penguin"
-            title="Download Linux agent"
-            link
-            @click="openDialog(ClientType.Linux)"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-debian"
-            title="Download Linux agent (DEB)"
-            link
-            @click="openDialog(ClientType.LinuxDeb)"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-penguin"
-            title="Download lite Linux agent"
-            link
-            @click="openDialog(ClientType.LinuxLite)"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-cog-outline"
-            title="Download configuration only"
-            link
-            @click="openDialog(ClientType.None)"
-          ></v-list-item>
+          <v-list-item prepend-icon="mdi-microsoft-windows" title="Download Windows agent" link
+            @click="openDialog(ClientType.Windows)"></v-list-item>
+          <v-list-item prepend-icon="mdi-penguin" title="Download Linux agent" link
+            @click="openDialog(ClientType.Linux)"></v-list-item>
+          <v-list-item prepend-icon="mdi-debian" title="Download Linux agent (DEB)" link
+            @click="openDialog(ClientType.LinuxDeb)"></v-list-item>
+          <v-list-item prepend-icon="mdi-penguin" title="Download lite Linux agent" link
+            @click="openDialog(ClientType.LinuxLite)"></v-list-item>
+          <v-list-item prepend-icon="mdi-cog-outline" title="Download configuration only" link
+            @click="openDialog(ClientType.None)"></v-list-item>
 
           <v-divider class="my-2"></v-divider>
 
@@ -137,11 +107,6 @@ function downloadClientAgent() {
 
   // Download client at /api/hosts/{name}/client
   const deviceId = props.deviceId;
-
-  let clientType = client.value;
-  if (clientType === ClientType.LinuxDeb) {
-    clientType = ClientType.None;
-  }
 
   // Fetch the agent
   fetch(`/api/hosts/${deviceId}/client?client=${client.value}`)

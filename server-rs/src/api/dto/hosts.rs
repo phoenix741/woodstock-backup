@@ -5,10 +5,11 @@ use utoipa::ToSchema;
 use async_graphql::{Enum, ID};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "kebab-case")]
 pub enum ClientType {
     Windows,
     Linux,
+    LinuxDeb,
     LinuxLite,
     #[default]
     None,

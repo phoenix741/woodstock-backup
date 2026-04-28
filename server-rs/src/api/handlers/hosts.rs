@@ -37,7 +37,7 @@ fn zip_url_mapping(client_type: &ClientType) -> Option<&'static str> {
         ClientType::Windows => Some("binaries-windows-x86_64-pc-windows-msvc.zip"),
         ClientType::Linux => Some("binaries-linux-x86_64-unknown-linux-gnu.zip"),
         ClientType::LinuxLite => Some("binaries-linux-lite-x86_64-unknown-linux-gnu.zip"),
-        ClientType::None => None,
+        ClientType::LinuxDeb | ClientType::None => None,
     }
 }
 
@@ -279,7 +279,7 @@ server: https://localhost:8443
                     .await?;
 
                 // Binaire client si demandé
-                if !matches!(client_type_clone, ClientType::None) {
+                if !matches!(client_type_clone, ClientType::None | ClientType::LinuxDeb) {
                     let version = find_version();
                     match find_client(&client_type_clone, version).await {
                         Ok(client_binary) => {
