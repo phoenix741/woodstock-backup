@@ -54,13 +54,22 @@ Woodstock Backup was developed to solve two major limitations of traditional bac
 
 Here are some screenshots of the Woodstock Backup web interface that provide an overview of the different features.
 
-![Devices Light](../images/devices.png =640x)
+![Devices Light](/images/devices.png =640x)
 ----
 
-![Pool Light](../images/pool.png =640x)
+![Pool Light](/images/pool.png =640x)
 ----
 
-![Tasks Light](../images/tasks.png =640x)
+![Events](/images/events.png =640x)
 ----
 
-![Tasks Dark](../images/tasks_dark.png =640x)
+![Backups List](/images/backups.png =640x)
+----
+
+![Backup Details](/images/backup_details.png =640x)
+----
+
+![Tasks Light](/images/tasks.png =640x)
+----
+
+![Tasks Dark](/images/tasks_dark.png =640x)
