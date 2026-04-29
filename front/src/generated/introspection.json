@@ -1,0 +1,25 @@
+{
+  "possibleTypes": {
+    "BackupQueueData": [
+      "JobBackupData",
+      "JobCleanupData",
+      "JobFsckData",
+      "JobRemoveData",
+      "JobRestoreData",
+      "JobStatsData"
+    ],
+    "BackupQueueProgress": [
+      "JobBackupTaskState",
+      "JobCleanerTaskState",
+      "JobFsckTaskState",
+      "JobRemoveState",
+      "JobRestoreTaskState"
+    ],
+    "EventInformation": [
+      "EventBackupInformation",
+      "EventHashConversionInformation",
+      "EventPoolCleanedInformation",
+      "EventPoolInformation"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+[package]
+name = "ws_backuppc_importer"
+description = "Woodstock BackupPC Importer"
+version = "2.0.0-alpha.59"
+edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-stream = { workspace = true }
+backuppc_pool_reader = "^2.0"
+chrono.workspace = true
+clap = { workspace = true }
+color-eyre = { workspace = true }
+console = { workspace = true }
+eyre = { workspace = true }
+futures = { workspace = true }
+indicatif = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+lru = { workspace = true }
+sha3 = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+woodstock-rs = { workspace = true }
+uuid = { workspace = true }

@@ -1,0 +1,39 @@
+{
+  // Utilisez IntelliSense pour en savoir plus sur les attributs possibles.
+  // Pointez pour afficher la description des attributs existants.
+  // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "self-update",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_client_daemon",
+        ]
+      },
+      "args": [
+        "self-update"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "start daemon",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_client_daemon",
+        ]
+      },
+      "args": [
+        "--config-dir",
+        "/home/phoenix/.woodstock"
+      ]
+    }
+  ]
+}

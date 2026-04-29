@@ -1,0 +1,361 @@
+syntax = "proto3";
+
+package woodstock;
+
+// Event Protocol
+
+enum EventType {
+  reserved 3, 5;
+
+  EVENT_TYPE_BACKUP          = 0;
+  EVENT_TYPE_RESTORE         = 1;
+  EVENT_TYPE_DELETE          = 2;
+  EVENT_TYPE_POOL_CHECKED    = 4;
+  EVENT_TYPE_POOL_CLEANED    = 6;
+  EVENT_TYPE_HASH_CONVERSION = 7;
+}
+
+enum EventStep {
+  EVENT_STEP_START = 0;
+  EVENT_STEP_END   = 1;
+}
+
+enum EventSource {
+  EVENT_SOURCE_USER      = 0;
+  EVENT_SOURCE_WOODSTOCK = 1;
+  EVENT_SOURCE_IMPORT    = 2;
+  EVENT_SOURCE_CLI       = 3;
+}
+
+enum EventStatus {
+  EVENT_STATUS_NONE                = 0;
+  EVENT_STATUS_SUCCESS             = 1;
+  EVENT_STATUS_CLIENT_DISCONNECTED = 2;
+  EVENT_STATUS_SERVER_CRASHED      = 3;
+  EVENT_STATUS_GENERIC_ERROR       = 4;
+}
+
+message EventBackupInformation {
+  string          hostname   = 1;
+  uint64          number     = 2;
+  repeated string share_path = 3;
+  string          id         = 4;
+}
+
+message EventPoolInformation {
+  bool   fix            = 1;
+  uint64 refcount       = 2;
+  uint64 refcount_error = 3;
+  uint64 in_unused      = 4;
+  uint64 in_refcnt      = 5;
+  uint64 in_nothing     = 6;
+  uint64 missing        = 7;
+  uint64 chunk_count    = 8;
+  uint64 chunk_error    = 9;
+}
+
+message EventPoolCleanedInformation {
+  uint64 size  = 1;
+  uint64 count = 2;
+}
+
+message HashConversionInformation {
+  uint64         count     = 1;
+  ChunkAlgorithm algorithm = 2;
+}
+
+message Event {
+  reserved 9;
+
+  bytes           id             = 12;
+  EventType       event_type     = 1;
+  EventStep       step           = 2;
+  uint64          timestamp      = 3;
+  EventSource     source         = 4;
+  string          user           = 5;
+  repeated string error_messages = 6;
+  EventStatus     status         = 7;
+
+  oneof information {
+    EventBackupInformation      backup          = 8;
+    EventPoolCleanedInformation pool_cleaned    = 10;
+    EventPoolInformation        pool            = 11;
+    HashConversionInformation   hash_conversion = 13;
+  }
+}
+
+// Pool Protocol
+
+enum ChunkAlgorithm {
+  CHUNK_ALGORITHM_BLAKE3   = 0;
+  CHUNK_ALGORITHM_SHA3_256 = 1;
+  CHUNK_ALGORITHM_SHA2_256 = 2;
+}
+
+message PoolUnused {
+  bytes  sha256          = 1;
+  uint64 size            = 3;
+  uint64 compressed_size = 4;
+}
+
+message PoolRefCount {
+  bytes  sha256          = 1;
+  uint32 ref_count       = 2;
+  uint64 size            = 3;
+  uint64 compressed_size = 4;
+}
+
+// Backup Protocol
+
+message Empty {
+
+}
+
+enum FileManifestType {
+  reserved 7 to 98;
+
+  FILE_MANIFEST_TYPE_REGULAR_FILE      = 0;
+  FILE_MANIFEST_TYPE_SYMLINK           = 1;
+  FILE_MANIFEST_TYPE_DIRECTORY         = 2;
+  FILE_MANIFEST_TYPE_BLOCK_DEVICE      = 3;
+  FILE_MANIFEST_TYPE_CHARACTER_DEVICE  = 4;
+  FILE_MANIFEST_TYPE_FIFO              = 5;
+  FILE_MANIFEST_TYPE_SOCKET            = 6;
+  FILE_MANIFEST_TYPE_UNKNOWN           = 99;
+}
+
+message FileManifestStat {
+  uint32           owner_id       = 1;
+  uint32           group_id       = 2;
+  uint64           size           = 3;
+  uint64           compressed_size = 4;
+  int64            last_read      = 5;
+  int64            last_modified  = 6;
+  int64            created        = 7;
+  uint32           mode           = 8;
+  FileManifestType file_type      = 9;
+
+  uint64 dev  = 10;
+  uint64 rdev = 11;
+
+  uint64 ino   = 12;
+  uint64 nlink = 13;
+}
+
+enum FileManifestAclQualifier {
+  FILE_MANIFEST_ACL_QUALIFIER_UNDEFINED = 0;
+  FILE_MANIFEST_ACL_QUALIFIER_USER_OBJ  = 1;
+  FILE_MANIFEST_ACL_QUALIFIER_GROUP_OBJ = 2;
+  FILE_MANIFEST_ACL_QUALIFIER_OTHER     = 3;
+  FILE_MANIFEST_ACL_QUALIFIER_USER_ID   = 4;
+  FILE_MANIFEST_ACL_QUALIFIER_GROUP_ID  = 5;
+  FILE_MANIFEST_ACL_QUALIFIER_MASK      = 6;
+}
+
+message FileManifestAcl {
+  FileManifestAclQualifier qualifier = 1;
+  uint32                   id        = 2;
+  uint32                   perm      = 3;
+}
+
+message FileManifestXAttr {
+  bytes key   = 1;
+  bytes value = 2;
+}
+
+// File manifest used to store the content of a file
+message FileManifest {
+  bytes            path    = 1;
+  FileManifestStat stats   = 2;
+  bytes            symlink = 3;
+
+  repeated FileManifestXAttr xattr = 4;
+  repeated FileManifestAcl   acl   = 5;
+
+  repeated bytes chunks = 6;
+  bytes          hash   = 8;
+
+  map<string, bytes> metadata = 7;
+}
+
+// Snapshot method used to protect a share before backup
+enum SnapshotMethod {
+  SNAPSHOT_METHOD_NONE  = 0;
+  SNAPSHOT_METHOD_BTRFS = 1;
+  SNAPSHOT_METHOD_VSS   = 2;
+}
+
+// Result of a snapshot creation attempt, sent as the first entry in a
+// SynchronizeFileList stream (entry_type = ENTRY_TYPE_SNAPSHOT_INFO).
+message ShareSnapshotResult {
+  SnapshotMethod method         = 1;
+  optional string failure_reason = 2;
+}
+
+enum EntryType {
+  // Add a new file
+  ENTRY_TYPE_ADD = 0;
+  // Modify a file
+  ENTRY_TYPE_MODIFY = 1;
+  // Remove a file
+  ENTRY_TYPE_REMOVE = 2;
+  // First entry of a SynchronizeFileList stream: snapshot metadata for the share
+  ENTRY_TYPE_SNAPSHOT_INFO = 3;
+}
+
+enum EntryState {
+  reserved 4 to 98;
+
+  ENTRY_STATE_METADATA                = 0;
+  ENTRY_STATE_PARTIAL_METADATA        = 1;
+  ENTRY_STATE_CHUNKS                  = 2;
+  ENTRY_STATE_CHUNKS_PARTIAL_METADATA = 3;
+  ENTRY_STATE_ERROR                   = 99;
+}
+
+// Journal entry
+message FileManifestJournalEntry {
+  EntryType    entry_type = 1;
+  FileManifest manifest   = 2;
+
+  EntryState      state          = 3;
+  repeated string state_messages = 4;
+
+  uint64 xfer_start       = 5;
+  uint64 xfer_calculation = 6;
+  uint64 xfer_duration    = 7;
+  uint64 xfer_check       = 8;
+
+  // Per-chunk sizes for efficient refcnt reconstruction without reading .info files from pool.
+  // Parallel arrays indexed by position in manifest.chunks.
+  // Absent (empty) means old format: fallback to repair() reading .info files.
+  repeated uint64 chunk_sizes            = 9;
+  repeated uint64 chunk_compressed_sizes = 10;
+
+  // Only set when entry_type == ENTRY_TYPE_SNAPSHOT_INFO (first entry of a stream).
+  optional ShareSnapshotResult snapshot_result = 11;
+}
+
+message Share {
+  string          share_path = 1;
+  repeated string includes   = 2;
+  repeated string excludes   = 3;
+}
+
+message RefreshCacheRequest {
+  oneof payload {
+    Share        header        = 1;
+    FileManifest file_manifest = 2;
+  }
+}
+
+message ChunkHashRequest {
+  string         share_path = 1;
+  bytes          filename   = 2;
+  ChunkAlgorithm algorithm  = 3;
+}
+
+message ChunkHashReply {
+  repeated bytes chunks = 1;
+  bytes          hash   = 2;
+}
+
+message ChunkInformation {
+  string share_path = 1;
+  bytes  filename   = 2;
+  // If empty the whole file is requested
+  repeated uint64 chunks_id = 3;
+  ChunkAlgorithm  algorithm = 4;
+}
+
+message FileChunkData {
+  bytes data = 1;
+}
+
+message FileChunkHeader {
+  uint64 chunk_id = 1;
+}
+
+message FileChunkFooter {
+  bytes chunk_hash = 1;
+}
+
+// Only when whole file is requested
+message FileChunkEndOfFile {
+  bytes hash = 1;
+}
+
+message FileChunk {
+  oneof payload {
+    FileChunkHeader    header = 1;
+    FileChunkData      data   = 2;
+    FileChunkFooter    footer = 3;
+    FileChunkEndOfFile eof    = 4;
+  }
+}
+
+message ExecuteCommandRequest {
+  string command = 1;
+}
+
+message ExecuteCommandReply {
+  int32  code   = 1;
+  string stdout = 2;
+  string stderr = 3;
+}
+
+message AuthenticateRequest {
+  uint32 version = 1;
+  string token   = 2;
+}
+
+message AuthenticateReply {
+  string agent_version = 1;
+  string session_id    = 3;
+}
+
+message PingRequest {
+  string hostname = 1;
+}
+
+// Message for file restore requests
+message RestoreFileRequest {
+  oneof request {
+    FileManifest manifest = 1; // File metadata
+    bytes        chunk    = 2; // File data chunk
+  }
+}
+
+// Message for file restore replies
+message RestoreFileReply {
+  bytes  path     = 1;
+  bool   restored = 2;
+  string message  = 3;
+}
+
+service WoodstockClientService {
+  // Tools
+  rpc Ping(PingRequest) returns (Empty) {}
+
+  // 0. Authenticate
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateReply);
+
+  // 1. Execute a command directly on the client
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (ExecuteCommandReply) {}
+
+  // 2. Synchronize the file list for a share between the client and the server (can be made in parallel for multiple shares)
+  rpc SynchronizeFileList(stream RefreshCacheRequest) returns (stream FileManifestJournalEntry) {}
+
+  // 3. Ask for hash of the file before asking only modified hash of the file
+  rpc GetChunkHash(ChunkHashRequest) returns (ChunkHashReply) {}
+
+  // 3. When the server receives a journal entry, the server will compare the chunk with the manifest
+  //    and ask all necessary chunks from the client.
+  rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
+
+  // Free the client
+  rpc CloseBackup(Empty) returns (Empty) {}
+
+  // 4. Restore files on the client
+  rpc RestoreFile(stream RestoreFileRequest) returns (stream RestoreFileReply) {}
+}

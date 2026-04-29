@@ -1,0 +1,23 @@
+{
+  "name": "website",
+  "version": "2.0.0-alpha.59",
+  "private": true,
+  "description": "Woodstock backup documentation",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "serve": "vitepress serve",
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "author": "Ulrich Vandenhekke",
+  "license": "ISC",
+  "dependencies": {
+    "@datagouv/vitepress-plugin-matomo": "^1.0.5",
+    "markdown-it-imsize": "^2.0.1",
+    "markdown-it-plantuml": "^1.4.1",
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.29"
+  }
+}

@@ -1,0 +1,35 @@
+#import "./FragmentBackupStatus.graphql"
+
+query Backup($hostname: String!, $id: String!) {
+  backup(hostname: $hostname, id: $id) {
+    id
+
+    number
+    status {
+      ...BackupStatusFields
+    }
+
+    startDate
+    endDate
+
+    errorCount
+
+    fileCount
+    newFileCount
+    existingFileCount
+    removedFileCount
+    modifiedFileCount
+
+    fileSize
+    newFileSize
+    existingFileSize
+
+    speed
+
+    shareRecords {
+      path
+      snapshotMethod
+      snapshotFailureReason
+    }
+  }
+}

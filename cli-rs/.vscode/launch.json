@@ -1,0 +1,129 @@
+{
+  // Utilisez IntelliSense pour en savoir plus sur les attributs possibles.
+  // Pointez pour afficher la description des attributs existants.
+  // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Mount",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "mount",
+        "--hostname",
+        "pc-ulrich",
+        "--backup-number",
+        "21",
+        "/home/phoenix/tmp/test"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Migrate",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "convert-hash-repo",
+        "/media/phoenix/298c48fb-d146-46db-94dc-f73bc90e2268/",
+        "Blake3"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "resolve-m-dns",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "args": [
+        "resolve-m-dns",
+        "pc-m-ulrich"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "wsrestore",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_restore",
+        ]
+      },
+      "env": {
+        "BACKUP_PATH": "/var/lib/woodstock",
+        "RUST_LOG": "debug"
+      },
+      "args": [
+        "pc-ulrich",
+        "192.168.101.14:3657",
+        "23",
+        "/home",
+        "--destination-directory",
+        "/home/phoenix/tmp/test/",
+        "--filter",
+        "phoenix/Downloads/"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "ws_console_readlog",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_console",
+        ]
+      },
+      "env": {
+        "BACKUP_PATH": "/media/phoenix/fa590744-57fc-4a88-9ae3-be9092f0d624/woodstock",
+        "RUST_LOG": "debug"
+      },
+      "args": [
+        "read-log",
+        "pc-eve",
+        "35",
+        "C:\\"
+      ]
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "WS Sync",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin",
+          "ws_sync"
+        ]
+      },
+      "env": {
+        "BACKUP_PATH": "/media/phoenix/fa590744-57fc-4a88-9ae3-be9092f0d624/woodstock",
+        "RUST_LOG": "debug"
+      },
+      "args": [
+        "pc-ulrich",
+        "192.168.101.14:3657",
+      ]
+    }
+  ]
+}

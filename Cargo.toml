@@ -1,0 +1,133 @@
+[workspace]
+members = [
+  "backuppc-importer-rs",
+  "cli-rs",
+  "client-rs",
+  "server-rs",
+  "woodstock-rs",
+  "e2e-tests",
+]
+resolver = "2"
+
+[workspace.dependencies]
+# Common async runtime and utilities
+tokio = { version = "^1.50", features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "signal",
+  "sync",
+] }
+futures = "^0.3"
+futures-util = "^0.3"
+async-stream = "^0.3"
+tokio-stream = "^0.1"
+tokio-util = "^0.7"
+
+# Serialization
+serde = { version = "^1.0", features = ["derive"] }
+serde_json = "^1.0"
+serde_yaml_ng = "^0.10"
+
+# Logging
+tracing = "^0.1"
+tracing-subscriber = { version = "^0.3", features = ["env-filter", "json"] }
+tracing-appender = "^0.2"
+
+# Error handling
+eyre = "^0.6"
+color-eyre = "^0.6"
+
+# Networking and gRPC
+tonic = { version = "^0.14", features = [
+  "tls-ring",
+  "tls-webpki-roots",
+  "gzip",
+] }
+
+# HTTP Client
+reqwest = { version = "^0.13", features = ["json"] }
+
+# Utilities
+uuid = { version = "^1.22", features = [
+  "v4",
+  "v7",
+  "fast-rng",
+  "macro-diagnostics",
+  "serde",
+] }
+hex = { version = "^0.4", features = ["serde"] }
+chrono = { version = "^0.4", features = ["serde"] }
+rand = "^0.10"
+lru = "^0.16"
+hyper-util = "^0.1"
+jsonwebtoken = { version = "^10.3", features = ["rust_crypto"] }
+mdns-sd = "^0.18"
+redis = { version = "0.32.5", features = [
+  "aio",
+  "tokio-comp",
+  "connection-manager",
+] }
+sysinfo = { version = "^0.38", default-features = true }
+tower = "^0.5"
+libc = "^0.2"
+
+# CLI and console
+clap = { version = "^4.5", features = ["derive"] }
+console = "^0.16"
+indicatif = "^0.18"
+
+# Cryptography and hashing
+ring = "0.17"
+rustls = { version = "0.23", features = [
+  "ring",
+  "logging",
+  "tls12",
+], default-features = false }
+sha2 = "^0.10"
+sha3 = "^0.10"
+blake3 = "1.8.3"
+
+# Compression
+async-compression = { version = "^0.4", features = [
+  "tokio",
+  "zstd",
+  "zlib",
+  "brotli",
+  "lzma",
+  "xz",
+] }
+
+# File system
+tempfile = "^3"
+
+# Globbing
+globset = "^0.4"
+
+# Base64 encoding
+base64 = "^0.22"
+
+# Internal dependencies
+woodstock-rs = { path = "woodstock-rs", default-features = false }
+
+[profile.dev.package.async-compression]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.dev.package.sha3]
+opt-level = 3
+
+[profile.dev.package.blake3]
+opt-level = 3
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+#debug = true
+
+[workspace.metadata.cross.build]
+pre-build = ["apt-get install -y protobuf-compiler"]

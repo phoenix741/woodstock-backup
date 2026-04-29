@@ -1,0 +1,510 @@
+name: Release
+
+env:
+  NODE_VERSION: 24.14.0
+
+permissions:
+  pull-requests: write
+  contents: write
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "master"
+      - "main"
+      - "alpha"
+      - "beta"
+
+jobs:
+  prerelease:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ubuntu-latest
+    outputs:
+      next_version: "${{ steps.next_version.outputs.next_version }}"
+    steps:
+      - name: Install dependencies
+        if: github.event_name == 'push'
+        run: |
+          apt-get update
+          apt-get install -y git-lfs jq
+
+      - name: Checkout project
+        if: github.event_name == 'push'
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        if: github.event_name == 'push'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        if: github.event_name == 'push'
+        run: npm ci
+
+      - name: Calculate next version
+        if: github.event_name == 'push'
+        id: next_version
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITEA_URL: https://gogs.shadoware.org
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npx semantic-release --dry-run | tee semantic_release_output.txt
+          NEXT_VERSION=$(grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-.]+)?' semantic_release_output.txt)
+          echo "Next detected version: \"$NEXT_VERSION\""
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+  unittest:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ubuntu-latest
+    container:
+      image: node:${{ env.NODE_VERSION }}-bookworm
+    services:
+      redis:
+        image: valkey/valkey:8-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev pkg-config
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+
+      - name: Install Node.JS
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Unit test (release)
+        run: cargo test --workspace -- --nocapture
+        env:
+          RUST_LOG: debug
+          REDIS_HOST: redis
+
+      - name: Install Node.JS dependencies
+        run: |
+          npm ci
+
+      - name: Build server (rust)
+        run: cargo build -p woodstock-server-rs
+
+      - name: Build front
+        run: |
+          cd front
+          npm run lint
+          npm run build
+          cd ..
+
+  dtrack:
+    needs: [prerelease]
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && contains(fromJson('["master", "main", "alpha", "beta", "develop"]'), github.ref_name)
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | tee -a /etc/apt/sources.list.d/trivy.list
+          apt-get update
+          apt-get install trivy
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Trivy vulnerability scanner
+        run: |
+          trivy fs --format cyclonedx --output dependency-results.cdx.json .
+
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Upload to DependencyTrack
+        uses: DependencyTrack/gh-upload-sbom@v3
+        with:
+          serverHostname: "dtrack-api.shadoware.org"
+          apiKey: ${{ secrets.DTRACK_APIKEY }}
+          projectName: "Woodstock backup"
+          projectVersion: ${{ steps.extract_branch.outputs.branch }}
+          projectTags: "woodstock-${{ needs.prerelease.outputs.next_version || '' }}"
+          bomFilename: "dependency-results.cdx.json"
+          autoCreate: true
+
+  clientrs:
+    needs: [prerelease]
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --features default
+            binary_name: binaries-linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            features: --no-default-features --features "mdns"
+            binary_name: binaries-linux-lite
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            features: --features default
+            binary_name: binaries-windows
+        # Disabled musl target for (depending of libm, libc,...)
+        # - os: ubuntu-latest
+        #   target: x86_64-unknown-linux-musl
+        # need dependencies: # musl-dev musl-tools
+
+    steps:
+      - name: Install dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: true
+
+      - name: Mise à jour des versions
+        if: github.event_name == 'push'
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
+
+      - name: Build (release)
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      - name: Archive binary
+        run: |
+          mkdir zipfile
+          cd target/${{ matrix.target }}/release
+          cp ws_client_daemon* ../../../zipfile
+          cp ws_console* ../../../zipfile
+          cp ws_backuppc_importer* ../../../zipfile
+
+      - name: Archive binary (Linux)
+        shell: bash
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd zipfile
+          find . -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+          zip -r "${{ matrix.binary_name }}-${{ matrix.target }}.zip" *
+
+      - name: Archive binary (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd zipfile
+          powershell -Command "Get-ChildItem -Path * -Exclude *.d,*.pdb | Compress-Archive -DestinationPath ${{ matrix.binary_name }}-${{ matrix.target }}.zip"
+
+      - name: Upload artifacts
+        uses: christopherhx/gitea-upload-artifact@v4
+        with:
+          name: ${{ matrix.binary_name }}
+          path: |
+            zipfile/${{ matrix.binary_name }}-${{ matrix.target }}.zip
+
+  upload:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [clientrs, unittest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs jq
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: true
+
+      - name: Installation de cargo-workspaces
+        run: cargo install cargo-workspaces
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+        run: npm audit signatures
+
+      - name: Download artifacts
+        uses: christopherhx/gitea-download-artifact@v4
+
+      - name: Import GPG key
+        if: github.event_name == 'push'
+        id: import-gpg
+        uses: https://github.com/crazy-max/ghaction-import-gpg@v4
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          fingerprint: 0C69E9FC3A34B91A
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: GPG user IDs
+        if: github.event_name == 'push'
+        run: |
+          echo "fingerprint: ${{ steps.import-gpg.outputs.fingerprint }}"
+          echo "keyid:       ${{ steps.import-gpg.outputs.keyid }}"
+          echo "name:        ${{ steps.import-gpg.outputs.name }}"
+          echo "email:       ${{ steps.import-gpg.outputs.email }}"
+
+      - name: Display structure of downloaded files
+        if: github.event_name == 'push'
+        run: |
+          mkdir zipfile
+          mv ./binaries-*/* ./zipfile/
+          cd ./zipfile
+          shasum --algorithm 256 --binary ./* | tee ./SHA256SUM.txt
+          cat ./SHA256SUM.txt
+          for file in *; do
+            gpg --batch --yes --armor --detach-sign "$file"
+          done
+
+      - name: Release
+        if: github.event_name == 'push'
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITEA_URL: https://gogs.shadoware.org
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GIT_AUTHOR_NAME: ${{ steps.import-gpg.outputs.name }}
+          GIT_AUTHOR_EMAIL: ${{ steps.import-gpg.outputs.email }}
+          GIT_COMMITTER_NAME: ${{ steps.import-gpg.outputs.name }}
+          GIT_COMMITTER_EMAIL: ${{ steps.import-gpg.outputs.email }}
+        run: npx semantic-release
+
+  debian_rs:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.target }}
+          cache: true
+
+      - name: Installation de cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Generate debian package
+        run: |
+          cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
+          cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
+          cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
+
+      - name: Publish package to debian gitea repository
+        if: github.event_name == 'push'
+        run: |
+          for file in target/${{ matrix.target }}/debian/*.deb; do
+            curl --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
+              --upload-file $file \
+              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
+          done
+
+  docker:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rust_version: 1
+            features: --features default
+    container:
+      image: catthehacker/ubuntu:act-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
+
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Get version from package.json
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Get metadata to tag server container image
+        if: github.event_name == 'push'
+        uses: https://github.com/docker/metadata-action@v4
+        id: meta
+        with:
+          context: git
+          # Liste des images Docker à utiliser comme base pour les tags
+          images: |
+            phoenix741/woodstock-backup
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+
+      - name: Get metadata to tag client container image
+        if: github.event_name == 'push'
+        uses: https://github.com/docker/metadata-action@v4
+        id: meta-client
+        with:
+          context: git
+          # Liste des images Docker à utiliser comme base pour les tags
+          images: |
+            phoenix741/woodstock-backup-client
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+
+      - name: Get metadata to tag website container image
+        if: github.event_name == 'push'
+        uses: https://github.com/docker/metadata-action@v4
+        id: meta-website
+        with:
+          context: git
+          # Liste des images Docker à utiliser comme base pour les tags
+          images: |
+            phoenix741/woodstock-backup-website
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+
+      - name: Setup docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        uses: docker/login-action@v2
+        if: github.event_name == 'push'
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: Build Server Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: Dockerfile
+          context: .
+          load: true
+          target: server
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            RUST_VERSION=${{matrix.rust_version}}
+            NODE_VERSION=${{ env.NODE_VERSION }}-slim
+            DEBIAN_VERSION=bookworm
+            FEATURES=${{matrix.features}}
+
+      - name: Build Client Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: Dockerfile
+          context: .
+          load: true
+          target: client
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta-client.outputs.tags }}
+          labels: ${{ steps.meta-client.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            RUST_VERSION=${{matrix.rust_version}}
+            NODE_VERSION=${{ env.NODE_VERSION }}-slim
+            DEBIAN_VERSION=bookworm
+            FEATURES=${{matrix.features}}
+
+      - name: Build Website Docker Image
+        uses: docker/build-push-action@v6
+        env:
+          ACTIONS_RUNTIME_TOKEN: ""
+        with:
+          file: ./docs/website/Dockerfile
+          context: ./docs/website
+          load: true
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta-website.outputs.tags }}
+          labels: ${{ steps.meta-website.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}

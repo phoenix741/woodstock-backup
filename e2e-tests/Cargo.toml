@@ -1,0 +1,21 @@
+[package]
+name = "e2e-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+woodstock-rs = { path = "../woodstock-rs" }
+woodstock-client-rs = { path = "../client-rs" }
+
+eyre = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "fs"] }
+tokio-stream = { workspace = true }
+hyper-util = { workspace = true }
+tracing = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+tonic = { workspace = true, features = ["tls-native-roots", "gzip"] }
+tempfile = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]

@@ -1,0 +1,88 @@
+[package]
+name = "woodstock-rs"
+description = "Woodstock Access Library"
+version = "2.0.0-alpha.59"
+edition = "2021"
+authors = ["Ulrich Vandenhekke"]
+license = "MIT"
+
+[package.metadata.deb]
+license-file = ["../LICENSE", "0"]
+maintainer-scripts = "debian/"
+systemd-units = { enable = true }
+
+[features]
+default = ["mdns"]
+mdns = ["dep:mdns-sd"]
+
+[lib]
+name = "woodstock"
+path = "src/lib.rs"
+
+[[bench]]
+name = "benchmark"
+harness = false
+
+[[bench]]
+name = "compression_benchmark"
+harness = false
+
+[dependencies]
+async-compression = { workspace = true }
+async-stream = { workspace = true }
+async-walkdir = "^2.1"
+base64 = { workspace = true }
+bytes = "^1.11"
+chrono = { workspace = true }
+dns-lookup = "^3.0"
+eyre = { workspace = true }
+futures = { workspace = true }
+globset = { workspace = true }
+hex = { workspace = true }
+hyper-util = { workspace = true }
+jsonwebtoken = { workspace = true }
+lru = { workspace = true }
+tracing = { workspace = true }
+mdns-sd = { workspace = true, optional = true }
+percent-encoding = "^2.3"
+prost = "^0.14"
+rand = { workspace = true }
+redis = { workspace = true, features = ["aio", "tokio-comp"] }
+rsa = "^0.9"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_path_serializer = "^1.0"
+serde_with = { version = "^3.17", features = ["hex", "base64"] }
+serde_yaml_ng = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true, features = ["asm"] }
+blake3 = { workspace = true, features = ["rayon", "mmap"] }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+ring = { workspace = true }
+rustls = { workspace = true }
+tonic = { workspace = true }
+tonic-prost = "^0.14"
+uuid = { workspace = true }
+reflink-copy = "0.1.29"
+fs4 = { version = "0.13.1", features = ["tokio"] }
+rayon = { version = "1.11" }
+libc = "0.2"
+sysinfo = { workspace = true }
+cron = "0.15.0"
+
+
+[target.'cfg(target_env = "musl")'.dependencies]
+libm = "^0.2"
+
+[dev-dependencies]
+test-log = "^0.2"
+tokio-stream = { version = "^0.1", features = ["net"] }
+tower = { version = "^0.5" }
+criterion = { version = "^0.8", features = ["html_reports"] }
+
+[build-dependencies]
+prost-build = "^0.14"
+tonic-prost-build = "^0.14"

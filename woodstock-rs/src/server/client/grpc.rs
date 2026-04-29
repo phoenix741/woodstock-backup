@@ -1,0 +1,447 @@
+use async_stream::try_stream;
+use futures::pin_mut;
+use futures::Stream;
+use std::future::Future;
+use std::net::SocketAddr;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::fs::read_to_string;
+use tokio::sync::Mutex;
+use tonic::{
+    transport::{Certificate, Channel, ClientTlsConfig, Identity},
+    Request,
+};
+use tracing::warn;
+use tracing::{debug, error, info};
+
+use crate::config::Configuration;
+use crate::utils::path::vec_to_path;
+use crate::woodstock;
+use crate::ChunkHashReply;
+use crate::ChunkHashRequest;
+use crate::ChunkInformation;
+use crate::ExecuteCommandReply;
+use crate::ExecuteCommandRequest;
+use crate::FileChunk;
+use crate::FileManifestJournalEntry;
+use crate::RefreshCacheRequest;
+use crate::{
+    utils::encryption::create_authentification_token,
+    woodstock_client_service_client::WoodstockClientServiceClient, AuthenticateReply,
+    AuthenticateRequest,
+};
+use eyre::Result;
+
+use super::Client;
+
+#[derive(Clone)]
+pub struct BackupGrpcClient {
+    /// The hostname of the server.
+    hostname: String,
+
+    /// The path to the certificates used for secure communication.
+    certs_path: PathBuf,
+
+    /// The gRPC client for interacting with the Woodstock service.
+    client: WoodstockClientServiceClient<Channel>,
+
+    /// The session ID for the current connection.
+    session_id: Arc<Mutex<Option<String>>>,
+}
+
+impl BackupGrpcClient {
+    /// Creates a new gRPC client for the Woodstock service.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname of the server.
+    /// * `addr` - The IP address of the server.
+    /// * `config` - The configuration for the client.
+    ///
+    /// # Returns
+    /// * `Ok(Self)` if the client was successfully created.
+    /// * `Err(eyre::Report)` if an error occurred during initialization.
+    ///
+    /// # Errors
+    /// This function returns an error if the client initialization fails.
+    pub async fn new(
+        hostname: &str,
+        addr: &SocketAddr,
+        config: Arc<Configuration>,
+    ) -> Result<Self> {
+        info!("Creating BackupGrpcClient with hostname = {hostname}, addr = {addr}");
+        let certs_path = config.path.certificates_path.clone();
+        let client = BackupGrpcClient::create_client(hostname, addr, &certs_path).await?;
+
+        Ok(BackupGrpcClient {
+            hostname: hostname.to_string(),
+            certs_path,
+
+            client,
+            session_id: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    /// Creates a gRPC client with a pre-existing client instance.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname of the server.
+    /// * `ip` - The IP address of the server.
+    /// * `client` - The pre-existing gRPC client instance.
+    /// * `certs_path` - The path to the certificates.
+    ///
+    /// # Returns
+    ///
+    /// A new instance of `BackupGrpcClient`.
+    pub fn with_client(
+        hostname: &str,
+        ip: &str,
+        client: WoodstockClientServiceClient<Channel>,
+        certs_path: &Path,
+    ) -> Self {
+        info!("Creating BackupGrpcClient with hostname = {hostname}, ip = {ip}");
+        BackupGrpcClient {
+            hostname: hostname.to_string(),
+            certs_path: certs_path.to_path_buf(),
+
+            client,
+            session_id: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Creates a gRPC request with the current session ID.
+    ///
+    /// # Arguments
+    /// * `request` - The request to send.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Request<T>)` if the session ID is available.
+    /// * `Err(tonic::Status)` if the session ID is not available.
+    async fn create_request<T>(
+        &self,
+        request: T,
+    ) -> std::result::Result<Request<T>, tonic::Status> {
+        let session_id = self.session_id.lock().await;
+        let session_id = session_id.clone();
+
+        if let Some(session_id) = session_id {
+            let mut request = Request::new(request);
+            // request.set_timeout(Duration::from_secs(60)); // TODO: Configurable
+            request.metadata_mut().insert(
+                "x-session-id",
+                session_id
+                    .parse()
+                    .map_err(|_| tonic::Status::invalid_argument("Can't parse x-session-id"))?,
+            );
+
+            Ok(request)
+        } else {
+            error!("No session id available to create request");
+            Err(tonic::Status::failed_precondition(
+                "No session id available",
+            ))
+        }
+    }
+
+    /// Creates a new gRPC client instance for the specified hostname and IP.
+    ///
+    /// # Arguments
+    /// * `hostname` - The hostname of the server.
+    /// * `ip` - The IP address of the server.
+    /// * `certs_path` - The path to the certificates.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(WoodstockClientServiceClient<Channel>)` if the client is successfully created.
+    /// * `Err(eyre::Report)` if an error occurs during client creation.
+    async fn create_client(
+        hostname: &str,
+        addr: &SocketAddr,
+        certs_path: &PathBuf,
+    ) -> Result<WoodstockClientServiceClient<Channel>> {
+        info!("Connecting to {hostname}, {addr}");
+
+        let certificate_path = &certs_path;
+        let server_root_ca_cert =
+            read_to_string(certificate_path.join(format!("{hostname}_ca.pem"))).await?;
+        let server_root_ca_cert = Certificate::from_pem(server_root_ca_cert);
+        let client_cert =
+            read_to_string(certificate_path.join(format!("{hostname}_client.pem"))).await?;
+        let client_key =
+            read_to_string(certificate_path.join(format!("{hostname}_client.key"))).await?;
+        let client_identity = Identity::from_pem(client_cert, client_key);
+
+        let tls = ClientTlsConfig::new()
+            .domain_name(hostname)
+            .ca_certificate(server_root_ca_cert)
+            .identity(client_identity);
+
+        let connection_string = format!("https://{}:{}", addr.ip(), addr.port());
+        // connect_lazy() ne crée pas immédiatement la connexion TCP : elle est établie
+        // lors du premier appel RPC réel. Cela permet de construire le client même si
+        // le host est temporairement injoignable, et de déléguer la gestion d'erreur
+        // à la phase d'authentification dans la machine de sauvegarde.
+        let channel = Channel::from_shared(connection_string)?
+            .connect_timeout(Duration::from_secs(60)) // TODO: Configurable
+            .keep_alive_timeout(Duration::from_secs(60))
+            .keep_alive_while_idle(true)
+            .tls_config(tls)?
+            .tcp_keepalive(Some(Duration::from_secs(30)))
+            .connect_lazy();
+
+        Ok(WoodstockClientServiceClient::new(channel))
+    }
+}
+
+impl Client for BackupGrpcClient {
+    fn ping(&self) -> impl Future<Output = Result<bool>> + Send {
+        let mut client = self.client.clone();
+        let hostname = self.hostname.clone();
+        async move {
+            info!("Pinging {}", hostname);
+
+            let request = Request::new(woodstock::PingRequest {
+                hostname: hostname.clone(),
+            });
+
+            let response = client.ping(request).await;
+
+            info!("Pong received from {}", hostname);
+            match response {
+                Ok(_) => Ok(true),
+                Err(e) => {
+                    if e.code() == tonic::Code::NotFound {
+                        Ok(false)
+                    } else {
+                        Err(e.into())
+                    }
+                }
+            }
+        }
+    }
+
+    fn authenticate(
+        &self,
+        password: &str,
+    ) -> impl Future<Output = Result<AuthenticateReply>> + Send {
+        let mut client = self.client.clone();
+        let hostname = self.hostname.clone();
+        let certs_path = self.certs_path.clone();
+        let password = password.to_string();
+        let self_session_id = self.session_id.clone();
+        async move {
+            info!("Authenticating to {}", hostname);
+
+            let token = create_authentification_token(&certs_path, &hostname, &password).await?;
+
+            let response = client
+                .authenticate(AuthenticateRequest { token, version: 0 })
+                .await?;
+
+            let session_id = &response.get_ref().session_id;
+
+            let mut self_session_id = self_session_id.lock().await;
+            self_session_id.replace(session_id.clone());
+
+            info!("Authenticated to {} with session id {session_id}", hostname);
+
+            Ok(response.into_inner())
+        }
+    }
+
+    fn execute_command(
+        &self,
+        command: &str,
+    ) -> impl Future<Output = Result<ExecuteCommandReply>> + Send {
+        let mut client = self.client.clone();
+        let command = command.to_string();
+        let self_client = self.clone(); // Assuming self has create_request which might need self
+                                        // check if create_request is async or needs &self.
+                                        // self.create_request is used in original code.
+                                        // It seems create_request is a method on BackupGrpcClient.
+                                        // I need to capture self or clone of self that has create_request.
+                                        // If BackupGrpcClient is Clone (it seems so), I can clone it.
+        async move {
+            let command = command; // move command into async block
+            info!("Executing command {command}");
+
+            let request = self_client
+                .create_request(ExecuteCommandRequest {
+                    command: command.clone(),
+                })
+                .await?;
+
+            let response = client.execute_command(request).await?;
+
+            info!(
+                "Command {command} executed with result {}",
+                response.get_ref().code
+            );
+            if !response.get_ref().stdout.is_empty() {
+                info!("{}", response.get_ref().stdout);
+            }
+            if !response.get_ref().stderr.is_empty() {
+                warn!("{}", response.get_ref().stderr);
+            }
+            Ok(response.into_inner())
+        }
+    }
+
+    fn synchronize_file_list(
+        &self,
+        cache: impl Stream<Item = RefreshCacheRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<FileManifestJournalEntry>> + '_ {
+        info!("Send cache refresh to {}", self.hostname);
+
+        let client = self.client.clone();
+        // create_request logic inside stream?
+        // Original code used `self.create_request(cache).await?`.
+        // try_stream! macro handles async.
+        // But `try_stream!` captures variables.
+        // self needs to be captured.
+        // The original code `fn synchronize_file_list` returned `impl Stream ...`.
+        // It uses `self.create_request`.
+        // Since the return type is `impl Stream + '_`, it can capture `&self`.
+        // So I don't need to change this method as it's not async fn, it's fn returning impl Stream.
+        // Wait, the TRAIT definition for synchronize_file_list was NOT changed (it was already fn -> impl Stream).
+        // So I only need to change ping, authenticate, execute_command, get_chunk_hash, close.
+
+        // COPY PASTE OF EXISTING BODY for synchronize_file_list IS NOT NEEDED as I am not changing it.
+        // BUT I must match the trait definition exactly.
+        // The trait definition is:
+        // fn synchronize_file_list(...) -> impl Stream...
+        // The implementation is:
+        // fn synchronize_file_list(...) -> impl Stream...
+        // So NO CHANGE needed for synchronize_file_list.
+
+        // I will only include it if replace_string requires context, but I should use precise replacement for changed methods.
+
+        try_stream!({
+            info!("Downloading file list from {}", self.hostname);
+
+            let mut client = client;
+
+            let request = self.create_request(cache).await?;
+
+            let messages = client.synchronize_file_list(request).await?;
+            let mut messages = messages.into_inner();
+
+            while let Some(message) = messages.message().await? {
+                debug!("Received file list entry from server");
+                yield message;
+            }
+
+            info!(
+                "Completed receving file list downloaded from {}",
+                self.hostname
+            );
+        })
+    }
+
+    fn get_chunk_hash(
+        &self,
+        request: ChunkHashRequest,
+    ) -> impl Future<Output = Result<ChunkHashReply>> + Send {
+        let client = self.client.clone();
+        let self_client = self.clone();
+        let hostname = self.hostname.clone();
+        async move {
+            debug!(
+                "Getting chunk hash from {} for {}",
+                hostname,
+                vec_to_path(&request.filename).display(),
+            );
+
+            let mut client = client;
+
+            let request = self_client.create_request(request).await?;
+
+            let result = client.get_chunk_hash(request).await?;
+
+            debug!(
+                "Received chunk {} hash from {}",
+                result.get_ref().chunks.len(),
+                hostname,
+            );
+
+            Ok(result.into_inner())
+        }
+    }
+
+    // get_chunk is Sync fn returning Stream, no change needed.
+
+    fn get_chunk(&self, request: ChunkInformation) -> impl Stream<Item = Result<FileChunk>> + '_ {
+        debug!(
+            "Getting chunk from {} for {} ({} chunks)",
+            self.hostname,
+            vec_to_path(&request.filename).display(),
+            request.chunks_id.len()
+        );
+
+        try_stream!({
+            let client = self.client.clone();
+            pin_mut!(client);
+
+            let request = self.create_request(request).await?;
+            let chunks = client.get_chunk(request).await?.into_inner();
+            pin_mut!(chunks);
+
+            while let Some(chunks) = chunks.message().await? {
+                debug!("Received chunk from server");
+                yield chunks;
+            }
+
+            debug!("Completed receiving chunk from {}", self.hostname);
+        })
+    }
+
+    // restore_file is Sync fn returning Stream, no change needed.
+
+    fn restore_file(
+        &self,
+        requests: impl Stream<Item = woodstock::RestoreFileRequest> + Send + Sync + 'static,
+    ) -> impl Stream<Item = Result<woodstock::RestoreFileReply>> + '_ {
+        info!("Restoring files on {}", self.hostname);
+
+        let client = self.client.clone();
+
+        try_stream!({
+            let mut client = client;
+
+            let request = self.create_request(requests).await?;
+
+            let mut responses = client.restore_file(request).await?.into_inner();
+
+            while let Some(response) = responses.message().await? {
+                debug!("Received restore file reply from server");
+                yield response;
+            }
+
+            info!("Completed file restoration on {}", self.hostname);
+        })
+    }
+
+    fn close(&self) -> impl Future<Output = Result<()>> + Send {
+        let client = self.client.clone();
+        let self_client = self.clone();
+        let hostname = self.hostname.clone();
+        async move {
+            info!("Closing connection to {}", hostname);
+
+            let mut client = client;
+
+            let request = self_client.create_request(woodstock::Empty {}).await?;
+
+            let result = client.close_backup(request).await;
+            if let Err(result) = result {
+                error!("Error closing connection to {}: {}", hostname, result);
+            } else {
+                info!("Connection to {} closed", hostname);
+            }
+
+            Ok(())
+        }
+    }
+}

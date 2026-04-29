@@ -1,30 +1,75 @@
 kind: pipeline
 type: docker
-name: default
+name: backend
+trigger:
+  event:
+    - pull_request
 
 steps:
-  - name: client:unit
-    image: node:12
+  - name: server:install
+    image: node:18
     commands:
-      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
-      - apt update && apt install -y google-chrome-stable
-      - cd client
-      - npm install
+      - cd nestjs
+      - npm ci
+
+  - name: server:lint
+    image: node:18
+    commands:
+      - cd nestjs
       - npm run lint
-      - npm run test:unit
 
   - name: server:unit
-    image: node:12
+    image: node:18
     commands:
-      - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add -
-      - sh -c 'echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list'
-      - apt update && apt install -y google-chrome-stable
-      - cd server
-      - npm install
-      - npm run lint
+      - cd nestjs
       - npm run test
 
+  - name: server:build
+    image: node:18
+    commands:
+      - cd nestjs
+      - npm run buildall
+
+---
+kind: pipeline
+type: docker
+name: frontend
+trigger:
+  event:
+    - pull_request
+
+steps:
+  - name: front:install
+    image: node:18
+    commands:
+      - cd front
+      - npm ci
+
+  - name: front:lint
+    image: node:18
+    commands:
+      - cd front
+      - npm run lint
+      #- npm run test:unit
+
+  - name: front:build
+    image: node:18
+    commands:
+      - cd front
+      - npm run build
+
+---
+kind: pipeline
+type: docker
+name: publish
+trigger:
+  when:
+    event:
+      - promote
+    target:
+      - production
+
+steps:
   - name: website:build
     image: plugins/docker
     settings:
@@ -33,11 +78,11 @@ steps:
       password:
         from_secret: docker_password
       repo: phoenix741/woodstock-backup-website
-      dockerfile: ./website/Dockerfile
-      context: ./website
+      dockerfile: ./docs/website/Dockerfile
+      context: ./docs/website
       auto_tag: true
 
-  - name: app:build
+  - name: server:build-docker
     image: plugins/docker
     settings:
       username:
@@ -47,6 +92,12 @@ steps:
       repo: phoenix741/woodstock-backup
       auto_tag: true
 
+---
+kind: pipeline
+type: docker
+name: final
+
+steps:
   - name: notify
     image: plugins/slack
     settings:
@@ -55,3 +106,8 @@ steps:
       channel: ci
     when:
       status: [success, failure]
+
+depends_on:
+  - backend
+  - frontend
+  - publish

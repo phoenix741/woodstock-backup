@@ -1,0 +1,12 @@
+fragment FragmentFileDescription on FileDescription {
+  path
+  type
+  stats {
+    ownerId
+    groupId
+    mode
+    size
+    lastModified
+  }
+  symlink
+}

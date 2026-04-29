@@ -1,62 +1,166 @@
-FROM node:14-buster as dependencies
-LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
+#
+# -------- Base Rust -----------
+ARG RUST_VERSION=1
+ARG NODE_VERSION=24-slim
+ARG DEBIAN_VERSION=bookworm
+ARG FEATURES=all
 
-WORKDIR /src/server
-COPY server/package.json /src/server
-COPY server/package-lock.json /src/server
-RUN npm install --production
+FROM rust:$RUST_VERSION-$DEBIAN_VERSION AS build-chef
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  clang \
+  libclang-dev \
+  build-essential \
+  cmake \
+  protobuf-compiler \
+  libacl1-dev \
+  libssl-dev \
+  pkg-config \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN cargo install cargo-chef --locked && rm -rf $CARGO_HOME/registry/
+
+FROM build-chef AS planner
+
+WORKDIR /src/
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
 #
-# -------- Build --------
-FROM dependencies as build
+# -------- Build shared-rs -----------
 
-WORKDIR /src/client
-COPY client/package.json /src/client
-COPY client/package-lock.json /src/client
-RUN npm install
+FROM build-chef AS build-sharedrs
 
-WORKDIR /src/server
-RUN npm install
+WORKDIR /src/
+COPY --from=planner /src/recipe.json /src/recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
-COPY client/ /src/client/
-COPY server/ /src/server/
+COPY Cargo.* /src/
+COPY ./woodstock-rs /src/woodstock-rs/
+COPY ./client-rs /src/client-rs/
+COPY ./cli-rs /src/cli-rs/
+COPY ./backuppc-importer-rs /src/backuppc-importer-rs/
+COPY ./server-rs /src/server-rs/
+COPY ./e2e-tests /src/e2e-tests/
 
-WORKDIR /src/client
+RUN cargo build --release $FEATURES
 
-ENV VUE_APP_GRAPHQL_HTTP=/graphql
+# Strip binaries to reduce image size
+RUN strip /src/target/release/api_server \
+  /src/target/release/client_api_server \
+  /src/target/release/job_worker \
+  /src/target/release/scheduler \
+  /src/target/release/ws_client_daemon \
+  /src/target/release/ws_backuppc_importer \
+  /src/target/release/ws_console \
+  /src/target/release/ws_sync
 
-RUN npm run build -- --prod
+#
+# -------- Dependencies -------
 
-WORKDIR /src/server
+FROM node:$NODE_VERSION AS dependencies
+LABEL MAINTAINER="Ulrich Van Den Hekke <ulrich.vdh@shadoware.org>"
+
+WORKDIR /src
+
+RUN mkdir -p /src/{front,docs} && mkdir -p /src/docs/website
+COPY package*.json /src
+COPY front/package*.json /src/front/
+COPY docs/website/package*.json /src/docs/website/
+
+RUN npm ci
+
+#
+# -------- Build front -------
+FROM dependencies AS build-front
+
+WORKDIR /src/front
+COPY front/ /src/front/
 RUN npm run build 
 
 #
-# -------- Dist -----------
-FROM node:14-buster AS dist
+# -------- Build client -------
+FROM debian:$DEBIAN_VERSION-slim AS client
 
-RUN apt update && apt install -y btrfs-compsize btrfs-progs coreutils samba-common-bin rsync && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  acl \
+  btrfs-progs \
+  ca-certificates \
+  fuse3 \
+  libacl1 \
+  libfuse2 \
+  liblzma5 \
+  libssl3 \
+  samba-common-bin \
+  smbclient \
+  tzdata \
+  && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /server
+# Create a user to run the app
+ARG APP_USER=woodstock
+ARG APP_UID=1000
+RUN groupadd --gid $APP_UID $APP_USER && \
+  useradd --uid $APP_UID --gid $APP_UID --create-home --shell /usr/sbin/nologin $APP_USER && \
+  mkdir -p /app/cli /etc/woodstock && \
+  chown -R $APP_USER:$APP_USER /app /etc/woodstock
 
-RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh 
-RUN echo "IdentityFile /backups/.ssh/id_rsa" >> /root/.ssh/config
-RUN echo "StrictHostKeyChecking=no" >> /root/.ssh/config
-RUN mkdir -p /backups/.ssh && chmod 700 /backups/.ssh
+# Ensure the client looks for config in the volume mount point
+ENV CLIENT_PATH=/etc/woodstock
 
-COPY --from=dependencies /src/server/node_modules /server/node_modules
-COPY --from=build /src/server/config/ /server/config/
-COPY --from=build /src/server/dist/ /server/
-COPY --from=build /src/client/dist /server/client/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
 
-ENV STATIC_PATH=/server/client/
-ENV NODE_ENV=production
+VOLUME [ "/etc/woodstock" ]
+
+USER $APP_USER
+CMD [ "/app/cli/ws_client_daemon" ]
+
+#
+# -------- Server (Rust) -----------
+FROM debian:$DEBIAN_VERSION-slim AS server
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  ca-certificates \
+  libacl1 \
+  libfuse2 \
+  liblzma5 \
+  libssl3 \
+  tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
+# Create a user to run the app
+ARG APP_USER=woodstock
+ARG APP_UID=1000
+RUN groupadd --gid $APP_UID $APP_USER && \
+  useradd --uid $APP_UID --gid $APP_UID --create-home --shell /usr/sbin/nologin $APP_USER && \
+  mkdir -p /app /backups && \
+  chown -R $APP_USER:$APP_USER /app /backups
+
+WORKDIR /app
+
+# Copy Rust binaries
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/client_api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/job_worker /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/scheduler /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_console /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_sync /app/
+
+# Copy Frontend static files
+COPY --chown=$APP_USER:$APP_USER --from=build-front /src/front/dist /app/static
+
+ENV STATIC_PATH=/app/static
 ENV BACKUP_PATH=/backups
 ENV LOG_LEVEL=info
 ENV REDIS_HOST=redis
 ENV REDIS_PORT=6379
 
-ENV VUE_APP_GRAPHQL_HTTP=/graphql
+VOLUME [ "/backups" ]
 
-ENTRYPOINT [ "node" ]
-CMD [ "/server/main.js" ]
-EXPOSE 3000
+USER $APP_USER
+
+# Default to API server
+CMD [ "/app/api_server" ]
+EXPOSE 3000 8443

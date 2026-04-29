@@ -1,0 +1,36 @@
+#import "./backups/FragmentBackupStatus.graphql"
+
+query Host($hostname: String!) {
+  host(hostname: $hostname) {
+    name
+    agentVersion
+    lastBackup {
+      agentVersion
+      status {
+        ...BackupStatusFields
+      }
+    }
+    availibilityState
+    timeSinceLastBackup
+    dateToNextBackup
+    addresses
+    configuration {
+      operations {
+        preCommands {
+          command
+        }
+        operation {
+          shares {
+            name
+          }
+        }
+        postCommands {
+          command
+        }
+      }
+      schedule {
+        activated
+      }
+    }
+  }
+}

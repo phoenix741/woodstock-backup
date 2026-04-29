@@ -1,0 +1,11 @@
+#import "./FragmentFileDescription.graphql"
+
+query BackupsBrowse($hostname: String!, $id: String!, $sharePath: String!, $path: Buffer!) {
+  backup(hostname: $hostname, id: $id) {
+    id
+
+    files(sharePath: $sharePath, path: $path) {
+      ...FragmentFileDescription
+    }
+  }
+}

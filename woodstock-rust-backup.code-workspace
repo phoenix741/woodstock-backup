@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"path": "woodstock-rs"
+		},
+		{
+			"path": "client-rs"
+		},
+		{
+			"path": "cli-rs"
+		},
+		{
+			"path": "backuppc-importer-rs"
+		},
+		{
+			"path": "shared-rs"
+		},
+		{
+			"path": "e2e-tests"
+		}
+	],
+	"settings": {
+		// "rust-analyzer.cargo.buildScripts.enable": true,
+		"rust-analyzer.procMacro.enable": true,
+		"rust-analyzer.procMacro.attributes.enable": true,
+		// "rust-analyzer.check.features": "all",
+		// "rust-analyzer.cargo.features": "all",
+		"rust-analyzer.procMacro.ignored": {
+			"napi-derive": [
+				"napi"
+			]
+		},
+		"github.copilot.chat.codeGeneration.instructions": [
+			{
+				"file": ".github/copilot-instructions.md",
+			}
+		]
+	}
+}

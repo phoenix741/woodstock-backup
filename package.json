@@ -1,0 +1,17 @@
+{
+  "name": "woodstock",
+  "version": "2.0.0-alpha.59",
+  "private": true,
+  "workspaces": [
+    "docs/website",
+    "front"
+  ],
+  "devDependencies": {
+    "@saithodev/semantic-release-gitea": "^2.1.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "semantic-release": "^25.0.3",
+    "semantic-release-cargo": "^2.4.2"
+  }
+}

@@ -1,6 +1,0 @@
-query NavigationBarTasks($state: [String!]) {
-  queue(state: $state) {
-    id
-    state
-  }
-}
