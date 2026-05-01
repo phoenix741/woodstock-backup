@@ -31,6 +31,7 @@ pub enum FinishingStageDto {
     ToCompact,
     ToCountRef,
     ToAddInPool,
+    ToPublishedInPool,
 }
 
 #[derive(
@@ -41,6 +42,7 @@ pub enum AbortingStageDto {
     ToCompact,
     ToCountRef,
     ToAddInPool,
+    ToPublishedInPool,
 }
 
 #[derive(
@@ -88,6 +90,7 @@ impl From<BackupStatus> for BackupStatusDto {
                     FinishingStatus::ToCompact => FinishingStageDto::ToCompact,
                     FinishingStatus::ToCountRef => FinishingStageDto::ToCountRef,
                     FinishingStatus::ToAddInPool => FinishingStageDto::ToAddInPool,
+                    FinishingStatus::ToPublishedInPool => FinishingStageDto::ToPublishedInPool,
                 };
                 BackupStatusDto {
                     status_type: BackupStatusTypeDto::Finishing,
@@ -109,6 +112,7 @@ impl From<BackupStatus> for BackupStatusDto {
                     FinishingStatus::ToCompact => AbortingStageDto::ToCompact,
                     FinishingStatus::ToCountRef => AbortingStageDto::ToCountRef,
                     FinishingStatus::ToAddInPool => AbortingStageDto::ToAddInPool,
+                    FinishingStatus::ToPublishedInPool => AbortingStageDto::ToPublishedInPool,
                 };
                 BackupStatusDto {
                     status_type: BackupStatusTypeDto::Aborting,

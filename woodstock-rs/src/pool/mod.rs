@@ -48,6 +48,8 @@ mod pool_chunk_wrapper;
 mod pool_chunk_wrapper_writer;
 /// High-level pool manager grouping all pool operations under one struct
 pub mod pool_manager;
+/// Backup write session facade for pool v3.
+mod pool_write_session;
 /// Module with display and formatting for reference counts and unused chunks
 mod pool_refcnt;
 /// Module with reference count and unused chunk management
@@ -75,6 +77,7 @@ pub use pool_chunk_information::{ConvertHashLink, PoolChunkInformation};
 pub use pool_chunk_wrapper::PoolChunkWrapper;
 pub use pool_chunk_wrapper_writer::PoolChunkWriter;
 pub use pool_manager::PoolManager;
+pub use pool_write_session::PoolWriteSession;
 pub use refcnt::{Refcnt, RefcntApplySens};
 pub use staging::{StagingReader, StagingWriter, STAGING_FILENAME};
 pub use utils::{calculate_chunk_path, get_temp_chunk_path};

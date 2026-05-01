@@ -14,12 +14,12 @@ use uuid::Uuid;
 
 use crate::{
     config::{
-        Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
-        ShareRecord, ShareSnapshotMethod,
+        Backup, BackupStatus, Backups, Configuration, Context, FinishingStatus, ShareRecord,
+        ShareSnapshotMethod, DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},
-    pool::{PoolChunkInformation, PoolChunkWrapper, PoolManager, Refcnt},
+    pool::{PoolChunkInformation, PoolWriteSession, Refcnt},
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
@@ -75,6 +75,8 @@ pub struct BackupSave<Clt: Client> {
     backups: Arc<Backups>,
     /// Snapshot results received from the agent, keyed by share path.
     share_snapshot_results: Arc<Mutex<HashMap<String, ShareSnapshotResult>>>,
+    /// Long-lived pool write session for this backup.
+    pool_write_session: Arc<Mutex<Option<PoolWriteSession>>>,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -129,6 +131,7 @@ impl<Clt: Client> BackupSave<Clt> {
             fake_date: None,
             backups,
             share_snapshot_results: Arc::new(Mutex::new(HashMap::new())),
+            pool_write_session: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -294,6 +297,9 @@ impl<Clt: Client> BackupSave<Clt> {
     /// Returns an error if the initialization fails.
     pub async fn init_backup_directory(&self, shares: &[&str]) -> Result<()> {
         let previous_backup = self.previous_backup_id;
+        let destination_directory = self
+            .backups
+            .get_backup_destination_directory(&self.hostname, self.backup_id);
 
         info!(
             "Prepare backup directory for {hostname}/{backup_id} with shares {shares:?} from previous backup {previous_backup:?}",
@@ -304,6 +310,11 @@ impl<Clt: Client> BackupSave<Clt> {
         self.backups
             .clone_backup(&self.hostname, previous_backup, self.backup_id, shares)
             .await?;
+
+        let session =
+            PoolWriteSession::open_or_create(Arc::clone(&self.config), &destination_directory)
+                .await?;
+        *self.pool_write_session.lock().await = Some(session);
 
         // Load Reference count
         self.refcnt.lock().await.load_refcnt(true).await;
@@ -515,10 +526,7 @@ impl<Clt: Client> BackupSave<Clt> {
         chunk_information: ChunkInformation,
         tx: &mpsc::Sender<PoolChunkInformation>,
     ) -> Result<()> {
-        let filename = chunk_information.filename.clone();
         let full = chunk_information.chunks_id.is_empty();
-
-        let pool_path = &self.config.path.pool_path;
         let readable = self.client.get_chunk(chunk_information);
         pin_mut!(readable);
 
@@ -532,13 +540,11 @@ impl<Clt: Client> BackupSave<Clt> {
                     current_chunk_id = usize::try_from(header.chunk_id)?;
 
                     debug!("Download chunk {}", current_chunk_id);
-
-                    let wrapper = PoolChunkWrapper::new(pool_path, None);
-                    let writer = wrapper
-                        .writer(self.algorithm, self.compression_format)
-                        .await?;
-
-                    current_chunk = Some((wrapper, writer));
+                    let mut session = self.pool_write_session.lock().await;
+                    let Some(session) = session.as_mut() else {
+                        return Err(eyre!("pool write session is not initialized"));
+                    };
+                    current_chunk = Some(session.create_chunk().await?);
                 }
                 Some(Payload::Data(chunk)) => {
                     debug!(
@@ -547,7 +553,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         chunk.data.len()
                     );
 
-                    if let Some((_wrapper, writer)) = &mut current_chunk {
+                    if let Some(writer) = &mut current_chunk {
                         writer.write(&chunk.data).await?;
                     } else {
                         error!("No chunk header before data");
@@ -556,10 +562,13 @@ impl<Clt: Client> BackupSave<Clt> {
                 Some(Payload::Footer(_)) => {
                     debug!("Download chunk footer {}", current_chunk_id);
 
-                    if let Some((mut wrapper, mut writer)) = current_chunk.take() {
-                        let chunk_information = writer
-                            .shutdown(&mut wrapper, &filename, self.compression_format)
-                            .await?;
+                    if let Some(writer) = current_chunk.take() {
+                        let mut session = self.pool_write_session.lock().await;
+                        let Some(session) = session.as_mut() else {
+                            return Err(eyre!("pool write session is not initialized"));
+                        };
+
+                        let chunk_information = writer.finish(session).await?;
                         if let Err(e) = tx.send(chunk_information.clone()).await {
                             error!("Failed to send chunk information: {}", e);
                         }
@@ -623,7 +632,6 @@ impl<Clt: Client> BackupSave<Clt> {
         filename: &[u8],
         tx: &mpsc::Sender<PoolChunkInformation>,
     ) -> Result<(BTreeMap<usize, PoolChunkInformation>, Vec<usize>)> {
-        let pool_path = &self.config.path.pool_path;
         let reply = self
             .client
             .get_chunk_hash(ChunkHashRequest {
@@ -638,9 +646,12 @@ impl<Clt: Client> BackupSave<Clt> {
         for chunk_number in 0..reply.chunks.len() {
             let hash = reply.chunks.get(chunk_number);
             if let Some(hash) = hash {
-                let wrapper = PoolChunkWrapper::new(pool_path, Some(hash));
-                if wrapper.exists() {
-                    let chunk_information = wrapper.chunk_information().await?;
+                let mut session = self.pool_write_session.lock().await;
+                let Some(session) = session.as_mut() else {
+                    return Err(eyre!("pool write session is not initialized"));
+                };
+
+                if let Some(chunk_information) = session.find_chunk(hash).await? {
                     if let Err(e) = tx.send(chunk_information.clone()).await {
                         error!("Failed to send chunk information: {}", e);
                     }
@@ -1043,6 +1054,13 @@ impl<Clt: Client> BackupSave<Clt> {
 
         self.progression.lock().await.end_transfer_date = Some(Local::now());
 
+        {
+            let mut guard = self.pool_write_session.lock().await;
+            if let Some(session) = guard.as_mut() {
+                session.shutdown().await?;
+            }
+        }
+
         // FIXME: Manage abort
 
         self.client.close().await?;
@@ -1340,13 +1358,57 @@ impl<Clt: Client> BackupSave<Clt> {
     pub async fn add_refcnt_to_pool(&self) -> Result<()> {
         info!("Add references count to pool");
 
-        let host_refcnt_file = self
+        let already_published = self
+            .backups
+            .get_backup(&self.hostname, self.backup_id)
+            .await
+            .is_some_and(|b| {
+                matches!(
+                    b.status,
+                    BackupStatus::Finishing(FinishingStatus::ToPublishedInPool)
+                        | BackupStatus::Aborting(FinishingStatus::ToPublishedInPool)
+                        | BackupStatus::Completed
+                        | BackupStatus::Aborted
+                )
+            });
+
+        if already_published {
+            info!(
+                "Staging was already published for {}/{}; skipping",
+                self.hostname, self.backup_id
+            );
+            return Ok(());
+        }
+
+        let backup_directory = self
             .backups
             .get_backup_destination_directory(&self.hostname, self.backup_id);
 
-        PoolManager::new(self.config.clone())
-            .add_refcnt(host_refcnt_file, &self.hostname, self.backup_id)
+        {
+            let mut guard = self.pool_write_session.lock().await;
+            if let Some(session) = guard.as_mut() {
+                session.compact_staging().await?;
+            } else {
+                PoolWriteSession::compact_backup_staging(&backup_directory).await?;
+            }
+        }
+
+        PoolWriteSession::publish_backup_staging(Arc::clone(&self.config), &backup_directory)
             .await?;
+
+        let current_status = self
+            .backups
+            .get_backup(&self.hostname, self.backup_id)
+            .await
+            .map(|b| b.status)
+            .unwrap_or(BackupStatus::InProgress);
+        let published_status = if current_status.is_aborted() {
+            BackupStatus::Aborting(FinishingStatus::ToPublishedInPool)
+        } else {
+            BackupStatus::Finishing(FinishingStatus::ToPublishedInPool)
+        };
+
+        self.save_backup(published_status).await?;
 
         Ok(())
     }

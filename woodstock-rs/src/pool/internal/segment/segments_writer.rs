@@ -44,15 +44,15 @@ use super::{
 /// # Ok(())
 /// # }
 /// ```
-pub struct SegmentsWriter<'a> {
-    segments: &'a Segments,
+pub struct SegmentsWriter {
+    segments: Segments,
     current: SegmentWriter,
     /// Exclusive Redis lock held on the current segment file.
     /// Released when the writer rotates to a new segment or is shut down.
     lock: Option<PoolLockRedis>,
 }
 
-impl<'a> SegmentsWriter<'a> {
+impl SegmentsWriter {
     /// Creates a new [`SegmentsWriter`] backed by the given [`Segments`] manager.
     ///
     /// The inner writer is obtained by calling [`Segments::get_segment_writer`],
@@ -61,10 +61,10 @@ impl<'a> SegmentsWriter<'a> {
     /// # Errors
     ///
     /// Returns an error if the underlying segment cannot be opened or created.
-    pub(super) async fn new(segments: &'a Segments) -> Result<Self> {
+    pub(super) async fn new(segments: &Segments) -> Result<Self> {
         let (current, lock) = segments.get_segment_writer().await?;
         Ok(Self {
-            segments,
+            segments: segments.clone(),
             current,
             lock: Some(lock),
         })

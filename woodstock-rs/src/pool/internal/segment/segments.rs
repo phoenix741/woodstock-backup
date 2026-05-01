@@ -65,6 +65,7 @@ pub const DEFAULT_SEGMENT_TARGET_SIZE: u64 = 512 * 1024 * 1024;
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Clone)]
 pub struct Segments {
     config: Arc<Configuration>,
 }
@@ -305,7 +306,7 @@ impl Segments {
     /// Returns an error if the segment directory cannot be created, an
     /// existing segment cannot be reopened, or a new segment cannot be
     /// created.
-    pub async fn get_writer(&self) -> Result<SegmentsWriter<'_>> {
+    pub async fn get_writer(&self) -> Result<SegmentsWriter> {
         SegmentsWriter::new(self).await
     }
 

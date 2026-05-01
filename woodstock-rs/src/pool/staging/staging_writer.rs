@@ -41,6 +41,11 @@ pub struct StagingWriter {
     writer: ProtobufWriter<UnCompressedWriter, ChunkDescriptor>,
     /// Full path to `staging.idx` inside the backup directory.
     path: std::path::PathBuf,
+    /// In-memory descriptor cache keyed by hash.
+    ///
+    /// The descriptor keeps the first seen storage metadata and accumulates
+    /// `refcount` across writes during the current process lifetime.
+    cache: HashMap<Vec<u8>, ChunkDescriptor>,
 }
 
 impl StagingWriter {
@@ -57,7 +62,11 @@ impl StagingWriter {
     pub async fn create(backup_dir: &Path) -> Result<Self> {
         let path = Self::staging_path(backup_dir);
         let writer = ProtobufWriter::new(&path, false).await?;
-        Ok(Self { writer, path })
+        Ok(Self {
+            writer,
+            path,
+            cache: HashMap::new(),
+        })
     }
 
     /// Opens an existing staging file in `backup_dir` for **appending**.
@@ -69,7 +78,28 @@ impl StagingWriter {
     pub async fn open(backup_dir: &Path) -> Result<Self> {
         let path = Self::staging_path(backup_dir);
         let writer = ProtobufWriter::open(&path).await?;
-        Ok(Self { writer, path })
+        let mut cache: HashMap<Vec<u8>, ChunkDescriptor> = HashMap::new();
+
+        if path.exists() {
+            let mut raw: Vec<ChunkDescriptor> = Vec::new();
+            let mut reader = StagingReader::open(&path).await?;
+            reader.read_to_end(&mut raw).await?;
+
+            for desc in raw {
+                let entry = cache.entry(desc.hash.clone()).or_insert_with(|| {
+                    let mut initial = desc.clone();
+                    initial.refcount = 0;
+                    initial
+                });
+                entry.refcount = entry.refcount.saturating_add(desc.refcount);
+            }
+        }
+
+        Ok(Self {
+            writer,
+            path,
+            cache,
+        })
     }
 
     /// Appends a [`ChunkDescriptor`] to the staging file and flushes the buffer
@@ -83,7 +113,30 @@ impl StagingWriter {
     pub async fn write(&mut self, descriptor: &ChunkDescriptor) -> Result<()> {
         self.writer.write(descriptor).await?;
         self.writer.flush_buffer().await?;
+
+        let entry = self
+            .cache
+            .entry(descriptor.hash.clone())
+            .or_insert_with(|| {
+                let mut initial = descriptor.clone();
+                initial.refcount = 0;
+                initial
+            });
+        entry.refcount = entry.refcount.saturating_add(descriptor.refcount);
+
         Ok(())
+    }
+
+    /// Returns `true` when `hash` has already been staged in this backup.
+    #[must_use]
+    pub fn contains_hash(&self, hash: &[u8]) -> bool {
+        self.cache.contains_key(hash)
+    }
+
+    /// Returns the cached descriptor for `hash` when present.
+    #[must_use]
+    pub fn get_descriptor(&self, hash: &[u8]) -> Option<ChunkDescriptor> {
+        self.cache.get(hash).cloned()
     }
 
     /// Compacts the staging file in place by merging entries with the same hash.
@@ -107,29 +160,12 @@ impl StagingWriter {
         // 1. Flush the current BufWriter so all bytes are on disk.
         self.writer.flush_buffer().await?;
 
-        // 2. Read all entries.
-        let mut raw: Vec<ChunkDescriptor> = Vec::new();
-        {
-            let mut reader = StagingReader::open(&self.path).await?;
-            reader.read_to_end(&mut raw).await?;
-        }
-
-        // 3. Merge by hash — accumulate refcount, keep first occurrence's metadata.
-        let mut merged: HashMap<Vec<u8>, ChunkDescriptor> = HashMap::with_capacity(raw.len());
-        for desc in raw {
-            let entry = merged.entry(desc.hash.clone()).or_insert_with(|| {
-                let mut initial = desc.clone();
-                initial.refcount = 0;
-                initial
-            });
-            entry.refcount = entry.refcount.saturating_add(desc.refcount);
-        }
-
-        // 4. Sort by hash for index compatibility.
-        let mut sorted: Vec<ChunkDescriptor> = merged.into_values().collect();
+        // 2. `self.cache` is already merged by hash (loaded in `open` and updated in `write`).
+        // 3. Sort by hash for index compatibility.
+        let mut sorted: Vec<ChunkDescriptor> = self.cache.values().cloned().collect();
         sorted.sort_unstable_by(|a, b| a.hash.cmp(&b.hash));
 
-        // 5. Atomically rewrite: write to temp file then rename.
+        // 4. Atomically rewrite: write to temp file then rename.
         {
             let mut new_writer: ProtobufWriter<UnCompressedWriter, ChunkDescriptor> =
                 ProtobufWriter::new(&self.path, true).await?;
@@ -139,7 +175,7 @@ impl StagingWriter {
             new_writer.flush().await?;
         }
 
-        // 6. Reopen in append mode so future writes are still valid.
+        // 5. Reopen in append mode so future writes are still valid.
         self.writer = ProtobufWriter::open(&self.path).await?;
 
         Ok(())
@@ -152,6 +188,14 @@ impl StagingWriter {
     /// # Errors
     /// Returns an error if flushing fails.
     pub async fn close(mut self) -> Result<()> {
+        self.shutdown().await?;
+        Ok(())
+    }
+
+    /// Flushes buffered bytes without consuming the writer.
+    ///
+    /// Prefer this method for long-lived writers managed by a session.
+    pub async fn shutdown(&mut self) -> Result<()> {
         self.writer.flush_buffer().await?;
         Ok(())
     }

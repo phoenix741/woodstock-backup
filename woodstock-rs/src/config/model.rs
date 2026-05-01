@@ -129,6 +129,7 @@ pub enum FinishingStatus {
     ToCompact,
     ToCountRef,
     ToAddInPool,
+    ToPublishedInPool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -252,9 +253,11 @@ mod tests {
         assert!(BackupStatus::Finishing(FinishingStatus::ToCompact).is_resumable());
         assert!(BackupStatus::Finishing(FinishingStatus::ToCountRef).is_resumable());
         assert!(BackupStatus::Finishing(FinishingStatus::ToAddInPool).is_resumable());
+        assert!(BackupStatus::Finishing(FinishingStatus::ToPublishedInPool).is_resumable());
         assert!(BackupStatus::Aborting(FinishingStatus::ToCompact).is_resumable());
         assert!(BackupStatus::Aborting(FinishingStatus::ToCountRef).is_resumable());
         assert!(BackupStatus::Aborting(FinishingStatus::ToAddInPool).is_resumable());
+        assert!(BackupStatus::Aborting(FinishingStatus::ToPublishedInPool).is_resumable());
 
         // Resumable removal states
         assert!(BackupStatus::Removing(RemovingStatus::ToRemoveInPool).is_resumable());
@@ -277,9 +280,11 @@ mod tests {
         assert!(!BackupStatus::Finishing(FinishingStatus::ToCompact).is_finished());
         assert!(!BackupStatus::Finishing(FinishingStatus::ToCountRef).is_finished());
         assert!(!BackupStatus::Finishing(FinishingStatus::ToAddInPool).is_finished());
+        assert!(!BackupStatus::Finishing(FinishingStatus::ToPublishedInPool).is_finished());
         assert!(!BackupStatus::Aborting(FinishingStatus::ToCompact).is_finished());
         assert!(!BackupStatus::Aborting(FinishingStatus::ToCountRef).is_finished());
         assert!(!BackupStatus::Aborting(FinishingStatus::ToAddInPool).is_finished());
+        assert!(!BackupStatus::Aborting(FinishingStatus::ToPublishedInPool).is_finished());
         assert!(BackupStatus::Completed.is_finished());
         assert!(BackupStatus::Aborted.is_finished());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_finished());
@@ -295,9 +300,11 @@ mod tests {
         assert!(!BackupStatus::Finishing(FinishingStatus::ToCompact).is_aborted());
         assert!(!BackupStatus::Finishing(FinishingStatus::ToCountRef).is_aborted());
         assert!(!BackupStatus::Finishing(FinishingStatus::ToAddInPool).is_aborted());
+        assert!(!BackupStatus::Finishing(FinishingStatus::ToPublishedInPool).is_aborted());
         assert!(BackupStatus::Aborting(FinishingStatus::ToCompact).is_aborted());
         assert!(BackupStatus::Aborting(FinishingStatus::ToCountRef).is_aborted());
         assert!(BackupStatus::Aborting(FinishingStatus::ToAddInPool).is_aborted());
+        assert!(BackupStatus::Aborting(FinishingStatus::ToPublishedInPool).is_aborted());
         assert!(!BackupStatus::Completed.is_aborted());
         assert!(BackupStatus::Aborted.is_aborted());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_aborted());

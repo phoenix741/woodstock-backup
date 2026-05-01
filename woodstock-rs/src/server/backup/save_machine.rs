@@ -75,6 +75,9 @@ impl BackupPhase {
                 Self::Recover(Box::new(Self::AddToPool)),
                 BackupStatus::Completed,
             ),
+            Some(BackupStatus::Finishing(FinishingStatus::ToPublishedInPool)) => {
+                (Self::Finished, BackupStatus::Completed)
+            }
 
             // Interrupted while finalizing an already-aborted backup.
             Some(BackupStatus::Aborting(FinishingStatus::ToCompact)) => (
@@ -89,6 +92,9 @@ impl BackupPhase {
                 Self::Recover(Box::new(Self::AddToPool)),
                 BackupStatus::Aborted,
             ),
+            Some(BackupStatus::Aborting(FinishingStatus::ToPublishedInPool)) => {
+                (Self::Finished, BackupStatus::Aborted)
+            }
 
             // Hard failure at a specific phase — retry it (with recovery first).
             Some(BackupStatus::Failed(FailedStatus::Compact)) => (
@@ -1162,6 +1168,12 @@ mod tests {
                 BackupStatus::Completed
             )
         );
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::Finishing(
+                FinishingStatus::ToPublishedInPool
+            ))),
+            (BackupPhase::Finished, BackupStatus::Completed)
+        );
     }
 
     #[test]
@@ -1186,6 +1198,12 @@ mod tests {
                 BackupPhase::Recover(Box::new(BackupPhase::AddToPool)),
                 BackupStatus::Aborted
             )
+        );
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::Aborting(
+                FinishingStatus::ToPublishedInPool
+            ))),
+            (BackupPhase::Finished, BackupStatus::Aborted)
         );
     }
 
