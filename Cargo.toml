@@ -46,7 +46,10 @@ tonic = { version = "^0.14", features = [
 ] }
 
 # HTTP Client
-reqwest = { version = "^0.13", features = ["json"] }
+reqwest = { version = "^0.13", default-features = false, features = [
+  "json",
+  "rustls-no-provider",
+] }
 
 # Utilities
 uuid = { version = "^1.22", features = [

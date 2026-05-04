@@ -30,7 +30,7 @@ use woodstock_client_rs::server::WoodstockClient;
 // Ensure we have a crypto provider for rustls 0.23+
 use rustls::crypto::ring;
 
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 use woodstock_client_rs::resolve::MdnsResolveClient;
 
 /// Command-line interface options for the Woodstock client.
@@ -168,7 +168,7 @@ async fn start_client(
 
     let mut daemon: Option<Box<dyn ResolveClient>> = None;
     match config.resolution_mode {
-        #[cfg(feature = "mdns")]
+        #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
         ResolutionMode::Mdns => {
             info!("Initializing mDNS resolver...");
             match MdnsResolveClient::new(config.clone()).await {

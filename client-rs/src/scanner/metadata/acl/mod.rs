@@ -12,15 +12,15 @@
 //! - `acl`: When enabled on Unix systems, provides full ACL support.
 //!          When disabled or on non-Unix systems, uses a stub implementation.
 
-#[cfg(all(unix, feature = "acl"))]
+#[cfg(all(target_os = "linux", feature = "acl"))]
 /// Unix-specific implementation for ACLs.
 mod unix;
-#[cfg(not(all(unix, feature = "acl")))]
+#[cfg(not(all(target_os = "linux", feature = "acl")))]
 /// Windows-specific implementation for ACLs.
 mod windows;
 
-#[cfg(all(unix, feature = "acl"))]
+#[cfg(all(target_os = "linux", feature = "acl"))]
 pub use unix::*;
 
-#[cfg(not(all(unix, feature = "acl")))]
+#[cfg(not(all(target_os = "linux", feature = "acl")))]
 pub use windows::*;

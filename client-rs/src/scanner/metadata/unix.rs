@@ -35,6 +35,12 @@ use woodstock::FileManifestType;
 /// * Number of hard links
 /// * File type (regular, directory, symbolic link, device, etc.)
 pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestStat {
+    // WARNING: `libc::S_IF*` constants are not consistently typed across Unix targets.
+    // On FreeBSD some values are `u16` while `metadata.mode()` is `u32`.
+    // We normalize everything to `u32` to keep matching portable and avoid
+    // `u32 & u16` type mismatches during cross-compilation.
+    let file_type_bits = metadata.mode() & (S_IFMT as u32);
+
     FileManifestStat {
         owner_id: metadata.uid(),
         group_id: metadata.gid(),
@@ -48,14 +54,14 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
         rdev: metadata.rdev(),
         ino: metadata.ino(),
         nlink: metadata.nlink(),
-        file_type: match metadata.mode() & S_IFMT {
-            S_IFREG => FileManifestType::RegularFile,
-            S_IFLNK => FileManifestType::Symlink,
-            S_IFDIR => FileManifestType::Directory,
-            S_IFBLK => FileManifestType::BlockDevice,
-            S_IFCHR => FileManifestType::CharacterDevice,
-            S_IFIFO => FileManifestType::Fifo,
-            S_IFSOCK => FileManifestType::Socket,
+        file_type: match file_type_bits {
+            x if x == S_IFREG as u32 => FileManifestType::RegularFile,
+            x if x == S_IFLNK as u32 => FileManifestType::Symlink,
+            x if x == S_IFDIR as u32 => FileManifestType::Directory,
+            x if x == S_IFBLK as u32 => FileManifestType::BlockDevice,
+            x if x == S_IFCHR as u32 => FileManifestType::CharacterDevice,
+            x if x == S_IFIFO as u32 => FileManifestType::Fifo,
+            x if x == S_IFSOCK as u32 => FileManifestType::Socket,
             _ => FileManifestType::Unknown,
         } as i32,
     }

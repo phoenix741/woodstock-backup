@@ -44,10 +44,14 @@ tower-http = { version = "0.6", features = [
 ] }
 
 # TLS/HTTPS support
-axum-server = { version = "0.8", features = ["tls-rustls"] }
-rustls = { workspace = true, features = ["aws_lc_rs"] }
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+rustls = { workspace = true }
 rustls-pemfile = "2.2"
-tokio-rustls = "0.26"
+tokio-rustls = { version = "0.26", default-features = false, features = [
+  "ring",
+  "logging",
+  "tls12",
+] }
 x509-parser = "0.18"
 
 # Certificate generation
@@ -91,7 +95,10 @@ color-eyre = { workspace = true }
 thiserror = "2.0.18"
 
 # HTTP client
-reqwest = { workspace = true, features = ["rustls"] }
+reqwest = { workspace = true, default-features = false, features = [
+  "json",
+  "rustls-no-provider",
+] }
 
 # Archive generation
 # Tests use sync zip reader (zip), runtime uses async_zip

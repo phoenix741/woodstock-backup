@@ -20,7 +20,7 @@ const DAYLY_UPDATE: u64 = 24 * 3600;
 #[derive(Clone, Debug, Deserialize, Default)]
 /// Defines the resolution mode used to discover servers.
 pub enum ResolutionMode {
-    #[cfg(feature = "mdns")]
+    #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
     /// Uses mDNS (multicast DNS) for server discovery.
     Mdns,
     #[default]

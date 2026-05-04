@@ -70,10 +70,8 @@ jobs:
       redis:
         image: valkey/valkey:8-alpine
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout
+          5s --health-retries 5
     steps:
       - name: Install dependencies
         run: |
@@ -117,11 +115,12 @@ jobs:
           cd ..
 
   dtrack:
-    needs: [prerelease]
+    needs: [ prerelease ]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(fromJson('["master", "main", "alpha", "beta", "develop"]'), github.ref_name)
+    if: github.event_name == 'push' && contains(fromJson('["master", "main",
+      "alpha", "beta", "develop"]'), github.ref_name)
     steps:
       - name: Install dependencies
         run: |
@@ -152,7 +151,8 @@ jobs:
 
       - name: Extract branch name
         shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >>
+          $GITHUB_OUTPUT
         id: extract_branch
 
       - name: Upload to DependencyTrack
@@ -167,7 +167,7 @@ jobs:
           autoCreate: true
 
   clientrs:
-    needs: [prerelease]
+    needs: [ prerelease ]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ${{ matrix.os }}
@@ -182,6 +182,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             features: --no-default-features --features "mdns"
             binary_name: binaries-linux-lite
+          - os: freebsd-latest
+            target: x86_64-unknown-freebsd
+            features: --no-default-features
+            binary_name: binaries-freebsd
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             features: --features default
@@ -196,7 +200,13 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip curl xz-utils
+
+      # - name: Install build dependencies (FreeBSD)
+      #   if: matrix.os == 'freebsd-latest'
+      #   run: |
+      #     pkg update
+      #     pkg install -y protobuf cmake gmake pkgconf zip git-lfs fusefs-libs curl 
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -216,19 +226,28 @@ jobs:
           cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Build (release)
-        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{
+          matrix.features }}
 
-      - name: Archive binary
+      - name: Archive binaries
         run: |
           mkdir zipfile
+
           cd target/${{ matrix.target }}/release
+
           cp ws_client_daemon* ../../../zipfile
+          cp ws_client_console* ../../../zipfile
           cp ws_console* ../../../zipfile
           cp ws_backuppc_importer* ../../../zipfile
 
-      - name: Archive binary (Linux)
+          cp api_server* ../../../zipfile
+          cp client_api_server* ../../../zipfile
+          cp job_worker* ../../../zipfile
+          cp scheduler* ../../../zipfile
+
+      - name: Archive binary (Linux/FreeBSD)
         shell: bash
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'freebsd-latest'
         run: |
           cd zipfile
           find . -type f \( -name "*.d" -o -name "*.pdb" \) -delete
@@ -243,14 +262,14 @@ jobs:
       - name: Upload artifacts
         uses: christopherhx/gitea-upload-artifact@v4
         with:
-          name: ${{ matrix.binary_name }}
+          name: ${{ matrix.target }}
           path: |
             zipfile/${{ matrix.binary_name }}-${{ matrix.target }}.zip
 
   upload:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [clientrs, unittest]
+    needs: [ clientrs, unittest ]
     runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
@@ -280,7 +299,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+      - name: Verify the integrity of provenance attestations and registry signatures
+          for installed dependencies
         run: npm audit signatures
 
       - name: Download artifacts
@@ -331,7 +351,7 @@ jobs:
   debian_rs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [upload]
+    needs: [ upload ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -376,13 +396,13 @@ jobs:
   docker:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [upload]
+    needs: [ upload ]
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - rust_version: 1
-            features: --features default
+            cargo_args: --workspace --bins --features default
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
@@ -399,7 +419,8 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p "require('./package.json').version")" >>
+          $GITHUB_OUTPUT
 
       - name: Get metadata to tag server container image
         if: github.event_name == 'push'
@@ -471,7 +492,7 @@ jobs:
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
             DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Client Docker Image
         uses: docker/build-push-action@v6
@@ -491,7 +512,7 @@ jobs:
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
             DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Website Docker Image
         uses: docker/build-push-action@v6

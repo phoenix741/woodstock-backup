@@ -1,7 +1,7 @@
 use crate::config::DNS_RESOLVE_TIMEOUT_SEC;
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 use crate::config::{MDNS_SERVICE_NAME, MDNS_SUFFIX, MDNS_TIMEOUT_MSEC};
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 use mdns_sd::{HostnameResolutionEvent, ResolvedService, ScopedIp, ServiceDaemon, ServiceEvent};
 
 use dns_lookup::lookup_host;
@@ -180,7 +180,7 @@ impl ToRedisArgs for SocketAddrInformation {
 /// the synchronous `dns_lookup::lookup_host` to avoid blocking the Tokio runtime.
 #[derive(Clone)]
 pub struct SocketAddrResolver {
-    #[cfg(feature = "mdns")]
+    #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
     /// The mDNS service daemon used for multicast DNS resolution.
     mdns: ServiceDaemon,
     /// The Redis client used for DNS information storage and retrieval.
@@ -208,7 +208,7 @@ impl SocketAddrResolver {
     /// This function will panic if the Redis client cannot be created from the provided URL (unwrap is used).
     pub fn new(client: redis::Client) -> Result<Self> {
         Ok(Self {
-            #[cfg(feature = "mdns")]
+            #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
             mdns: ServiceDaemon::new()?,
             redis: client,
         })
@@ -330,7 +330,7 @@ impl SocketAddrResolver {
                 .map(|ip| SocketAddr::new(*ip, socket_addr_info.port))
                 .collect()
         } else {
-            #[cfg(feature = "mdns")]
+            #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
             {
                 info!("Resolve hostname with mdns: {}", hostname);
                 let addresses = self.resolve_mdns(hostname, default_port).await;
@@ -363,7 +363,7 @@ impl SocketAddrResolver {
     ///
     /// Returns an error if the listener fails to start or encounters an error during execution.
     pub async fn listen(&self) -> Result<()> {
-        #[cfg(feature = "mdns")]
+        #[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
         {
             use tracing::{error, info};
 
@@ -413,7 +413,7 @@ impl SocketAddrResolver {
 }
 
 // MDNS part
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 impl SocketAddrResolver {
     /// Updates the Redis database with information from an mDNS service.
     ///

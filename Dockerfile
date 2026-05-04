@@ -3,7 +3,7 @@
 ARG RUST_VERSION=1
 ARG NODE_VERSION=24-slim
 ARG DEBIAN_VERSION=bookworm
-ARG FEATURES=all
+ARG CARGO_ARGS="--workspace --bins"
 
 FROM rust:$RUST_VERSION-$DEBIAN_VERSION AS build-chef
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -45,7 +45,7 @@ COPY ./backuppc-importer-rs /src/backuppc-importer-rs/
 COPY ./server-rs /src/server-rs/
 COPY ./e2e-tests /src/e2e-tests/
 
-RUN cargo build --release $FEATURES
+RUN cargo build --release $CARGO_ARGS
 
 # Strip binaries to reduce image size
 RUN strip /src/target/release/api_server \
@@ -53,9 +53,11 @@ RUN strip /src/target/release/api_server \
   /src/target/release/job_worker \
   /src/target/release/scheduler \
   /src/target/release/ws_client_daemon \
+  /src/target/release/ws_client_console \
   /src/target/release/ws_backuppc_importer \
   /src/target/release/ws_console \
-  /src/target/release/ws_sync
+  /src/target/release/ws_sync \
+  /src/target/release/ws_restore
 
 #
 # -------- Dependencies -------
@@ -147,6 +149,7 @@ COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/sched
 COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/
 COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_console /app/
 COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_sync /app/
+COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_restore /app/
 
 # Copy Frontend static files
 COPY --chown=$APP_USER:$APP_USER --from=build-front /src/front/dist /app/static

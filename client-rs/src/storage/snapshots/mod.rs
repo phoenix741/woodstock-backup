@@ -56,7 +56,7 @@
 //! # }
 //! ```
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub mod btrfs;
 #[cfg(windows)]
 pub mod vss;
@@ -154,7 +154,7 @@ pub async fn select_snapshot_manager<P: AsRef<Path>>(
     // Collect all available managers
     let mut managers: Vec<Box<dyn SnapshotManager>> = Vec::new();
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         // Add BTRFS manager
         managers.push(Box::new(btrfs::BtrfsSnapshotManager::new(false)));
@@ -191,7 +191,7 @@ pub async fn select_snapshot_manager<P: AsRef<Path>>(
 pub fn get_available_managers() -> Vec<Box<dyn SnapshotManager>> {
     let mut managers: Vec<Box<dyn SnapshotManager>> = Vec::new();
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         managers.push(Box::new(btrfs::BtrfsSnapshotManager::new(false)));
         // TODO: Add other Unix managers (ZFS, etc.)
@@ -210,7 +210,7 @@ pub fn get_available_managers() -> Vec<Box<dyn SnapshotManager>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     use std::path::PathBuf;
     use tempfile::TempDir;
 
@@ -230,7 +230,7 @@ mod tests {
         let managers = get_available_managers();
 
         // Should have at least the BTRFS manager on Unix systems
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         {
             assert!(!managers.is_empty());
             assert_eq!(managers[0].manager_name(), "BTRFS");
@@ -247,7 +247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_snapshot_manager_trait_methods() {
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         {
             let manager = btrfs::BtrfsSnapshotManager::new(false);
 
@@ -273,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     fn test_btrfs_snapshot_reference() {
         let redirection_path = PathBuf::from("/test/snapshot/path");
         let snapshot_root_path = PathBuf::from("/test/snapshot");
@@ -289,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     fn test_btrfs_snapshot_path_calculation() {
         // Simulate a scenario where we have /home/phoenix/Documents
         // Mount point is /home
@@ -326,7 +326,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     async fn test_btrfs_snapshot_cleanup_tracking() {
         use std::path::PathBuf;
 

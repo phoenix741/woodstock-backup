@@ -12,14 +12,14 @@
 //! On Unix systems with the `xattr` feature enabled, this module provides full support for extended attributes. On other platforms, a stub implementation is used to ensure compatibility.
 
 /// Unix-specific implementation for extended attributes.
-#[cfg(all(unix, feature = "xattr"))]
+#[cfg(all(target_os = "linux", feature = "xattr"))]
 mod unix;
 /// Windows-specific implementation for extended attributes.
-#[cfg(not(all(unix, feature = "xattr")))]
+#[cfg(not(all(target_os = "linux", feature = "xattr")))]
 mod windows;
 
-#[cfg(all(unix, feature = "xattr"))]
+#[cfg(all(target_os = "linux", feature = "xattr"))]
 pub use unix::*;
 
-#[cfg(not(all(unix, feature = "xattr")))]
+#[cfg(not(all(target_os = "linux", feature = "xattr")))]
 pub use windows::*;

@@ -19,10 +19,10 @@
 //! Use the `mdns` submodule for automatic discovery in local networks or the `direct` submodule to limit
 //! broadcasting.
 
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 /// Implements multicast DNS-based server discovery.
 mod mdns;
-#[cfg(feature = "mdns")]
+#[cfg(all(feature = "mdns", not(target_os = "freebsd")))]
 pub use mdns::MdnsResolveClient;
 
 /// Provides direct connection capabilities to specified server addresses.
