@@ -13,6 +13,17 @@ Woodstock Backup consists of two main components:
 
 All server services share the same Docker image and communicate through **Valkey** (a Redis-compatible store).
 
+## Installation Methods
+
+Choose the method that best suits your infrastructure:
+
+| Method | Platform | Best for |
+|--------|----------|----------|
+| [**Debian package**](/doc/installation-debian) | Debian 12, Ubuntu 24.04 | Production servers, managed hosting |
+| [**FreeBSD package**](/doc/installation-freebsd) | FreeBSD 14+ | FreeBSD servers, jails |
+| [**Docker Compose**](#docker-installation-recommended) | Any Linux | Quick setup, containerized environments |
+| [**Build from source**](#manual-installation) | Linux, FreeBSD, Windows | Custom builds, development |
+
 ## Prerequisites
 
 - Sufficient storage space on the server for backups

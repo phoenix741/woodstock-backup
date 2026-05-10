@@ -1,0 +1,27 @@
+[Unit]
+Description=Woodstock Backup - Job Worker
+Documentation=https://woodstock-backup.shadoware.org/doc/
+After=network.target valkey.service redis.service
+Wants=network.target valkey.service redis.service
+PartOf=woodstock.target
+
+[Service]
+Type=simple
+User=woodstock
+Group=woodstock
+EnvironmentFile=/etc/woodstock/server.env
+ExecStart=/usr/bin/job_worker
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=300
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/woodstock
+PrivateTmp=true
+
+[Install]
+WantedBy=woodstock.target

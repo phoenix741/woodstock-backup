@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_client_api
+# REQUIRE: NETWORKING woodstock_worker
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_client_api:
+#
+#   woodstock_client_api_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="woodstock_client_api"
+rcvar="woodstock_client_api_enable"
+desc="Woodstock Backup - mTLS Client API Gateway"
+
+command="/usr/local/bin/client_api_server"
+procname="${command}"
+
+: ${woodstock_client_api_enable:="NO"}
+: ${woodstock_client_api_user:="woodstock"}
+: ${woodstock_client_api_group:="woodstock"}
+: ${woodstock_client_api_env_file:="/usr/local/etc/woodstock/server.env"}
+
+load_rc_config $name
+
+# Source environment file if it exists
+if [ -f "${woodstock_client_api_env_file}" ]; then
+    . "${woodstock_client_api_env_file}"
+fi
+
+export BACKUP_PATH REDIS_HOST REDIS_PORT LOG_LEVEL
+
+run_rc_command "$1"

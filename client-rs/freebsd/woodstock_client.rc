@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_client
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_client:
+#
+#   woodstock_client_enable="YES"
+#   woodstock_client_config="/usr/local/etc/woodstock/config.yaml"
+#
+
+. /etc/rc.subr
+
+name="woodstock_client"
+rcvar="woodstock_client_enable"
+desc="Woodstock Backup Client Daemon"
+
+command="/usr/local/bin/ws_client_daemon"
+procname="${command}"
+
+: ${woodstock_client_enable:="NO"}
+: ${woodstock_client_config:="/usr/local/etc/woodstock/config.yaml"}
+: ${woodstock_client_user:="woodstock"}
+: ${woodstock_client_group:="woodstock"}
+: ${woodstock_client_logfile:="/var/log/woodstock/client.log"}
+
+command_args="--config-dir /usr/local/etc/woodstock/"
+
+pidfile="/var/run/${name}.pid"
+
+load_rc_config $name
+run_rc_command "$1"

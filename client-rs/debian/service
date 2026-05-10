@@ -1,8 +1,12 @@
 [Unit]
 Description=Woodstock Client Daemon
+After=network.target
+Wants=network.target
 
 [Service]
 ExecStart=/usr/bin/ws_client_daemon --config-dir /etc/woodstock/
+Restart=on-failure
+RestartSec=5
 
 [Install]
-WantedBy=network.target
+WantedBy=multi-user.target

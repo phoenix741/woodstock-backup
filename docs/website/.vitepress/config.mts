@@ -32,6 +32,14 @@ export default defineConfig({
           items: [
             { text: "Introduction", link: "/doc/" },
             { text: "Installation", link: "/doc/installation" },
+            {
+              text: "Installation Guides",
+              items: [
+                { text: "Debian / Ubuntu", link: "/doc/installation-debian" },
+                { text: "FreeBSD", link: "/doc/installation-freebsd" },
+              ],
+              collapsed: true,
+            },
             { text: "Agent", link: "/doc/agent" },
             { text: "Configuration", link: "/doc/configuration" },
             { text: "Scheduler", link: "/doc/scheduler" },

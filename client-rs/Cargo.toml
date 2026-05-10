@@ -10,6 +10,7 @@ build = "build.rs"
 [package.metadata.deb]
 license-file = ["../LICENSE", "0"]
 maintainer-scripts = "debian/"
+depends = "$auto, ca-certificates"
 systemd-units = { enable = true }
 conf-files = ["/etc/woodstock/config.yml"]
 assets = [

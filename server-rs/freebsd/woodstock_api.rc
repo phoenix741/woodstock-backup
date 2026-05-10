@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_api
+# REQUIRE: NETWORKING woodstock_worker
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_api:
+#
+#   woodstock_api_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="woodstock_api"
+rcvar="woodstock_api_enable"
+desc="Woodstock Backup - REST/GraphQL API Server"
+
+command="/usr/local/bin/api_server"
+procname="${command}"
+
+: ${woodstock_api_enable:="NO"}
+: ${woodstock_api_user:="woodstock"}
+: ${woodstock_api_group:="woodstock"}
+: ${woodstock_api_env_file:="/usr/local/etc/woodstock/server.env"}
+
+load_rc_config $name
+
+# Source environment file if it exists
+if [ -f "${woodstock_api_env_file}" ]; then
+    . "${woodstock_api_env_file}"
+fi
+
+export BACKUP_PATH REDIS_HOST REDIS_PORT STATIC_PATH LOG_LEVEL \
+       MANAGEMENT_API_LISTEN MANAGEMENT_API_PORT
+
+run_rc_command "$1"

@@ -1,0 +1,35 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_scheduler
+# REQUIRE: NETWORKING woodstock_worker
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_scheduler:
+#
+#   woodstock_scheduler_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="woodstock_scheduler"
+rcvar="woodstock_scheduler_enable"
+desc="Woodstock Backup - Cron Scheduler"
+
+command="/usr/local/bin/scheduler"
+procname="${command}"
+
+: ${woodstock_scheduler_enable:="NO"}
+: ${woodstock_scheduler_user:="woodstock"}
+: ${woodstock_scheduler_group:="woodstock"}
+: ${woodstock_scheduler_env_file:="/usr/local/etc/woodstock/server.env"}
+
+load_rc_config $name
+
+# Source environment file if it exists
+if [ -f "${woodstock_scheduler_env_file}" ]; then
+    . "${woodstock_scheduler_env_file}"
+fi
+
+export BACKUP_PATH REDIS_HOST REDIS_PORT LOG_LEVEL
+
+run_rc_command "$1"

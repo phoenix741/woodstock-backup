@@ -114,8 +114,14 @@ jobs:
           npm run build
           cd ..
 
+      - name: Upload frontend dist as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: front-dist
+          path: front/dist/
+
   dtrack:
-    needs: [ prerelease ]
+    needs: [prerelease]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
@@ -167,7 +173,7 @@ jobs:
           autoCreate: true
 
   clientrs:
-    needs: [ prerelease ]
+    needs: [prerelease]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ${{ matrix.os }}
@@ -206,7 +212,7 @@ jobs:
       #   if: matrix.os == 'freebsd-latest'
       #   run: |
       #     pkg update
-      #     pkg install -y protobuf cmake gmake pkgconf zip git-lfs fusefs-libs curl 
+      #     pkg install -y protobuf cmake gmake pkgconf zip git-lfs fusefs-libs curl
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -260,7 +266,7 @@ jobs:
           powershell -Command "Get-ChildItem -Path * -Exclude *.d,*.pdb | Compress-Archive -DestinationPath ${{ matrix.binary_name }}-${{ matrix.target }}.zip"
 
       - name: Upload artifacts
-        uses: christopherhx/gitea-upload-artifact@v4
+        uses: christopherhx/gitea-upload-artifact@v7
         with:
           name: ${{ matrix.target }}
           path: |
@@ -269,7 +275,7 @@ jobs:
   upload:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [ clientrs, unittest ]
+    needs: [clientrs, unittest]
     runs-on: ubuntu-latest
     steps:
       - name: Install dependencies
@@ -299,12 +305,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify the integrity of provenance attestations and registry signatures
+      - name:
+          Verify the integrity of provenance attestations and registry signatures
           for installed dependencies
         run: npm audit signatures
 
       - name: Download artifacts
-        uses: christopherhx/gitea-download-artifact@v4
+        uses: christopherhx/gitea-download-artifact@v8
 
       - name: Import GPG key
         if: github.event_name == 'push'
@@ -351,7 +358,7 @@ jobs:
   debian_rs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [ upload ]
+    needs: [upload, prerelease]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -375,14 +382,42 @@ jobs:
           target: ${{ matrix.target }}
           cache: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install Node.JS dependencies
+        run: npm ci
+
+      - name: Download frontend dist artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: front-dist
+          path: server-rs/front-dist/
+
       - name: Installation de cargo-deb
         run: cargo install cargo-deb
+
+      - name: Mise à jour des versions
+        if: github.event_name == 'push'
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Generate debian package
         run: |
           cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
           cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
           cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
+          cargo deb -p woodstock-server-rs --target ${{ matrix.target }}
+
+      - name: Upload Debian packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: debian-packages
+          path: target/${{ matrix.target }}/debian/*.deb
 
       - name: Publish package to debian gitea repository
         if: github.event_name == 'push'
@@ -393,10 +428,87 @@ jobs:
               https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
           done
 
+  freebsd_pkg:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload, prerelease]
+    runs-on: freebsd-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Get artifact IDs
+        id: get-artifact-ids
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          ARTIFACTS=$(curl -fsSL \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            "https://gogs.shadoware.org/api/v1/repos/ShadowareOrg/woodstock-backup/actions/runs/${RUN_ID}/artifacts")
+          FREEBSD_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '.artifacts[] | select(.name=="x86_64-unknown-freebsd") | .id')
+          FRONTDIST_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '.artifacts[] | select(.name=="front-dist") | .id')
+          echo "ids=${FREEBSD_ID},${FRONTDIST_ID}" >> $GITHUB_OUTPUT
+
+      - name: Download FreeBSD binaries and frontend
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.get-artifact-ids.outputs.ids }}
+          path: artifacts/
+
+      - name: Extract FreeBSD binaries
+        run: |
+          mkdir -p zipfile
+          INNER_ZIP=$(find artifacts/x86_64-unknown-freebsd -name "*.zip" | head -1)
+          unzip -o "${INNER_ZIP}" -d zipfile
+          find zipfile -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+          mv artifacts/front-dist front/dist
+
+      - name: Build FreeBSD packages
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION}"
+          if [ -z "${PKG_VERSION}" ]; then
+            PKG_VERSION=$(grep '^version' server-rs/Cargo.toml | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+.*' | tr -d '"')
+          fi
+          PKG_VERSION="${PKG_VERSION:-0.0.0}"
+          mkdir -p pkg-out
+          sh scripts/create-freebsd-pkg.sh \
+            "${PKG_VERSION}" \
+            zipfile \
+            pkg-out \
+            front/dist
+
+      - name: Upload FreeBSD packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: freebsd-packages
+          path: pkg-out/*.pkg
+
+      - name: Publish packages to Gitea generic registry
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION:-0.0.0-dev}"
+          for file in pkg-out/*.pkg; do
+            filename="$(basename "${file}")"
+            curl --fail \
+              --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
+              --upload-file "${file}" \
+              "https://gogs.shadoware.org/api/packages/ShadowareOrg/generic/woodstock-freebsd/${PKG_VERSION}/${filename}"
+          done
+
   docker:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [ upload ]
+    needs: [upload]
     runs-on: ubuntu-latest
     strategy:
       matrix:

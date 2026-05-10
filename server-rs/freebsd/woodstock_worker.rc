@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_worker
+# REQUIRE: NETWORKING valkey redis
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_worker:
+#
+#   woodstock_worker_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="woodstock_worker"
+rcvar="woodstock_worker_enable"
+desc="Woodstock Backup - Job Worker"
+
+command="/usr/local/bin/job_worker"
+procname="${command}"
+
+: ${woodstock_worker_enable:="NO"}
+: ${woodstock_worker_user:="woodstock"}
+: ${woodstock_worker_group:="woodstock"}
+: ${woodstock_worker_env_file:="/usr/local/etc/woodstock/server.env"}
+
+load_rc_config $name
+
+# Source environment file if it exists
+if [ -f "${woodstock_worker_env_file}" ]; then
+    . "${woodstock_worker_env_file}"
+fi
+
+export BACKUP_PATH REDIS_HOST REDIS_PORT LOG_LEVEL \
+       BACKUP_CONCURRENCY RESTORE_CONCURRENCY MAINTENANCE_CONCURRENCY
+
+run_rc_command "$1"
