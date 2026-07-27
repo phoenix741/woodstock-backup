@@ -1624,7 +1624,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "e2e-tests"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "eyre",
  "futures",
@@ -4006,9 +4006,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.13"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1906b49b0c3bc04b5fe5d86a77925ae6524a19b816ae38ce1e426255f1d8a31"
+checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -6907,7 +6907,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-server-rs"
-version = "2.0.0"
+version = "2.0.0-alpha.51"
 dependencies = [
  "apalis",
  "apalis-cron",
