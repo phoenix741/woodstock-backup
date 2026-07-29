@@ -450,9 +450,10 @@ jobs:
             -H "Authorization: token ${GITEA_TOKEN}" \
             "https://gogs.shadoware.org/api/v1/repos/ShadowareOrg/woodstock-backup/actions/runs/${RUN_ID}/artifacts")
           FREEBSD_ID=$(echo "${ARTIFACTS}" | \
-            jq -r '.artifacts[] | select(.name=="x86_64-unknown-freebsd") | .id')
+            jq -r '[.artifacts[] | select(.name=="x86_64-unknown-freebsd")] | max_by(.id) | .id')
           FRONTDIST_ID=$(echo "${ARTIFACTS}" | \
-            jq -r '.artifacts[] | select(.name=="front-dist") | .id')
+            jq -r '[.artifacts[] | select(.name=="front-dist")] | max_by(.id) | .id')
+
           echo "ids=${FREEBSD_ID},${FRONTDIST_ID}" >> $GITHUB_OUTPUT
 
       - name: Download FreeBSD binaries and frontend
