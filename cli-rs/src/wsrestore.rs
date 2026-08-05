@@ -124,11 +124,18 @@ async fn main() -> Result<()> {
     let destination_directory = args
         .destination_directory
         .map_or(default_path, PathBuf::from);
-    let list = args.filter.as_ref().map_or(Vec::new(), |list| {
-        list.iter()
-            .map(|filter| Path::new(filter.as_str()))
-            .collect::<Vec<_>>()
-    });
+    // The restore keeps an entry when its path starts with one of the filters
+    // (`woodstock-rs/src/server/backup/restore.rs`). An empty vector matches
+    // nothing, so omitting `--filter` used to restore zero files while still
+    // reporting success — default to a filter that matches every path instead.
+    let list = args.filter.as_ref().map_or_else(
+        || vec![Path::new("")],
+        |list| {
+            list.iter()
+                .map(|filter| Path::new(filter.as_str()))
+                .collect::<Vec<_>>()
+        },
+    );
 
     term.write_line(&format!(
         "Restoring {} (ips = {:?})",
