@@ -37,15 +37,22 @@ Current limitations:
 
 When you add a new host in the Woodstock Backup interface, the system automatically generates an installation package containing:
 
-- `config.yml`: The configuration file for the agent.
+- `config.yaml`: The configuration file for the agent.
 - Certificates needed for authentication.
 - The agent executable for your operating system (for some platforms).
 
 ## Windows Installation
 
+### Prerequisites
+
+The [Visual C++ Redistributable 2015-2022 (x64)](https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist)
+must be installed. `ws_client_daemon.exe` depends on `VCRUNTIME140.dll`, which
+it does not ship; without it, any invocation — including `install-service` —
+exits immediately with status `0xC0000135` and no error message.
+
 After downloading, you will have a zip file containing:
 
-- `config.yml`: The configuration file for the agent.
+- `config.yaml`: The configuration file for the agent.
 - `ws_client_daemon.exe`: The executable for Windows.
 - Certificates needed for authentication.
 
@@ -77,7 +84,7 @@ The agent is now installed and running as a Windows service. It will automatical
 
 After downloading, you will have a zip file containing:
 
-- `config.yml`: The configuration file for the agent.
+- `config.yaml`: The configuration file for the agent.
 - `ws_client_daemon`: The executable for Linux.
 - Certificates needed for authentication.
 
@@ -128,7 +135,7 @@ The agent is now installed and running as a Linux service. It will automatically
 
 After downloading, you will have a zip file containing:
 
-- `config.yml`: The configuration file for the agent.
+- `config.yaml`: The configuration file for the agent.
 - Certificates needed for authentication.
 
 ### Installation Steps
@@ -139,21 +146,21 @@ After downloading, you will have a zip file containing:
 
 ```bash
 sudo curl https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/repository.key -o /etc/apt/keyrings/gitea-ShadowareOrg.asc
-echo "deb [signed-by=/etc/apt/keyrings/gitea-ShadowareOrg.asc] https://gogs.shadoware.org/api/packages/ShadowareOrg/debian bookworm main" | sudo tee -a /etc/apt/sources.list.d/gitea-shadowareorg.list
+echo "deb [signed-by=/etc/apt/keyrings/gitea-ShadowareOrg.asc] https://gogs.shadoware.org/api/packages/ShadowareOrg/debian trixie main" | sudo tee -a /etc/apt/sources.list.d/gitea-shadowareorg.list
 sudo apt update
 ```
 
 1. Install the agent package:
 
 ```bash
-sudo apt install woodstock-client-rs
+sudo apt install woodstock-client
 ```
 
 The agent is now installed and running as a Linux service. It will automatically start with your computer and listen for instructions from the server.
 
 ## Configuration
 
-The main configuration is done in the `config.yml` file. Here are all the available options:
+The main configuration is done in the `config.yaml` file. Here are all the available options:
 
 | Option | Description | Default Value |
 |--------|-------------|-------------------|
@@ -167,13 +174,22 @@ The main configuration is done in the `config.yml` file. Here are all the availa
 | `mdns_interfaces` | Optional list of network interfaces to use for mDNS discovery | - |
 | `server` | Server address when using Direct mode (required if resolution_mode is Direct) | - |
 | `disable_restauration` | Set to true to disable restore capabilities for security reasons | false |
-| `xattr` | Set to true to enable backup of extended attributes on Linux | false |
-| `acl` | Set to true to enable backup of ACLs on Linux | false |
+| `xattr` | Set to true to enable backup of extended attributes on Linux and FreeBSD | false |
+| `acl` | Set to true to enable backup of POSIX ACLs on Linux | false |
 | `auto_update` | Enable automatic updates | true on Windows, false on other platforms |
 | `update_delay` | Time in seconds between update checks | 86400 (24 hours) |
 | `log_directory` | Directory where logs will be stored | Same as the configuration directory |
 | `snapshot` | Snapshot preference flag in the client configuration schema | true |
 
+> **Important**: `xattr` and `acl` default to `false` and the `config.yaml` shipped
+> in the download bundle does not set them. Extended attributes and ACLs are
+> therefore **not** backed up until you add them to the file yourself:
+>
+> ```yaml
+> xattr: true
+> acl: true    # Linux only; on FreeBSD this logs a warning at startup
+> ```
+>
 > **Note**: snapshot support is already auto-detected by the current agent implementation. Keep `snapshot: true`.
 > Explicit end-to-end disabling or per-job control is not fully wired yet.
 
@@ -231,3 +247,22 @@ If backups on Windows or Linux do not use a snapshot:
 3. On Windows, ensure the agent runs with sufficient privileges and that the VSS service is available.
 
 4. If snapshot creation still fails, the backup should continue from the live filesystem.
+
+### `ws_client_daemon.exe` Fails to Start with No Error Message (Windows)
+
+If any invocation of `ws_client_daemon.exe` — including `install-service` — exits
+immediately with status `0xC0000135` and no message, the process could not
+resolve `VCRUNTIME140.dll`. See the
+[Prerequisites](#prerequisites) of the Windows Installation section: the
+Visual C++ Redistributable 2015-2022 (x64) is required and is not bundled
+with the agent.
+
+### `config.yaml` Rejected with "missing field `password`" (Windows)
+
+`Set-Content -Encoding utf8` in Windows PowerShell 5.1 writes a leading UTF-8
+BOM by default. Older agent builds passed that BOM straight into the YAML
+parser, which corrupted the first key and produced a confusing "missing
+field" error even though the field was present in the file. Current builds
+strip a leading BOM automatically; if you still hit this, re-save
+`config.yaml` without a BOM (e.g. `Set-Content -Encoding ascii`) or upgrade
+the agent.

@@ -13,20 +13,36 @@ This security protocol is designed to authenticate the server with each client d
 
 #### JWT Key Pair
 
-On the first start of the Woodstock backup server, the server generates its own RSA key pair of 2048 bits stored
-in the certificate directory (`public_key.pem`, `private_key.pem`).
+On the first start of `api_server`, the server generates its own RSA key pair of 2048 bits stored
+in the certificate directory (`public_key.pem`, `private_key.pem`). Generation is idempotent: an
+existing pair is reused as-is.
 
 The goal of this key pair is to sign the JWT token sent to the client. The public key is sent to the client to allow the client to verify the JWT token.
 
 #### Device Certificate
 
-On the first start of the Woodstock backup server, the server generates an authority certificate used to sign all devices certificates (stored in `rootCA.pem` and `rootCA.key`).
+On the first start of `api_server`, the server generates an authority certificate used to sign all devices certificates (stored in `rootCA.pem` and `rootCA.key`). `client_api_server` generates its own `https.pem`/`https.key` on its first start.
 
-For the creation of each device, the Woodstock backup server will generate the following certificates:
+Per-device certificates are generated lazily, the first time the agent bundle is requested
+(`GET /api/hosts/{name}/client`) — not when the host is added to `hosts.yml`. Until that request is
+made, a backup of that host cannot start. The following certificates are then created:
 
 - `${host}_ca.pem` and `${host}_ca.key`: The certificate authority of the device.
 - `${host}_client.pem` and `${host}_client.key`: The server certificate signed with `rootCA` certificate.
 - `${host}_server.pem` and `${host}_server.key`: The device certificate signed with `${host}_ca` certificate.
+- `${host}_https.pem` and `${host}_https.key`: The device certificate used to register with the gateway, signed with `rootCA`.
+
+Each certificate must assert the extended key usage matching the side of the
+connection it authenticates. Getting this wrong makes rustls reject the
+handshake with `UnsupportedCertificate`, which surfaces much later as a backup
+that never starts:
+
+| Certificate | Presented by | Toward | Extended key usage |
+|---|---|---|---|
+| `${host}_client` | server | the agent's gRPC port 3657 | `clientAuth` |
+| `${host}_server` | agent | the worker connecting in | `serverAuth` |
+| `${host}_https` | agent | the gateway on port 8443 | `clientAuth` |
+| `https` | server | agents registering on 8443 | `serverAuth` |
 
 All these certificates are stored in the certificate directory.
 

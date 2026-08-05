@@ -38,4 +38,23 @@ This folder contains the technical documentation for developers who want to cont
 6. **[Backup Retention](RETENTION.md)**
     * Time-based sliding window algorithm (Hourly, Daily, Weekly, Monthly, Yearly).
     * Removal process and synchronization locking (`backup.yml`).
-    * GraphQL integration.
+
+## Packaging & Deployment
+
+### Debian / Ubuntu
+
+The `woodstock-server` Debian package is built using `cargo-deb` and includes:
+* All 4 server binaries (`api_server`, `client_api_server`, `job_worker`, `scheduler`)
+* The pre-compiled Vue.js frontend in `/usr/share/woodstock/static/`
+* 4 systemd services + `woodstock.target` (in `server-rs/debian/`)
+* A `woodstock` system user and `/var/lib/woodstock/` data structure
+
+Build locally: `cargo deb -p woodstock-server-rs` (requires `front/dist/` to be present)
+
+### FreeBSD
+
+FreeBSD packages are built with `pkg create` using manifests and scripts in `server-rs/freebsd/` and `client-rs/freebsd/`:
+* 4 rc.d scripts, data under `/var/db/woodstock/`, config in `/usr/local/etc/woodstock/`
+* Build script: `scripts/create-freebsd-pkg.sh <version> <binaries_dir> <output_dir> [front_dist_dir]`
+* Published to the Gitea generic package registry (not a native pkg repo)
+  * GraphQL integration.

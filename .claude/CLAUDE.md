@@ -80,10 +80,12 @@ The `ws_console` binary is the primary tool for inspecting raw backup data on th
 
 ```bash
 # Read any protobuf file (manifest, journal, refcount, events, chunk info)
+# The path is resolved against the current directory, NOT against BACKUP_PATH:
+# it must be absolute. The backup directory is named after the backup UUID.
 ws_console read-protobuf <path> <format>   # formats: file-manifest, file-manifest-journal-entry, ref-count, unused, event, chunk-information
-ws_console read-protobuf hosts/myhost/42/%2Fetc.manifest file-manifest
-ws_console read-protobuf hosts/myhost/42/%2Fetc.manifest file-manifest --filter-name passwd
-ws_console read-protobuf hosts/myhost/42/%2Fetc.manifest file-manifest --filter-chunks <sha256hex>
+ws_console read-protobuf /var/lib/woodstock/hosts/myhost/<uuid>/%2Fetc.manifest file-manifest
+ws_console read-protobuf /var/lib/woodstock/hosts/myhost/<uuid>/%2Fetc.manifest file-manifest --filter-name passwd
+ws_console read-protobuf /var/lib/woodstock/hosts/myhost/<uuid>/%2Fetc.manifest file-manifest --filter-chunks <sha256hex>
 
 # Read the backup journal log for a given host/backup/share
 ws_console read-log <hostname> <backup_number> <share_path>
@@ -109,7 +111,8 @@ ws_console compare <manifest_source> <manifest_target>
 ├── logs/                   # Rotated app logs: application-backup-<date>.log.gz
 ├── hosts/
 │   └── <hostname>/
-│       ├── <backup_id>/    # One dir per backup snapshot (incremental id)
+│       ├── <uuid>/         # One dir per backup, named after its UUID
+│       │                   # (the sequential number is a display label only)
 │       │   ├── backup.log        # Log of the backup process (plaintext)
 │       │   ├── history.yml       # Per-backup stats (metadata: timestamp, stats, etc.)
 │       │   ├── REFCNT            # Per-backup reference count of chunk
@@ -129,6 +132,8 @@ ws_console compare <manifest_source> <manifest_target>
 
 **Key rules:**
 *   Manifest filenames are URL-encoded share paths: `/etc` → `%2Fetc.manifest`.
+    The encoding escapes *every* non-alphanumeric byte, so `/srv/my-data` becomes
+    `%2Fsrv%2Fmy%2Ddata` (`mangle()`, `woodstock-rs/src/utils/path.rs`).
 *   Pool chunk path from hash `000003ef...`: `pool/00/00/03/000003ef...-sha256.zz`.
 *   Never delete pool chunks manually — use `ws_console clean-unused` to respect refcounts.
 
