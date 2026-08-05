@@ -3,7 +3,7 @@
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::Response,
     Json,
 };
@@ -21,6 +21,7 @@ use crate::api::{
     dto::{ClientType, HostConfiguration, HostInformation},
     ApiError, ApiResult, ApiServerState,
 };
+use crate::client_api::config::ClientApiConfig;
 
 // Plus de writer custom: on utilise un duplex tokio (backpressure) et async-zip.
 
@@ -53,6 +54,39 @@ fn client_daemon_filename(windows: bool) -> &'static str {
 /// Find version from package.json (simplified version for Rust)
 fn find_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
+}
+
+/// Build the `server:` URL written in the generated agent `config.yaml`.
+///
+/// The agent talks to the mTLS gateway (`client_api_server`), not to this API,
+/// so the port comes from `CLIENT_API_PORT` rather than from the incoming
+/// request. The hostname is taken from the request `Host` header so an agent
+/// enrolled from `http://backup.example.org:3000/...` gets
+/// `https://backup.example.org:8443`. `PUBLIC_CLIENT_API_URL` overrides the
+/// whole thing for setups behind a reverse proxy.
+fn client_api_url(headers: &HeaderMap) -> String {
+    if let Ok(url) = std::env::var("PUBLIC_CLIENT_API_URL") {
+        if !url.trim().is_empty() {
+            return url.trim().trim_end_matches('/').to_string();
+        }
+    }
+
+    let port = ClientApiConfig::default().port;
+
+    let host = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map_or("localhost", |value| {
+            // Strip the API port; keep IPv6 literals (`[::1]:3000`) intact.
+            match value.rfind(']') {
+                Some(end) => &value[..=end],
+                None => value.split(':').next().unwrap_or(value),
+            }
+        });
+
+    format!("https://{host}:{port}")
 }
 
 /// Download client binary from GitHub releases
@@ -184,6 +218,7 @@ pub async fn get_host_client_download(
     State(state): State<ApiServerState>,
     Path(name): Path<String>,
     Query(query): Query<ClientDownloadQuery>,
+    headers: HeaderMap,
 ) -> ApiResult<Response> {
     // First, verify that the host exists
     let host_information = match state
@@ -218,6 +253,7 @@ pub async fn get_host_client_download(
     let name_clone = name.clone();
     let password_clone = host_information.password.clone();
     let client_type_clone = query.client.clone();
+    let server_url = client_api_url(&headers);
 
     // Tâche d'écriture ZIP full-async avec async-zip
     tokio::spawn(
@@ -267,12 +303,11 @@ pub async fn get_host_client_download(
 
                 // config.yaml
                 let config_yaml = format!(
-                    r#"hostname: {}
-password: {}
+                    r#"hostname: {name_clone}
+password: {password_clone}
 resolution_mode: Direct
-server: https://localhost:8443
-"#,
-                    name_clone, password_clone
+server: {server_url}
+"#
                 );
                 let builder = ZipEntryBuilder::new("config.yaml".into(), Compression::Deflate);
                 zip.write_entry_whole(builder, config_yaml.as_bytes())
