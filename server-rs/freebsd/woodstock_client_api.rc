@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_client_api
+# REQUIRE: NETWORKING woodstock_worker
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_client_api:
+#
+#   woodstock_client_api_enable="YES"
+#
+
+. /etc/rc.subr
+
+name="woodstock_client_api"
+rcvar="woodstock_client_api_enable"
+desc="Woodstock Backup - mTLS Client API Gateway"
+
+# The server binaries run in the foreground, so they are wrapped in daemon(8),
+# which backgrounds them, restarts them on failure (-r) and captures their
+# output (-o). Without this `service … start` would block forever.
+#
+# ${procname} must be daemon(8) itself: -P records the supervisor's pid and
+# rc.subr checks that pid against ${procname}.
+command="/usr/sbin/daemon"
+procname="/usr/sbin/daemon"
+pidfile="/var/run/${name}.pid"
+
+: ${woodstock_client_api_enable:="NO"}
+: ${woodstock_client_api_run_user:="woodstock"}
+
+: ${woodstock_client_api_env_file:="/usr/local/etc/woodstock/server.env"}
+: ${woodstock_client_api_logfile:="/var/log/woodstock/client_api.log"}
+
+load_rc_config $name
+
+# Defaults for anything the env file did not set.
+: ${BACKUP_PATH:="/var/db/woodstock"}
+: ${REDIS_HOST:="localhost"}
+: ${REDIS_PORT:="6379"}
+: ${STATIC_PATH:="/usr/local/share/woodstock/static"}
+: ${LOG_LEVEL:="info"}
+: ${MANAGEMENT_API_LISTEN:="0.0.0.0"}
+: ${MANAGEMENT_API_PORT:="3000"}
+: ${CLIENT_API_LISTEN:="0.0.0.0"}
+: ${CLIENT_API_PORT:="8443"}
+
+# Source environment file if it exists
+if [ -f "${woodstock_client_api_env_file}" ]; then
+    . "${woodstock_client_api_env_file}"
+fi
+
+
+# rc.subr wraps `command` in `su -m ${woodstock_client_api_user}` when that variable is set,
+# which drops privileges *before* daemon(8) writes its pidfile into /var/run —
+# root-owned, so the start fails with "ppidfile: Permission denied". Let
+# daemon(8) do the switch itself with -u, and leave ${woodstock_client_api_user} unset.
+#
+# The environment is passed through env(1) rather than exported: daemon(8) does
+# not forward the caller's exported variables, and without BACKUP_PATH the
+# server falls back to the Linux default /var/lib/woodstock, which does not
+# exist here — tracing-appender then panics and the service dies silently.
+command_args="-P ${pidfile} -r -f -o ${woodstock_client_api_logfile} -u ${woodstock_client_api_run_user} /usr/bin/env BACKUP_PATH=${BACKUP_PATH} REDIS_HOST=${REDIS_HOST} REDIS_PORT=${REDIS_PORT} STATIC_PATH=${STATIC_PATH} LOG_LEVEL=${LOG_LEVEL} MANAGEMENT_API_LISTEN=${MANAGEMENT_API_LISTEN} MANAGEMENT_API_PORT=${MANAGEMENT_API_PORT} CLIENT_API_LISTEN=${CLIENT_API_LISTEN} CLIENT_API_PORT=${CLIENT_API_PORT} /usr/local/bin/client_api_server"
+
+
+run_rc_command "$1"

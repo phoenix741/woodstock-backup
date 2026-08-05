@@ -1,6 +1,6 @@
 use eyre::Result;
 use std::ffi::OsString;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::Path;
 /// Unix implementation for extended attributes operations.
 ///
@@ -77,11 +77,13 @@ pub fn read_xattr(file: &Path) -> Result<Vec<FileManifestXAttr>> {
 ///
 /// # Implementation Details
 /// The function:
-/// 1. Opens the target file
+/// 1. Opens the target file for writing (required by FreeBSD's `extattr_set_fd`;
+///    Linux's `fsetxattr` would also accept a read-only descriptor, but writing
+///    is required for portability)
 /// 2. For each extended attribute, converts its key from bytes to an `OsString`
 /// 3. Sets the attribute on the file using the `FileExt` trait
 pub fn restore_xattr(file: &Path, xattrs: &[FileManifestXAttr]) -> Result<()> {
-    let file = File::open(file)?;
+    let file = OpenOptions::new().write(true).open(file)?;
 
     for xattr in xattrs {
         let key = unsafe { OsString::from_encoded_bytes_unchecked(xattr.key.clone()) };
@@ -89,4 +91,29 @@ pub fn restore_xattr(file: &Path, xattrs: &[FileManifestXAttr]) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Round-trips a `user.*` extended attribute through `read_xattr` and
+    /// `restore_xattr`. `user.*` is used because it requires no elevated
+    /// privileges on either Linux or FreeBSD.
+    #[test]
+    fn test_read_and_restore_xattr_roundtrip() {
+        let source = tempfile::NamedTempFile::new().unwrap();
+        xattr::set(source.path(), "user.woodstock_test", b"hello").unwrap();
+
+        let attrs = read_xattr(source.path()).unwrap();
+        assert!(attrs
+            .iter()
+            .any(|a| a.key == b"user.woodstock_test" && a.value == b"hello"));
+
+        let destination = tempfile::NamedTempFile::new().unwrap();
+        restore_xattr(destination.path(), &attrs).unwrap();
+
+        let restored = xattr::get(destination.path(), "user.woodstock_test").unwrap();
+        assert_eq!(restored, Some(b"hello".to_vec()));
+    }
 }

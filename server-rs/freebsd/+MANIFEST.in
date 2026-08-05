@@ -1,0 +1,39 @@
+name: woodstock-server
+version: "@@VERSION@@"
+origin: sysutils/woodstock-server
+comment: "Woodstock Backup Server (API, Worker, Scheduler, Client Gateway)"
+desc: <<EOD
+Woodstock Backup is a centralized pull-backup solution.
+This package provides all four server components:
+  - api_server: REST/GraphQL API and Vue.js web interface (port 3000)
+  - client_api_server: mTLS gateway for agent communication (port 8443)
+  - job_worker: Asynchronous backup/restore/maintenance worker
+  - scheduler: Cron-based job scheduler
+
+Requires Valkey (Redis-compatible) to be installed and running.
+EOD
+maintainer: ulrich.vdh@gmail.com
+www: https://woodstock.shadoware.org/
+arch: @@ABI@@
+prefix: /usr/local
+licenselogic: single
+licenses: [MIT]
+
+deps: {
+  valkey: {origin: "databases/valkey", version: "8"}
+}
+
+options: {}
+
+directories: {
+  /var/db/woodstock: "y"
+  /var/db/woodstock/certs: "y"
+  /var/db/woodstock/config: "y"
+  /var/db/woodstock/hosts: "y"
+  /var/db/woodstock/logs: "y"
+  /var/db/woodstock/pool: "y"
+  /var/db/woodstock/events: "y"
+  /var/db/woodstock/jobs: "y"
+  /var/log/woodstock: "y"
+  /usr/local/share/woodstock/static: "y"
+}

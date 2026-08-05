@@ -76,7 +76,7 @@ pub async fn mount(state: CliServiceState, options: &MountOption) -> Result<()> 
         &path,
     );
     let mount_config = Config::default();
-    fuser::mount2(fs, &options.mount_point, &mount_config)
+    fuser::mount(fs, &options.mount_point, &mount_config)
         .wrap_err("Failed to mount FUSE filesystem")?;
     Ok(())
 }

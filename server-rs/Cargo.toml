@@ -126,7 +126,7 @@ woodstock-rs = { workspace = true }
 
 # OpenAPI/Swagger documentation
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"] }
 
 # Prometheus metrics
 prometheus = "0.14"

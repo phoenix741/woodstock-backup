@@ -116,6 +116,12 @@ jobs:
           npm run build
           cd ..
 
+      - name: Upload frontend dist as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: front-dist
+          path: front/dist/
+
   dtrack:
     needs: [prerelease]
     env:
@@ -182,6 +188,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             features: --no-default-features --features "mdns"
             binary_name: binaries-linux-lite
+          - os: freebsd-latest
+            target: x86_64-unknown-freebsd
+            features: --no-default-features --features "mdns,xattr"
+            binary_name: binaries-freebsd
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             features: --features default
@@ -196,7 +206,13 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip curl xz-utils
+
+      # - name: Install build dependencies (FreeBSD)
+      #   if: matrix.os == 'freebsd-latest'
+      #   run: |
+      #     pkg update
+      #     pkg install -y protobuf cmake gmake pkgconf zip git-lfs fusefs-libs curl
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -218,17 +234,27 @@ jobs:
       - name: Build (release)
         run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
 
-      - name: Archive binary
+      - name: Archive binaries
         run: |
           mkdir zipfile
+
           cd target/${{ matrix.target }}/release
+
           cp ws_client_daemon* ../../../zipfile
+          cp ws_client_console* ../../../zipfile
           cp ws_console* ../../../zipfile
+          cp ws_restore* ../../../zipfile
+          cp ws_sync* ../../../zipfile
           cp ws_backuppc_importer* ../../../zipfile
 
-      - name: Archive binary (Linux)
+          cp api_server* ../../../zipfile
+          cp client_api_server* ../../../zipfile
+          cp job_worker* ../../../zipfile
+          cp scheduler* ../../../zipfile
+
+      - name: Archive binary (Linux/FreeBSD)
         shell: bash
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'freebsd-latest'
         run: |
           cd zipfile
           find . -type f \( -name "*.d" -o -name "*.pdb" \) -delete
@@ -241,9 +267,9 @@ jobs:
           powershell -Command "Get-ChildItem -Path * -Exclude *.d,*.pdb | Compress-Archive -DestinationPath ${{ matrix.binary_name }}-${{ matrix.target }}.zip"
 
       - name: Upload artifacts
-        uses: christopherhx/gitea-upload-artifact@v4
+        uses: christopherhx/gitea-upload-artifact@v7
         with:
-          name: ${{ matrix.binary_name }}
+          name: ${{ matrix.target }}
           path: |
             zipfile/${{ matrix.binary_name }}-${{ matrix.target }}.zip
 
@@ -280,11 +306,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+      - name:
+          Verify the integrity of provenance attestations and registry signatures
+          for installed dependencies
         run: npm audit signatures
 
       - name: Download artifacts
-        uses: christopherhx/gitea-download-artifact@v4
+        uses: christopherhx/gitea-download-artifact@v8
 
       - name: Import GPG key
         if: github.event_name == 'push'
@@ -373,6 +401,84 @@ jobs:
               https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
           done
 
+  freebsd_pkg:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload, prerelease]
+    runs-on: freebsd-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Get artifact IDs
+        id: get-artifact-ids
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          ARTIFACTS=$(curl -fsSL \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            "https://gogs.shadoware.org/api/v1/repos/ShadowareOrg/woodstock-backup/actions/runs/${RUN_ID}/artifacts")
+          FREEBSD_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '[.artifacts[] | select(.name=="x86_64-unknown-freebsd")] | max_by(.id) | .id')
+          FRONTDIST_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '[.artifacts[] | select(.name=="front-dist")] | max_by(.id) | .id')
+
+          echo "ids=${FREEBSD_ID},${FRONTDIST_ID}" >> $GITHUB_OUTPUT
+
+      - name: Download FreeBSD binaries and frontend
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.get-artifact-ids.outputs.ids }}
+          path: artifacts/
+
+      - name: Extract FreeBSD binaries
+        run: |
+          mkdir -p zipfile
+          INNER_ZIP=$(find artifacts/x86_64-unknown-freebsd -name "*.zip" | head -1)
+          unzip -o "${INNER_ZIP}" -d zipfile
+          find zipfile -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+          mv artifacts/front-dist front/dist
+
+      - name: Build FreeBSD packages
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION}"
+          if [ -z "${PKG_VERSION}" ]; then
+            PKG_VERSION=$(grep '^version' server-rs/Cargo.toml | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+.*' | tr -d '"')
+          fi
+          PKG_VERSION="${PKG_VERSION:-0.0.0}"
+          mkdir -p pkg-out
+          sh scripts/create-freebsd-pkg.sh \
+            "${PKG_VERSION}" \
+            zipfile \
+            pkg-out \
+            front/dist
+
+      - name: Upload FreeBSD packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: freebsd-packages
+          path: pkg-out/*.pkg
+
+      - name: Publish packages to Gitea generic registry
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION:-0.0.0-dev}"
+          for file in pkg-out/*.pkg; do
+            filename="$(basename "${file}")"
+            curl --fail \
+              --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
+              --upload-file "${file}" \
+              "https://gogs.shadoware.org/api/packages/ShadowareOrg/generic/woodstock-freebsd/${PKG_VERSION}/${filename}"
+          done
+
   docker:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
@@ -382,7 +488,7 @@ jobs:
       matrix:
         include:
           - rust_version: 1
-            features: --features default
+            cargo_args: --workspace --bins --features default
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
@@ -399,7 +505,8 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p "require('./package.json').version")" >>
+          $GITHUB_OUTPUT
 
       - name: Get metadata to tag server container image
         if: github.event_name == 'push'
@@ -471,7 +578,7 @@ jobs:
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
             DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Client Docker Image
         uses: docker/build-push-action@v6
@@ -491,7 +598,7 @@ jobs:
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
             DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Website Docker Image
         uses: docker/build-push-action@v6
