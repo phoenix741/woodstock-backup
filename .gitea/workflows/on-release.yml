@@ -232,7 +232,42 @@ jobs:
           cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Build (release)
-        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+        env:
+          # Forces the msvc target's crt-static feature, guaranteeing it wins
+          # over any ambient RUSTFLAGS on the runner. In practice this does
+          # NOT fully eliminate the dynamic CRT dependency (see the check
+          # below): ws_client_daemon.exe still pulls in VCRUNTIME140.dll and
+          # several api-ms-win-crt-* apisets, most likely via VSSAPI.LIB from
+          # the Windows SDK, which cannot be recompiled statically. Left in
+          # place as a correct, harmless forcing of the flag; the Visual C++
+          # Redistributable is documented as a real prerequisite instead
+          # (docs/website/doc/agent.md).
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{
+          matrix.features }}
+
+      - name: Check CRT linking (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $exe = "target/${{ matrix.target }}/release/ws_client_daemon.exe"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) {
+            Write-Warning "dumpbin.exe not found via vswhere; skipping CRT dependency check for $exe"
+            exit 0
+          }
+          $deps = & $dumpbin /dependents $exe
+          $bad = $deps | Select-String -Pattern "VCRUNTIME|api-ms-win-crt-"
+          if ($bad) {
+            # Known, documented dependency (see agent.md Prerequisites) rather
+            # than a hard gate: it has never been clean on this codebase, so
+            # failing the job here would only make the release pipeline
+            # permanently red. Informational only.
+            Write-Warning "$exe depends on the dynamic CRT ($(($bad | ForEach-Object { $_.Line.Trim() }) -join ', ')). The Visual C++ Redistributable 2015-2022 (x64) is required on the target machine."
+          } else {
+            Write-Host "OK: $exe has no dynamic CRT dependency"
+          }
 
       - name: Archive binaries
         run: |
