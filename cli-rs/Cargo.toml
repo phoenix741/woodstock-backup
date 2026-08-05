@@ -3,10 +3,16 @@ name = "woodstock-cli-rs"
 description = "Woodstock Tools"
 version = "2.0.0"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 
 [package.metadata.deb]
+# Renamed from `woodstock-cli-rs` in 2.0.1 for consistency with
+# `woodstock-server` / `woodstock-client`; see client-rs/Cargo.toml.
+name = "woodstock-cli"
+provides = "woodstock-cli-rs"
+replaces = "woodstock-cli-rs"
+conflicts = "woodstock-cli-rs"
 license-file = ["../LICENSE", "0"]
 
 [features]

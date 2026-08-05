@@ -3,7 +3,7 @@ name = "woodstock-rs"
 description = "Woodstock Access Library"
 version = "2.0.0"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 
 [package.metadata.deb]
@@ -71,7 +71,6 @@ libc = "0.2"
 sysinfo = { workspace = true }
 cron = "0.15.0"
 mdns-sd = { workspace = true, optional = true }
-
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libm = "^0.2"

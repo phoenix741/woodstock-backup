@@ -1,5 +1,5 @@
 # Hostname used to check the certificate
-hostname: pc-ulrich.eden.lan
+hostname: <hostname>
 
 # Password used by the server to make the authentification
 # password: <mypassword>

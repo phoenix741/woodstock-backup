@@ -65,15 +65,13 @@ jobs:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
     container:
-      image: node:${{ env.NODE_VERSION }}-bookworm
+      image: node:${{ env.NODE_VERSION }}-trixie
     services:
       redis:
         image: valkey/valkey:8-alpine
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout
+          5s --health-retries 5
     steps:
       - name: Install dependencies
         run: |
@@ -127,7 +125,8 @@ jobs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(fromJson('["master", "main", "alpha", "beta", "develop"]'), github.ref_name)
+    if: github.event_name == 'push' && contains(fromJson('["master", "main",
+      "alpha", "beta", "develop"]'), github.ref_name)
     steps:
       - name: Install dependencies
         run: |
@@ -158,7 +157,8 @@ jobs:
 
       - name: Extract branch name
         shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >>
+          $GITHUB_OUTPUT
         id: extract_branch
 
       - name: Upload to DependencyTrack
@@ -359,8 +359,14 @@ jobs:
   debian_rs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [upload]
+    needs: [upload, prerelease]
     runs-on: ubuntu-latest
+    # Build the .deb on the distribution it targets: the resulting packages
+    # declare a libc6 dependency matching the build host, and they are published
+    # to the `trixie` pool. A bare debian:trixie image would not work — the
+    # runner needs Node to execute the actions, hence the node:* variant.
+    container:
+      image: node:${{ env.NODE_VERSION }}-trixie
     strategy:
       matrix:
         include:
@@ -383,14 +389,42 @@ jobs:
           target: ${{ matrix.target }}
           cache: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install Node.JS dependencies
+        run: npm ci
+
+      - name: Download frontend dist artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: front-dist
+          path: server-rs/front-dist/
+
       - name: Installation de cargo-deb
         run: cargo install cargo-deb
+
+      - name: Mise à jour des versions
+        if: github.event_name == 'push'
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Generate debian package
         run: |
           cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
           cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
           cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
+          cargo deb -p woodstock-server-rs --target ${{ matrix.target }}
+
+      - name: Upload Debian packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: debian-packages
+          path: target/${{ matrix.target }}/debian/*.deb
 
       - name: Publish package to debian gitea repository
         if: github.event_name == 'push'
@@ -398,7 +432,7 @@ jobs:
           for file in target/${{ matrix.target }}/debian/*.deb; do
             curl --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
               --upload-file $file \
-              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
+              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/trixie/main/upload
           done
 
   freebsd_pkg:
@@ -577,7 +611,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
-            DEBIAN_VERSION=bookworm
+            DEBIAN_VERSION=trixie
             CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Client Docker Image
@@ -597,7 +631,7 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
-            DEBIAN_VERSION=bookworm
+            DEBIAN_VERSION=trixie
             CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Website Docker Image

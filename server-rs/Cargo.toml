@@ -3,11 +3,59 @@ name = "woodstock-server-rs"
 description = "Woodstock Backup Server Components"
 version = "2.0.0-alpha.51"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 
 [package.metadata.deb]
+name = "woodstock-server"
 license-file = ["../LICENSE", "0"]
+maintainer-scripts = "debian/"
+# `valkey` is a source package only; the binary package is `valkey-server`.
+# With the old name the alternative always fell through to redis-server.
+depends = "$auto, valkey-server | redis-server, ca-certificates"
+conf-files = ["/etc/woodstock/server.env"]
+systemd-units = [
+  { unit-name = "woodstock-api", enable = true, start = true },
+  { unit-name = "woodstock-client-api", enable = true, start = true },
+  { unit-name = "woodstock-worker", enable = true, start = true },
+  { unit-name = "woodstock-scheduler", enable = true, start = true },
+  { unit-name = "woodstock", unit-scripts = "debian/", enable = true, start = false },
+]
+assets = [
+  # Server binaries
+  [
+    "target/release/api_server",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/client_api_server",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/job_worker",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/scheduler",
+    "usr/bin/",
+    "755",
+  ],
+  # Environment configuration file
+  [
+    "debian/server.env",
+    "etc/woodstock/server.env",
+    "640",
+  ],
+  # Pre-compiled Vue.js frontend (downloaded to server-rs/front-dist/ in CI before cargo-deb)
+  [
+    "front-dist/**/*",
+    "usr/share/woodstock/static/",
+    "644",
+  ],
+]
 
 # Multiple binaries for different server components
 [[bin]]

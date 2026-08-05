@@ -3,15 +3,26 @@ name = "woodstock-client-rs"
 description = "Woodstock client daemon"
 version = "2.0.0"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 build = "build.rs"
 
 [package.metadata.deb]
+# Renamed from `woodstock-client-rs` in 2.0.1 to match the FreeBSD package and
+# the systemd unit names. The transition fields let dpkg upgrade an existing
+# `woodstock-client-rs` install instead of reporting a file conflict.
+name = "woodstock-client"
+provides = "woodstock-client-rs"
+replaces = "woodstock-client-rs"
+conflicts = "woodstock-client-rs"
 license-file = ["../LICENSE", "0"]
 maintainer-scripts = "debian/"
-systemd-units = { enable = true }
-conf-files = ["/etc/woodstock/config.yml"]
+depends = "$auto, ca-certificates"
+# Without an explicit unit-name cargo-deb derives it from the crate name and
+# ships `woodstock-client-rs.service`, which matches neither the documentation
+# nor the server's `woodstock-*` units.
+systemd-units = { unit-name = "woodstock-client", enable = true }
+conf-files = ["/etc/woodstock/config.yaml"]
 assets = [
     # binary
     ["target/release/ws_client_daemon", "usr/bin/", "755"],
