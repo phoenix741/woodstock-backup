@@ -1,0 +1,61 @@
+# Woodstock Backup — end-to-end test harness configuration
+#
+# Copy to e2e.conf and adjust. Every value can also be overridden from the
+# environment: `VM_MEM=4096 ./run.sh ...`.
+
+# ─── Installation media ──────────────────────────────────────────────────────
+# Debian: the packages target trixie (see .gitea/workflows/on-release.yml).
+DEBIAN_ISO="/server/ISO/debian-13.6.0-amd64-netinst.iso"
+DEBIAN_ISO_CHECKSUM=""       # "sha256:<hex>" — "none" skips verification
+
+# FreeBSD: a cloud-init image, downloaded by Packer itself (no local cache
+# directory to manage). The packages declare freebsd:15:x86:64, so stay on a
+# 15.x image.
+FREEBSD_IMAGE_URL="https://download.freebsd.org/releases/VM-IMAGES/15.1-RELEASE/amd64/Latest/FreeBSD-15.1-RELEASE-amd64-BASIC-CLOUDINIT-ufs.qcow2.xz"
+FREEBSD_IMAGE_CHECKSUM=""    # defaults to file:<mirror>/CHECKSUM.SHA256
+
+# Windows: an installation ISO. Builds with Packer like Debian/FreeBSD —
+# images/packer/windows/cd/autounattend.xml + setup.ps1 — with a real vTPM
+# (no Secure Boot): see README.md's "Images golden" section for why.
+WINDOWS_ISO="/server/ISO/windows/Win11_25H2_English_x64_v2.iso"
+WINDOWS_ISO_CHECKSUM=""      # "sha256:<hex>" — "none" skips verification
+
+# ─── Packages under test ─────────────────────────────────────────────────────
+# local  — read the CI artifact zips from ARTIFACTS_DIR (default)
+# gitea  — download them from a Gitea Actions run (needs GITEA_TOKEN)
+ARTIFACTS_SOURCE="local"
+ARTIFACTS_DIR=""            # defaults to <e2e>/artefacts
+
+GITEA_URL="https://gogs.shadoware.org"
+GITEA_REPO="ShadowareOrg/woodstock-backup"
+GITEA_RUN_ID=""             # Actions run to pull artifacts from
+GITEA_TOKEN=""              # or export it in your shell
+
+# ─── Virtual machines ────────────────────────────────────────────────────────
+VM_MEM="2048"               # MiB per VM
+VM_CPUS="2"
+VM_DISK="12G"               # system disk of the golden images
+DATA_DISK="6G"              # extra disk mounted on /home (btrfs) for clients
+WINDOWS_DISK="48G"          # Windows needs far more, and VSS needs free space
+
+# Isolated lab network shared by every VM (QEMU socket multicast, no root
+# needed). The host is NOT on this network; it reaches the VMs through the
+# per-VM SSH port forward below.
+LAB_NET="10.66.0"
+LAB_MCAST="230.0.66.1:14566"
+
+# Host ports forwarded to the VMs (user-mode networking).
+PORT_SSH_SERVER="22610"
+PORT_API_SERVER="13000"     # -> server:3000, the management API
+PORT_SSH_DEBIAN="22620"
+PORT_SSH_FREEBSD="22621"
+PORT_SSH_WINDOWS="22622"
+
+# ─── Behaviour ───────────────────────────────────────────────────────────────
+# Timeouts are deliberately tight: a healthy run of this data set takes seconds,
+# so a long wait means something is wrong and the failure should surface now,
+# not in half an hour. Raise them for a bigger data set or a slower host.
+BOOT_TIMEOUT="300"          # seconds to wait for SSH after boot
+BACKUP_TIMEOUT="240"        # seconds to wait for a backup to complete
+SSH_TIMEOUT="120"           # seconds any single remote command may take
+KEEP_VMS="0"                # 1 = leave the VMs running after the suite
