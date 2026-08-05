@@ -176,4 +176,160 @@ mod tests {
 
         Ok(())
     }
+
+    /// `{host}_https` is the identity the agent presents to the mTLS gateway
+    /// when it registers, so it must assert ClientAuth. It used to assert only
+    /// ServerAuth, and rustls rejected the handshake with
+    /// `UnsupportedCertificate` — the agent could never register and no backup
+    /// could start.
+    #[tokio::test]
+    async fn test_host_https_certificate_allows_client_auth(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
+        let temp_path = temp_dir.path().to_path_buf();
+
+        let config = Arc::new(Configuration {
+            path: ConfigurationPath {
+                certificates_path: temp_path.clone(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        let cert_service = CertificateService::new(config);
+        let hostname = "test-host";
+        cert_service.generate_host_certificate(hostname).await?;
+
+        let host_https = temp_path.join(format!("{hostname}_https.pem"));
+        let eku = read_extended_key_usage(&host_https).await?;
+        assert!(
+            eku.client_auth,
+            "{hostname}_https doit permettre l'authentification cliente"
+        );
+
+        // The gateway's own certificate stays a pure server certificate.
+        cert_service.generate_https_certificate().await?;
+        let gateway_https = temp_path.join("https.pem");
+        let gateway_eku = read_extended_key_usage(&gateway_https).await?;
+        assert!(
+            gateway_eku.server_auth && !gateway_eku.client_auth,
+            "https.pem doit rester un certificat serveur uniquement"
+        );
+
+        Ok(())
+    }
+
+    /// Each of the four host certificates must assert the usage matching the
+    /// side of the mTLS connection it authenticates. The Rust port inverted two
+    /// of them relative to the TypeScript original, which broke agent
+    /// registration and every backup.
+    #[tokio::test]
+    async fn test_host_certificates_key_usages() -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
+        let temp_path = temp_dir.path().to_path_buf();
+
+        let config = Arc::new(Configuration {
+            path: ConfigurationPath {
+                certificates_path: temp_path.clone(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        let cert_service = CertificateService::new(config);
+        let hostname = "test-host";
+        cert_service.generate_host_certificate(hostname).await?;
+
+        // (file, must assert client auth, must assert server auth)
+        let expectations = [
+            // The worker presents this when it dials the agent.
+            ("test-host_client.pem", true, false),
+            // The agent presents this on its gRPC port 3657.
+            ("test-host_server.pem", false, true),
+            // The agent presents this to the gateway on port 8443.
+            ("test-host_https.pem", true, false),
+        ];
+
+        for (file, want_client, want_server) in expectations {
+            let eku = read_extended_key_usage(&temp_path.join(file)).await?;
+            assert_eq!(
+                eku.client_auth, want_client,
+                "{file}: clientAuth attendu = {want_client}"
+            );
+            if want_server {
+                assert!(eku.server_auth, "{file}: serverAuth attendu");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// A certificate issued before the fix must be reissued rather than reused:
+    /// an agent holding it can never register.
+    #[tokio::test]
+    async fn test_stale_host_https_certificate_is_reissued(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let temp_dir = TempDir::new()?;
+        let temp_path = temp_dir.path().to_path_buf();
+
+        let config = Arc::new(Configuration {
+            path: ConfigurationPath {
+                certificates_path: temp_path.clone(),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+        let cert_service = CertificateService::new(config);
+        let hostname = "test-host";
+        cert_service.generate_host_certificate(hostname).await?;
+
+        // Stand in for a pre-fix certificate: the gateway's own ServerAuth-only
+        // certificate, which is exactly what this file used to contain.
+        cert_service.generate_https_certificate().await?;
+        let host_https = temp_path.join(format!("{hostname}_https.pem"));
+        tokio::fs::copy(temp_path.join("https.pem"), &host_https).await?;
+        tokio::fs::copy(
+            temp_path.join("https.key"),
+            temp_path.join(format!("{hostname}_https.key")),
+        )
+        .await?;
+        assert!(!read_extended_key_usage(&host_https).await?.client_auth);
+
+        cert_service.generate_host_certificate(hostname).await?;
+
+        assert!(
+            read_extended_key_usage(&host_https).await?.client_auth,
+            "un certificat sans ClientAuth doit être réémis"
+        );
+
+        Ok(())
+    }
+
+    /// Whether the certificate at `path` asserts ClientAuth and ServerAuth.
+    ///
+    /// Returns owned flags rather than the parsed `ExtendedKeyUsage`, which
+    /// borrows from the DER buffer decoded here.
+    async fn read_extended_key_usage(
+        path: &std::path::Path,
+    ) -> Result<Eku, Box<dyn std::error::Error>> {
+        use rustls::pki_types::{pem::PemObject, CertificateDer};
+
+        let pem = tokio::fs::read_to_string(path).await?;
+        let der = CertificateDer::from_pem_slice(pem.as_bytes())?;
+        let (_, x509) = x509_parser::parse_x509_certificate(&der)?;
+        let eku = x509
+            .extended_key_usage()?
+            .ok_or("le certificat ne déclare aucun extended key usage")?;
+
+        Ok(Eku {
+            client_auth: eku.value.client_auth,
+            server_auth: eku.value.server_auth,
+        })
+    }
+
+    struct Eku {
+        client_auth: bool,
+        server_auth: bool,
+    }
 }
