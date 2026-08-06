@@ -1,0 +1,23 @@
+# CI artifacts downloaded for local runs (packages, binaries) — never committed
+artefacts/
+
+# Build products only: the Packer templates and their seeds live in
+# images/packer/ and must stay versioned, so ignore the outputs by name/dir
+# rather than the whole tree.
+images/*.qcow2
+images/*.fd
+images/cache/
+images/*.log
+# output/ is the default output_directory (build-all.sh never overrides it),
+# but ad-hoc `packer build -var output_dir=...` debugging runs land elsewhere
+# (e.g. output-windows/) — the glob covers those too instead of relying on
+# every debugging session to remember to git rm them by hand.
+images/packer/*/output*/
+images/packer/*/packer_cache/
+run/
+
+# Local overrides
+e2e.conf
+
+# Suite output logs kept at the e2e root
+*.log

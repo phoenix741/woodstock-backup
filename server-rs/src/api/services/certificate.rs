@@ -173,12 +173,18 @@ impl CertificateService {
     }
 
     /// Create an HTTPS certificate (specialized method matching TypeScript #createHttpsCertificate)
+    ///
+    /// `purposes` lists the extended key usages to assert. The gateway's own
+    /// `https.pem` only ever authenticates a server, whereas `{host}_https.pem`
+    /// is the identity an *agent* presents when it registers, so it needs
+    /// `ClientAuth` — see [`Self::generate_host_https_certificate`].
     async fn create_https_certificate(
         &self,
         hostname: &str,
         cert_path: &Path,
         key_path: &Path,
         issuer: &Issuer<'_, KeyPair>,
+        purposes: Vec<ExtendedKeyUsagePurpose>,
     ) -> Result<()> {
         // Create certificate parameters with proper attributes
         let mut params = CertificateParams::new(vec![hostname.to_string()])?;
@@ -195,7 +201,7 @@ impl CertificateService {
         // Configure for HTTPS server certificate (matching TypeScript)
         params.is_ca = IsCa::NoCa;
         params.subject_alt_names = Self::create_subject_alt_names(hostname)?;
-        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+        params.extended_key_usages = purposes;
         params.key_usages = vec![
             KeyUsagePurpose::DigitalSignature,
             KeyUsagePurpose::KeyEncipherment,
@@ -258,6 +264,7 @@ impl CertificateService {
                 &https_cert_path,
                 &https_key_path,
                 &issuer,
+                vec![ExtendedKeyUsagePurpose::ServerAuth],
             )
             .await?;
         }
@@ -265,8 +272,12 @@ impl CertificateService {
         Ok(())
     }
 
-    /// Generate server certificate for host communication ({host}_client.pem/key)
-    async fn generate_host_server_certificate(&self, hostname: &str) -> Result<()> {
+    /// Generate the server's own identity toward an agent ({host}_client.pem/key)
+    ///
+    /// The worker presents this when it dials the agent's gRPC port, so it is a
+    /// client certificate — hence `is_server = false`, matching
+    /// `#createCertificate(host, false, rootCA)` in the TypeScript original.
+    async fn generate_server_identity_certificate(&self, hostname: &str) -> Result<()> {
         let cert_path = self
             .certificate_path
             .join(format!("{}_client.pem", hostname));
@@ -358,8 +369,15 @@ impl CertificateService {
         Ok(Issuer::new(ca_params, key_pair))
     }
 
-    /// Generate client certificate signed by host CA ({host}_server.pem/key)
-    async fn generate_host_client_certificate(&self, hostname: &str) -> Result<()> {
+    /// Generate the agent's gRPC server certificate, signed by the host CA
+    /// ({host}_server.pem/key)
+    ///
+    /// This is the identity the *agent* presents on port 3657, where it listens
+    /// for the worker (`client-rs/src/main.rs`), so it needs `ServerAuth`.
+    /// TypeScript generated it with `#createCertificate(host, true, clientCA)`;
+    /// the Rust port passed `false`, which made the worker's gRPC handshake fail
+    /// and every backup end as "host not reachable".
+    async fn generate_host_server_auth_certificate(&self, hostname: &str) -> Result<()> {
         let cert_path = self
             .certificate_path
             .join(format!("{}_server.pem", hostname));
@@ -367,8 +385,17 @@ impl CertificateService {
             .certificate_path
             .join(format!("{}_server.key", hostname));
 
-        if !self.cert_files_exist(&cert_path, &key_path).await {
-            info!("Generating client host {} certificate...", hostname);
+        // As for {host}_https, a certificate issued with the wrong usage is
+        // unusable and has to be reissued rather than kept.
+        let needs_reissue = self.cert_files_exist(&cert_path, &key_path).await
+            && !Self::asserts_server_auth(&cert_path).await;
+
+        if needs_reissue {
+            info!("Reissuing server host {hostname} certificate: it lacks ServerAuth");
+        }
+
+        if !self.cert_files_exist(&cert_path, &key_path).await || needs_reissue {
+            info!("Generating server host {} certificate...", hostname);
 
             // Ensure host CA exists first
             self.generate_client_authority_certificate(hostname).await?;
@@ -376,11 +403,10 @@ impl CertificateService {
             // Load host CA issuer for signing
             let issuer = self.load_host_ca_issuer(hostname).await?;
 
-            // Generate host client certificate signed by host CA
-            // TypeScript: this.#createCertificate(host, false, clientCA);
+            // TypeScript: this.#createCertificate(host, true, clientCA);
             self.create_certificate(
                 hostname,
-                false, // is_server = false (client auth, not server auth)
+                true, // is_server = true: the agent authenticates as a server
                 &cert_path,
                 &key_path,
                 Some(&issuer),
@@ -392,6 +418,14 @@ impl CertificateService {
     }
 
     /// Generate host HTTPS certificate signed by root CA ({host}_https.pem/key)
+    ///
+    /// Despite the name, this is a *client* certificate: the agent presents it
+    /// to the mTLS gateway on port 8443 when it registers its addresses
+    /// (`client-rs/src/resolve/direct.rs`). Asserting only `ServerAuth` here
+    /// made rustls reject the handshake with `UnsupportedCertificate`, so the
+    /// server never learnt where to reach the agent and no backup could start.
+    /// `ServerAuth` is kept alongside `ClientAuth` for backwards compatibility
+    /// with agents already holding a certificate issued before this fix.
     async fn generate_host_https_certificate(&self, hostname: &str) -> Result<()> {
         let cert_path = self
             .certificate_path
@@ -400,7 +434,18 @@ impl CertificateService {
             .certificate_path
             .join(format!("{}_https.key", hostname));
 
-        if !self.cert_files_exist(&cert_path, &key_path).await {
+        // A certificate issued before the ClientAuth fix is unusable: the agent
+        // holding it can never register. Reissue it instead of keeping it, so
+        // an existing installation recovers by re-downloading its bundle rather
+        // than needing the files to be deleted by hand.
+        let needs_reissue = self.cert_files_exist(&cert_path, &key_path).await
+            && !Self::asserts_client_auth(&cert_path).await;
+
+        if needs_reissue {
+            info!("Reissuing https host {hostname} certificate: it lacks ClientAuth");
+        }
+
+        if !self.cert_files_exist(&cert_path, &key_path).await || needs_reissue {
             info!("Generating https host {} certificate...", hostname);
 
             // Ensure root CA exists first
@@ -410,19 +455,74 @@ impl CertificateService {
             let issuer = self.load_ca_issuer().await?;
 
             // Generate host HTTPS certificate using specialized method (matching TypeScript)
-            self.create_https_certificate(hostname, &cert_path, &key_path, &issuer)
-                .await?;
+            self.create_https_certificate(
+                hostname,
+                &cert_path,
+                &key_path,
+                &issuer,
+                vec![
+                    ExtendedKeyUsagePurpose::ClientAuth,
+                    ExtendedKeyUsagePurpose::ServerAuth,
+                ],
+            )
+            .await?;
         }
 
         Ok(())
     }
 
+    /// Whether the certificate at `cert_path` asserts the `ClientAuth` extended
+    /// key usage.
+    async fn asserts_client_auth(cert_path: &Path) -> bool {
+        Self::asserts_key_usage(cert_path, |eku| eku.client_auth).await
+    }
+
+    /// Whether the certificate at `cert_path` asserts the `ServerAuth` extended
+    /// key usage.
+    async fn asserts_server_auth(cert_path: &Path) -> bool {
+        Self::asserts_key_usage(cert_path, |eku| eku.server_auth).await
+    }
+
+    /// Read the certificate at `cert_path` and test its extended key usages.
+    ///
+    /// Returns `false` when the file cannot be read or parsed, which makes the
+    /// caller reissue it — the safe direction for a certificate the server can
+    /// regenerate at will.
+    async fn asserts_key_usage(
+        cert_path: &Path,
+        predicate: impl Fn(&x509_parser::extensions::ExtendedKeyUsage) -> bool,
+    ) -> bool {
+        let Ok(pem) = fs::read_to_string(cert_path).await else {
+            return false;
+        };
+        let Ok(der) = CertificateDer::from_pem_slice(pem.as_bytes()) else {
+            return false;
+        };
+        let Ok((_, x509)) = x509_parser::parse_x509_certificate(&der) else {
+            return false;
+        };
+
+        x509.extended_key_usage()
+            .ok()
+            .flatten()
+            .is_some_and(|eku| predicate(&eku.value))
+    }
+
     /// Generate all certificates for a specific host
+    ///
+    /// Four key pairs, two per direction of the mTLS connections:
+    ///
+    /// | File | Presented by | Toward | Usage |
+    /// |---|---|---|---|
+    /// | `{host}_client` | server | agent's gRPC port 3657 | ClientAuth |
+    /// | `{host}_server` | agent | the worker connecting in | ServerAuth |
+    /// | `{host}_https`  | agent | gateway port 8443 | ClientAuth |
+    /// | `{host}_ca`     | — | signs `{host}_server` | CA |
     pub async fn generate_host_certificate(&self, hostname: &str) -> Result<()> {
         // Generate all required certificates for the host
-        self.generate_host_server_certificate(hostname).await?;
+        self.generate_server_identity_certificate(hostname).await?;
         self.generate_client_authority_certificate(hostname).await?;
-        self.generate_host_client_certificate(hostname).await?;
+        self.generate_host_server_auth_certificate(hostname).await?;
         self.generate_host_https_certificate(hostname).await?;
 
         Ok(())

@@ -244,7 +244,13 @@ pub fn read_config<P: AsRef<Path>>(path: P) -> Result<ClientConfig> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let config: ClientConfig = serde_yaml_ng::from_str(&contents)?;
+    // PowerShell's `Set-Content -Encoding utf8` (the default on Windows) writes a
+    // leading UTF-8 BOM. serde_yaml_ng forces YAML_UTF8_ENCODING up front, which
+    // skips libyaml's own BOM auto-detection, so the BOM would otherwise corrupt
+    // the first key and produce a confusing "missing field" error.
+    let contents = contents.strip_prefix('\u{FEFF}').unwrap_or(&contents);
+
+    let config: ClientConfig = serde_yaml_ng::from_str(contents)?;
 
     info!("Client configuration loaded successfully");
 
@@ -285,4 +291,35 @@ pub fn get_config_path() -> PathBuf {
 
     debug!("Using client configuration path: {:?}", home);
     home
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn read_config_strips_leading_utf8_bom() {
+        let mut file = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        // Same bytes PowerShell 5.1's `Set-Content -Encoding utf8` writes.
+        file.write_all(b"\xEF\xBB\xBFpassword: hunter2\nhostname: bom-host\n")
+            .expect("failed to write temp file");
+
+        let config = read_config(file.path()).expect("BOM-prefixed config should parse");
+
+        assert_eq!(config.password, "hunter2");
+        assert_eq!(config.hostname, "bom-host");
+    }
+
+    #[test]
+    fn read_config_without_bom_still_works() {
+        let mut file = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        file.write_all(b"password: hunter2\nhostname: no-bom-host\n")
+            .expect("failed to write temp file");
+
+        let config = read_config(file.path()).expect("plain config should parse");
+
+        assert_eq!(config.password, "hunter2");
+        assert_eq!(config.hostname, "no-bom-host");
+    }
 }

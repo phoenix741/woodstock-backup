@@ -65,15 +65,13 @@ jobs:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
     container:
-      image: node:${{ env.NODE_VERSION }}-bookworm
+      image: node:${{ env.NODE_VERSION }}-trixie
     services:
       redis:
         image: valkey/valkey:8-alpine
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd "redis-cli ping" --health-interval 10s --health-timeout
+          5s --health-retries 5
     steps:
       - name: Install dependencies
         run: |
@@ -116,12 +114,19 @@ jobs:
           npm run build
           cd ..
 
+      - name: Upload frontend dist as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: front-dist
+          path: front/dist/
+
   dtrack:
     needs: [prerelease]
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && contains(fromJson('["master", "main", "alpha", "beta", "develop"]'), github.ref_name)
+    if: github.event_name == 'push' && contains(fromJson('["master", "main",
+      "alpha", "beta", "develop"]'), github.ref_name)
     steps:
       - name: Install dependencies
         run: |
@@ -152,7 +157,8 @@ jobs:
 
       - name: Extract branch name
         shell: bash
-        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >>
+          $GITHUB_OUTPUT
         id: extract_branch
 
       - name: Upload to DependencyTrack
@@ -182,6 +188,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             features: --no-default-features --features "mdns"
             binary_name: binaries-linux-lite
+          - os: freebsd-latest
+            target: x86_64-unknown-freebsd
+            features: --no-default-features --features "mdns,xattr"
+            binary_name: binaries-freebsd
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             features: --features default
@@ -196,7 +206,13 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev zip curl xz-utils
+
+      # - name: Install build dependencies (FreeBSD)
+      #   if: matrix.os == 'freebsd-latest'
+      #   run: |
+      #     pkg update
+      #     pkg install -y protobuf cmake gmake pkgconf zip git-lfs fusefs-libs curl
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -216,19 +232,64 @@ jobs:
           cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Build (release)
-        run: cargo build --verbose --release --target ${{ matrix.target }} ${{ matrix.features }}
+        env:
+          # Forces the msvc target's crt-static feature, guaranteeing it wins
+          # over any ambient RUSTFLAGS on the runner. In practice this does
+          # NOT fully eliminate the dynamic CRT dependency (see the check
+          # below): ws_client_daemon.exe still pulls in VCRUNTIME140.dll and
+          # several api-ms-win-crt-* apisets, most likely via VSSAPI.LIB from
+          # the Windows SDK, which cannot be recompiled statically. Left in
+          # place as a correct, harmless forcing of the flag; the Visual C++
+          # Redistributable is documented as a real prerequisite instead
+          # (docs/website/doc/agent.md).
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --verbose --release --target ${{ matrix.target }} ${{
+          matrix.features }}
 
-      - name: Archive binary
+      - name: Check CRT linking (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $exe = "target/${{ matrix.target }}/release/ws_client_daemon.exe"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\**\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) {
+            Write-Warning "dumpbin.exe not found via vswhere; skipping CRT dependency check for $exe"
+            exit 0
+          }
+          $deps = & $dumpbin /dependents $exe
+          $bad = $deps | Select-String -Pattern "VCRUNTIME|api-ms-win-crt-"
+          if ($bad) {
+            # Known, documented dependency (see agent.md Prerequisites) rather
+            # than a hard gate: it has never been clean on this codebase, so
+            # failing the job here would only make the release pipeline
+            # permanently red. Informational only.
+            Write-Warning "$exe depends on the dynamic CRT ($(($bad | ForEach-Object { $_.Line.Trim() }) -join ', ')). The Visual C++ Redistributable 2015-2022 (x64) is required on the target machine."
+          } else {
+            Write-Host "OK: $exe has no dynamic CRT dependency"
+          }
+
+      - name: Archive binaries
         run: |
           mkdir zipfile
+
           cd target/${{ matrix.target }}/release
+
           cp ws_client_daemon* ../../../zipfile
+          cp ws_client_console* ../../../zipfile
           cp ws_console* ../../../zipfile
+          cp ws_restore* ../../../zipfile
+          cp ws_sync* ../../../zipfile
           cp ws_backuppc_importer* ../../../zipfile
 
-      - name: Archive binary (Linux)
+          cp api_server* ../../../zipfile
+          cp client_api_server* ../../../zipfile
+          cp job_worker* ../../../zipfile
+          cp scheduler* ../../../zipfile
+
+      - name: Archive binary (Linux/FreeBSD)
         shell: bash
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'freebsd-latest'
         run: |
           cd zipfile
           find . -type f \( -name "*.d" -o -name "*.pdb" \) -delete
@@ -241,9 +302,9 @@ jobs:
           powershell -Command "Get-ChildItem -Path * -Exclude *.d,*.pdb | Compress-Archive -DestinationPath ${{ matrix.binary_name }}-${{ matrix.target }}.zip"
 
       - name: Upload artifacts
-        uses: christopherhx/gitea-upload-artifact@v4
+        uses: christopherhx/gitea-upload-artifact@v7
         with:
-          name: ${{ matrix.binary_name }}
+          name: ${{ matrix.target }}
           path: |
             zipfile/${{ matrix.binary_name }}-${{ matrix.target }}.zip
 
@@ -280,11 +341,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
+      - name:
+          Verify the integrity of provenance attestations and registry signatures
+          for installed dependencies
         run: npm audit signatures
 
       - name: Download artifacts
-        uses: christopherhx/gitea-download-artifact@v4
+        uses: christopherhx/gitea-download-artifact@v8
 
       - name: Import GPG key
         if: github.event_name == 'push'
@@ -331,8 +394,14 @@ jobs:
   debian_rs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [upload]
+    needs: [upload, prerelease]
     runs-on: ubuntu-latest
+    # Build the .deb on the distribution it targets: the resulting packages
+    # declare a libc6 dependency matching the build host, and they are published
+    # to the `trixie` pool. A bare debian:trixie image would not work — the
+    # runner needs Node to execute the actions, hence the node:* variant.
+    container:
+      image: node:${{ env.NODE_VERSION }}-trixie
     strategy:
       matrix:
         include:
@@ -355,14 +424,42 @@ jobs:
           target: ${{ matrix.target }}
           cache: true
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install Node.JS dependencies
+        run: npm ci
+
+      - name: Download frontend dist artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: front-dist
+          path: server-rs/front-dist/
+
       - name: Installation de cargo-deb
         run: cargo install cargo-deb
+
+      - name: Mise à jour des versions
+        if: github.event_name == 'push'
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces version --no-git-commit -y custom ${{ needs.prerelease.outputs.next_version }}
 
       - name: Generate debian package
         run: |
           cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
           cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
           cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
+          cargo deb -p woodstock-server-rs --target ${{ matrix.target }}
+
+      - name: Upload Debian packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: debian-packages
+          path: target/${{ matrix.target }}/debian/*.deb
 
       - name: Publish package to debian gitea repository
         if: github.event_name == 'push'
@@ -370,7 +467,85 @@ jobs:
           for file in target/${{ matrix.target }}/debian/*.deb; do
             curl --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
               --upload-file $file \
-              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/bookworm/main/upload
+              https://gogs.shadoware.org/api/packages/ShadowareOrg/debian/pool/trixie/main/upload
+          done
+
+  freebsd_pkg:
+    env:
+      RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
+    needs: [upload, prerelease]
+    runs-on: freebsd-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          ref: ${{ github.ref }}
+
+      - name: Get artifact IDs
+        id: get-artifact-ids
+        env:
+          GITEA_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          ARTIFACTS=$(curl -fsSL \
+            -H "Authorization: token ${GITEA_TOKEN}" \
+            "https://gogs.shadoware.org/api/v1/repos/ShadowareOrg/woodstock-backup/actions/runs/${RUN_ID}/artifacts")
+          FREEBSD_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '[.artifacts[] | select(.name=="x86_64-unknown-freebsd")] | max_by(.id) | .id')
+          FRONTDIST_ID=$(echo "${ARTIFACTS}" | \
+            jq -r '[.artifacts[] | select(.name=="front-dist")] | max_by(.id) | .id')
+
+          echo "ids=${FREEBSD_ID},${FRONTDIST_ID}" >> $GITHUB_OUTPUT
+
+      - name: Download FreeBSD binaries and frontend
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          artifact-ids: ${{ steps.get-artifact-ids.outputs.ids }}
+          path: artifacts/
+
+      - name: Extract FreeBSD binaries
+        run: |
+          mkdir -p zipfile
+          INNER_ZIP=$(find artifacts/x86_64-unknown-freebsd -name "*.zip" | head -1)
+          unzip -o "${INNER_ZIP}" -d zipfile
+          find zipfile -type f \( -name "*.d" -o -name "*.pdb" \) -delete
+          mv artifacts/front-dist front/dist
+
+      - name: Build FreeBSD packages
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION}"
+          if [ -z "${PKG_VERSION}" ]; then
+            PKG_VERSION=$(grep '^version' server-rs/Cargo.toml | head -1 | grep -oE '[0-9]+[.][0-9]+[.][0-9]+.*' | tr -d '"')
+          fi
+          PKG_VERSION="${PKG_VERSION:-0.0.0}"
+          mkdir -p pkg-out
+          sh scripts/create-freebsd-pkg.sh \
+            "${PKG_VERSION}" \
+            zipfile \
+            pkg-out \
+            front/dist
+
+      - name: Upload FreeBSD packages as artifact
+        uses: christopherhx/gitea-upload-artifact@v7
+        with:
+          name: freebsd-packages
+          path: pkg-out/*.pkg
+
+      - name: Publish packages to Gitea generic registry
+        if: github.event_name == 'push'
+        env:
+          VERSION: ${{ needs.prerelease.outputs.next_version }}
+        run: |
+          PKG_VERSION="${VERSION:-0.0.0-dev}"
+          for file in pkg-out/*.pkg; do
+            filename="$(basename "${file}")"
+            curl --fail \
+              --user "phoenix:${{ secrets.RELEASE_TOKEN }}" \
+              --upload-file "${file}" \
+              "https://gogs.shadoware.org/api/packages/ShadowareOrg/generic/woodstock-freebsd/${PKG_VERSION}/${filename}"
           done
 
   docker:
@@ -382,7 +557,7 @@ jobs:
       matrix:
         include:
           - rust_version: 1
-            features: --features default
+            cargo_args: --workspace --bins --features default
     container:
       image: catthehacker/ubuntu:act-latest
     steps:
@@ -399,7 +574,8 @@ jobs:
 
       - name: Get version from package.json
         id: version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=$(node -p "require('./package.json').version")" >>
+          $GITHUB_OUTPUT
 
       - name: Get metadata to tag server container image
         if: github.event_name == 'push'
@@ -470,8 +646,8 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
-            DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            DEBIAN_VERSION=trixie
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Client Docker Image
         uses: docker/build-push-action@v6
@@ -490,8 +666,8 @@ jobs:
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
-            DEBIAN_VERSION=bookworm
-            FEATURES=${{matrix.features}}
+            DEBIAN_VERSION=trixie
+            CARGO_ARGS=${{matrix.cargo_args}}
 
       - name: Build Website Docker Image
         uses: docker/build-push-action@v6

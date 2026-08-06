@@ -3,15 +3,26 @@ name = "woodstock-client-rs"
 description = "Woodstock client daemon"
 version = "2.0.0"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 build = "build.rs"
 
 [package.metadata.deb]
+# Renamed from `woodstock-client-rs` in 2.0.1 to match the FreeBSD package and
+# the systemd unit names. The transition fields let dpkg upgrade an existing
+# `woodstock-client-rs` install instead of reporting a file conflict.
+name = "woodstock-client"
+provides = "woodstock-client-rs"
+replaces = "woodstock-client-rs"
+conflicts = "woodstock-client-rs"
 license-file = ["../LICENSE", "0"]
 maintainer-scripts = "debian/"
-systemd-units = { enable = true }
-conf-files = ["/etc/woodstock/config.yml"]
+depends = "$auto, ca-certificates"
+# Without an explicit unit-name cargo-deb derives it from the crate name and
+# ships `woodstock-client-rs.service`, which matches neither the documentation
+# nor the server's `woodstock-*` units.
+systemd-units = { unit-name = "woodstock-client", enable = true }
+conf-files = ["/etc/woodstock/config.yaml"]
 assets = [
     # binary
     ["target/release/ws_client_daemon", "usr/bin/", "755"],
@@ -50,16 +61,19 @@ hostname = "^0.4"
 if-addrs = "0.15.0"
 jsonwebtoken = { workspace = true }
 libc = { workspace = true }
-mdns-sd = { workspace = true, optional = true }
 rand = { workspace = true }
-reqwest = { workspace = true, features = ["rustls"] }
-shlex = { version = "^1.3" }
+reqwest = { workspace = true, default-features = false, features = [
+    "json",
+    "rustls-no-provider",
+] }
+shlex = { version = "^2.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
-self_update = { git = "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease", features = [
+self_update = { git = "https://github.com/phoenix741/self_update.git", branch = "feature/prerelease", default-features = false, features = [
     "archive-zip",
     "compression-zip-deflate",
+    "rustls",
 ] }
 semver = "^1.0"
 tokio = { workspace = true, features = ["process"] }
@@ -73,13 +87,18 @@ uuid = { workspace = true }
 woodstock-rs = { workspace = true }
 tempfile = { workspace = true }
 chrono = { workspace = true }
-serde-env = "0.2.0"
+serde-env = "0.3.0"
+mdns-sd = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "^0.31", features = ["fs"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nix = { version = "^0.31", features = ["fs"] }
-xattr = { version = "^1.6", optional = true }
 posix-acl = { version = "^1.2", optional = true }
 mnt = "0.3.1"
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+xattr = { version = "^1.6", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 tracing-etw = "0.2.3"

@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
         .await?;
 
     // Initialize crypto provider for rustls before any TLS operations
-    rustls::crypto::aws_lc_rs::default_provider()
+    rustls::crypto::ring::default_provider()
         .install_default()
         .map_err(|_| eyre::eyre!("Failed to install crypto provider"))?;
 

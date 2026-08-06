@@ -10,6 +10,8 @@ use redis::{
     from_redis_value, AsyncCommands, FromRedisValue, RedisError, RedisResult, ToRedisArgs, Value,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "mdns")]
+use std::collections::HashSet;
 use std::{
     net::{IpAddr, SocketAddr},
     time::Duration,
@@ -436,10 +438,15 @@ impl SocketAddrResolver {
             .map(mdns_sd::TxtProperty::val_str)
             .unwrap_or_default()
             .to_string();
+        // mdns-sd >= 0.19 makes `ScopedIp` equality interface-aware, so the same IP
+        // reported on two interfaces no longer collapses inside `get_addresses()`;
+        // dedupe here to avoid probing/storing the same address twice.
         let addresses = info
             .get_addresses()
             .iter()
             .map(ScopedIp::to_ip_addr)
+            .collect::<HashSet<_>>()
+            .into_iter()
             .collect::<Vec<_>>();
 
         let socket_addr_info = SocketAddrInformation {

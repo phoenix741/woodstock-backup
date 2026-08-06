@@ -11,16 +11,24 @@
 //! # Feature Flags
 //! - `acl`: When enabled on Unix systems, provides full ACL support.
 //!          When disabled or on non-Unix systems, uses a stub implementation.
+//!
+//! ACLs are currently only implemented on Linux (via `posix_acl`/libacl). FreeBSD's
+//! default filesystem (ZFS) uses NFSv4 ACLs, a different model that this module does
+//! not represent yet, so FreeBSD builds fall back to the stub like Windows does.
 
-#[cfg(all(unix, feature = "acl"))]
+/// Whether the current build actually persists ACLs, as opposed to silently
+/// discarding them via the stub implementation.
+pub const SUPPORTED: bool = cfg!(all(target_os = "linux", feature = "acl"));
+
+#[cfg(all(target_os = "linux", feature = "acl"))]
 /// Unix-specific implementation for ACLs.
 mod unix;
-#[cfg(not(all(unix, feature = "acl")))]
+#[cfg(not(all(target_os = "linux", feature = "acl")))]
 /// Windows-specific implementation for ACLs.
 mod windows;
 
-#[cfg(all(unix, feature = "acl"))]
+#[cfg(all(target_os = "linux", feature = "acl"))]
 pub use unix::*;
 
-#[cfg(not(all(unix, feature = "acl")))]
+#[cfg(not(all(target_os = "linux", feature = "acl")))]
 pub use windows::*;

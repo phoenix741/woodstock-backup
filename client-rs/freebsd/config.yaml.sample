@@ -1,0 +1,8 @@
+# Hostname used to check the certificate (must match the certificate CN)
+# hostname: mymachine.example.com
+
+# Password used by the server to make the authentication
+# password: <mypassword>
+
+# Maximum number of seconds the backup can run (default: 300)
+backup_timeout: 300

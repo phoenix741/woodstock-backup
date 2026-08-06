@@ -27,7 +27,7 @@ mod file_reader;
 /// Writes and restores file data.
 mod file_writer;
 /// Manages file metadata like permissions and timestamps.
-mod metadata;
+pub(crate) mod metadata;
 
 pub use file_browser::*;
 pub use file_reader::*;

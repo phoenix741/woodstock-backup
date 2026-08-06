@@ -3,11 +3,59 @@ name = "woodstock-server-rs"
 description = "Woodstock Backup Server Components"
 version = "2.0.0-alpha.51"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 
 [package.metadata.deb]
+name = "woodstock-server"
 license-file = ["../LICENSE", "0"]
+maintainer-scripts = "debian/"
+# `valkey` is a source package only; the binary package is `valkey-server`.
+# With the old name the alternative always fell through to redis-server.
+depends = "$auto, valkey-server | redis-server, ca-certificates"
+conf-files = ["/etc/woodstock/server.env"]
+systemd-units = [
+  { unit-name = "woodstock-api", enable = true, start = true },
+  { unit-name = "woodstock-client-api", enable = true, start = true },
+  { unit-name = "woodstock-worker", enable = true, start = true },
+  { unit-name = "woodstock-scheduler", enable = true, start = true },
+  { unit-name = "woodstock", unit-scripts = "debian/", enable = true, start = false },
+]
+assets = [
+  # Server binaries
+  [
+    "target/release/api_server",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/client_api_server",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/job_worker",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "target/release/scheduler",
+    "usr/bin/",
+    "755",
+  ],
+  # Environment configuration file
+  [
+    "debian/server.env",
+    "etc/woodstock/server.env",
+    "640",
+  ],
+  # Pre-compiled Vue.js frontend (downloaded to server-rs/front-dist/ in CI before cargo-deb)
+  [
+    "front-dist/**/*",
+    "usr/share/woodstock/static/",
+    "644",
+  ],
+]
 
 # Multiple binaries for different server components
 [[bin]]
@@ -34,9 +82,8 @@ futures-util = { workspace = true }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
-axum-extra = { version = "0.12", features = ["typed-header"] }
 tower = { workspace = true, features = ["full"] }
-tower-http = { version = "0.6", features = [
+tower-http = { version = "0.7", features = [
   "cors",
   "fs",
   "trace",
@@ -44,10 +91,14 @@ tower-http = { version = "0.6", features = [
 ] }
 
 # TLS/HTTPS support
-axum-server = { version = "0.8", features = ["tls-rustls"] }
-rustls = { workspace = true, features = ["aws_lc_rs"] }
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+rustls = { workspace = true }
 rustls-pemfile = "2.2"
-tokio-rustls = "0.26"
+tokio-rustls = { version = "0.26", default-features = false, features = [
+  "ring",
+  "logging",
+  "tls12",
+] }
 x509-parser = "0.18"
 
 # Certificate generation
@@ -74,11 +125,10 @@ serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 
 # Validation
-validator = { version = "0.20", features = ["derive"] }
+validator = { version = "0.21", features = ["derive"] }
 
 # Configuration
 config = "0.15.19"
-figment = { version = "0.10", features = ["toml", "yaml", "env"] }
 
 # Logging and tracing
 tracing = "0.1"
@@ -91,7 +141,10 @@ color-eyre = { workspace = true }
 thiserror = "2.0.18"
 
 # HTTP client
-reqwest = { workspace = true, features = ["rustls"] }
+reqwest = { workspace = true, default-features = false, features = [
+  "json",
+  "rustls-no-provider",
+] }
 
 # Archive generation
 # Tests use sync zip reader (zip), runtime uses async_zip
@@ -121,7 +174,7 @@ woodstock-rs = { workspace = true }
 
 # OpenAPI/Swagger documentation
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"] }
 
 # Prometheus metrics
 prometheus = "0.14"

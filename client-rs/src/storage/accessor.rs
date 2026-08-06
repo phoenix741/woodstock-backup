@@ -605,7 +605,7 @@ impl FileSystemAccessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     use crate::storage::snapshots::btrfs;
     use futures::{pin_mut, StreamExt};
     use std::fs;

@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::{debug, error, info, Instrument};
 use woodstock::config::Configuration;
+use woodstock::utils::encryption::generate_rsa_key;
 
 use woodstock_server_rs::api::{routes::create_router, ApiServerConfig, ApiServerState};
 use woodstock_server_rs::logger::init_logging;
@@ -15,7 +16,7 @@ use woodstock_server_rs::logger::init_logging;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize crypto provider for rustls before any TLS operations
-    rustls::crypto::aws_lc_rs::default_provider()
+    rustls::crypto::ring::default_provider()
         .install_default()
         .map_err(|_| eyre::eyre!("Failed to install crypto provider"))?;
 
@@ -41,6 +42,13 @@ async fn main() -> Result<()> {
 
     debug!("Generate certificate");
     state.certificate_service.generate_certificate().await?;
+
+    // The RSA key pair signs the short-lived JWT the worker presents to each agent
+    // (`create_authentification_token`); the agent verifies it with `public_key.pem`,
+    // which is also shipped in the client enrollment bundle. Without this the first
+    // backup fails on a freshly installed server. `generate_rsa_key` is idempotent.
+    debug!("Generate RSA key pair");
+    generate_rsa_key(state.certificate_service.certificate_path())?;
 
     // Start mDNS/DNS listener in background
     let _listener_resolver = state.resolver.clone();

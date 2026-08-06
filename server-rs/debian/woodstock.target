@@ -1,0 +1,8 @@
+[Unit]
+Description=Woodstock Backup Server
+Documentation=https://woodstock.shadoware.org/doc/
+After=network.target valkey.service redis.service
+Wants=woodstock-api.service woodstock-client-api.service woodstock-worker.service woodstock-scheduler.service
+
+[Install]
+WantedBy=multi-user.target

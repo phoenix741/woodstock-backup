@@ -1,0 +1,38 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Remove data directory only on purge (not remove)
+        if [ -d /var/lib/woodstock ]; then
+            echo "Woodstock: removing /var/lib/woodstock (purge)"
+            rm -rf /var/lib/woodstock
+        fi
+
+        # Remove config directory
+        if [ -d /etc/woodstock ]; then
+            echo "Woodstock: removing /etc/woodstock (purge)"
+            rm -rf /etc/woodstock
+        fi
+
+        # Remove woodstock user and group
+        if getent passwd woodstock > /dev/null 2>&1; then
+            deluser --quiet woodstock || true
+        fi
+        if getent group woodstock > /dev/null 2>&1; then
+            delgroup --quiet woodstock || true
+        fi
+    ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument: '$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# PROVIDE: woodstock_client
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following to /etc/rc.conf to enable woodstock_client:
+#
+#   woodstock_client_enable="YES"
+#
+# The client agent needs root (or equivalent) privileges to read arbitrary
+# user/system files and take filesystem snapshots, so it intentionally runs
+# as root, like its Debian counterpart (see client-rs/debian/service).
+#
+
+. /etc/rc.subr
+
+name="woodstock_client"
+rcvar="woodstock_client_enable"
+desc="Woodstock Backup Client Daemon"
+
+load_rc_config $name
+
+: ${woodstock_client_enable:="NO"}
+: ${woodstock_client_logfile:="/var/log/woodstock/client.log"}
+
+# ws_client_daemon runs in the foreground, so it is wrapped in daemon(8), which
+# backgrounds it, restarts it on failure (-r) and captures its output (-o).
+#
+# ${procname} must be daemon(8) itself, not the wrapped binary: -P records the
+# supervisor's pid, and rc.subr checks that pid against ${procname}. Pointing it
+# at ws_client_daemon made `service … status` report "not running" for a healthy
+# agent, and `service … stop` fail to kill it. (-p, which would record the child
+# pid instead, leaves the file empty on FreeBSD 15 — verified, not assumed.)
+pidfile="/var/run/${name}.pid"
+command="/usr/sbin/daemon"
+command_args="-P ${pidfile} -r -f -o ${woodstock_client_logfile} /usr/local/bin/ws_client_daemon --config-dir /usr/local/etc/woodstock/"
+procname="/usr/sbin/daemon"
+
+run_rc_command "$1"

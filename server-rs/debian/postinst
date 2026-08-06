@@ -1,0 +1,57 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create woodstock system user if it doesn't exist
+        if ! getent passwd woodstock > /dev/null 2>&1; then
+            adduser --system --group --no-create-home \
+                --home /var/lib/woodstock \
+                --shell /usr/sbin/nologin \
+                --gecos "Woodstock Backup Server" \
+                woodstock
+        fi
+
+        # Create data directories
+        for dir in /var/lib/woodstock \
+                   /var/lib/woodstock/certs \
+                   /var/lib/woodstock/config \
+                   /var/lib/woodstock/hosts \
+                   /var/lib/woodstock/logs \
+                   /var/lib/woodstock/pool \
+                   /var/lib/woodstock/events \
+                   /var/lib/woodstock/jobs; do
+            if [ ! -d "$dir" ]; then
+                mkdir -p "$dir"
+            fi
+        done
+
+        # Set ownership
+        chown -R woodstock:woodstock /var/lib/woodstock
+        chmod 750 /var/lib/woodstock
+        chmod 750 /var/lib/woodstock/certs
+
+        # Protect env file (contains potential secrets)
+        if [ -f /etc/woodstock/server.env ]; then
+            chown root:woodstock /etc/woodstock/server.env
+            chmod 640 /etc/woodstock/server.env
+        fi
+
+        # Create config directory
+        if [ ! -d /etc/woodstock ]; then
+            mkdir -p /etc/woodstock
+        fi
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument: '$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

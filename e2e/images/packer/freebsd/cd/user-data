@@ -1,0 +1,46 @@
+#cloud-config
+# Seed for the FreeBSD golden image, rendered by Packer's templatefile() (see
+# freebsd.pkr.hcl, cd_content). The BASIC-CLOUDINIT images ship with cloud-init
+# already enabled, so the whole setup is declarative — no scripted bsdinstall
+# and no ISO remastering.
+
+hostname: woodstock-e2e
+
+users:
+  - name: root
+    lock_passwd: false
+    ssh_authorized_keys:
+      - "${ssh_pubkey}"
+
+ssh_pwauth: false
+
+# The harness drives every guest as root over SSH, like the Debian image.
+runcmd:
+  # QEMU's multicast socket echoes frames back to the sender, so IPv6 duplicate
+  # address detection on the lab NIC sees its own probes, decides the address is
+  # taken and retries forever — flooding the console and delaying boot. The lab
+  # network is IPv4 only, so turn IPv6 off entirely.
+  - sysrc ipv6_activate_all_interfaces=NO
+  - sysrc ip6addrctl_policy=ipv4_prefer
+  - sysctl net.inet6.ip6.dad_count=0
+  - sysrc sshd_enable=YES
+  - sed -i '' 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+  - service sshd restart
+  # Serial console, so a guest that never reaches SSH can still be diagnosed
+  # from the console log.
+  - sysrc console=comconsole
+  # Packages the tests need: bash for the provisioning scripts, the rest for
+  # generating and checking the data set.
+  - env ASSUME_ALWAYS_YES=yes pkg bootstrap -f
+  - env ASSUME_ALWAYS_YES=yes pkg install -y bash curl
+  # Persist the DAD setting across reboots; the sysctl above only covers this boot.
+  - sysrc -f /etc/sysctl.conf net.inet6.ip6.dad_count=0 || echo 'net.inet6.ip6.dad_count=0' >> /etc/sysctl.conf
+  - touch /var/e2e-cloud-init-done
+
+# No power_state directive here, unlike the pre-Packer version of this seed:
+# a self-triggered poweroff would race Packer's own SSH wait, and might win it,
+# in which case the build would fail with "instance stopped before we could
+# validate it was reachable" instead of finishing cleanly. Packer's own
+# shutdown_command (freebsd.pkr.hcl) powers the guest off only after SSH has
+# been confirmed reachable with the harness key — a strictly stronger
+# guarantee than the old builder's "QEMU exited" signal.

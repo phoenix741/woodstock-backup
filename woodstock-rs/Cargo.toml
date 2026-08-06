@@ -3,7 +3,7 @@ name = "woodstock-rs"
 description = "Woodstock Access Library"
 version = "2.0.0"
 edition = "2021"
-authors = ["Ulrich Vandenhekke"]
+authors = ["Ulrich Vandenhekke <ulrich.vdh@gmail.com>"]
 license = "MIT"
 
 [package.metadata.deb]
@@ -43,7 +43,6 @@ hyper-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 lru = { workspace = true }
 tracing = { workspace = true }
-mdns-sd = { workspace = true, optional = true }
 percent-encoding = "^2.3"
 prost = "^0.14"
 rand = { workspace = true }
@@ -67,12 +66,11 @@ tonic = { workspace = true }
 tonic-prost = "^0.14"
 uuid = { workspace = true }
 reflink-copy = "0.1.29"
-fs4 = { version = "0.13.1", features = ["tokio"] }
 rayon = { version = "1.11" }
 libc = "0.2"
 sysinfo = { workspace = true }
 cron = "0.15.0"
-
+mdns-sd = { workspace = true, optional = true }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libm = "^0.2"

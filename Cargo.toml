@@ -46,7 +46,10 @@ tonic = { version = "^0.14", features = [
 ] }
 
 # HTTP Client
-reqwest = { version = "^0.13", features = ["json"] }
+reqwest = { version = "^0.13", default-features = false, features = [
+  "json",
+  "rustls-no-provider",
+] }
 
 # Utilities
 uuid = { version = "^1.22", features = [
@@ -59,16 +62,16 @@ uuid = { version = "^1.22", features = [
 hex = { version = "^0.4", features = ["serde"] }
 chrono = { version = "^0.4", features = ["serde"] }
 rand = "^0.10"
-lru = "^0.16"
+lru = "^0.18"
 hyper-util = "^0.1"
-jsonwebtoken = { version = "^10.3", features = ["rust_crypto"] }
-mdns-sd = "^0.18"
+jsonwebtoken = { version = "^11.0", features = ["rust_crypto"] }
+mdns-sd = "^0.20"
 redis = { version = "0.32.5", features = [
   "aio",
   "tokio-comp",
   "connection-manager",
 ] }
-sysinfo = { version = "^0.38", default-features = true }
+sysinfo = { version = "^0.39", default-features = true }
 tower = "^0.5"
 libc = "^0.2"
 
@@ -84,7 +87,7 @@ rustls = { version = "0.23", features = [
   "logging",
   "tls12",
 ], default-features = false }
-sha2 = "^0.10"
+sha2 = "^0.11"
 sha3 = "^0.10"
 blake3 = "1.8.3"
 
@@ -105,7 +108,7 @@ tempfile = "^3"
 globset = "^0.4"
 
 # Base64 encoding
-base64 = "^0.22"
+base64 = "^0.23"
 
 # Internal dependencies
 woodstock-rs = { path = "woodstock-rs", default-features = false }
