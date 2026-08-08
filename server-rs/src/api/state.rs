@@ -111,6 +111,7 @@ impl ApiServerState {
             queue_service.backup_storage(),
             queue_service.interactive_storage(),
             queue_service.maintenance_storage(),
+            queue_service.archive_storage(),
             progress_publisher,
             redis_client.clone(),
         )));

@@ -1,6 +1,53 @@
 use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 
+/// Shared throughput formula for any progression tracking a byte/unit count
+/// against a start (and optional end) timestamp — used by
+/// [`BackupProgression::speed`] and [`crate::archiving::ArchiveState::speed`]
+/// so both stay in sync if the definition of "speed" ever changes.
+///
+/// # Returns
+///
+/// * `f64` - Units of `progress_current` per second, `0.0` if the elapsed
+///   duration is zero.
+#[must_use]
+pub fn speed_from(
+    progress_current: u64,
+    start_date: DateTime<Local>,
+    end_date: Option<DateTime<Local>>,
+) -> f64 {
+    let duration = match end_date {
+        Some(end_date) => (end_date - start_date).num_seconds(),
+        None => (Local::now() - start_date).num_seconds(),
+    };
+
+    if duration == 0 {
+        return 0.0;
+    }
+
+    progress_current as f64 / duration as f64
+}
+
+/// Shared percentage formula for any progression tracking a `current`/`max`
+/// pair — used by [`BackupProgression::percent`],
+/// [`crate::archiving::ArchiveState::percent`] and
+/// [`crate::archiving::ArchiveHostState::percent`] so all three stay in sync
+/// if the definition of "percent" ever changes.
+///
+/// # Returns
+///
+/// * `f64` - `current` as a percentage of `max`, `0.0` if `max` is zero.
+#[must_use]
+pub fn percent_of(current: u64, max: u64) -> f64 {
+    if max == 0 {
+        return 0.0;
+    }
+
+    let per10_000 = (current * 10_000) / max;
+
+    per10_000 as f64 / 100.0
+}
+
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 /// Represents the progression of a file list operation.
 pub struct FileListProgression {
@@ -70,13 +117,7 @@ impl BackupProgression {
     /// * `f64` - The percentage of progress completed.
     #[must_use]
     pub fn percent(&self) -> f64 {
-        if self.progress_max == 0 {
-            return 0.0;
-        }
-
-        let per10_000 = (self.progress_current * 10_000) / self.progress_max;
-
-        per10_000 as f64 / 100.0
+        percent_of(self.progress_current, self.progress_max)
     }
 
     /// Calculates the speed of the backup process in units per second.
@@ -86,19 +127,17 @@ impl BackupProgression {
     /// * `f64` - The speed of the backup process.
     #[must_use]
     pub fn speed(&self) -> f64 {
-        let duration = match self.start_transfer_date {
-            Some(start_transfer_date) => match self.end_transfer_date {
-                Some(end_transfer_date) => (end_transfer_date - start_transfer_date).num_seconds(),
-                None => (Local::now() - start_transfer_date).num_seconds(),
-            },
-            None => (Local::now() - self.start_date).num_seconds(),
+        // Before the transfer phase starts, `start_transfer_date` is `None`
+        // and elapsed time is measured from `start_date` instead, ignoring
+        // any (unexpected, at that point) `end_transfer_date`.
+        let start = self.start_transfer_date.unwrap_or(self.start_date);
+        let end = if self.start_transfer_date.is_some() {
+            self.end_transfer_date
+        } else {
+            None
         };
 
-        if duration == 0 {
-            return 0.0;
-        }
-
-        self.progress_current as f64 / duration as f64
+        speed_from(self.progress_current, start, end)
     }
 }
 

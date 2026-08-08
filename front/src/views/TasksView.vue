@@ -175,6 +175,7 @@ const availableKinds = [
   { value: JobKind.Remove, label: 'Remove', icon: 'mdi-delete' },
   { value: JobKind.Restore, label: 'Restore', icon: 'mdi-restore' },
   { value: JobKind.CleanupRefcnt, label: 'Cleanup', icon: 'mdi-broom' },
+  { value: JobKind.Archive, label: 'Archive', icon: 'mdi-archive' },
 ];
 
 function filterByKind<T extends { kind?: string | null }>(tasks: T[]): T[] {

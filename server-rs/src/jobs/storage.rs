@@ -3,7 +3,7 @@ use eyre::Result;
 use std::time::Duration;
 
 use crate::jobs::types::{
-    BackupQueueJob, MaintenanceJobData, QueueName, RestoreJobData, ScheduleQueueJob,
+    ArchiveJobData, BackupQueueJob, MaintenanceJobData, QueueName, RestoreJobData, ScheduleQueueJob,
 };
 
 /// Heartbeat interval for all queues.
@@ -50,6 +50,11 @@ pub struct ApalisRedisStorage {
     pub backup_storage: RedisStorage<BackupQueueJob>,
     pub interactive_storage: RedisStorage<RestoreJobData>,
     pub maintenance_storage: RedisStorage<MaintenanceJobData>,
+    pub archive_storage: RedisStorage<ArchiveJobData>,
+    /// Dedicated cron-tick queue that periodically wakes the `cron-archive`
+    /// worker so it can check every archive profile's due-ness — mirrors how
+    /// `nightly_storage` ticks the nightly maintenance worker.
+    pub archive_trigger_storage: RedisStorage<ScheduleQueueJob>,
 }
 
 impl ApalisRedisStorage {
@@ -59,6 +64,8 @@ impl ApalisRedisStorage {
         let conn_backup = connect(redis_url).await?;
         let conn_interactive = connect(redis_url).await?;
         let conn_maintenance = connect(redis_url).await?;
+        let conn_archive = connect(redis_url).await?;
+        let conn_archive_trigger = connect(redis_url).await?;
 
         // Schedule jobs are quick dispatchers — short orphan timeout is fine.
         let schedule_storage: RedisStorage<ScheduleQueueJob> = RedisStorage::new_with_config(
@@ -108,12 +115,34 @@ impl ApalisRedisStorage {
                 .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_MAINTENANCE),
         );
 
+        // Archive jobs stream a whole host's latest backup out of the pool onto
+        // external media — comparable cost/duration to backup/restore.
+        let archive_storage: RedisStorage<ArchiveJobData> = RedisStorage::new_with_config(
+            conn_archive,
+            RedisConfig::default()
+                .set_namespace(QueueName::Archive.as_str())
+                .set_keep_alive(KEEP_ALIVE)
+                .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_LONG),
+        );
+
+        // Ticks the cron-archive worker periodically; that worker itself
+        // decides per-profile due-ness (each profile has its own schedule).
+        let archive_trigger_storage: RedisStorage<ScheduleQueueJob> = RedisStorage::new_with_config(
+            conn_archive_trigger,
+            RedisConfig::default()
+                .set_namespace(QueueName::ArchiveTrigger.as_str())
+                .set_keep_alive(KEEP_ALIVE)
+                .set_reenqueue_orphaned_after(ORPHAN_TIMEOUT_QUICK),
+        );
+
         Ok(Self {
             schedule_storage,
             nightly_storage,
             backup_storage,
             interactive_storage,
             maintenance_storage,
+            archive_storage,
+            archive_trigger_storage,
         })
     }
 }

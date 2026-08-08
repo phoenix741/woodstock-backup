@@ -28,6 +28,9 @@ mod filesystem;
 use crate::backup_resolver::resolve_backup_id;
 use chrono::Local;
 use clap::{Parser, Subcommand};
+use commands::archive::{
+    diff_archive_profile, list_archive_profiles, run_archive_profile, verify_archive_profile,
+};
 use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
@@ -149,6 +152,12 @@ enum Commands {
         hash: String,
     },
 
+    /// Manage and inspect periodic archive profiles (see `archiving.yml`).
+    Archive {
+        #[command(subcommand)]
+        command: ArchiveCommands,
+    },
+
     #[cfg(all(unix, feature = "fuse_unix"))]
     /// Mount a backup to a specified mount point.
     Mount {
@@ -166,6 +175,49 @@ enum Commands {
 
         /// The mount point.
         mount_point: String,
+    },
+}
+
+/// Subcommands under `ws_console archive`.
+#[derive(Subcommand)]
+enum ArchiveCommands {
+    /// List configured archive profiles.
+    List {},
+
+    /// Manually trigger an archive profile run now, for all its selected
+    /// hosts (or a single `--host`). Runs regardless of whether the profile
+    /// is enabled or due — this is also the exact command a USB-hotplug udev
+    /// rule should invoke.
+    Run {
+        /// The archive profile name (see `archiving.yml`).
+        profile: String,
+
+        /// Restrict the run to a single host instead of the profile's full
+        /// selection.
+        #[clap(long)]
+        host: Option<String>,
+    },
+
+    /// Dry-run a `dir`-mode profile's next sync for one host: print what
+    /// would be added/modified/removed, without touching the destination.
+    Diff {
+        /// The archive profile name (see `archiving.yml`); must use the
+        /// `dir` format.
+        profile: String,
+
+        /// The host to diff.
+        hostname: String,
+    },
+
+    /// Verify a tar-family archive's checksum against the archive currently
+    /// on disk.
+    Verify {
+        /// The archive profile name (see `archiving.yml`); must use a
+        /// tar-family format.
+        profile: String,
+
+        /// The host whose archive to verify.
+        hostname: String,
     },
 }
 
@@ -268,6 +320,28 @@ async fn main() -> Result<()> {
                 .await
                 .wrap_err("Failed to convert hash repository")?;
         }
+        Commands::Archive { command } => match command {
+            ArchiveCommands::List {} => {
+                list_archive_profiles(&state)
+                    .await
+                    .wrap_err("Failed to list archive profiles")?;
+            }
+            ArchiveCommands::Run { profile, host } => {
+                run_archive_profile(&state, &profile, host.as_deref())
+                    .await
+                    .wrap_err("Failed to run archive profile")?;
+            }
+            ArchiveCommands::Diff { profile, hostname } => {
+                diff_archive_profile(&state, &profile, &hostname)
+                    .await
+                    .wrap_err("Failed to diff archive profile")?;
+            }
+            ArchiveCommands::Verify { profile, hostname } => {
+                verify_archive_profile(&state, &profile, &hostname)
+                    .await
+                    .wrap_err("Failed to verify archive profile")?;
+            }
+        },
         #[cfg(all(unix, feature = "fuse_unix"))]
         Commands::Mount {
             hostname,

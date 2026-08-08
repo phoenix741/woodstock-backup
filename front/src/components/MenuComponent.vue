@@ -2,6 +2,7 @@
   <v-app-bar>
     <v-app-bar-title>
       <v-btn variant="text" to="/devices">Devices</v-btn>
+      <v-btn variant="text" to="/archive">Archive</v-btn>
       <v-btn variant="text" to="/tasks">Tasks</v-btn>
       <v-btn variant="text" to="/pool">Pool</v-btn>
       <v-btn variant="text" to="/events">Events</v-btn>

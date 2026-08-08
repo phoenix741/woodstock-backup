@@ -79,6 +79,9 @@ pub struct ConfigurationPath {
     /// Path to the scheduler configuration file.
     pub config_path_scheduler: PathBuf,
 
+    /// Path to the archiving profiles configuration file.
+    pub config_path_archiving: PathBuf,
+
     /// Path to the statistics configuration file.
     pub config_path_statistics: PathBuf,
 
@@ -149,6 +152,7 @@ impl ConfigurationPath {
 
         let config_path_hosts = config_path.join("hosts.yml");
         let config_path_scheduler = config_path.join("scheduler.yml");
+        let config_path_archiving = config_path.join("archiving.yml");
         let config_path_statistics = config_path.join("statistics.yml");
 
         let config_path_pool_algorithm = pool_path.join("algorithm");
@@ -171,6 +175,7 @@ impl ConfigurationPath {
             events_path,
             config_path_hosts,
             config_path_scheduler,
+            config_path_archiving,
             config_path_statistics,
             config_path_pool_algorithm,
         }

@@ -14,13 +14,24 @@
   <template v-else-if="job.kind === JobKind.CleanupRefcnt && cleanupData">
     <TaskCardCleanup :data="cleanupData" :progress="cleanupProgress" :expanded="expanded" />
   </template>
+  <template v-else-if="job.kind === JobKind.Archive && archiveData">
+    <TaskCardArchive
+      :data="archiveData"
+      :progress="archiveProgress"
+      :status="job.status"
+      :failed-reason="job.failedReason"
+      :expanded="expanded"
+    />
+  </template>
 </template>
 
 <script setup lang="ts">
 import {
+  ArchiveTaskStateFragmentDoc,
   BackupTaskStateFragmentDoc,
   CleanerTaskStateFragmentDoc,
   FsckTaskStateFragmentDoc,
+  JobArchiveDataFragmentDoc,
   JobBackupDataFragmentDoc,
   JobCleanupDataFragmentDoc,
   JobFsckDataFragmentDoc,
@@ -38,6 +49,7 @@ import TaskCardRestore from './TaskCardRestore.vue';
 import TaskCardRemove from './TaskCardRemove.vue';
 import TaskCardFsck from './TaskCardFsck.vue';
 import TaskCardCleanup from './TaskCardCleanup.vue';
+import TaskCardArchive from './TaskCardArchive.vue';
 
 const { job, expanded } = defineProps<{
   job: JobFragment;
@@ -87,5 +99,14 @@ const cleanupData = computed(() => {
 const cleanupProgress = computed(() => {
   if (!job.progress || job.progress.__typename !== 'JobCleanerTaskState') return null;
   return useFragment(CleanerTaskStateFragmentDoc, job.progress);
+});
+
+const archiveData = computed(() => {
+  if (!job.data || job.data.__typename !== 'JobArchiveData') return null;
+  return useFragment(JobArchiveDataFragmentDoc, job.data);
+});
+const archiveProgress = computed(() => {
+  if (!job.progress || job.progress.__typename !== 'JobArchiveTaskState') return null;
+  return useFragment(ArchiveTaskStateFragmentDoc, job.progress);
 });
 </script>

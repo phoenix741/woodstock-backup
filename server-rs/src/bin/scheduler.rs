@@ -7,7 +7,8 @@ use eyre::eyre;
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::info;
-use woodstock::config::{Configuration, Scheduler};
+use woodstock::archiving::{is_profile_due, ArchiveRunStatus};
+use woodstock::config::{ArchivingConfig, Configuration, Scheduler};
 use woodstock_server_rs::{
     jobs::{producers::*, state::ApiWorkerState, types::*},
     logger::init_logging,
@@ -53,6 +54,19 @@ async fn main() -> Result<()> {
         state.apalis_redis_storage.nightly_storage.clone(),
     );
 
+    // Archive trigger: ticks every 5 minutes; the worker itself checks each
+    // configured profile's own `schedule_cron` for due-ness (profiles are
+    // configured in archiving.yml, not here — there is no single global
+    // archiving cron).
+    let archive_trigger_sched = Schedule::from_str("0 */5 * * * * *")
+        .map_err(|e| eyre!("Invalid cron expression for archive trigger: {e}"))?;
+    let archive_trigger_backend = pipe_cron_to_archive_trigger_storage(
+        archive_trigger_sched,
+        state.apalis_redis_storage.archive_trigger_storage.clone(),
+    );
+
+    let archiving_config = Arc::new(ArchivingConfig::new(woodstock_config.clone()));
+
     // Producers to enqueue jobs when cron ticks are persisted
     let redis_client = redis::Client::open(redis_url.clone())?;
     let producers = Arc::new(Mutex::new(Producers::new(
@@ -62,6 +76,7 @@ async fn main() -> Result<()> {
         state.apalis_redis_storage.backup_storage.clone(),
         state.apalis_redis_storage.interactive_storage.clone(),
         state.apalis_redis_storage.maintenance_storage.clone(),
+        state.apalis_redis_storage.archive_storage.clone(),
         state.progress_publisher.clone(),
         redis_client,
     )));
@@ -134,6 +149,91 @@ async fn main() -> Result<()> {
                         info!("Nightly cleanup refcnt job enqueued");
                     }
                     res.map(|_| ())
+                }
+            })
+    });
+
+    // Archive: on each tick, check every profile's due-ness and enqueue a run
+    // (one job per selected host) for those that are due.
+    monitor = monitor.register({
+        let producers_archive = producers.clone();
+        let archiving_config = archiving_config.clone();
+        let jobs_path = woodstock_config.path.jobs_path.clone();
+        WorkerBuilder::new("cron-archive")
+            .catch_panic()
+            .concurrency(1)
+            .backend(archive_trigger_backend)
+            .build_fn(move |_: ScheduleQueueJob| {
+                let producers = producers_archive.clone();
+                let archiving_config = archiving_config.clone();
+                let jobs_path = jobs_path.clone();
+                async move {
+                    let now = chrono::Local::now();
+                    let profiles = match archiving_config.list_profiles().await {
+                        Ok(profiles) => profiles,
+                        Err(e) => {
+                            tracing::error!("Failed to load archiving.yml: {e}");
+                            return Ok(());
+                        }
+                    };
+
+                    for profile in profiles {
+                        if !profile.enabled {
+                            continue;
+                        }
+
+                        let status = ArchiveRunStatus::load(&jobs_path, &profile.name)
+                            .await
+                            .unwrap_or_default();
+
+                        let due = match is_profile_due(&profile.schedule_cron, status.last_run, now)
+                        {
+                            Ok(due) => due,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Skipping archive profile '{}': {e}",
+                                    profile.name
+                                );
+                                continue;
+                            }
+                        };
+
+                        if !due {
+                            continue;
+                        }
+
+                        let mut prod = producers.lock().await;
+                        match prod
+                            .enqueue_archive_profile(&archiving_config, &profile.name)
+                            .await
+                        {
+                            Ok(job_ids) => {
+                                if job_ids.is_empty() {
+                                    info!(
+                                        "Archive profile '{}' due: no host matched its selection, nothing enqueued",
+                                        profile.name
+                                    );
+                                } else {
+                                    info!("Archive profile '{}' due: enqueued 1 job", profile.name);
+                                }
+                                let new_status = ArchiveRunStatus { last_run: Some(now) };
+                                if let Err(e) = new_status.save(&jobs_path, &profile.name).await {
+                                    tracing::error!(
+                                        "Failed to persist run status for archive profile '{}': {e}",
+                                        profile.name
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    "Failed to enqueue archive profile '{}': {e}",
+                                    profile.name
+                                );
+                            }
+                        }
+                    }
+
+                    eyre::Result::<()>::Ok(())
                 }
             })
     });

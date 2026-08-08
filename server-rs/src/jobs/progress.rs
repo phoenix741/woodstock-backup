@@ -2,7 +2,8 @@
 //! Inspired by the BullMQ `job.progress()` API but externalized in Redis.
 
 use crate::jobs::types::{
-    BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData, RestoreJobData, StatsJobData,
+    ArchiveRunJobData, BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData,
+    RestoreJobData, StatsJobData,
 };
 use apalis::prelude::TaskId;
 use eyre::Result;
@@ -17,6 +18,7 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
+use woodstock::archiving::ArchiveState;
 use woodstock::server::{
     backup::{remove_state::RemoveState, restore_state::RestoreState, save_state::BackupState},
     pool::{fsck_state::FsckState, pool_cleaner_state::CleanerState},
@@ -141,6 +143,7 @@ pub enum ProgressUpdate {
     CleanupRefcnt(CleanerState),
     Fsck(FsckState),
     Stats(()), // Stats n'ont pas de progression
+    Archive(ArchiveState),
 }
 
 /// Simple filter applied to snapshots and events
@@ -241,6 +244,7 @@ pub enum JobKind {
     CleanupRefcnt(ProgressData<CleanupRefcntJobData, CleanerState>),
     Fsck(ProgressData<FsckJobData, FsckState>),
     Stats(ProgressData<StatsJobData, ()>),
+    Archive(ProgressData<ArchiveRunJobData, ArchiveState>),
 }
 
 impl JobKind {
@@ -252,6 +256,7 @@ impl JobKind {
             JobKind::CleanupRefcnt(_) => "cleanup_refcnt",
             JobKind::Fsck(_) => "fsck",
             JobKind::Stats(_) => "stats",
+            JobKind::Archive(_) => "archive",
         }
     }
 
@@ -281,6 +286,10 @@ impl JobKind {
             (JobKind::Stats(mut pd), ProgressUpdate::Stats(progress)) => {
                 pd.progress = Some(progress);
                 Ok(JobKind::Stats(pd))
+            }
+            (JobKind::Archive(mut pd), ProgressUpdate::Archive(progress)) => {
+                pd.progress = Some(progress);
+                Ok(JobKind::Archive(pd))
             }
             _ => Err(eyre::eyre!("Progress update type doesn't match job kind")),
         }
@@ -325,6 +334,13 @@ impl JobKind {
 
     pub fn with_stats(data: StatsJobData) -> Self {
         JobKind::Stats(ProgressData {
+            data,
+            progress: None,
+        })
+    }
+
+    pub fn with_archive(data: ArchiveRunJobData) -> Self {
+        JobKind::Archive(ProgressData {
             data,
             progress: None,
         })

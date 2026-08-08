@@ -1,7 +1,7 @@
 use async_graphql::{Context, Object, Result as GqlResult};
 use uuid::Uuid;
 
-use crate::api::dto::{JobResponse, RestoreInput};
+use crate::api::dto::{ArchiveRunResponse, JobResponse, RestoreInput};
 use crate::api::ApiServerState;
 use crate::jobs::types::RestoreJobData;
 
@@ -33,6 +33,38 @@ impl MutationRoot {
         let id = id_opt.unwrap_or_else(|| format!("backup::{}", hostname));
 
         Ok(JobResponse { id })
+    }
+
+    /// Triggers an archive profile run now — regardless of whether it is
+    /// enabled or due (same semantics as `ws_console archive run`). If
+    /// `host` is omitted, resolves the profile's full host selection and
+    /// enqueues one job per selected host.
+    #[graphql(name = "runArchive")]
+    async fn run_archive(
+        &self,
+        ctx: &Context<'_>,
+        profile: String,
+        host: Option<String>,
+    ) -> GqlResult<ArchiveRunResponse> {
+        let state = ctx.data::<ApiServerState>()?;
+        let mut producers = state.producers.lock().await;
+
+        let job_ids = if let Some(host) = host {
+            producers
+                .enqueue_archive_run(&profile, vec![host])
+                .await
+                .map_err(|e| async_graphql::Error::new(e.to_string()))?
+                .into_iter()
+                .collect()
+        } else {
+            let archiving = woodstock::config::ArchivingConfig::new(state.config.clone());
+            producers
+                .enqueue_archive_profile(&archiving, &profile)
+                .await
+                .map_err(|e| async_graphql::Error::new(e.to_string()))?
+        };
+
+        Ok(ArchiveRunResponse { job_ids })
     }
 
     async fn remove_backup(

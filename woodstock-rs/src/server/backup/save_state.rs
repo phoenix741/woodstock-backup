@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::{
-    config::{ShareSnapshotMethod, ExecuteCommandOperation, HostConfiguration},
+    config::{ExecuteCommandOperation, HostConfiguration, ShareSnapshotMethod},
     server::progression::{BackupProgression, FileListProgression},
     ExecuteCommandReply,
 };

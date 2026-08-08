@@ -520,7 +520,11 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                 })
                 .unwrap_or(ShareSnapshotMethod::None);
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.set_share_snapshot_result(&share.share_path, method, sr.failure_reason);
+            progression_state.set_share_snapshot_result(
+                &share.share_path,
+                method,
+                sr.failure_reason,
+            );
         }
 
         self.send_progres().await;

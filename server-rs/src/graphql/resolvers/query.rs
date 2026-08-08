@@ -6,8 +6,8 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::api::dto::{
-    ApplicationEvent, BigIntTimeSerie, DiskUsage as GqlDiskUsage, GqlStatistics, Host,
-    HostStatistics as GqlHostStatistics, Job, NumberTimeSerie, PoolHealthStatusDto,
+    ApplicationEvent, ArchiveProfile, BigIntTimeSerie, DiskUsage as GqlDiskUsage, GqlStatistics,
+    Host, HostStatistics as GqlHostStatistics, Job, NumberTimeSerie, PoolHealthStatusDto,
     PoolUsage as GqlPoolUsage, QueueListInput, QueueStats,
     ServerInformations as GqlServerInformations,
 };
@@ -220,6 +220,20 @@ impl QueryRoot {
             .await
             .map_err(super::util::map_err)?;
         Ok(jobs.into_iter().map(Into::into).collect())
+    }
+
+    /// Configured archive profiles (from `archiving.yml`), read-only — used
+    /// to populate the manual archive-run trigger in the Tasks UI. There is
+    /// no mutation to create/edit profiles; that stays YAML-only.
+    #[graphql(name = "archiveProfiles")]
+    async fn archive_profiles(&self, ctx: &Context<'_>) -> GqlResult<Vec<ArchiveProfile>> {
+        let state = ctx.data::<ApiServerState>()?;
+        let archiving = woodstock::config::ArchivingConfig::new(state.config.clone());
+        let profiles = archiving
+            .list_profiles()
+            .await
+            .map_err(super::util::map_err)?;
+        Ok(profiles.into_iter().map(Into::into).collect())
     }
 
     async fn events(

@@ -37,6 +37,7 @@ pub enum HostLockOperation {
     Backup,
     Restore,
     Remove,
+    Archive,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,6 +73,7 @@ impl HostLockOperation {
             Self::Backup => "backup",
             Self::Restore => "restore",
             Self::Remove => "remove",
+            Self::Archive => "archive",
         }
     }
 }
@@ -141,6 +143,7 @@ impl From<&str> for LockOperation {
             "backup" => Self::Host(HostLockOperation::Backup),
             "restore" => Self::Host(HostLockOperation::Restore),
             "remove" => Self::Host(HostLockOperation::Remove),
+            "archive" => Self::Host(HostLockOperation::Archive),
             "save_backup" => Self::Pool(PoolLockOperation::SaveBackup),
             "fsck" => Self::Pool(PoolLockOperation::Fsck),
             "execute_cleaning" => Self::Pool(PoolLockOperation::ExecuteCleaning),

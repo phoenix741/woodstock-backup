@@ -96,10 +96,12 @@ async-compression = { version = "^0.4", features = [
   "tokio",
   "zstd",
   "zlib",
+  "gzip",
   "brotli",
   "lzma",
   "xz",
 ] }
+tar = "^0.4"
 
 # File system
 tempfile = "^3"

@@ -8,7 +8,7 @@ use eyre::Result;
 use woodstock::config::Configuration;
 
 use crate::jobs::types::{
-    BackupQueueJob, MaintenanceJobData, QueueName, RestoreJobData, ScheduleQueueJob,
+    ArchiveJobData, BackupQueueJob, MaintenanceJobData, QueueName, RestoreJobData, ScheduleQueueJob,
 };
 
 /// Queue service for API business logic
@@ -20,6 +20,7 @@ pub struct QueueService {
     backup_storage: RedisStorage<BackupQueueJob>,
     interactive_storage: RedisStorage<RestoreJobData>,
     maintenance_storage: RedisStorage<MaintenanceJobData>,
+    archive_storage: RedisStorage<ArchiveJobData>,
 }
 
 impl QueueService {
@@ -31,6 +32,7 @@ impl QueueService {
         let conn_backup = connect(redis_url.clone()).await?;
         let conn_interactive = connect(redis_url.clone()).await?;
         let conn_maintenance = connect(redis_url.clone()).await?;
+        let conn_archive = connect(redis_url.clone()).await?;
 
         let schedule_storage = RedisStorage::new_with_config(
             conn_schedule,
@@ -48,12 +50,17 @@ impl QueueService {
             conn_maintenance,
             RedisConfig::default().set_namespace(QueueName::Maintenance.as_str()),
         );
+        let archive_storage = RedisStorage::new_with_config(
+            conn_archive,
+            RedisConfig::default().set_namespace(QueueName::Archive.as_str()),
+        );
 
         Ok(Self {
             schedule_storage,
             backup_storage,
             interactive_storage,
             maintenance_storage,
+            archive_storage,
         })
     }
 
@@ -73,18 +80,23 @@ impl QueueService {
         self.maintenance_storage.clone()
     }
 
+    pub fn archive_storage(&self) -> RedisStorage<ArchiveJobData> {
+        self.archive_storage.clone()
+    }
+
     /// Get queue statistics
     pub async fn get_queue_stats(&self) -> Result<QueueStats> {
         // Récupère les stats sur chaque file et agrège
         let s_backup = self.backup_storage.stats().await.unwrap_or_default();
         let s_inter = self.interactive_storage.stats().await.unwrap_or_default();
         let s_maint = self.maintenance_storage.stats().await.unwrap_or_default();
+        let s_archive = self.archive_storage.stats().await.unwrap_or_default();
 
-        let pending = s_backup.pending + s_inter.pending + s_maint.pending;
-        let running = s_backup.running + s_inter.running + s_maint.running;
-        let success = s_backup.success + s_inter.success + s_maint.success;
-        let failed = s_backup.failed + s_inter.failed + s_maint.failed;
-        let dead = s_backup.dead + s_inter.dead + s_maint.dead;
+        let pending = s_backup.pending + s_inter.pending + s_maint.pending + s_archive.pending;
+        let running = s_backup.running + s_inter.running + s_maint.running + s_archive.running;
+        let success = s_backup.success + s_inter.success + s_maint.success + s_archive.success;
+        let failed = s_backup.failed + s_inter.failed + s_maint.failed + s_archive.failed;
+        let dead = s_backup.dead + s_inter.dead + s_maint.dead + s_archive.dead;
 
         Ok(QueueStats {
             pending,

@@ -44,6 +44,13 @@ export const JobFsckDataFragmentDoc = graphql(/* GraphQL */ `
   }
 `);
 
+export const JobArchiveDataFragmentDoc = graphql(/* GraphQL */ `
+  fragment JobArchiveData on JobArchiveData {
+    profileName
+    hostnames
+  }
+`);
+
 export const BackupTaskStateFragmentDoc = graphql(/* GraphQL */ `
   fragment BackupTaskState on JobBackupTaskState {
     backupExecutionState: executionState
@@ -195,6 +202,30 @@ export const FsckTaskStateFragmentDoc = graphql(/* GraphQL */ `
   }
 `);
 
+export const ArchiveTaskStateFragmentDoc = graphql(/* GraphQL */ `
+  fragment ArchiveTaskState on JobArchiveTaskState {
+    currentHost
+    hostsDone
+    hostsTotal
+    progressCurrent
+    progressMax
+    percent
+    fileCount
+    archiveSize
+    speed
+    failedHosts
+    hostStates {
+      hostname
+      executionState
+      progressCurrent
+      progressMax
+      percent
+      fileCount
+      archiveSize
+    }
+  }
+`);
+
 export const JobFragmentDoc = graphql(/* GraphQL */ `
   fragment Job on Job {
     jobId
@@ -209,6 +240,7 @@ export const JobFragmentDoc = graphql(/* GraphQL */ `
       ...JobRemoveData
       ...JobCleanupData
       ...JobFsckData
+      ...JobArchiveData
     }
     progress {
       ...BackupTaskState
@@ -216,6 +248,7 @@ export const JobFragmentDoc = graphql(/* GraphQL */ `
       ...RemoveTaskState
       ...CleanerTaskState
       ...FsckTaskState
+      ...ArchiveTaskState
     }
   }
 `);

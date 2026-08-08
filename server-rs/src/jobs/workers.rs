@@ -13,6 +13,9 @@ use crate::jobs::types::*;
 use chrono::Local;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn, Instrument};
+use woodstock::archiving::{
+    ArchiveHostExecutionState, ArchiveHostState, ArchiveProgressCounters, ArchiveState,
+};
 use woodstock::config::{Context, DEFAULT_CHANNEL_BUFFER_SIZE};
 use woodstock::server::backup::remove_machine::RemoveBackupMachine;
 use woodstock::server::backup::remove_state::RemoveState;
@@ -788,6 +791,343 @@ impl JobExecutors {
             }
         }
         Ok(())
+    }
+
+    /// Archives every host in `job.hostnames` sequentially — one host at a
+    /// time, never in parallel — so a profile drives its destination disk
+    /// (often removable media) with one write stream instead of seeking
+    /// across it from N concurrent jobs.
+    ///
+    /// A single host failing (no completed backup, lock timeout, write
+    /// error) is recorded in the final `ArchiveState::failed_hosts` and
+    /// logged, but does not fail the job: this queue's `RetryPolicy` retries
+    /// the whole job on `Err`, which would re-archive every host that
+    /// already succeeded. Returning `Ok(())` regardless keeps a partial
+    /// failure from thrashing the disk with redundant re-archiving of hosts
+    /// that were already written successfully.
+    #[instrument(skip_all, fields(job_type="archive", profile=%job.profile_name, hosts=job.hostnames.len(), task_id=%task_id))]
+    pub async fn handle_archive_run(
+        &self,
+        task_id: TaskId,
+        state: Data<Arc<ApiWorkerState>>,
+        job: ArchiveRunJobData,
+        attempt: Attempt,
+    ) -> Result<()> {
+        info!(
+            "[{}] Starting archive run for {} host(s) (profile: {}, attempt: {})",
+            task_id,
+            job.hostnames.len(),
+            job.profile_name,
+            attempt.current()
+        );
+
+        let archiving = woodstock::config::ArchivingConfig::new(state.config.clone());
+        let Some(profile) = archiving.get_profile(&job.profile_name).await? else {
+            warn!(
+                "[{}] Archive profile '{}' no longer exists, skipping",
+                task_id, job.profile_name
+            );
+            return Ok(());
+        };
+
+        // Resolve upfront which hosts actually have something to archive,
+        // and (for `dir` mode, whose per-host max can't come from
+        // `Backup::file_size` — that would count the whole backup rather
+        // than just the delta this run writes) size each host before
+        // starting, so both the aggregate and per-host progress bars have a
+        // known denominator from the first published snapshot.
+        let mut resolved = Vec::new();
+        for hostname in &job.hostnames {
+            match state.backups.get_last_backup(&hostname).await {
+                Some(backup) => resolved.push((hostname.clone(), backup)),
+                None => info!(
+                    "[{}] No completed backup for host '{}', skipping",
+                    task_id, hostname
+                ),
+            }
+        }
+
+        let mut resolved_with_max = Vec::with_capacity(resolved.len());
+        for (hostname, backup) in resolved {
+            let host_max = match profile.format {
+                woodstock::config::ArchiveFormat::Tar(_)
+                | woodstock::config::ArchiveFormat::TarGz(_)
+                | woodstock::config::ArchiveFormat::TarXz(_)
+                | woodstock::config::ArchiveFormat::TarZstd(_) => backup.file_size,
+                woodstock::config::ArchiveFormat::Dir => {
+                    woodstock::archiving::dir_sync::dir_diff_total_size(
+                        &state.backups,
+                        &hostname,
+                        &backup,
+                        &profile.destination,
+                    )
+                    .await
+                    .unwrap_or(0)
+                }
+            };
+            resolved_with_max.push((hostname, backup, host_max));
+        }
+
+        let hosts_total = resolved_with_max.len();
+        let progress_max: u64 = resolved_with_max.iter().map(|(_, _, max)| *max).sum();
+
+        let redis_url = state.config.redis_url();
+        let counters = Arc::new(ArchiveProgressCounters::default());
+
+        // Set once, right here — after the sizing loop above (which can
+        // itself take real time for `dir` mode's diff) and before the first
+        // host actually starts writing — so sizing time never gets counted
+        // as transfer time in `ArchiveState::speed`.
+        let mut run_state = ArchiveState {
+            current_host: None,
+            hosts_done: 0,
+            hosts_total,
+            start_date: Local::now(),
+            progress_current: 0,
+            progress_max,
+            file_count: 0,
+            archive_size: 0,
+            failed_hosts: Vec::new(),
+            host_states: resolved_with_max
+                .iter()
+                .map(|(hostname, _, host_max)| ArchiveHostState {
+                    hostname: hostname.clone(),
+                    execution_state: ArchiveHostExecutionState::Waiting,
+                    progress_current: 0,
+                    progress_max: *host_max,
+                    file_count: 0,
+                    archive_size: None,
+                })
+                .collect(),
+        };
+        self.publish_archive_progress(&task_id, &run_state).await;
+
+        for (index, (hostname, backup, _host_max)) in resolved_with_max.into_iter().enumerate() {
+            run_state.current_host = Some(hostname.clone());
+            run_state.host_states[index].execution_state = ArchiveHostExecutionState::InProgress;
+            self.publish_archive_progress(&task_id, &run_state).await;
+
+            // Shared lock: reading a host's backups to export them must not
+            // run concurrently with a Backup/Restore/Remove (exclusive) on
+            // the same host, but multiple archive profiles reading the same
+            // host may.
+            let lock_result = PoolLockRedis::new(
+                &redis_url,
+                &hostname,
+                LockOperation::Host(HostLockOperation::Archive),
+            )
+            .await;
+            let lock = match lock_result {
+                Ok(pool_lock) => {
+                    pool_lock
+                        .try_lock_shared_wait(std::time::Duration::from_secs(LOCK_TTL))
+                        .await
+                }
+                Err(e) => Err(e),
+            };
+
+            let (host_start_bytes, host_start_files) = counters.snapshot();
+
+            let host_result: Result<Option<u64>> = match lock {
+                Ok(Some(_lock)) => {
+                    let ticker = self.spawn_archive_progress_ticker(
+                        &task_id,
+                        run_state.clone(),
+                        index,
+                        host_start_bytes,
+                        host_start_files,
+                        &counters,
+                    );
+                    let result = self
+                        .archive_one_host(&task_id, &state, &profile, &hostname, &backup, &counters)
+                        .await;
+                    ticker.abort();
+                    result
+                }
+                Ok(None) => {
+                    warn!(
+                        "[{}] Skip archive for host {}: could not acquire shared lock after {}s",
+                        task_id, hostname, LOCK_TTL
+                    );
+                    Err(eyre!("could not acquire shared lock"))
+                }
+                Err(e) => Err(e),
+            };
+
+            let (total_bytes, total_files) = counters.snapshot();
+            run_state.hosts_done += 1;
+            run_state.progress_current = total_bytes;
+            run_state.file_count = total_files;
+            run_state.host_states[index].progress_current = total_bytes - host_start_bytes;
+            run_state.host_states[index].file_count = total_files - host_start_files;
+            // Tar-family reports its own post-compression file size; `Dir`
+            // has none (no single archive file), so its "archive size" is
+            // just the bytes this host actually synced to the destination —
+            // see the format mapping on `ArchiveHostState::archive_size`.
+            run_state.host_states[index].archive_size = match &host_result {
+                Ok(Some(size)) => Some(*size),
+                Ok(None) => Some(run_state.host_states[index].progress_current),
+                Err(_) => None,
+            };
+            if let Some(size) = run_state.host_states[index].archive_size {
+                run_state.archive_size += size;
+            }
+            run_state.host_states[index].execution_state = if let Err(e) = &host_result {
+                warn!(
+                    "[{}] Archive failed for host '{}' (profile '{}'): {}",
+                    task_id, hostname, job.profile_name, e
+                );
+                run_state.failed_hosts.push(hostname);
+                ArchiveHostExecutionState::Failed
+            } else {
+                ArchiveHostExecutionState::Success
+            };
+
+            self.publish_archive_progress(&task_id, &run_state).await;
+        }
+
+        if !run_state.failed_hosts.is_empty() {
+            warn!(
+                "[{}] Archive profile '{}' completed with {}/{} host(s) failed: {:?}",
+                task_id,
+                job.profile_name,
+                run_state.failed_hosts.len(),
+                hosts_total,
+                run_state.failed_hosts
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Archives a single host — tar-family or `dir`, dispatched on
+    /// `profile.format`. The caller owns the progress ticker around this
+    /// call; `counters` is updated per-entry, synchronously, from inside the
+    /// writer itself. Returns the host's final archive size when the format
+    /// reports one directly (tar-family, post-compression); `Dir` returns
+    /// `None` since there is no single archive file — the caller derives its
+    /// archive size from `counters` instead (see call site).
+    async fn archive_one_host(
+        &self,
+        task_id: &TaskId,
+        state: &Data<Arc<ApiWorkerState>>,
+        profile: &woodstock::config::ArchiveProfile,
+        hostname: &str,
+        backup: &woodstock::config::Backup,
+        counters: &Arc<ArchiveProgressCounters>,
+    ) -> Result<Option<u64>> {
+        match profile.format {
+            woodstock::config::ArchiveFormat::Tar(_)
+            | woodstock::config::ArchiveFormat::TarGz(_)
+            | woodstock::config::ArchiveFormat::TarXz(_)
+            | woodstock::config::ArchiveFormat::TarZstd(_) => {
+                woodstock::archiving::tar_writer::write_host_tar_archive(
+                    &state.backups,
+                    &state.config.path.pool_path,
+                    hostname,
+                    backup,
+                    &profile.destination,
+                    profile.format,
+                    Some(counters.clone()),
+                )
+                .await
+                .map(|output| {
+                    info!(
+                        "[{}] Archived {} -> {:?}",
+                        task_id, hostname, output.archive_path
+                    );
+                    Some(output.archive_size)
+                })
+                .map_err(|e| eyre!(e.to_string()))
+            }
+            woodstock::config::ArchiveFormat::Dir => {
+                woodstock::archiving::dir_sync::sync_host_dir_archive(
+                    &state.backups,
+                    &state.config.path.pool_path,
+                    hostname,
+                    backup,
+                    &profile.destination,
+                    Some(counters.clone()),
+                )
+                .await
+                .map(|output| {
+                    info!(
+                        "[{}] Synced {} -> {:?} (+{} ~{} -{})",
+                        task_id,
+                        hostname,
+                        output.destination,
+                        output.added,
+                        output.modified,
+                        output.removed
+                    );
+                    None
+                })
+                .map_err(|e| eyre!(e.to_string()))
+            }
+        }
+    }
+
+    /// Spawns a ~1s ticker publishing `counters`' live bytes/files values for
+    /// the host at `host_index` until aborted by the caller (when that
+    /// host's write finishes). `template` is a snapshot of `run_state` taken
+    /// right before this host started (already marked `InProgress` at
+    /// `host_index`) — every tick re-derives just the live counts from it
+    /// rather than tracking separate shared state for the rest of the run,
+    /// which only changes at host boundaries that `handle_archive_run`
+    /// publishes itself.
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_archive_progress_ticker(
+        &self,
+        task_id: &TaskId,
+        template: ArchiveState,
+        host_index: usize,
+        host_start_bytes: u64,
+        host_start_files: usize,
+        counters: &Arc<ArchiveProgressCounters>,
+    ) -> tokio::task::JoinHandle<()> {
+        let publisher = self.progress.clone();
+        let task_id = task_id.clone();
+        let counters = counters.clone();
+
+        tokio::spawn(
+            async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+                interval.tick().await; // first tick fires immediately — skip it
+                loop {
+                    interval.tick().await;
+                    if let Some(publi) = &publisher {
+                        let (total_bytes, total_files) = counters.snapshot();
+                        let mut state = template.clone();
+                        state.progress_current = total_bytes;
+                        state.file_count = total_files;
+                        state.host_states[host_index].progress_current =
+                            total_bytes - host_start_bytes;
+                        state.host_states[host_index].file_count = total_files - host_start_files;
+                        if let Err(e) = publi
+                            .update_progress(&task_id.to_string(), ProgressUpdate::Archive(state))
+                            .await
+                        {
+                            error!("[{}] Failed to publish archive progress: {}", task_id, e);
+                        }
+                    }
+                }
+            }
+            .in_current_span(),
+        )
+    }
+
+    /// Publishes one `ArchiveState` snapshot immediately — used at host
+    /// boundaries (start of run, right after each host finishes), where the
+    /// ticker's up-to-1s polling delay isn't good enough.
+    async fn publish_archive_progress(&self, task_id: &TaskId, state: &ArchiveState) {
+        if let Some(publi) = &self.progress {
+            if let Err(e) = publi
+                .update_progress(&task_id.to_string(), ProgressUpdate::Archive(state.clone()))
+                .await
+            {
+                error!("[{}] Failed to publish archive progress: {}", task_id, e);
+            }
+        }
     }
 
     /// Enforce retention policy after a successful backup.

@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use crate::{
     config::{
-        Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
-        ShareRecord, ShareSnapshotMethod,
+        Backup, BackupStatus, Backups, Configuration, Context, ShareRecord, ShareSnapshotMethod,
+        DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},

@@ -39,6 +39,11 @@ This folder contains the technical documentation for developers who want to cont
     * Time-based sliding window algorithm (Hourly, Daily, Weekly, Monthly, Yearly).
     * Removal process and synchronization locking (`backup.yml`).
 
+7. **[Periodic Archiving](ARCHIVING.md)**
+    * `archiving.yml` profiles: host selection, schedule, destination, format.
+    * Tar-family export vs. incremental `dir` mirroring.
+    * Manual trigger (CLI, Tasks UI, USB-hotplug udev recipe) and `ws_console archive` subcommands.
+
 ## Packaging & Deployment
 
 ### Debian / Ubuntu
