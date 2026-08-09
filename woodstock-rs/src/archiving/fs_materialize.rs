@@ -55,7 +55,14 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
             let target = vec_to_path(&entry.symlink);
             // Remove a possibly-stale existing entry (file/symlink) before recreating.
             let _ = tokio::fs::remove_file(path).await;
+            #[cfg(unix)]
             tokio::fs::symlink(&target, path).await?;
+            // Matches `client-rs`'s `metadata::windows::create_symlink`:
+            // Windows distinguishes file vs. directory symlinks and
+            // `std::os::windows::fs` has no manifest-driven way to know
+            // which the target is, so this only creates file symlinks.
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_file(&target, path)?;
             // Not calling set_permissions here: chmod follows symlinks, so it
             // would silently affect the link's target (or fail on a
             // dangling one) rather than the link itself.
