@@ -482,6 +482,12 @@ impl Refcnt {
             };
 
             if result.is_ok() {
+                info!(
+                    "Removed unused chunk {} ({} bytes, {} bytes compressed)",
+                    hex::encode(&pool_unused.sha256),
+                    pool_unused.size,
+                    pool_unused.compressed_size
+                );
                 removed_hashes.push(pool_unused.sha256.clone());
                 if let Err(e) = progress_tx
                     .send(Some(PoolUnused {
@@ -572,7 +578,15 @@ impl Refcnt {
 
         let ref_count = match sens {
             RefcntApplySens::Increase => cnt.ref_count + refcnt.ref_count,
-            RefcntApplySens::Decrease => cnt.ref_count.saturating_sub(refcnt.ref_count),
+            RefcntApplySens::Decrease => {
+                if cnt.ref_count < refcnt.ref_count {
+                    warn!(
+                        "Refcnt underflow for {hash_str}: decreasing by {} but current count is only {} in {:?} — possible double-application of a remove operation",
+                        refcnt.ref_count, cnt.ref_count, self.refcnt_file
+                    );
+                }
+                cnt.ref_count.saturating_sub(refcnt.ref_count)
+            }
         };
 
         if cnt.compressed_size != refcnt.compressed_size

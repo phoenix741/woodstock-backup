@@ -843,7 +843,7 @@ impl PoolLockRedis {
                 .wrap_err("Failed to check session key existence")?;
 
             if !exists {
-                debug!(
+                warn!(
                     "Removing expired session {} from shared lock {}",
                     session_uuid, self.resource
                 );

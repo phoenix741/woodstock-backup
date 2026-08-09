@@ -17,7 +17,7 @@ type Documents = {
     "\n  fragment ApplicationEvent on ApplicationEvent {\n    uuid\n    type\n    step\n    source\n    timestamp\n    errorMessages\n    status\n    information {\n      __typename\n      ... on EventBackupInformation {\n        ...EventBackupInformation\n      }\n      ... on EventPoolInformation {\n        ...EventPoolInformation\n      }\n      ... on EventPoolCleanedInformation {\n        ...EventPoolCleanedInformation\n      }\n      ... on EventHashConversionInformation {\n        ...EventHashConversionInformation\n      }\n    }\n  }\n": typeof types.ApplicationEventFragmentDoc,
     "\n  fragment EventBackupInformation on EventBackupInformation {\n    hostname\n    number\n    sharePath\n  }\n": typeof types.EventBackupInformationFragmentDoc,
     "\n  fragment EventPoolInformation on EventPoolInformation {\n    fix\n    refcount\n    refcountError\n    inUnused\n    inRefcnt\n    inNothing\n    missing\n    chunkCount\n    chunkError\n  }\n": typeof types.EventPoolInformationFragmentDoc,
-    "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n  }\n": typeof types.EventPoolCleanedInformationFragmentDoc,
+    "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n    removedHashes\n  }\n": typeof types.EventPoolCleanedInformationFragmentDoc,
     "\n  fragment EventHashConversionInformation on EventHashConversionInformation {\n    count\n    algorithm\n  }\n": typeof types.EventHashConversionInformationFragmentDoc,
     "\n  query PoolHealth {\n    poolHealth {\n      healthy\n      isDirty\n      pendingCount\n    }\n  }\n": typeof types.PoolHealthDocument,
     "query ArchiveProfiles {\n  archiveProfiles {\n    name\n    enabled\n    format\n    destination\n    scheduleCron\n    checksum\n    compressionLevel\n    hostSelectionMode\n    hostSelectionPattern\n    hostSelectionHosts\n  }\n}": typeof types.ArchiveProfilesDocument,
@@ -68,7 +68,7 @@ const documents: Documents = {
     "\n  fragment ApplicationEvent on ApplicationEvent {\n    uuid\n    type\n    step\n    source\n    timestamp\n    errorMessages\n    status\n    information {\n      __typename\n      ... on EventBackupInformation {\n        ...EventBackupInformation\n      }\n      ... on EventPoolInformation {\n        ...EventPoolInformation\n      }\n      ... on EventPoolCleanedInformation {\n        ...EventPoolCleanedInformation\n      }\n      ... on EventHashConversionInformation {\n        ...EventHashConversionInformation\n      }\n    }\n  }\n": types.ApplicationEventFragmentDoc,
     "\n  fragment EventBackupInformation on EventBackupInformation {\n    hostname\n    number\n    sharePath\n  }\n": types.EventBackupInformationFragmentDoc,
     "\n  fragment EventPoolInformation on EventPoolInformation {\n    fix\n    refcount\n    refcountError\n    inUnused\n    inRefcnt\n    inNothing\n    missing\n    chunkCount\n    chunkError\n  }\n": types.EventPoolInformationFragmentDoc,
-    "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n  }\n": types.EventPoolCleanedInformationFragmentDoc,
+    "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n    removedHashes\n  }\n": types.EventPoolCleanedInformationFragmentDoc,
     "\n  fragment EventHashConversionInformation on EventHashConversionInformation {\n    count\n    algorithm\n  }\n": types.EventHashConversionInformationFragmentDoc,
     "\n  query PoolHealth {\n    poolHealth {\n      healthy\n      isDirty\n      pendingCount\n    }\n  }\n": types.PoolHealthDocument,
     "query ArchiveProfiles {\n  archiveProfiles {\n    name\n    enabled\n    format\n    destination\n    scheduleCron\n    checksum\n    compressionLevel\n    hostSelectionMode\n    hostSelectionPattern\n    hostSelectionHosts\n  }\n}": types.ArchiveProfilesDocument,
@@ -145,7 +145,7 @@ export function graphql(source: "\n  fragment EventPoolInformation on EventPoolI
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
-export function graphql(source: "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n  }\n"): (typeof documents)["\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n  }\n"];
+export function graphql(source: "\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n    removedHashes\n  }\n"): (typeof documents)["\n  fragment EventPoolCleanedInformation on EventPoolCleanedInformation {\n    size\n    count\n    removedHashes\n  }\n"];
 /**
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */

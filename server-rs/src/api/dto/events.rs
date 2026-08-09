@@ -81,6 +81,8 @@ pub struct EventPoolInformation {
 pub struct EventPoolCleanedInformation {
     pub size: BigIntScalar,
     pub count: i32,
+    #[graphql(name = "removedHashes")]
+    pub removed_hashes: Vec<String>,
 }
 
 #[derive(SimpleObject, Clone)]
@@ -136,6 +138,11 @@ impl From<woodstock::Event> for ApplicationEvent {
                 EventInformation::EventPoolCleanedInformation(EventPoolCleanedInformation {
                     size: BigIntScalar(pc.size),
                     count: pc.count as i32,
+                    removed_hashes: pc
+                        .removed_hashes
+                        .iter()
+                        .map(|h| h.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+                        .collect(),
                 }),
             ),
             woodstock::event::Information::Pool(p) => Some(EventInformation::EventPoolInformation(

@@ -57,6 +57,7 @@ message EventPoolInformation {
 message EventPoolCleanedInformation {
   uint64 size  = 1;
   uint64 count = 2;
+  repeated bytes removed_hashes = 3;
 }
 
 message HashConversionInformation {
