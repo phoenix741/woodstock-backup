@@ -4,14 +4,18 @@ use std::sync::Arc;
 
 use apalis::prelude::{Attempt, Data, Storage, TaskId};
 // plus d'import apalis Error ici, uniquement eyre::Result dans les handlers
-use eyre::{eyre, Result};
+use eyre::{eyre, Result, WrapErr};
 use tracing::instrument;
 
-use super::progress::{JobKind, ProgressPublisher, ProgressUpdate};
+use super::progress::{
+    clear_cancel_request, is_cancel_requested, spawn_cancel_watcher, JobKind, ProgressPublisher,
+    ProgressUpdate,
+};
 use crate::jobs::state::ApiWorkerState;
 use crate::jobs::types::*;
 use chrono::Local;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn, Instrument};
 use woodstock::archiving::{
     ArchiveHostExecutionState, ArchiveHostState, ArchiveProgressCounters, ArchiveState,
@@ -20,7 +24,7 @@ use woodstock::config::{Context, DEFAULT_CHANNEL_BUFFER_SIZE};
 use woodstock::server::backup::remove_machine::RemoveBackupMachine;
 use woodstock::server::backup::remove_state::RemoveState;
 use woodstock::server::backup::restore_machine::{RestoreBackupMachine, ShareSelection};
-use woodstock::server::backup::restore_state::RestoreState;
+use woodstock::server::backup::restore_state::{RestoreExecutionState, RestoreState};
 use woodstock::server::backup::save_machine::SaveBackupMachine;
 use woodstock::server::backup::save_state::{BackupExecutionState, BackupState};
 use woodstock::server::client::grpc::BackupGrpcClient;
@@ -70,6 +74,33 @@ impl JobExecutors {
         }
     }
 
+    /// Publishes a "cancelled" state for a backup that was cancelled while
+    /// still queued — before `SaveBackupMachine` (and therefore any lock,
+    /// manifest, or `Backup` entry) was ever created. Unlike `Skipped`,
+    /// which means the scheduler will retry later, a cancelled job is a
+    /// deliberate stop and is not retried.
+    async fn publish_cancelled_backup(&self, task_id: &TaskId, host: &str) {
+        if let Some(publi) = &self.progress {
+            let cancelled_state = BackupState {
+                execution_state: BackupExecutionState::Cancelled,
+                error_state: None,
+                global_progression: BackupProgression::default(),
+                pre_command_states: std::collections::HashMap::new(),
+                share_states: std::collections::HashMap::new(),
+                post_command_states: std::collections::HashMap::new(),
+            };
+            if let Err(e) = publi
+                .update_progress(&task_id.to_string(), ProgressUpdate::Backup(cancelled_state))
+                .await
+            {
+                warn!(
+                    "[{}] Failed to publish cancelled state for host {}: {}",
+                    task_id, host, e
+                );
+            }
+        }
+    }
+
     #[instrument(skip_all, fields(job_type="backup", host=%job.host, backup_id=%job.id, task_id=%task_id))]
     pub async fn handle_backup(
         &self,
@@ -87,6 +118,24 @@ impl JobExecutors {
         let context = Context::default();
 
         let host = job.host.clone();
+
+        // A cancel requested while this job was still waiting in the Apalis
+        // queue is handled the same way as a running-job cancel: same Redis
+        // marker, checked here before any lock/manifest/snapshot exists.
+        let redis_client = redis::Client::open(state.config.redis_url())
+            .wrap_err("Failed to open Redis client for cancel-marker checks")?;
+        if is_cancel_requested(&redis_client, &task_id.to_string())
+            .await
+            .unwrap_or(false)
+        {
+            info!(
+                "[{}] Backup for host {} was cancelled before it started",
+                task_id, host
+            );
+            let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+            self.publish_cancelled_backup(&task_id, &host).await;
+            return Ok(());
+        }
 
         // Acquire exclusive lock on the host for the backup operation.
         // We wait up to LOCK_TTL (30 s) — the TTL of the lock key itself — so that if the
@@ -286,7 +335,22 @@ impl JobExecutors {
         // Exécution machine
         let grpc_client = BackupGrpcClient::new(&host, &ip, state.config.clone()).await?;
 
-        let mut machine = SaveBackupMachine::new(
+        // Distinct from `backup_cancel_token` above: that one fires on Redis
+        // lock loss and is raced against the whole `machine.execute()` future
+        // in the `select!` below (bypassing finalization on purpose — there's
+        // no pool state left to close cleanly once the lock is gone). This one
+        // is a deliberate user cancel and is threaded *into* the machine so it
+        // flows through the same finalization pipeline as any other critical
+        // error, ending in `BackupStatus::Cancelled` instead of `Aborted`.
+        //
+        // Spawned right before the machine that consumes its token (rather
+        // than right after acquiring the lock above) so none of the early
+        // `return`s for the rescue-job/policy/availability checks in between
+        // leak a Redis-polling task that would otherwise outlive this job.
+        let (user_cancel_token, cancel_watcher) =
+            spawn_cancel_watcher(redis_client.clone(), task_id.to_string());
+
+        let mut machine = match SaveBackupMachine::new(
             grpc_client,
             &host,
             id,
@@ -297,8 +361,16 @@ impl JobExecutors {
             state.config.clone(),
             state.backups.clone(),
             state.hosts.clone(),
+            user_cancel_token,
         )
-        .await?;
+        .await
+        {
+            Ok(machine) => machine,
+            Err(e) => {
+                cancel_watcher.abort();
+                return Err(e);
+            }
+        };
         let exec_res = tokio::select! {
             biased;
             res = machine.execute() => res,
@@ -312,6 +384,8 @@ impl JobExecutors {
         };
 
         drop(machine);
+        cancel_watcher.abort();
+        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
         let _ = progress_task.await; // attendre les derniers états
 
         if let Ok(state) = &exec_res {
@@ -378,6 +452,35 @@ impl JobExecutors {
         let context = Context::default();
 
         let host = job.host.clone();
+
+        // A cancel requested while this job was still waiting in the Apalis
+        // queue — same Redis marker as a running-job cancel, checked before
+        // any lock/connection exists.
+        let redis_client = redis::Client::open(state.config.redis_url())
+            .wrap_err("Failed to open Redis client for cancel-marker checks")?;
+        if is_cancel_requested(&redis_client, &task_id.to_string())
+            .await
+            .unwrap_or(false)
+        {
+            info!(
+                "[{}] Restore for host {} was cancelled before it started",
+                task_id, host
+            );
+            let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+            if let Some(publi) = &self.progress {
+                let cancelled_state = RestoreState {
+                    execution_state: RestoreExecutionState::Cancelled,
+                    ..RestoreState::default()
+                };
+                let _ = publi
+                    .update_progress(
+                        &task_id.to_string(),
+                        ProgressUpdate::Restore(cancelled_state),
+                    )
+                    .await;
+            }
+            return Ok(());
+        }
 
         // Acquire shared lock on the host for the restore operation
         // Multiple restores can run concurrently
@@ -461,7 +564,20 @@ impl JobExecutors {
         // Started event géré par ProgressLayer
 
         let grpc_client = BackupGrpcClient::new(&job.host, &ip, state.config.clone()).await?;
-        let mut machine = RestoreBackupMachine::new(
+
+        // Distinct from `restore_cancel_token` above (Redis lock loss, raced
+        // against the whole `machine.execute()` future below). This one is a
+        // deliberate user cancel, threaded *into* the machine so it stops at
+        // the next file/share boundary and still reaches `close()`.
+        //
+        // Spawned right before the machine that consumes its token (rather
+        // than right after acquiring the lock above) so none of the early
+        // `return`s for the availability/IP-resolution checks in between
+        // leak a Redis-polling task that would otherwise outlive this job.
+        let (user_cancel_token, cancel_watcher) =
+            spawn_cancel_watcher(redis_client.clone(), task_id.to_string());
+
+        let mut machine = match RestoreBackupMachine::new(
             grpc_client,
             &job.host,
             id,
@@ -470,8 +586,16 @@ impl JobExecutors {
             state.config.clone(),
             state.hosts.clone(),
             state.backups.clone(),
+            user_cancel_token,
         )
-        .await?;
+        .await
+        {
+            Ok(machine) => machine,
+            Err(e) => {
+                cancel_watcher.abort();
+                return Err(e);
+            }
+        };
         let exec_res = tokio::select! {
             biased;
             res = machine.execute(&job.destination_directory, &selections) => res,
@@ -485,6 +609,8 @@ impl JobExecutors {
         };
 
         drop(machine);
+        cancel_watcher.abort();
+        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
         let _ = progress_task.await;
 
         match exec_res {
@@ -594,6 +720,28 @@ impl JobExecutors {
             attempt.current()
         );
         let context = Context::default();
+
+        let redis_client = redis::Client::open(state.config.redis_url())
+            .wrap_err("Failed to open Redis client for cancel-marker checks")?;
+        if is_cancel_requested(&redis_client, &task_id.to_string())
+            .await
+            .unwrap_or(false)
+        {
+            info!("[{}] Fsck job was cancelled before it started", task_id);
+            let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+            if let Some(publi) = &self.progress {
+                let mut cancelled_state = FsckState::new(job.dry_run);
+                cancelled_state.cancel();
+                if let Err(e) = publi
+                    .update_progress(&task_id.to_string(), ProgressUpdate::Fsck(cancelled_state))
+                    .await
+                {
+                    warn!("[{}] Failed to publish cancelled fsck state: {}", task_id, e);
+                }
+            }
+            return Ok(());
+        }
+
         let (tx, mut rx) = mpsc::channel::<FsckState>(DEFAULT_CHANNEL_BUFFER_SIZE);
         let dry = job.dry_run;
         let verify_chunks = job.verify_chunks;
@@ -630,6 +778,9 @@ impl JobExecutors {
 
         debug!("Execute ...");
 
+        let (fsck_cancel_token, cancel_watcher) =
+            spawn_cancel_watcher(redis_client.clone(), task_id.to_string());
+
         let machine = FsckMachine::new(
             context.source,
             dry,
@@ -639,12 +790,15 @@ impl JobExecutors {
             state.config.clone(),
             state.hosts.clone(),
             state.backups.clone(),
+            fsck_cancel_token,
         );
         let exec_res = machine.execute().await;
 
         debug!("Waiting progress ...");
 
         drop(machine);
+        cancel_watcher.abort();
+        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
 
         let _ = progress_task.await;
 
@@ -821,6 +975,21 @@ impl JobExecutors {
             attempt.current()
         );
 
+        let redis_client = redis::Client::open(state.config.redis_url())
+            .wrap_err("Failed to open Redis client for cancel-marker checks")?;
+        if is_cancel_requested(&redis_client, &task_id.to_string())
+            .await
+            .unwrap_or(false)
+        {
+            info!(
+                "[{}] Archive run for profile '{}' was cancelled before it started",
+                task_id, job.profile_name
+            );
+            let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+            self.publish_cancelled_archive(&task_id, &job.hostnames).await;
+            return Ok(());
+        }
+
         let archiving = woodstock::config::ArchivingConfig::new(state.config.clone());
         let Some(profile) = archiving.get_profile(&job.profile_name).await? else {
             warn!(
@@ -888,6 +1057,7 @@ impl JobExecutors {
             file_count: 0,
             archive_size: 0,
             failed_hosts: Vec::new(),
+            cancelled: false,
             host_states: resolved_with_max
                 .iter()
                 .map(|(hostname, _, host_max)| ArchiveHostState {
@@ -901,6 +1071,13 @@ impl JobExecutors {
                 .collect(),
         };
         self.publish_archive_progress(&task_id, &run_state).await;
+
+        // One token for the whole run, not per host: cancelling stops the
+        // host currently writing (tar-family, mid-write — see
+        // `archive_one_host`'s doc comment) and skips every host not yet
+        // started, exactly like the other two job types.
+        let (cancel_token, cancel_watcher) =
+            spawn_cancel_watcher(redis_client.clone(), task_id.to_string());
 
         for (index, (hostname, backup, _host_max)) in resolved_with_max.into_iter().enumerate() {
             run_state.current_host = Some(hostname.clone());
@@ -939,7 +1116,15 @@ impl JobExecutors {
                         &counters,
                     );
                     let result = self
-                        .archive_one_host(&task_id, &state, &profile, &hostname, &backup, &counters)
+                        .archive_one_host(
+                            &task_id,
+                            &state,
+                            &profile,
+                            &hostname,
+                            &backup,
+                            &counters,
+                            cancel_token.clone(),
+                        )
                         .await;
                     ticker.abort();
                     result
@@ -972,19 +1157,48 @@ impl JobExecutors {
             if let Some(size) = run_state.host_states[index].archive_size {
                 run_state.archive_size += size;
             }
-            run_state.host_states[index].execution_state = if let Err(e) = &host_result {
-                warn!(
-                    "[{}] Archive failed for host '{}' (profile '{}'): {}",
-                    task_id, hostname, job.profile_name, e
-                );
-                run_state.failed_hosts.push(hostname);
-                ArchiveHostExecutionState::Failed
-            } else {
-                ArchiveHostExecutionState::Success
+            let was_cancelled = cancel_token.is_cancelled();
+            run_state.host_states[index].execution_state = match &host_result {
+                Err(_) if was_cancelled => {
+                    // The write error is the cancel itself (see `run_writer`
+                    // in tar_writer.rs) — not a real failure, so it's kept
+                    // out of `failed_hosts` (which drives a "N host(s)
+                    // failed" warning UI treatment).
+                    info!(
+                        "[{}] Archive cancelled by user while archiving host '{}'",
+                        task_id, hostname
+                    );
+                    ArchiveHostExecutionState::Cancelled
+                }
+                Err(e) => {
+                    warn!(
+                        "[{}] Archive failed for host '{}' (profile '{}'): {}",
+                        task_id, hostname, job.profile_name, e
+                    );
+                    run_state.failed_hosts.push(hostname);
+                    ArchiveHostExecutionState::Failed
+                }
+                Ok(_) => ArchiveHostExecutionState::Success,
             };
 
             self.publish_archive_progress(&task_id, &run_state).await;
+
+            if was_cancelled {
+                // Stop the run entirely: hosts not yet started never run at
+                // all — only the tar of the host that was in progress (just
+                // handled above) is truncated/removed; hosts already
+                // Success'd earlier in this loop keep their archive.
+                run_state.cancelled = true;
+                for remaining in run_state.host_states.iter_mut().skip(index + 1) {
+                    remaining.execution_state = ArchiveHostExecutionState::Cancelled;
+                }
+                self.publish_archive_progress(&task_id, &run_state).await;
+                break;
+            }
         }
+
+        cancel_watcher.abort();
+        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
 
         if !run_state.failed_hosts.is_empty() {
             warn!(
@@ -1007,6 +1221,13 @@ impl JobExecutors {
     /// reports one directly (tar-family, post-compression); `Dir` returns
     /// `None` since there is no single archive file — the caller derives its
     /// archive size from `counters` instead (see call site).
+    /// `cancel_token`: consulted mid-write for tar-family formats (checked
+    /// once per manifest entry inside `write_host_tar_archive`'s writer
+    /// thread — a truncated tar is cleaned up via the same path as a write
+    /// error). Not yet wired into `Dir` format's own multi-task pipeline; a
+    /// cancel during a `Dir`-format host still takes effect at the host
+    /// boundary in `handle_archive_run` (no further host starts), just not
+    /// mid-sync for the host already in progress.
     async fn archive_one_host(
         &self,
         task_id: &TaskId,
@@ -1015,6 +1236,7 @@ impl JobExecutors {
         hostname: &str,
         backup: &woodstock::config::Backup,
         counters: &Arc<ArchiveProgressCounters>,
+        cancel_token: CancellationToken,
     ) -> Result<Option<u64>> {
         match profile.format {
             woodstock::config::ArchiveFormat::Tar(_)
@@ -1029,6 +1251,7 @@ impl JobExecutors {
                     &profile.destination,
                     profile.format,
                     Some(counters.clone()),
+                    cancel_token,
                 )
                 .await
                 .map(|output| {
@@ -1126,6 +1349,34 @@ impl JobExecutors {
                 .await
             {
                 error!("[{}] Failed to publish archive progress: {}", task_id, e);
+            }
+        }
+    }
+
+    /// Publishes a "cancelled" run state for an archive run that was
+    /// cancelled while still queued — before any host was sized or started.
+    /// Mirrors `publish_cancelled_backup`/`publish_cancelled_restore`'s role
+    /// for the other two job kinds.
+    async fn publish_cancelled_archive(&self, task_id: &TaskId, hostnames: &[String]) {
+        if let Some(publi) = &self.progress {
+            let cancelled_state = ArchiveState {
+                cancelled: true,
+                hosts_total: hostnames.len(),
+                host_states: hostnames
+                    .iter()
+                    .map(|hostname| ArchiveHostState {
+                        hostname: hostname.clone(),
+                        execution_state: ArchiveHostExecutionState::Cancelled,
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            if let Err(e) = publi
+                .update_progress(&task_id.to_string(), ProgressUpdate::Archive(cancelled_state))
+                .await
+            {
+                error!("[{}] Failed to publish cancelled archive state: {}", task_id, e);
             }
         }
     }

@@ -2,6 +2,7 @@ use std::{sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
 use eyre::Result;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
@@ -226,6 +227,7 @@ impl PoolFsck {
         &self,
         dry_run: bool,
         progress_tx: Option<mpsc::Sender<FsckProgression>>,
+        cancel_token: &CancellationToken,
     ) -> Result<FsckProgression> {
         info!("Starting pool reference count verification");
 
@@ -248,11 +250,17 @@ impl PoolFsck {
         let mut error_count = 0;
         let mut total_count = 0;
         let mut progress = 0;
+        let mut cancelled = false;
 
         // Progress
-        for host in self.hosts_config.list_hosts().await? {
+        'hosts: for host in self.hosts_config.list_hosts().await? {
             let backups = self.backups_config.get_backups(&host).await;
             for backup in backups {
+                if cancel_token.is_cancelled() {
+                    cancelled = true;
+                    break 'hosts;
+                }
+
                 debug!("Checking backup {}/{}", host, backup.id);
                 let result = check_backup_integrity(
                     &host,
@@ -277,6 +285,11 @@ impl PoolFsck {
                 {
                     error!("Failed to send verification progress: {}", e);
                 }
+            }
+
+            if cancel_token.is_cancelled() {
+                cancelled = true;
+                break 'hosts;
             }
 
             debug!("Checking host {}", host);
@@ -305,28 +318,34 @@ impl PoolFsck {
             }
         }
 
-        debug!("Checking pool");
-        let result = check_pool_integrity(
-            dry_run,
-            self.config.clone(),
-            self.hosts_config.clone(),
-            self.backups_config.clone(),
-        )
-        .await?;
+        // Skipped on cancel: this step recalculates and (in fix mode) saves
+        // the pool-wide REFCNT from every host — not a unit anyone asked to
+        // check individually, so there's no reason to still pay for it once
+        // the user has stopped the run.
+        if !cancelled {
+            debug!("Checking pool");
+            let result = check_pool_integrity(
+                dry_run,
+                self.config.clone(),
+                self.hosts_config.clone(),
+                self.backups_config.clone(),
+            )
+            .await?;
 
-        error_count += result.error_count;
-        total_count += result.total_count;
-        progress += 1;
+            error_count += result.error_count;
+            total_count += result.total_count;
+            progress += 1;
 
-        if let Err(e) = internal_tx
-            .send(FsckProgression {
-                error_count,
-                total_count,
-                progress_current: progress,
-            })
-            .await
-        {
-            error!("Failed to send verification progress: {}", e);
+            if let Err(e) = internal_tx
+                .send(FsckProgression {
+                    error_count,
+                    total_count,
+                    progress_current: progress,
+                })
+                .await
+            {
+                error!("Failed to send verification progress: {}", e);
+            }
         }
 
         // Ensure that the progress task completes
@@ -380,6 +399,7 @@ impl PoolFsck {
         &self,
         dry_run: bool,
         progress_tx: Option<mpsc::Sender<FsckUnusedCount>>,
+        cancel_token: &CancellationToken,
     ) -> Result<FsckUnusedCount> {
         info!("Starting unused files verification");
 
@@ -397,7 +417,7 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let result = check_unused(dry_run, internal_tx, self.config.clone()).await?;
+        let result = check_unused(dry_run, internal_tx, self.config.clone(), cancel_token).await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in file list progression task: {}", e);
@@ -450,6 +470,7 @@ impl PoolFsck {
     pub async fn verify_chunk(
         &self,
         progress_tx: Option<mpsc::Sender<FsckProgression>>,
+        cancel_token: &CancellationToken,
     ) -> Result<FsckProgression> {
         info!("Starting chunk verification");
         // Create an intermediate channel for progress updates
@@ -473,6 +494,10 @@ impl PoolFsck {
         let mut total_count = 0;
 
         for refcnt in chunks {
+            if cancel_token.is_cancelled() {
+                break;
+            }
+
             let wrapper = PoolChunkWrapper::new(&self.config.path.pool_path, Some(&refcnt));
 
             let is_valid = wrapper

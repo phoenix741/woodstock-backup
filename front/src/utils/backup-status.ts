@@ -131,6 +131,9 @@ export function getBackupStatusLabel(status: unknown): string {
     case BackupStatusTypeDto.Aborted:
       return 'Aborted';
 
+    case BackupStatusTypeDto.Cancelled:
+      return 'Cancelled by user';
+
     case BackupStatusTypeDto.Failed: {
       const stage = status.failedStage;
       const stageLabel = stage ? STAGE_LABELS.failed[stage as FailedStageDto] : null;
@@ -163,6 +166,11 @@ export function getBackupStatusColor(status: unknown): string {
     case BackupStatusTypeDto.Aborted:
     case BackupStatusTypeDto.Failed:
       return asThemeColor(currentTheme.value.error);
+
+    // Neutral, not the "error" color used for Aborted/Failed — a cancel is a
+    // deliberate user action, not a failure.
+    case BackupStatusTypeDto.Cancelled:
+      return asThemeColor(currentTheme.value.secondary);
 
     case BackupStatusTypeDto.InProgress:
       return asThemeColor(currentTheme.value.info);
@@ -217,6 +225,9 @@ export function getBackupStatusIcon(status: unknown): string {
 
     case BackupStatusTypeDto.Aborted:
       return 'mdi-close-circle';
+
+    case BackupStatusTypeDto.Cancelled:
+      return 'mdi-cancel';
 
     case BackupStatusTypeDto.Failed:
       return 'mdi-alert-circle';

@@ -23,6 +23,12 @@ pub enum FsckExecutionState {
     VerifyUnused,
     VerifyChunk,
     Completed,
+    /// Stopped by the user. In dry-run mode nothing was ever written, so
+    /// this is a pure no-op; in fix mode, repairs already applied to hosts
+    /// or backups already checked (each is written as a self-contained
+    /// step) remain in place — only items not yet reached are left unfixed,
+    /// to be caught by the next run.
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -362,5 +368,10 @@ impl FsckState {
     /// Completes the fsck process by updating the execution state to `Completed`.
     pub fn complete(&mut self) {
         self.execution_state = FsckExecutionState::Completed;
+    }
+
+    /// Stops the fsck process by updating the execution state to `Cancelled`.
+    pub fn cancel(&mut self) {
+        self.execution_state = FsckExecutionState::Cancelled;
     }
 }

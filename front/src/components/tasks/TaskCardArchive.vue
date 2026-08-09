@@ -7,6 +7,10 @@
     :progress-message="progressMessage"
     :error-message="errorMessage"
     :backup-error-state="hasError"
+    :cancelled="!!progress?.cancelled"
+    :job-id="jobId"
+    :job-status="status"
+    cancel-warning="The archive currently being written will be discarded. Archives already completed for other hosts in this run are kept. Hosts not yet started will be skipped."
     :expanded="expanded"
   >
     <template #tags>
@@ -33,6 +37,10 @@
       <v-chip v-if="failedHosts.length > 0" size="small" class="ma-1" color="warning" variant="outlined">
         <v-icon start size="small">mdi-alert</v-icon>
         {{ failedHosts.length }} host(s) failed: {{ failedHosts.join(', ') }}
+      </v-chip>
+      <v-chip v-if="progress?.cancelled" size="small" class="ma-1" color="grey" variant="flat">
+        <v-icon start size="small">mdi-cancel</v-icon>
+        CANCELLED
       </v-chip>
     </template>
 
@@ -99,10 +107,11 @@ import { toPercent, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress, status, failedReason, expanded } = defineProps<{
+const { data, progress, status, jobId, failedReason, expanded } = defineProps<{
   data: JobArchiveDataFragment;
   progress?: ArchiveTaskStateFragment | null;
   status: JobStatus;
+  jobId?: string;
   failedReason?: string | null;
   expanded?: boolean;
 }>();
@@ -150,6 +159,11 @@ const progressMessage = computed(() => {
 });
 
 const subtitle = computed(() => {
+  // The handler returns `Ok(())` on a cancel, so `status` alone reads as
+  // `COMPLETED` — checked first so a cancelled run is never reported as a
+  // successful completion.
+  if (progress?.cancelled) return 'Archive cancelled by user';
+
   switch (status) {
     case JobStatus.Created:
       return 'Waiting to start archiving...';
@@ -176,6 +190,8 @@ function hostStateColor(state: ArchiveHostExecutionState): string {
       return 'success';
     case ArchiveHostExecutionState.Failed:
       return 'error';
+    case ArchiveHostExecutionState.Cancelled:
+      return 'grey';
     default:
       return 'grey';
   }
@@ -191,6 +207,8 @@ function hostStateIcon(state: ArchiveHostExecutionState): string {
       return 'mdi-check-circle';
     case ArchiveHostExecutionState.Failed:
       return 'mdi-alert-circle';
+    case ArchiveHostExecutionState.Cancelled:
+      return 'mdi-cancel';
     default:
       return 'mdi-server';
   }
@@ -206,6 +224,8 @@ function hostStateText(state: ArchiveHostExecutionState): string {
       return 'Completed successfully';
     case ArchiveHostExecutionState.Failed:
       return 'Failed';
+    case ArchiveHostExecutionState.Cancelled:
+      return 'Cancelled';
     default:
       return 'Unknown state';
   }

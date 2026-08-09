@@ -7,6 +7,10 @@
     :progress-message="progressMessage"
     :error-message="errorMessage"
     :backup-error-state="!!progress?.backupErrorState"
+    :cancelled="progress?.backupExecutionState === BackupExecutionState.Cancelled"
+    :job-id="jobId"
+    :job-status="jobStatus"
+    cancel-warning="The current file transfer will stop and the backup will be marked as cancelled. Files already transferred remain valid and will still be used as the base for the next backup."
     :expanded="expanded"
   >
     <template #tags>
@@ -49,6 +53,16 @@
       <v-chip v-if="progress?.backupErrorState" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
         FAILED
+      </v-chip>
+      <v-chip
+        v-if="progress?.backupExecutionState === BackupExecutionState.Cancelled"
+        size="small"
+        class="ma-1"
+        color="grey"
+        variant="flat"
+      >
+        <v-icon start size="small">mdi-cancel</v-icon>
+        CANCELLED
       </v-chip>
     </template>
 
@@ -219,14 +233,17 @@ import {
   ShareExecutionState,
   ExecuteCommandExecutionState,
   BackupErrorState,
+  JobStatus,
 } from '@/generated/graphql';
 import { toDateTime, toPercent, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress, expanded } = defineProps<{
+const { data, progress, jobId, jobStatus, expanded } = defineProps<{
   data: JobBackupDataFragment;
   progress: BackupTaskStateFragment | undefined | null;
+  jobId?: string;
+  jobStatus?: JobStatus;
   expanded?: boolean;
 }>();
 
@@ -302,6 +319,8 @@ const executionStateMessage = computed(() => {
       return 'Adding references to pool...';
     case BackupExecutionState.Completed:
       return 'Completed';
+    case BackupExecutionState.Cancelled:
+      return 'Cancelled by user';
     case BackupExecutionState.Waiting:
       return 'Waiting...';
     default:

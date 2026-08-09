@@ -217,6 +217,7 @@ async fn launch_backup(
         context,
         state.config.clone(),
         state.backups.clone(),
+        tokio_util::sync::CancellationToken::new(),
     );
     client.set_fake_date(Some(backup.start_time));
     client.set_agent_version(version()).await;

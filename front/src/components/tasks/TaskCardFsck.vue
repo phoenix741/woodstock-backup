@@ -7,6 +7,10 @@
     :progress-message="progressMessage"
     :error-message="errorMessage"
     :backup-error-state="hasError"
+    :cancelled="progress?.fsckExecutionState === FsckExecutionState.Cancelled"
+    :job-id="jobId"
+    :job-status="jobStatus"
+    :cancel-warning="cancelWarning"
     :expanded="expanded"
   >
     <template #tags>
@@ -25,6 +29,16 @@
       <v-chip v-if="hasError" size="small" class="ma-1" color="error" variant="flat">
         <v-icon start size="small">mdi-alert-circle</v-icon>
         FAILED
+      </v-chip>
+      <v-chip
+        v-if="progress?.fsckExecutionState === FsckExecutionState.Cancelled"
+        size="small"
+        class="ma-1"
+        color="grey"
+        variant="flat"
+      >
+        <v-icon start size="small">mdi-cancel</v-icon>
+        CANCELLED
       </v-chip>
     </template>
 
@@ -125,17 +139,31 @@ import { computed } from 'vue';
 import {
   FsckExecutionState,
   FsckErrorState,
+  JobStatus,
   type JobFsckDataFragment,
   type FsckTaskStateFragment,
 } from '@/generated/graphql';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 import { toNumber, toPercent } from '../hosts/hosts.utils';
 
-const { data, progress, expanded } = defineProps<{
+const { data, progress, jobId, jobStatus, expanded } = defineProps<{
   data: JobFsckDataFragment;
   progress: FsckTaskStateFragment | undefined | null;
+  jobId?: string;
+  jobStatus?: JobStatus;
   expanded?: boolean;
 }>();
+
+// Dry-run mode never writes anything, so cancelling it is a pure no-op —
+// worth saying explicitly since "cancel" otherwise reads as a destructive
+// action. In fix mode, each host/backup is repaired and saved as its own
+// self-contained step, so a cancel mid-run leaves no partial/corrupt state —
+// only items not yet reached stay unrepaired until the next run.
+const cancelWarning = computed(() =>
+  data.dryRun
+    ? 'This is a read-only check — cancelling has no side effects, nothing has been written.'
+    : 'Repairs already applied to hosts or backups checked so far remain in place — cancelling does not undo or corrupt them. Items not yet checked will stay unrepaired until you run the check again.',
+);
 
 const title = computed(() => {
   let title = 'Pool Fsck';
@@ -164,6 +192,8 @@ const subtitle = computed(() => {
       return 'Verifying chunk integrity';
     case FsckExecutionState.Completed:
       return 'Filesystem check completed successfully';
+    case FsckExecutionState.Cancelled:
+      return 'Filesystem check cancelled by user';
     default:
       return 'Unknown state';
   }

@@ -65,7 +65,10 @@ pub fn classify_backups(
     // Seed every terminal backup as Surplus
     for backup in backups {
         match &backup.status {
-            BackupStatus::Completed | BackupStatus::Failed(_) | BackupStatus::Aborted => {
+            BackupStatus::Completed
+            | BackupStatus::Failed(_)
+            | BackupStatus::Aborted
+            | BackupStatus::Cancelled => {
                 categories.insert(backup.id, RetentionCategory::Surplus);
             }
             _ => {}

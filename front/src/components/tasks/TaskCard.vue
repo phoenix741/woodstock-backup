@@ -1,15 +1,33 @@
 <template>
   <template v-if="job.kind === JobKind.Backup && backupData">
-    <TaskCardBackup :data="backupData" :progress="backupProgress" :expanded="expanded" />
+    <TaskCardBackup
+      :data="backupData"
+      :progress="backupProgress"
+      :job-id="job.jobId"
+      :job-status="job.status"
+      :expanded="expanded"
+    />
   </template>
   <template v-else-if="job.kind === JobKind.Restore && restoreData">
-    <TaskCardRestore :data="restoreData" :progress="restoreProgress" :expanded="expanded" />
+    <TaskCardRestore
+      :data="restoreData"
+      :progress="restoreProgress"
+      :job-id="job.jobId"
+      :job-status="job.status"
+      :expanded="expanded"
+    />
   </template>
   <template v-else-if="job.kind === JobKind.Remove && removeData">
     <TaskCardRemove :data="removeData" :progress="removeProgress" :expanded="expanded" />
   </template>
   <template v-else-if="job.kind === JobKind.Fsck && fsckData">
-    <TaskCardFsck :data="fsckData" :progress="fsckProgress" :expanded="expanded" />
+    <TaskCardFsck
+      :data="fsckData"
+      :progress="fsckProgress"
+      :job-id="job.jobId"
+      :job-status="job.status"
+      :expanded="expanded"
+    />
   </template>
   <template v-else-if="job.kind === JobKind.CleanupRefcnt && cleanupData">
     <TaskCardCleanup :data="cleanupData" :progress="cleanupProgress" :expanded="expanded" />
@@ -19,6 +37,7 @@
       :data="archiveData"
       :progress="archiveProgress"
       :status="job.status"
+      :job-id="job.jobId"
       :failed-reason="job.failedReason"
       :expanded="expanded"
     />

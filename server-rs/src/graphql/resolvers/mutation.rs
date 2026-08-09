@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::api::dto::{ArchiveRunResponse, JobResponse, RestoreInput};
 use crate::api::ApiServerState;
+use crate::jobs::progress::{JobKind, JobStatus};
 use crate::jobs::types::RestoreJobData;
 
 #[derive(Default)]
@@ -175,6 +176,44 @@ impl MutationRoot {
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
         Ok(JobResponse { id })
+    }
+
+    /// Requests cancellation of a backup/restore/archive/fsck job, whether
+    /// it's still waiting in the Apalis queue or already running. The job's
+    /// owning `job_worker` process (possibly a different process than this
+    /// one) picks up the request via a Redis marker it polls — see
+    /// `jobs::progress::request_cancel`/`spawn_cancel_watcher`. Returns
+    /// `false` (no-op) if the job is unknown or has already reached a
+    /// terminal status.
+    #[graphql(name = "cancelJob")]
+    async fn cancel_job(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(name = "taskId")] task_id: String,
+    ) -> GqlResult<bool> {
+        let state = ctx.data::<ApiServerState>()?;
+
+        let Some(event) = state.progress_reader.get(&task_id).await else {
+            return Ok(false);
+        };
+        // Only Backup/Restore/Archive/Fsck handlers poll the cancel marker —
+        // a Remove/Stats/CleanupRefcnt job would run to completion while
+        // this mutation lied about having stopped it.
+        if !matches!(
+            event.kind,
+            JobKind::Backup(_) | JobKind::Restore(_) | JobKind::Archive(_) | JobKind::Fsck(_)
+        ) {
+            return Ok(false);
+        }
+        if !matches!(event.status, JobStatus::Created | JobStatus::Started) {
+            return Ok(false);
+        }
+
+        crate::jobs::progress::request_cancel(&state.redis_client, &task_id)
+            .await
+            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+
+        Ok(true)
     }
 
     #[graphql(name = "cleanupPool")]

@@ -147,6 +147,7 @@ pub async fn run_archive_profile(
                     &profile.destination,
                     profile.format,
                     None,
+                    tokio_util::sync::CancellationToken::new(),
                 )
                 .await
                 .wrap_err_with(|| format!("Failed to archive host '{hostname}'"))?;

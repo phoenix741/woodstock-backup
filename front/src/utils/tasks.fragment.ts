@@ -214,6 +214,7 @@ export const ArchiveTaskStateFragmentDoc = graphql(/* GraphQL */ `
     archiveSize
     speed
     failedHosts
+    cancelled
     hostStates {
       hostname
       executionState

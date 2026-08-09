@@ -423,7 +423,7 @@ impl Client for BackupGrpcClient {
         })
     }
 
-    fn close(&self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&self, aborted: bool) -> impl Future<Output = Result<()>> + Send {
         let client = self.client.clone();
         let self_client = self.clone();
         let hostname = self.hostname.clone();
@@ -432,7 +432,9 @@ impl Client for BackupGrpcClient {
 
             let mut client = client;
 
-            let request = self_client.create_request(woodstock::Empty {}).await?;
+            let request = self_client
+                .create_request(woodstock::CloseBackupRequest { aborted })
+                .await?;
 
             let result = client.close_backup(request).await;
             if let Err(result) = result {

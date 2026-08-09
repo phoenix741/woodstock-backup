@@ -5,6 +5,7 @@ use tokio::{
     io::AsyncReadExt,
     sync::{mpsc, Mutex},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, Instrument};
 use uuid::Uuid;
 
@@ -40,6 +41,11 @@ pub struct BackupRestore<Clt: Client> {
     config: Arc<Configuration>,
     /// The backups configuration.
     backups: Arc<Backups>,
+    /// Cancelled when the user requests to stop this restore. Checked once
+    /// per file in the transfer loop, and consulted by `close()` to record
+    /// the right outcome — restore has no persisted `Backup.status`, so this
+    /// event log entry is the only durable record of a cancelled restore.
+    cancel_token: CancellationToken,
 }
 
 impl<Clt: Client> BackupRestore<Clt> {
@@ -64,6 +70,7 @@ impl<Clt: Client> BackupRestore<Clt> {
 
         config: Arc<Configuration>,
         backups: Arc<Backups>,
+        cancel_token: CancellationToken,
     ) -> Self {
         let destination_directory = backups.get_backup_destination_directory(hostname, backup_id);
 
@@ -83,6 +90,7 @@ impl<Clt: Client> BackupRestore<Clt> {
             source: ctxt.source,
             config,
             backups,
+            cancel_token,
         }
     }
 
@@ -228,6 +236,8 @@ impl<Clt: Client> BackupRestore<Clt> {
         let progression = local_progression.clone();
 
         let (tx, rx) = tokio::sync::mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
+        let cancel_token = self.cancel_token.clone();
+        let share_owned = share.to_string();
 
         tokio::spawn(
             async move {
@@ -235,6 +245,14 @@ impl<Clt: Client> BackupRestore<Clt> {
                 pin_mut!(entries);
 
                 while let Some(mut entry) = entries.next().await {
+                    // Checked once per file: stops sending further files as
+                    // soon as a cancel is requested, while leaving files
+                    // already fully sent (and acked by the agent) in place.
+                    if cancel_token.is_cancelled() {
+                        info!("Restore cancelled by user, stopping share {share_owned:?} early");
+                        break;
+                    }
+
                     // Check if the entry is on the selection list
                     let path = entry.path();
                     if !selection.iter().any(|p| path.starts_with(p)) {
@@ -349,10 +367,19 @@ impl<Clt: Client> BackupRestore<Clt> {
     pub async fn close(&self) -> Result<()> {
         info!("Close restore");
 
-        self.client.close().await?;
+        self.client.close(self.cancel_token.is_cancelled()).await?;
 
-        self.create_event_restore_end(&[], EventStatus::Success)
-            .await?;
+        // Restore has no persisted `Backup.status` (unlike a backup), so this
+        // event log entry is the only durable record of whether the user
+        // cancelled it — check the same token consulted throughout the
+        // transfer loop.
+        let event_status = if self.cancel_token.is_cancelled() {
+            EventStatus::GenericError
+        } else {
+            EventStatus::Success
+        };
+
+        self.create_event_restore_end(&[], event_status).await?;
 
         Ok(())
     }

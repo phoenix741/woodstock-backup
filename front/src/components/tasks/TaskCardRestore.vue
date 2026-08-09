@@ -7,6 +7,10 @@
     :progress-message="progressMessage"
     :error-message="errorMessage"
     :backup-error-state="!!progress?.restoreErrorState"
+    :cancelled="progress?.restoreExecutionState === RestoreExecutionState.Cancelled"
+    :job-id="jobId"
+    :job-status="jobStatus"
+    cancel-warning="Files already restored will stay on the target — nothing already written will be rolled back. The restore will stop once the file currently being copied finishes."
     :expanded="expanded"
   >
     <template #tags>
@@ -36,6 +40,16 @@
         <v-icon start size="small">mdi-alert-circle</v-icon>
         FAILED
       </v-chip>
+      <v-chip
+        v-if="progress?.restoreExecutionState === RestoreExecutionState.Cancelled"
+        size="small"
+        class="ma-1"
+        color="grey"
+        variant="flat"
+      >
+        <v-icon start size="small">mdi-cancel</v-icon>
+        CANCELLED
+      </v-chip>
     </template>
   </AbstractTaskCard>
 </template>
@@ -43,14 +57,16 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import type { RestoreTaskStateFragment, JobRestoreDataFragment } from '@/generated/graphql';
-import { RestoreExecutionState, RestoreErrorState } from '@/generated/graphql';
+import { RestoreExecutionState, RestoreErrorState, JobStatus } from '@/generated/graphql';
 import { toDateTime, toNumber } from '@/components/hosts/hosts.utils';
 import filesize from '@/utils/filesize';
 import AbstractTaskCard from './AbstractTaskCard.vue';
 
-const { data, progress, expanded } = defineProps<{
+const { data, progress, jobId, jobStatus, expanded } = defineProps<{
   data: JobRestoreDataFragment;
   progress: RestoreTaskStateFragment | undefined | null;
+  jobId?: string;
+  jobStatus?: JobStatus;
   expanded?: boolean;
 }>();
 
@@ -102,6 +118,8 @@ const executionStateMessage = computed(() => {
       return 'Restoring files...';
     case RestoreExecutionState.Completed:
       return 'Completed';
+    case RestoreExecutionState.Cancelled:
+      return 'Cancelled by user';
     default:
       return 'In progress...';
   }

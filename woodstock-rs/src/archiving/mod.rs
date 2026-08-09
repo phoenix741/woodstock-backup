@@ -24,8 +24,6 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 use tokio::fs::read_to_string;
 
-use crate::config::{Backup, BackupStatus, Backups};
-
 /// Number of parallel pool-reading/decompression workers used by both
 /// [`tar_writer`]'s reader side and [`dir_sync`]'s materialize side. Shared
 /// here (rather than duplicated per format) since both hit the exact same

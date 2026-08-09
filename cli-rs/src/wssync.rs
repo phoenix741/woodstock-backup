@@ -93,6 +93,9 @@ fn message_from_state(state: &BackupExecutionState) -> String {
         BackupExecutionState::Skipped => {
             format!("[0/10] {}Skipped (host unreachable)", Emoji("⏭️ ", ""))
         }
+        BackupExecutionState::Cancelled => {
+            format!("[0/10] {}Cancelled by user", Emoji("🛑 ", ""))
+        }
         BackupExecutionState::Initialization => {
             format!("[2/10] {}Create backup directory", Emoji("🔨 ", ""))
         }
@@ -234,6 +237,7 @@ async fn main() -> Result<()> {
         state.config.clone(),
         state.backups.clone(),
         state.hosts.clone(),
+        tokio_util::sync::CancellationToken::new(),
     )
     .await?;
 

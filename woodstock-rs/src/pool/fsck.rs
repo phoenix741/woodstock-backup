@@ -5,6 +5,7 @@ use chrono::Local;
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 use crate::{
@@ -271,6 +272,7 @@ pub async fn check_unused(
     dry_run: bool,
     progress_tx: mpsc::Sender<FsckUnusedCount>,
     config: Arc<Configuration>,
+    cancel_token: &CancellationToken,
 ) -> Result<FsckUnusedCount> {
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
@@ -303,7 +305,13 @@ pub async fn check_unused(
         });
     pin_mut!(entries);
 
+    let mut cancelled = false;
     while let Some(hash) = entries.next().await {
+        if cancel_token.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&hash));
         // SAFETY: wrapper was created with Some(&hash) — get_hash_str() always returns Some
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
@@ -345,7 +353,11 @@ pub async fn check_unused(
         }
     }
 
-    if !dry_run {
+    // A cancelled walk skips the save entirely — the in-memory `pool_refcnt`
+    // built from a partial walk is not a trustworthy source of truth to
+    // persist, and leaving the on-disk state untouched means a cancelled
+    // unused-check is a pure no-op (dry-run or not), safe to just re-run.
+    if !dry_run && !cancelled {
         pool_refcnt
             .save_refcnt(&Local::now(), true, config.compression_format)
             .await?;

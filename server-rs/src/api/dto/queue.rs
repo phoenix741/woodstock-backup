@@ -226,6 +226,8 @@ pub enum RestoreExecutionState {
     Preparation,
     Restoring,
     Completed,
+    /// Stopped by the user before all requested shares were restored.
+    Cancelled,
 }
 impl From<woodstock::server::backup::restore_state::RestoreExecutionState>
     for RestoreExecutionState
@@ -238,6 +240,7 @@ impl From<woodstock::server::backup::restore_state::RestoreExecutionState>
             Src::Preparation(_) => Self::Preparation,
             Src::Restoring(_) => Self::Restoring,
             Src::Completed => Self::Completed,
+            Src::Cancelled => Self::Cancelled,
         }
     }
 }
@@ -375,6 +378,7 @@ pub enum FsckExecutionState {
     VerifyUnused,
     VerifyChunk,
     Completed,
+    Cancelled,
 }
 impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecutionState {
     fn from(s: woodstock::server::pool::fsck_state::FsckExecutionState) -> Self {
@@ -387,6 +391,7 @@ impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecu
             Src::VerifyUnused => Self::VerifyUnused,
             Src::VerifyChunk => Self::VerifyChunk,
             Src::Completed => Self::Completed,
+            Src::Cancelled => Self::Cancelled,
         }
     }
 }
@@ -650,6 +655,7 @@ pub enum ArchiveHostExecutionState {
     InProgress,
     Success,
     Failed,
+    Cancelled,
 }
 
 #[derive(SimpleObject, Clone)]
@@ -691,6 +697,11 @@ pub struct JobArchiveTaskState {
     pub archive_size: BigIntScalar,
     pub speed: f64,
     pub failed_hosts: Vec<String>,
+    /// Set once the run was stopped by a user cancel — `JobStatus` alone
+    /// reads as `COMPLETED` in that case (the handler returns `Ok(())`), so
+    /// this is what a UI must check to avoid showing a cancelled run as
+    /// successfully completed.
+    pub cancelled: bool,
     pub host_states: Vec<ArchiveHostState>,
 }
 impl From<woodstock::archiving::ArchiveState> for JobArchiveTaskState {
@@ -706,6 +717,7 @@ impl From<woodstock::archiving::ArchiveState> for JobArchiveTaskState {
             archive_size: BigIntScalar(s.archive_size),
             speed: s.speed(),
             failed_hosts: s.failed_hosts.clone(),
+            cancelled: s.cancelled,
             host_states: s
                 .host_states
                 .into_iter()

@@ -15,8 +15,10 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context as TaskContext, Poll},
+    time::Duration,
 };
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use woodstock::archiving::ArchiveState;
 use woodstock::server::{
@@ -41,6 +43,111 @@ const PROGRESS_TTL_ACTIVE_SECS: u64 = 86_400; // 24 h
 /// TTL (seconds) for snapshots of completed or failed jobs.
 /// Keeps the entry visible in the history briefly, then auto-cleaned.
 const PROGRESS_TTL_DONE_SECS: u64 = 86_400; // 24 h (cohérent avec ACTIVE)
+
+/// Prefix for the Redis cancel-request marker key.
+const CANCEL_KEY_PREFIX: &str = "job:cancel:";
+
+/// TTL (seconds) for a cancel-request marker. Generous enough to outlive a
+/// job that is still waiting in the Apalis queue, but never left to survive
+/// indefinitely if the job that should have consumed it never runs.
+const CANCEL_TTL_SECS: u64 = 6 * 60 * 60; // 6 h
+
+/// Interval at which a running job's cancel watcher polls Redis. Independent
+/// of `PROGRESS_THROTTLE_MS`: a job stuck on a slow read (e.g. a gRPC stream
+/// that never yields) never reaches its own progress-publish tick, so the
+/// cancel check cannot piggyback on it and must run on its own timer.
+const CANCEL_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+fn cancel_key(job_id: &str) -> String {
+    format!("{CANCEL_KEY_PREFIX}{job_id}")
+}
+
+/// Requests cancellation of a job by writing its marker in Redis.
+///
+/// Works uniformly whether the job is still queued (not yet picked up by a
+/// worker) or already running: the worker checks this marker both before
+/// starting any real work and periodically while running (see
+/// [`spawn_cancel_watcher`]).
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn request_cancel(client: &RedisClient, job_id: &str) -> Result<()> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let _: () = conn.set_ex(cancel_key(job_id), "1", CANCEL_TTL_SECS).await?;
+    Ok(())
+}
+
+/// Checks whether cancellation has been requested for a job.
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn is_cancel_requested(client: &RedisClient, job_id: &str) -> Result<bool> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let exists: bool = conn.exists(cancel_key(job_id)).await?;
+    Ok(exists)
+}
+
+/// Clears a job's cancel-request marker, once the job has consumed it and
+/// finalized as cancelled.
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn clear_cancel_request(client: &RedisClient, job_id: &str) -> Result<()> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let _: () = conn.del(cancel_key(job_id)).await?;
+    Ok(())
+}
+
+/// Spawns a background task that polls the cancel marker for `job_id` and
+/// cancels the returned [`CancellationToken`] as soon as it appears.
+///
+/// The caller is responsible for threading the returned token down into the
+/// job's actual transfer loop (so cancellation follows the same code path
+/// as any other critical error and reaches normal finalization), and for
+/// aborting the watcher task (via the returned `AbortHandle`) once the job
+/// finishes, so it doesn't keep polling Redis forever.
+pub fn spawn_cancel_watcher(
+    client: RedisClient,
+    job_id: String,
+) -> (CancellationToken, tokio::task::AbortHandle) {
+    let token = CancellationToken::new();
+    let watcher_token = token.clone();
+
+    let join_handle = tokio::spawn(async move {
+        // A held `ConnectionManager` (auto-reconnecting) rather than a fresh
+        // connection per poll: an 8-hour backup polling every 2s would
+        // otherwise open ~14k short-lived TCP connections over its lifetime.
+        let mut conn = match ConnectionManager::new(client).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                warn!("Cancel watcher: failed to connect to Redis for job {job_id}: {err}");
+                return;
+            }
+        };
+
+        let key = cancel_key(&job_id);
+        let mut interval = tokio::time::interval(CANCEL_POLL_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            match conn.exists::<_, bool>(&key).await {
+                Ok(true) => {
+                    watcher_token.cancel();
+                    break;
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    warn!("Cancel watcher: Redis error for job {job_id}: {err}");
+                }
+            }
+        }
+    });
+
+    (token, join_handle.abort_handle())
+}
 
 // Global counter to identify each stream
 static STREAM_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

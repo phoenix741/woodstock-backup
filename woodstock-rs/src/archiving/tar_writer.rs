@@ -23,6 +23,7 @@ use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::io::{StreamReader, SyncIoBridge};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, warn};
 
 use super::archive_reader_worker_count;
@@ -143,6 +144,7 @@ pub async fn write_host_tar_archive(
     destination_dir: &Path,
     format: ArchiveFormat,
     progress: Option<Arc<ArchiveProgressCounters>>,
+    cancel_token: CancellationToken,
 ) -> Result<TarArchiveOutput> {
     tokio::fs::create_dir_all(destination_dir).await?;
     let archive_path = archive_path_for(destination_dir, hostname, format)?;
@@ -155,6 +157,7 @@ pub async fn write_host_tar_archive(
         hostname,
         backup,
         progress,
+        cancel_token,
     )
     .await
     {
@@ -164,6 +167,10 @@ pub async fn write_host_tar_archive(
             // by the time a manifest read fails partway through — don't leave a
             // truncated archive behind, especially on removable-media destinations.
             let _ = tokio::fs::remove_file(&archive_path).await;
+            // A checksum file from an earlier successful run of this host
+            // would otherwise keep pointing at an archive that no longer
+            // exists — routine now that a user cancel takes this same path.
+            let _ = tokio::fs::remove_file(checksum_path_for(&archive_path)).await;
             return Err(err);
         }
     };
@@ -389,6 +396,7 @@ fn run_writer(
     mut header_rx: mpsc::Receiver<Result<EntryMsg>>,
     sync_writer: SyncIoBridge<Box<dyn AsyncWrite + Send + Unpin>>,
     progress: Option<Arc<ArchiveProgressCounters>>,
+    cancel_token: CancellationToken,
 ) -> Result<SyncIoBridge<Box<dyn AsyncWrite + Send + Unpin>>> {
     let buffered_writer = std::io::BufWriter::with_capacity(BRIDGE_BUFFER_SIZE, sync_writer);
     let mut builder = Builder::new(buffered_writer);
@@ -397,9 +405,18 @@ fn run_writer(
     let handle = tokio::runtime::Handle::current();
 
     // Dropping `header_rx` (on every `return`/`?` below, including the
-    // `StreamCorrupted` abort) is what unblocks the reader — see the
-    // invariant documented on `run_reader`.
+    // `StreamCorrupted` abort and this cancel check) is what unblocks the
+    // reader — see the invariant documented on `run_reader`.
     while let Some(msg) = handle.block_on(header_rx.recv()) {
+        // `is_cancelled()` is a plain sync check, so no bridge/async
+        // machinery is needed to consult it from this blocking-pool thread.
+        // Returning an error here reuses `write_host_tar_archive`'s existing
+        // remove-the-truncated-file cleanup path — a cancel is handled
+        // exactly like a write error, not as a new code path.
+        if cancel_token.is_cancelled() {
+            return Err(eyre!("Archive cancelled by user"));
+        }
+
         let EntryMsg {
             archive_path,
             entry,
@@ -491,6 +508,7 @@ async fn write_tar_stream(
     hostname: &str,
     backup: &Backup,
     progress: Option<Arc<ArchiveProgressCounters>>,
+    cancel_token: CancellationToken,
 ) -> Result<Option<String>> {
     // Only the (small) list of shares is loaded up front — manifest entries
     // themselves are streamed one at a time by the reader task below, never
@@ -554,8 +572,9 @@ async fn write_tar_stream(
     // staying open on this extra reference.
     drop(header_tx);
 
-    let writer_handle =
-        tokio::task::spawn_blocking(move || run_writer(header_rx, sync_writer, progress));
+    let writer_handle = tokio::task::spawn_blocking(move || {
+        run_writer(header_rx, sync_writer, progress, cancel_token)
+    });
 
     // `tokio::join!`, not `try_join!`: always wait for EVERY task before
     // returning. `try_join!` would drop the still-running tasks' handles as
@@ -991,6 +1010,7 @@ mod tests {
                 compression_level: None,
             }),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1128,6 +1148,7 @@ mod tests {
             &out_dir,
             format,
             None,
+            CancellationToken::new(),
         )
         .await;
 
@@ -1275,6 +1296,7 @@ mod tests {
             &out_dir,
             format,
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1399,6 +1421,7 @@ mod tests {
             &out_dir,
             format,
             None,
+            CancellationToken::new(),
         )
         .await;
 
@@ -1502,6 +1525,7 @@ mod tests {
                 compression_level: None,
             }),
             Some(progress.clone()),
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1636,6 +1660,7 @@ mod tests {
             &out_dir,
             ArchiveFormat::Tar(TarOptions::default()),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1801,6 +1826,7 @@ mod tests {
                 compression_level: Some(99),
             }),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1880,6 +1906,7 @@ mod tests {
                 compression_level: None,
             }),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -1980,6 +2007,7 @@ mod tests {
                 compression_level: None,
             }),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -2098,6 +2126,7 @@ mod tests {
             &out_dir,
             ArchiveFormat::Tar(TarOptions::default()),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -2190,6 +2219,7 @@ mod tests {
             &out_dir,
             ArchiveFormat::Tar(TarOptions::default()),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -2307,6 +2337,7 @@ mod tests {
                 &out_dir,
                 ArchiveFormat::Tar(TarOptions::default()),
                 None,
+                CancellationToken::new(),
             ),
         )
         .await
@@ -2384,6 +2415,7 @@ mod tests {
                 &out_dir,
                 ArchiveFormat::Tar(TarOptions::default()),
                 None,
+                CancellationToken::new(),
             ),
         )
         .await
@@ -2494,6 +2526,7 @@ mod tests {
             &out_dir,
             ArchiveFormat::Tar(TarOptions::default()),
             None,
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -2628,6 +2661,7 @@ mod tests {
             &out_dir,
             format,
             Some(counters.clone()),
+            CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -2644,6 +2678,7 @@ mod tests {
             &out_dir,
             format,
             Some(counters.clone()),
+            CancellationToken::new(),
         )
         .await
         .unwrap();

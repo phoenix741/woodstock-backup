@@ -16,6 +16,10 @@ pub enum ArchiveHostExecutionState {
     InProgress,
     Success,
     Failed,
+    /// Stopped by the user. The in-flight host's truncated tar (if any) is
+    /// removed by the same cleanup path used for a write error; a host not
+    /// yet started when the cancel arrived never runs at all.
+    Cancelled,
 }
 
 /// Per-host entry of an archive run's [`ArchiveState::host_states`].
@@ -93,6 +97,14 @@ pub struct ArchiveState {
     /// see `handle_archive_run`). Empty while the run is still in progress
     /// and any host might yet fail.
     pub failed_hosts: Vec<String>,
+    /// Set once the run is stopped by a user cancel. The job handler still
+    /// returns `Ok(())` in this case (see `handle_archive_run`), so
+    /// `JobStatus` alone reads as `COMPLETED` — this is the run-level flag
+    /// callers (notably the frontend's archive task card) must check instead
+    /// of inferring cancellation from `failed_hosts`, which a cancelled run
+    /// deliberately leaves empty.
+    #[serde(default)]
+    pub cancelled: bool,
     /// One entry per host this run will touch, in processing order.
     pub host_states: Vec<ArchiveHostState>,
 }
@@ -125,6 +137,7 @@ impl Default for ArchiveState {
             file_count: 0,
             archive_size: 0,
             failed_hosts: Vec::new(),
+            cancelled: false,
             host_states: Vec::new(),
         }
     }

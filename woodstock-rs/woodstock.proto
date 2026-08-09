@@ -111,6 +111,14 @@ message Empty {
 
 }
 
+message CloseBackupRequest {
+  // True if the session ended without completing normally (user cancel,
+  // critical error) — the client must finalize any live snapshot (Btrfs
+  // subvolume, VSS shadow copy) as aborted rather than successful, so a VSS
+  // writer never mistakes a cancelled/failed backup for a completed one.
+  bool aborted = 1;
+}
+
 enum FileManifestType {
   reserved 7 to 98;
 
@@ -354,7 +362,7 @@ service WoodstockClientService {
   rpc GetChunk(ChunkInformation) returns (stream FileChunk) {}
 
   // Free the client
-  rpc CloseBackup(Empty) returns (Empty) {}
+  rpc CloseBackup(CloseBackupRequest) returns (Empty) {}
 
   // 4. Restore files on the client
   rpc RestoreFile(stream RestoreFileRequest) returns (stream RestoreFileReply) {}

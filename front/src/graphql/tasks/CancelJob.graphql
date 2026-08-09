@@ -1,0 +1,3 @@
+mutation cancelJob($taskId: String!) {
+  cancelJob(taskId: $taskId)
+}
