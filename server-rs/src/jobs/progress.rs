@@ -829,14 +829,37 @@ impl ProgressPublisher {
         // Essayer d'abord la nouvelle structure avec HashMap
         let fields: Result<std::collections::HashMap<String, String>, _> = g.hgetall(&key).await;
 
-        if let Ok(fields) = fields {
-            if !fields.is_empty() && fields.contains_key("job_id") {
+        match fields {
+            Ok(fields) if !fields.is_empty() && fields.contains_key("job_id") => {
                 return ProgressEvent::from_redis_hashmap(fields).map(Some);
+            }
+            Ok(fields) if !fields.is_empty() => {
+                warn!(
+                    "get_current_state({}): hash exists but is missing the job_id field ({} fields present)",
+                    job_id,
+                    fields.len()
+                );
+            }
+            Ok(_) => {} // Hash genuinely absent — normal "not found" case, nothing to log
+            Err(err) => {
+                warn!(
+                    "get_current_state({}): hgetall failed, falling back to legacy format: {}",
+                    job_id, err
+                );
             }
         }
 
         // Fallback vers l'ancienne structure avec JSON complet (pour compatibilité)
-        let json: String = g.hget(&key, "json").await.ok().unwrap_or_default();
+        let json: String = match g.hget(&key, "json").await {
+            Ok(json) => json,
+            Err(err) => {
+                warn!(
+                    "get_current_state({}): legacy hget(\"json\") also failed: {}",
+                    job_id, err
+                );
+                return Ok(None);
+            }
+        };
         if json.is_empty() {
             return Ok(None);
         }
@@ -892,9 +915,28 @@ impl ProgressReader {
         let mut g = self.conn.lock().await;
 
         // Essayer d'abord la nouvelle structure avec HashMap
-        let fields: std::collections::HashMap<String, String> = g.hgetall(key).await.ok()?;
+        let fields: std::collections::HashMap<String, String> = match g.hgetall(key).await {
+            Ok(fields) => fields,
+            Err(err) => {
+                warn!("ProgressReader::get_key({}): hgetall failed: {}", key, err);
+                return None;
+            }
+        };
 
-        return ProgressEvent::from_redis_hashmap(fields).ok();
+        if fields.is_empty() {
+            return None;
+        }
+
+        match ProgressEvent::from_redis_hashmap(fields) {
+            Ok(event) => Some(event),
+            Err(err) => {
+                warn!(
+                    "ProgressReader::get_key({}): failed to deserialize hash: {}",
+                    key, err
+                );
+                None
+            }
+        }
     }
 
     pub async fn get(&self, job_id: &str) -> Option<ProgressEvent> {
