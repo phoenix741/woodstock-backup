@@ -1,3 +1,30 @@
+# [2.1.0-alpha.1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0...v2.1.0-alpha.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* 🐛 correct Debian packaging (dependencies, naming, and Debian 13 target) ([7f39534](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7f395349ea33397e2d402f5cfdc56c5b2391ffc9))
+* 🐛 restore every file when ws_restore gets no --filter ([675d246](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/675d2460cac24cf244420890416d22ff6f7430d0))
+* 📝 fix documentation image ([11baa5d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/11baa5d185e6a6bc4999af704afde12ba9733b04))
+* 🔐 assert the right extended key usage on host certificates ([356aa75](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/356aa7580d365beb574a2adc7784d070cc2284d4))
+* **archiving:** 🐛 corrige pertes de données, cancel et mutualise les métadonnées de restauration ([da1821f](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/da1821f07bd4781b68c304e4ae0e0d58bc758af6)), closes [#107](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/107)
+* **ci:** 🐛 corrige le job upload qui cherchait encore des artefacts binaries-* ([59a81d7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/59a81d778f893f7a31815375745c120705634570))
+* **ci:** 🐛 downgrade le BOM Trivy en CycloneDX 1.6 avant l'upload vers Dependency-Track ([e82692c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e82692c6686d5e2c46fcdefadf25df031dd09adb)), closes [DependencyTrack/dependency-track#5818](https://gogs.shadoware.org/DependencyTrack/dependency-track/issues/5818)
+* **ci:** 🐛 install zstd for tests and fix Windows symlink build ([40ead46](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/40ead469196b9c928cd8bd964bf09b2e825ec42f))
+* **ci:** 🐛 télécharge les artefacts dans un sous-dossier dédié pour le job upload ([ef08c31](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/ef08c311f652e7fffda6d598af8bbc735b0feedf))
+* **client:** 🐛 strip a leading UTF-8 BOM when reading the client config ([144685e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/144685e25f02c15ebde622eca692ee1b5b0cd883))
+* **progress:** 🐛 améliorer la gestion des erreurs lors de la récupération de l'état des travaux ([54a77e8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/54a77e818dc6c050f1ba639736691feca8eb9d1f))
+* **server:** 🐛 generate JWT keys on startup and derive the agent URL from the request Host header ([322a4d3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/322a4d3bb5c90bcafc3fe5112642e926eadc4ece))
+* **windows:** 🐛 resolve the VCRUNTIME/CRT static-linking failure on release builds ([4af4b1c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4af4b1c1160ebe967e024df05f801f89a6a62c3b))
+
+
+### Features
+
+* **archiving:** ✨ add archive profiles with tar export, dedicated jobs and UI ([7954a38](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/7954a38d08847292627ab5d09761a38155d6b61b))
+* **freebsd:** ✨ add FreeBSD platform support ([2d9fe55](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/2d9fe552e932315da293d38585de9a1be657867e))
+* **pool:** ✨ add diagnostics for chunks deleted while still referenced ([4b3b587](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/4b3b587134a3ce314bdcde4ec6036ab1a7d571b9))
+* **tasks:** ✨ add a Cancel button for backup, restore, archive and fsck jobs ([3bbb3d6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/3bbb3d6668ecea04d06be726a37a69ea2061bca6))
+
 # [2.0.0](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v1.0.2...v2.0.0) (2026-04-29)
 
 
