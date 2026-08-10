@@ -15,10 +15,7 @@
       {
         "assets": [
           {
-            "path": "./client-zip/*"
-          },
-          {
-            "path": "./server-zip/*"
+            "path": "./zipfile/*"
           }
         ]
       }
