@@ -194,6 +194,8 @@ const subtitle = computed(() => {
       return 'Filesystem check completed successfully';
     case FsckExecutionState.Cancelled:
       return 'Filesystem check cancelled by user';
+    case FsckExecutionState.Failed:
+      return 'Filesystem check failed with error';
     default:
       return 'Unknown state';
   }

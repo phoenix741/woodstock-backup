@@ -1,24 +1,32 @@
 //! Lightweight, archive-oriented filesystem materializer for the incremental
 //! `dir` archiving format.
 //!
-//! Deliberately simpler than `client-rs`'s `create_file_from_manifest`: it
-//! only restores file type + permission bits (0o777, matching
-//! `client-rs::scanner::metadata::unix::restore_permissions`'s existing
-//! scope) — no xattr/ACL/ownership fidelity. `dir`-mode archives are for
-//! disaster-recovery-by-hand off a USB/NAS mount, not a bit-for-bit
-//! production restore. Device nodes/FIFOs are recreated via `libc::mknod`
-//! (Unix only) — `libc` is already a `woodstock-rs` dependency, so this adds
-//! no new crate to the dependency graph; Unix sockets are skipped (`mknod`
-//! doesn't support `S_IFSOCK` on Linux, and a socket has no meaningful
-//! on-disk content to recreate anyway).
+//! Special nodes, symlinks, and permission bits are restored via
+//! [`crate::utils::restore_metadata`] — the same logic `client-rs`'s
+//! `create_file_from_manifest` uses for a real restore, so the two can never
+//! diverge on e.g. which `stats` field a device node's major/minor comes
+//! from. For regular files, xattrs/ACLs are also attempted best-effort
+//! (warned, not fatal, on failure) via the same shared module — not for
+//! directories (`restore_xattr` opens with `O_WRONLY`, which fails with
+//! `EISDIR`), symlinks (chmod/xattr would follow the link), or special
+//! nodes (opening a real FIFO for write-only blocks until a reader
+//! connects, with none here to provide one). Ownership (uid/gid) and
+//! timestamps are restored by neither side and remain out of scope.
+//! `dir`-mode archives are for disaster-recovery-by-hand off a USB/NAS
+//! mount, not necessarily a bit-for-bit production restore, so a
+//! metadata-restore failure here must never abort materializing the file's
+//! actual content. Unix sockets are skipped entirely (`mknod` doesn't
+//! support `S_IFSOCK` on Linux, and a socket has no meaningful on-disk
+//! content to recreate anyway).
 
 use std::path::Path;
 
-use eyre::{eyre, Result};
+use eyre::Result;
 use tokio::fs::OpenOptions;
 use tracing::{debug, warn};
 
 use crate::utils::path::vec_to_path;
+use crate::utils::restore_metadata;
 use crate::{FileManifest, FileManifestType};
 
 /// Materializes one manifest entry at `path` (already rewritten to point
@@ -42,6 +50,12 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
             // would lock ourselves out of it. The caller (`dir_sync`) defers
             // this to a bottom-up pass after the whole share is materialized
             // — see `set_directory_permissions`.
+            //
+            // Not attempting xattr/ACL restoration here either:
+            // `restore_xattr` opens the target with `OpenOptions::write(true)`
+            // (needed for FreeBSD's `extattr_set_fd`), which fails with
+            // `EISDIR` for a directory on Unix — every attempt would just
+            // warn, never succeed.
         }
         FileManifestType::Symlink => {
             if entry.symlink.is_empty() {
@@ -80,6 +94,7 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
             tokio::io::copy(&mut reader, &mut file).await?;
 
             set_permissions(path, entry).await;
+            restore_xattr_and_acl(path, entry).await;
         }
         FileManifestType::Fifo
         | FileManifestType::BlockDevice
@@ -102,6 +117,11 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
                 return Ok(());
             }
             set_permissions(path, entry).await;
+            // Not restoring xattr/ACL here: `restore_xattr` opens the node
+            // for writing, and opening a real FIFO for write-only blocks
+            // until a reader connects — there is none here, so this would
+            // hang the whole sync rather than just skip one entry's
+            // metadata.
         }
         FileManifestType::Socket => {
             // `mknod(2)` doesn't support `S_IFSOCK` on Linux (returns
@@ -115,56 +135,41 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
     Ok(())
 }
 
-/// Recreates a block/character device or FIFO node at `path` via `mknod`,
-/// using `entry.stats.rdev` (the raw `dev_t` captured by the scanning
-/// client) verbatim as `mknod`'s device argument — unlike
-/// `client-rs::scanner::metadata::unix::mknode`, which passes `stats.dev`
-/// (the filesystem's own device, not the node's) by mistake.
+/// Recreates a block/character device, FIFO, or socket node at `path` via
+/// [`restore_metadata::mknode`] — the same function `client-rs`'s real
+/// restore path uses, so both agree on using `entry.stats.rdev` (the node's
+/// own major/minor) rather than `stats.dev` (the containing filesystem's
+/// device, a different field an earlier duplicate of this logic in
+/// `client-rs` used by mistake).
 ///
 /// # Errors
 /// Returns an error if `mknod` fails (permissions, an unsupported entry
-/// type, or — on non-Unix targets — unconditionally, since there is no
-/// equivalent there).
-#[cfg(unix)]
+/// type, `CAP_MKNOD` missing for a block/char device, etc), or if this
+/// platform has no `mknod` at all (see below).
 async fn create_special_node(path: &Path, entry: &FileManifest) -> Result<()> {
-    use libc::{dev_t, mknod, mode_t, S_IFBLK, S_IFCHR, S_IFIFO};
-    use std::ffi::CString;
-    use std::os::unix::ffi::OsStrExt;
+    // `restore_metadata::mknode` no-ops (`Ok(())`) on non-Unix, matching
+    // `client-rs`'s pre-existing restore behavior there. That's fine for
+    // client-rs, which never restores device/FIFO entries onto a Windows
+    // target. Here the caller (this function's `Err` arm above) treats a
+    // failure as "skip this one entry" but a *success* as "node applied" —
+    // feeding the no-op stub's `Ok(())` through unchanged would make the
+    // caller believe a node was created when nothing happened on disk, the
+    // exact silent-loss shape this refactor was meant to close elsewhere.
+    #[cfg(not(unix))]
+    {
+        let _ = (path, entry);
+        return Err(eyre::eyre!(
+            "special device nodes are not supported on this platform"
+        ));
+    }
 
-    let mode_filter = match entry.file_mode() {
-        FileManifestType::BlockDevice => S_IFBLK,
-        FileManifestType::CharacterDevice => S_IFCHR,
-        FileManifestType::Fifo => S_IFIFO,
-        other => {
-            return Err(eyre!(
-                "create_special_node called for unsupported file type {other:?}"
-            ))
-        }
-    };
-    let rdev = entry.stats.as_ref().map_or(0, |stats| stats.rdev);
-    let mode = entry.mode() as mode_t | mode_filter;
-    let path = path.to_path_buf();
+    #[cfg(unix)]
+    {
+        let path = path.to_path_buf();
+        let entry = entry.clone();
 
-    tokio::task::spawn_blocking(move || -> Result<()> {
-        let c_path = CString::new(path.as_os_str().as_bytes())
-            .map_err(|err| eyre!("path {path:?} contains a NUL byte: {err}"))?;
-        // SAFETY: `c_path` is a valid, NUL-terminated C string kept alive for
-        // the whole call; `mknod` only reads it and never retains the
-        // pointer past this call.
-        let result = unsafe { mknod(c_path.as_ptr(), mode, rdev as dev_t) };
-        if result != 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        Ok(())
-    })
-    .await?
-}
-
-#[cfg(not(unix))]
-async fn create_special_node(path: &Path, _entry: &FileManifest) -> Result<()> {
-    Err(eyre!(
-        "cannot create device/FIFO node at {path:?}: unsupported on this platform"
-    ))
+        tokio::task::spawn_blocking(move || restore_metadata::mknode(&path, &entry)).await?
+    }
 }
 
 /// Removes the file/directory at `path` (recursively for directories).
@@ -193,25 +198,52 @@ async fn set_permissions(path: &Path, entry: &FileManifest) {
     set_mode(path, entry.mode()).await;
 }
 
-/// Applies `mode`'s permission bits (masked to 0o777) to `path`.
+/// Attempts to restore `entry`'s extended attributes and ACLs onto `path`
+/// via [`restore_metadata::xattr`]/[`restore_metadata::acl`] — the same
+/// functions `client-rs`'s real restore path uses. Unlike a missing pool
+/// chunk or a failed `mknod`, a failure here only ever warns: per the PR
+/// #107 review, it's fine for `dir`-mode archiving to end up with degraded
+/// xattr/ACL fidelity, but it must still *try*, and it must never abort
+/// materializing the entry's actual content/type over metadata that
+/// couldn't be applied (e.g. the destination filesystem not supporting
+/// xattrs at all).
+async fn restore_xattr_and_acl(path: &Path, entry: &FileManifest) {
+    let owned_path = path.to_path_buf();
+    let xattr = entry.xattr.clone();
+    let acl = entry.acl.clone();
+
+    let result = tokio::task::spawn_blocking(move || {
+        if let Err(err) = restore_metadata::xattr::restore_xattr(&owned_path, &xattr) {
+            warn!("Failed to restore xattr on {owned_path:?}: {err}");
+        }
+        if let Err(err) = restore_metadata::acl::restore_acl(&owned_path, &acl) {
+            warn!("Failed to restore acl on {owned_path:?}: {err}");
+        }
+    })
+    .await;
+
+    if let Err(err) = result {
+        warn!("Restoring xattr/acl on {path:?} panicked: {err}");
+    }
+}
+
+/// Applies `mode`'s permission bits (masked to 0o777) to `path`, via
+/// [`restore_metadata::restore_permissions`] — the same function
+/// `client-rs`'s real restore path uses.
 ///
 /// Used by [`materialize_entry`] for files/symlinks right after creation,
 /// and by `dir_sync` for directories in a deferred, bottom-up pass — see
 /// [`set_directory_permissions`].
 async fn set_mode(path: &Path, mode: u32) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = mode & 0o777;
-        if let Err(e) =
-            tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).await
-        {
-            warn!("Failed to set permissions on {path:?}: {e}");
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = (path, mode);
+    let owned_path = path.to_path_buf();
+    let result = tokio::task::spawn_blocking(move || {
+        restore_metadata::restore_permissions(&owned_path, mode)
+    })
+    .await;
+    match result {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => warn!("Failed to set permissions on {path:?}: {e}"),
+        Err(e) => warn!("Setting permissions on {path:?} panicked: {e}"),
     }
 }
 

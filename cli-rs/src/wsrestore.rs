@@ -1,6 +1,7 @@
 //! Restore utility for Woodstock CLI.
 
 mod backup_resolver;
+mod cancel;
 
 use std::cell::RefCell;
 use std::net::SocketAddr;
@@ -202,7 +203,7 @@ async fn main() -> Result<()> {
         state.config.clone(),
         state.hosts.clone(),
         state.backups.clone(),
-        tokio_util::sync::CancellationToken::new(),
+        crate::cancel::cancellation_token_with_ctrl_c(),
     )
     .await?;
 

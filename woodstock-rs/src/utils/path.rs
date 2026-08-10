@@ -253,7 +253,10 @@ pub fn unmangle_path(path: &str) -> PathBuf {
 /// instead of a `C/Users/...` tree.
 ///
 /// Backslashes become forward slashes, the drive letter's `:` is dropped,
-/// and empty/leading-separator components are discarded.
+/// and empty/leading-separator components are discarded. `.` and `..`
+/// components are also discarded, so a malformed `share` value (e.g. from
+/// a hand-edited `hosts.yml`) can never walk the result outside the root
+/// it gets `.join()`ed onto.
 ///
 /// # Arguments
 ///
@@ -266,7 +269,10 @@ pub fn unmangle_path(path: &str) -> PathBuf {
 #[must_use]
 pub fn safe_share_prefix(share: &str) -> PathBuf {
     let normalized = share.replace('\\', "/").replace(':', "");
-    normalized.split('/').filter(|c| !c.is_empty()).collect()
+    normalized
+        .split('/')
+        .filter(|c| !c.is_empty() && *c != "." && *c != "..")
+        .collect()
 }
 
 /// Filter all value to return only unique values
@@ -346,6 +352,30 @@ mod tests {
         assert_eq!(
             super::safe_share_prefix("/srv/my-data"),
             Path::new("srv/my-data")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_parent_dir_traversal() {
+        assert_eq!(
+            super::safe_share_prefix("/srv/../../etc"),
+            Path::new("srv/etc")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_leading_traversal() {
+        assert_eq!(
+            super::safe_share_prefix("../../etc/passwd"),
+            Path::new("etc/passwd")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_current_dir() {
+        assert_eq!(
+            super::safe_share_prefix("/srv/./data"),
+            Path::new("srv/data")
         );
     }
 }

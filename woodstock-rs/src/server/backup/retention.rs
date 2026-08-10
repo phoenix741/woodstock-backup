@@ -148,6 +148,15 @@ pub fn classify_backups(
         }
     }
 
+    // Protect the most recent terminal backup regardless of its status —
+    // not just `Completed` ones. `get_last_backup` (picks the highest
+    // `number`, any status) feeds `previous_id` for the next incremental
+    // backup, so a `Failed`/`Aborted`/`Cancelled` backup can be the base the
+    // next run clones its manifest from (see the cancel-resume work: a
+    // cancelled backup's partial data is a valid incremental base, not
+    // garbage). Without this, such a backup would stay `Surplus` from the
+    // seeding loop above and `get_backups_to_delete` would delete it out
+    // from under the next backup's `previous_id`.
     let last_terminal_id = categories
         .keys()
         .filter_map(|id| backups.iter().find(|b| b.id == *id))
@@ -340,5 +349,42 @@ mod tests {
         assert_eq!(result[&b_old1.id], RetentionCategory::Yearly);
         assert_eq!(result[&b_old2.id], RetentionCategory::Yearly);
         assert_eq!(result[&b_old3.id], RetentionCategory::Surplus);
+    }
+
+    /// A `Cancelled` (or `Failed`/`Aborted`) backup can be the most recent
+    /// terminal backup, and thus the incremental base the next backup's
+    /// `previous_id` clones its manifest from. Retention must never let it
+    /// be deleted as `Surplus` while it holds that role — see the doc
+    /// comment on the `last_terminal_id` protection in `classify_backups`.
+    #[test]
+    fn test_newest_cancelled_backup_is_protected_as_last_backup() {
+        let t0 = now_fixed();
+
+        let b_completed = make_backup(
+            Uuid::now_v7(),
+            BackupStatus::Completed,
+            t0 - Duration::hours(2),
+        );
+        let b_cancelled = make_backup(Uuid::now_v7(), BackupStatus::Cancelled, t0);
+
+        let backups = vec![b_completed.clone(), b_cancelled.clone()];
+        let result = classify_backups(&backups, &full_policy(), t0);
+
+        assert_eq!(
+            result[&b_cancelled.id],
+            RetentionCategory::LastBackup,
+            "the newest terminal backup must be protected even when Cancelled"
+        );
+        assert_ne!(
+            result[&b_cancelled.id],
+            RetentionCategory::Surplus,
+            "a Cancelled backup used as the next incremental's base must not be deletable"
+        );
+
+        let to_delete = get_backups_to_delete(&backups, &full_policy(), t0);
+        assert!(
+            !to_delete.contains(&b_cancelled.id),
+            "get_backups_to_delete must not select the protected Cancelled backup"
+        );
     }
 }

@@ -115,6 +115,7 @@ fn fsck_message_from_state(state: &FsckExecutionState) -> String {
         FsckExecutionState::VerifyChunk => "Verifying chunks".to_string(),
         FsckExecutionState::Completed => "Verification completed".to_string(),
         FsckExecutionState::Cancelled => "Verification cancelled".to_string(),
+        FsckExecutionState::Failed => "Verification failed".to_string(),
         FsckExecutionState::Waiting => "Waiting for verification".to_string(),
     }
 }
@@ -158,7 +159,7 @@ pub async fn verify_all(
         state.config.clone(),
         state.hosts.clone(),
         state.backups.clone(),
-        tokio_util::sync::CancellationToken::new(),
+        crate::cancel::cancellation_token_with_ctrl_c(),
     );
 
     // Create a single progress bar for all processes
@@ -243,6 +244,9 @@ pub async fn verify_all(
                 }
                 FsckExecutionState::Cancelled => {
                     progress_bar.finish_with_message("Verification cancelled");
+                }
+                FsckExecutionState::Failed => {
+                    progress_bar.finish_with_message("Verification failed");
                 }
                 FsckExecutionState::Waiting => {
                     // Do nothing

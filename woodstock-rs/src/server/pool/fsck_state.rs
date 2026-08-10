@@ -29,6 +29,13 @@ pub enum FsckExecutionState {
     /// step) remain in place — only items not yet reached are left unfixed,
     /// to be caught by the next run.
     Cancelled,
+    /// A verification or apply phase returned an error (see `error_state`
+    /// for which one and why) and the run stopped there. Distinct from
+    /// `Completed`: before this variant existed, a failed phase was
+    /// reported as `Completed` even though `error_state` was set, so an
+    /// observer of `execution_state` alone couldn't tell a failed run from
+    /// a successful one.
+    Failed,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -373,5 +380,12 @@ impl FsckState {
     /// Stops the fsck process by updating the execution state to `Cancelled`.
     pub fn cancel(&mut self) {
         self.execution_state = FsckExecutionState::Cancelled;
+    }
+
+    /// Stops the fsck process by updating the execution state to `Failed`,
+    /// for a phase whose error is already recorded in `error_state` (see
+    /// e.g. `process_verify_refcnt_result`/`process_verify_unused_result`).
+    pub fn fail(&mut self) {
+        self.execution_state = FsckExecutionState::Failed;
     }
 }

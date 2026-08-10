@@ -64,13 +64,13 @@ impl WoodstockClient {
     pub fn new(certificate_path: &Path, config: &ClientConfig) -> Self {
         let authentification_service = AuthService::new(certificate_path, config);
 
-        if config.acl && !crate::scanner::metadata::acl::SUPPORTED {
+        if config.acl && !woodstock::utils::restore_metadata::acl::SUPPORTED {
             tracing::warn!(
                 "acl is enabled in the configuration, but this build does not support \
                  restoring ACLs on this platform; ACLs will be silently omitted from backups"
             );
         }
-        if config.xattr && !crate::scanner::metadata::xattr::SUPPORTED {
+        if config.xattr && !woodstock::utils::restore_metadata::xattr::SUPPORTED {
             tracing::warn!(
                 "xattr is enabled in the configuration, but this build does not support \
                  extended attributes on this platform; xattrs will be silently omitted from backups"

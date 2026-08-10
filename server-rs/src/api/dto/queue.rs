@@ -379,6 +379,7 @@ pub enum FsckExecutionState {
     VerifyChunk,
     Completed,
     Cancelled,
+    Failed,
 }
 impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecutionState {
     fn from(s: woodstock::server::pool::fsck_state::FsckExecutionState) -> Self {
@@ -392,6 +393,7 @@ impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecu
             Src::VerifyChunk => Self::VerifyChunk,
             Src::Completed => Self::Completed,
             Src::Cancelled => Self::Cancelled,
+            Src::Failed => Self::Failed,
         }
     }
 }

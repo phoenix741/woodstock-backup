@@ -475,6 +475,7 @@ export enum FsckExecutionState {
   ApplyingRefcnt = 'APPLYING_REFCNT',
   Cancelled = 'CANCELLED',
   Completed = 'COMPLETED',
+  Failed = 'FAILED',
   Initialization = 'INITIALIZATION',
   VerifyChunk = 'VERIFY_CHUNK',
   VerifyRefcnt = 'VERIFY_REFCNT',

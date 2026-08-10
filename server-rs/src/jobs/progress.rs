@@ -74,7 +74,9 @@ fn cancel_key(job_id: &str) -> String {
 /// Returns an error if the Redis connection or command fails.
 pub async fn request_cancel(client: &RedisClient, job_id: &str) -> Result<()> {
     let mut conn = client.get_multiplexed_async_connection().await?;
-    let _: () = conn.set_ex(cancel_key(job_id), "1", CANCEL_TTL_SECS).await?;
+    let _: () = conn
+        .set_ex(cancel_key(job_id), "1", CANCEL_TTL_SECS)
+        .await?;
     Ok(())
 }
 
@@ -101,34 +103,94 @@ pub async fn clear_cancel_request(client: &RedisClient, job_id: &str) -> Result<
     Ok(())
 }
 
+/// RAII guard for a [`spawn_cancel_watcher`] background task and the Redis
+/// cancel marker it watches. Every code path that creates a watcher — the
+/// happy path and every early-return error path — must stop the watcher
+/// task and remove the marker the same way; a single arm forgetting the
+/// clear (see PR #107 review, `handle_backup`'s `SaveBackupMachine::new()`
+/// error path) used to leave the marker stale for up to [`CANCEL_TTL_SECS`],
+/// wrongly cancelling a retried job with the same `task_id` on sight.
+///
+/// Call [`CancelWatcherGuard::finish`] once the job is actually done, for a
+/// deterministic, awaited cleanup. If the guard is instead just dropped (an
+/// early `?`/`return`, a panic) without `finish` ever being called, `Drop`
+/// still aborts the watcher task and best-effort clears the Redis marker on
+/// a detached task — so no exit path, including ones added later, can leave
+/// a stale marker behind.
+pub struct CancelWatcherGuard {
+    client: RedisClient,
+    job_id: String,
+    abort_handle: Option<tokio::task::AbortHandle>,
+    finished: bool,
+}
+
+impl CancelWatcherGuard {
+    /// Aborts the watcher task and clears the Redis cancel marker, awaiting
+    /// the clear so the caller knows it has actually happened before moving
+    /// on (e.g. before a retried job with the same `task_id` could start).
+    pub async fn finish(mut self) {
+        if let Some(handle) = self.abort_handle.take() {
+            handle.abort();
+        }
+        self.finished = true;
+        if let Err(err) = clear_cancel_request(&self.client, &self.job_id).await {
+            warn!(
+                "Failed to clear cancel marker for job {}: {}",
+                self.job_id, err
+            );
+        }
+    }
+}
+
+impl Drop for CancelWatcherGuard {
+    fn drop(&mut self) {
+        if let Some(handle) = self.abort_handle.take() {
+            handle.abort();
+        }
+        if self.finished {
+            return;
+        }
+        let client = self.client.clone();
+        let job_id = self.job_id.clone();
+        tokio::spawn(async move {
+            if let Err(err) = clear_cancel_request(&client, &job_id).await {
+                warn!("Failed to clear cancel marker for job {job_id}: {err}");
+            }
+        });
+    }
+}
+
 /// Spawns a background task that polls the cancel marker for `job_id` and
 /// cancels the returned [`CancellationToken`] as soon as it appears.
 ///
 /// The caller is responsible for threading the returned token down into the
 /// job's actual transfer loop (so cancellation follows the same code path
 /// as any other critical error and reaches normal finalization), and for
-/// aborting the watcher task (via the returned `AbortHandle`) once the job
-/// finishes, so it doesn't keep polling Redis forever.
+/// calling [`CancelWatcherGuard::finish`] on the returned guard once the job
+/// finishes (or simply letting it drop), so the watcher doesn't keep polling
+/// Redis forever and the cancel marker doesn't outlive the job.
 pub fn spawn_cancel_watcher(
     client: RedisClient,
     job_id: String,
-) -> (CancellationToken, tokio::task::AbortHandle) {
+) -> (CancellationToken, CancelWatcherGuard) {
     let token = CancellationToken::new();
     let watcher_token = token.clone();
+    let watcher_client = client.clone();
+    let watcher_job_id = job_id.clone();
 
     let join_handle = tokio::spawn(async move {
         // A held `ConnectionManager` (auto-reconnecting) rather than a fresh
         // connection per poll: an 8-hour backup polling every 2s would
         // otherwise open ~14k short-lived TCP connections over its lifetime.
-        let mut conn = match ConnectionManager::new(client).await {
+        let mut conn = match ConnectionManager::new(watcher_client).await {
             Ok(conn) => conn,
             Err(err) => {
-                warn!("Cancel watcher: failed to connect to Redis for job {job_id}: {err}");
+                warn!("Cancel watcher: failed to connect to Redis for job {watcher_job_id}: {err}");
                 return;
             }
         };
 
-        let key = cancel_key(&job_id);
+        let key = cancel_key(&watcher_job_id);
         let mut interval = tokio::time::interval(CANCEL_POLL_INTERVAL);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -140,13 +202,20 @@ pub fn spawn_cancel_watcher(
                 }
                 Ok(false) => {}
                 Err(err) => {
-                    warn!("Cancel watcher: Redis error for job {job_id}: {err}");
+                    warn!("Cancel watcher: Redis error for job {watcher_job_id}: {err}");
                 }
             }
         }
     });
 
-    (token, join_handle.abort_handle())
+    let guard = CancelWatcherGuard {
+        client,
+        job_id,
+        abort_handle: Some(join_handle.abort_handle()),
+        finished: false,
+    };
+
+    (token, guard)
 }
 
 // Global counter to identify each stream

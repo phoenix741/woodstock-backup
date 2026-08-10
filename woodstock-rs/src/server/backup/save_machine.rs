@@ -893,6 +893,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         if !status.is_aborted() && self.execute_post_commands(post_commands).await.is_err() {
             status = BackupStatus::Aborted;
         }
+        self.check_cancelled(&mut status).await;
 
         if let Err(err) = self.client.close(status.is_aborted()).await {
             error!("Error closing the connection: {}", err);

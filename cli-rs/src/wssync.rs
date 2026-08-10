@@ -11,6 +11,7 @@
 //! - Any I/O or configuration error occurs during the backup process.
 
 mod backup_resolver;
+mod cancel;
 
 use std::cell::RefCell;
 use std::net::SocketAddr;
@@ -237,7 +238,7 @@ async fn main() -> Result<()> {
         state.config.clone(),
         state.backups.clone(),
         state.hosts.clone(),
-        tokio_util::sync::CancellationToken::new(),
+        crate::cancel::cancellation_token_with_ctrl_c(),
     )
     .await?;
 

@@ -14,6 +14,8 @@ systemd-units = { enable = true }
 [features]
 default = ["mdns"]
 mdns = ["dep:mdns-sd"]
+acl = ["dep:posix-acl"]
+xattr = ["dep:xattr"]
 
 [lib]
 name = "woodstock"
@@ -75,6 +77,12 @@ mdns-sd = { workspace = true, optional = true }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libm = "^0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+posix-acl = { version = "^1.2", optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+xattr = { version = "^1.6", optional = true }
 
 [dev-dependencies]
 test-log = "^0.2"

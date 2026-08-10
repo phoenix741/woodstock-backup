@@ -14,14 +14,14 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use woodstock::utils::path::path_to_vec;
+use woodstock::utils::restore_metadata::acl::read_acl;
+use woodstock::utils::restore_metadata::xattr::read_xattr;
 use woodstock::FileManifest;
 use woodstock::{EntryState, EntryType, FileManifestJournalEntry};
 
 use std::sync::LazyLock;
 
-use super::metadata::acl::read_acl;
 use super::metadata::create_stats_from_metadata;
-use super::metadata::xattr::read_xattr;
 
 /// An empty path used as a starting point for directory traversal.
 ///

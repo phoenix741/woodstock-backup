@@ -21,6 +21,7 @@
 //! * recalculate all the chunks
 //!
 mod backup_resolver;
+mod cancel;
 mod commands;
 #[cfg(all(unix, feature = "fuse_unix"))]
 mod filesystem;

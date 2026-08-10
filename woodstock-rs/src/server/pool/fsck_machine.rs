@@ -434,7 +434,7 @@ impl FsckMachine {
                     error!("Error during refcnt verification: {}", e);
                     {
                         let mut state = self.state.lock().await;
-                        state.complete();
+                        state.fail();
                     }
                     self.send_state().await;
                     return Err(e);
@@ -457,7 +457,7 @@ impl FsckMachine {
                         error!("Error during unused verification: {}", e);
                         {
                             let mut state = self.state.lock().await;
-                            state.complete();
+                            state.fail();
                         }
                         self.send_state().await;
                         return Err(e);
@@ -480,7 +480,7 @@ impl FsckMachine {
                     error!("Error during chunk verification: {}", e);
                     {
                         let mut state = self.state.lock().await;
-                        state.complete();
+                        state.fail();
                     }
                     self.send_state().await;
                     return Err(e);

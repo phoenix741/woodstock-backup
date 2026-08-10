@@ -32,8 +32,10 @@ assets = [
 
 [features]
 default = ["mdns", "acl", "xattr"]
-acl = ["dep:posix-acl"]
-xattr = ["dep:xattr"]
+# ACL/xattr restore logic lives in woodstock-rs (shared with
+# archiving::fs_materialize) — these just forward to its features.
+acl = ["woodstock-rs/acl"]
+xattr = ["woodstock-rs/xattr"]
 mdns = ["woodstock-rs/mdns", "dep:mdns-sd"]
 
 [lib]
@@ -60,7 +62,6 @@ hex = { workspace = true }
 hostname = "^0.4"
 if-addrs = "0.15.0"
 jsonwebtoken = { workspace = true }
-libc = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true, default-features = false, features = [
     "json",
@@ -94,11 +95,7 @@ mdns-sd = { workspace = true, optional = true }
 nix = { version = "^0.31", features = ["fs"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-posix-acl = { version = "^1.2", optional = true }
 mnt = "0.3.1"
-
-[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
-xattr = { version = "^1.6", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 tracing-etw = "0.2.3"

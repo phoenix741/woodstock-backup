@@ -120,6 +120,18 @@ pub fn archive_path_for(
     Ok(destination_dir.join(format!("{hostname}{ext}")))
 }
 
+/// Sibling path `write_host_tar_archive` actually writes to before renaming
+/// onto `archive_path` on success — so a run that fails or is cancelled
+/// partway through never touches whatever archive already exists at
+/// `archive_path` from a previous successful run.
+fn temp_archive_path(archive_path: &Path) -> PathBuf {
+    let file_name = archive_path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    archive_path.with_file_name(format!("{file_name}.tmp.{}", uuid::Uuid::new_v4()))
+}
+
 /// Writes `hostname`'s `backup` as a single tar-family archive file under
 /// `destination_dir`, optionally alongside a `sha256sum`-compatible checksum
 /// file.
@@ -148,9 +160,10 @@ pub async fn write_host_tar_archive(
 ) -> Result<TarArchiveOutput> {
     tokio::fs::create_dir_all(destination_dir).await?;
     let archive_path = archive_path_for(destination_dir, hostname, format)?;
+    let temp_path = temp_archive_path(&archive_path);
 
     let checksum_hex = match write_tar_stream(
-        &archive_path,
+        &temp_path,
         format,
         pool_path,
         backups,
@@ -163,17 +176,19 @@ pub async fn write_host_tar_archive(
     {
         Ok(checksum_hex) => checksum_hex,
         Err(err) => {
-            // The tar file was already created (and possibly partially written)
-            // by the time a manifest read fails partway through — don't leave a
-            // truncated archive behind, especially on removable-media destinations.
-            let _ = tokio::fs::remove_file(&archive_path).await;
-            // A checksum file from an earlier successful run of this host
-            // would otherwise keep pointing at an archive that no longer
-            // exists — routine now that a user cancel takes this same path.
-            let _ = tokio::fs::remove_file(checksum_path_for(&archive_path)).await;
+            // Only the temporary file was ever written to — whatever archive
+            // (and checksum) already exists at `archive_path` from a
+            // previous successful run is left completely untouched by a
+            // failed or cancelled run.
+            let _ = tokio::fs::remove_file(&temp_path).await;
             return Err(err);
         }
     };
+
+    // Atomic on the same filesystem (destination_dir is the parent of both
+    // paths): readers of `archive_path` never observe a partially-written
+    // file.
+    tokio::fs::rename(&temp_path, &archive_path).await?;
 
     let archive_size = tokio::fs::metadata(&archive_path).await?.len();
 
@@ -677,7 +692,12 @@ fn append_entry<W: std::io::Write>(
         .map_err(AppendEntryError::Skippable)?;
 
     let mut header = Header::new_gnu();
-    header.set_mode(stats.mode);
+    // `stats.mode` carries the raw scanned `st_mode`, including file-type
+    // bits (`S_IFREG`/`S_IFDIR`/...) alongside the permission bits — masked
+    // here to just the permission bits, matching
+    // `fs_materialize::set_mode`'s equivalent mask for the `dir` archive
+    // format, so both archive formats agree on what `mode` means.
+    header.set_mode(stats.mode & 0o777);
     header.set_uid(u64::from(stats.owner_id));
     header.set_gid(u64::from(stats.group_id));
     header.set_mtime(stats.last_modified.max(0).cast_unsigned());
@@ -1161,6 +1181,143 @@ mod tests {
             "a partial archive must not be left behind on failure"
         );
         assert!(!checksum_path_for(&expected_archive_path).exists());
+    }
+
+    /// A run that writes over the same `destination_dir`/host as a prior
+    /// successful run, but itself fails partway through, must not touch the
+    /// archive (or checksum) left behind by that prior run — the writer now
+    /// stages into a temp file and only renames it onto `archive_path` on
+    /// success (see `temp_archive_path`).
+    #[tokio::test]
+    async fn failed_run_does_not_clobber_previously_written_archive() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Arc::new(Configuration::from_backup_path(tmp.path().to_path_buf()));
+        let backups = Backups::new(config.clone());
+        let hostname = "fakehost";
+        let backup_id = Uuid::now_v7();
+        let backup = fake_backup(backup_id);
+
+        let file_bytes = b"hello world from a good previous run".to_vec();
+        let mut chunk = PoolChunkWrapper::new(&config.path.pool_path, None);
+        let info = chunk
+            .write(
+                stream::once({
+                    let bytes = file_bytes.clone();
+                    async move { Ok(bytes) }
+                }),
+                b"file.txt",
+                ChunkAlgorithm::Blake3,
+                CompressionFormat::Zstd,
+            )
+            .await
+            .unwrap();
+
+        let dest_dir = backups.get_backup_destination_directory(hostname, backup_id);
+        tokio::fs::create_dir_all(&dest_dir).await.unwrap();
+
+        backups
+            .add_backup_share_record(
+                hostname,
+                backup_id,
+                ShareRecord {
+                    path: "/share-ok".into(),
+                    snapshot_method: ShareSnapshotMethod::None,
+                    snapshot_failure_reason: None,
+                },
+            )
+            .await
+            .unwrap();
+        let manifest_ok = backups.get_manifest(hostname, backup_id, "/share-ok");
+        let file_entry = FileManifest {
+            path: b"file.txt".to_vec(),
+            stats: Some(FileManifestStat {
+                file_type: FileManifestType::RegularFile as i32,
+                mode: 0o644,
+                size: file_bytes.len() as u64,
+                ..Default::default()
+            }),
+            chunks: vec![info.sha256.clone()],
+            ..Default::default()
+        };
+        save_file(
+            &manifest_ok.manifest_path,
+            stream::iter(vec![file_entry]),
+            false,
+            CompressionFormat::Zstd,
+        )
+        .await
+        .unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let format = ArchiveFormat::TarGz(TarOptions {
+            checksum: true,
+            compression_level: None,
+        });
+
+        let first_run = write_host_tar_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &backup,
+            &out_dir,
+            format,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        let original_archive_bytes = tokio::fs::read(&first_run.archive_path).await.unwrap();
+        let original_checksum_content =
+            tokio::fs::read_to_string(first_run.checksum_path.as_ref().unwrap())
+                .await
+                .unwrap();
+
+        // A second share, registered but with no manifest ever written —
+        // makes the next run fail partway through, after the writer has
+        // already started staging bytes into its temp file.
+        backups
+            .add_backup_share_record(
+                hostname,
+                backup_id,
+                ShareRecord {
+                    path: "/share-missing".into(),
+                    snapshot_method: ShareSnapshotMethod::None,
+                    snapshot_failure_reason: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let second_run = write_host_tar_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &backup,
+            &out_dir,
+            format,
+            None,
+            CancellationToken::new(),
+        )
+        .await;
+        assert!(
+            second_run.is_err(),
+            "expected an error for the missing manifest"
+        );
+
+        let archive_bytes_after_failure = tokio::fs::read(&first_run.archive_path).await.unwrap();
+        assert_eq!(
+            archive_bytes_after_failure, original_archive_bytes,
+            "the archive from the prior successful run must survive a failed run untouched"
+        );
+        let checksum_content_after_failure =
+            tokio::fs::read_to_string(first_run.checksum_path.as_ref().unwrap())
+                .await
+                .unwrap();
+        assert_eq!(
+            checksum_content_after_failure, original_checksum_content,
+            "the checksum from the prior successful run must survive a failed run untouched"
+        );
     }
 
     /// A pool chunk referenced by a manifest entry can go missing (or become
@@ -1697,6 +1854,101 @@ mod tests {
         assert!(
             !seen.contains_key(std::path::Path::new("share/socket")),
             "socket entry should have been skipped: tar has no representation for it"
+        );
+    }
+
+    /// `stats.mode` carries the raw scanned `st_mode`, including file-type
+    /// bits (here `S_IFREG = 0o100000`) alongside the permission bits — the
+    /// tar header must only ever see the permission bits, matching what
+    /// `fs_materialize::set_mode` masks to for the `dir` archive format
+    /// (see PR #107 review: the two formats used to disagree on this).
+    #[tokio::test]
+    async fn tar_header_mode_is_masked_to_permission_bits() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Arc::new(Configuration::from_backup_path(tmp.path().to_path_buf()));
+        let backups = Backups::new(config.clone());
+        let hostname = "fakehost";
+        let backup_id = Uuid::now_v7();
+        let backup = fake_backup(backup_id);
+
+        let file_bytes = b"mode masking regression".to_vec();
+        let mut chunk = PoolChunkWrapper::new(&config.path.pool_path, None);
+        let info = chunk
+            .write(
+                stream::once({
+                    let bytes = file_bytes.clone();
+                    async move { Ok(bytes) }
+                }),
+                b"file.txt",
+                ChunkAlgorithm::Blake3,
+                CompressionFormat::Zstd,
+            )
+            .await
+            .unwrap();
+
+        let dest_dir = backups.get_backup_destination_directory(hostname, backup_id);
+        tokio::fs::create_dir_all(&dest_dir).await.unwrap();
+        backups
+            .add_backup_share_record(
+                hostname,
+                backup_id,
+                ShareRecord {
+                    path: "/share".into(),
+                    snapshot_method: ShareSnapshotMethod::None,
+                    snapshot_failure_reason: None,
+                },
+            )
+            .await
+            .unwrap();
+
+        let manifest = backups.get_manifest(hostname, backup_id, "/share");
+        let file_entry = FileManifest {
+            path: b"file.txt".to_vec(),
+            stats: Some(FileManifestStat {
+                file_type: FileManifestType::RegularFile as i32,
+                // Raw scanned mode: S_IFREG (0o100000) | 0o644.
+                mode: 0o100_644,
+                size: file_bytes.len() as u64,
+                ..Default::default()
+            }),
+            chunks: vec![info.sha256.clone()],
+            ..Default::default()
+        };
+        save_file(
+            &manifest.manifest_path,
+            stream::iter(vec![file_entry]),
+            false,
+            CompressionFormat::Zstd,
+        )
+        .await
+        .unwrap();
+
+        let out_dir = tmp.path().join("out");
+        let output = write_host_tar_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &backup,
+            &out_dir,
+            ArchiveFormat::Tar(TarOptions::default()),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        let file = std::fs::File::open(&output.archive_path).unwrap();
+        let mut archive = tar::Archive::new(file);
+        let mut entries = archive.entries().unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        assert_eq!(
+            entry.path().unwrap(),
+            std::path::Path::new("share/file.txt")
+        );
+        assert_eq!(
+            entry.header().mode().unwrap(),
+            0o644,
+            "the S_IFREG file-type bit must not leak into the tar header's mode field"
         );
     }
 

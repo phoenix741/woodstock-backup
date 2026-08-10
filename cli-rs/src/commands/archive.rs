@@ -128,6 +128,8 @@ pub async fn run_archive_profile(
         return Ok(());
     }
 
+    let cancel_token = crate::cancel::cancellation_token_with_ctrl_c();
+
     for hostname in hosts {
         let Some(backup) = state.backups.get_last_backup(&hostname).await else {
             info!("No completed backup for host '{hostname}', skipping");
@@ -147,7 +149,7 @@ pub async fn run_archive_profile(
                     &profile.destination,
                     profile.format,
                     None,
-                    tokio_util::sync::CancellationToken::new(),
+                    cancel_token.clone(),
                 )
                 .await
                 .wrap_err_with(|| format!("Failed to archive host '{hostname}'"))?;
@@ -165,13 +167,26 @@ pub async fn run_archive_profile(
                     &backup,
                     &profile.destination,
                     None,
+                    cancel_token.clone(),
                 )
                 .await
                 .wrap_err_with(|| format!("Failed to sync host '{hostname}'"))?;
 
                 info!(
-                    "Synced {hostname} -> {:?} (+{} ~{} -{})",
-                    output.destination, output.added, output.modified, output.removed
+                    "Synced {hostname} -> {:?} (+{} ~{} -{}{})",
+                    output.destination,
+                    output.added,
+                    output.modified,
+                    output.removed,
+                    if output.skipped > 0 || output.cancelled {
+                        format!(
+                            ", {} skipped{}",
+                            output.skipped,
+                            if output.cancelled { ", cancelled" } else { "" }
+                        )
+                    } else {
+                        String::new()
+                    }
                 );
             }
         }

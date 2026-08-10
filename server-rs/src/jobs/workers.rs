@@ -90,7 +90,10 @@ impl JobExecutors {
                 post_command_states: std::collections::HashMap::new(),
             };
             if let Err(e) = publi
-                .update_progress(&task_id.to_string(), ProgressUpdate::Backup(cancelled_state))
+                .update_progress(
+                    &task_id.to_string(),
+                    ProgressUpdate::Backup(cancelled_state),
+                )
                 .await
             {
                 warn!(
@@ -367,7 +370,7 @@ impl JobExecutors {
         {
             Ok(machine) => machine,
             Err(e) => {
-                cancel_watcher.abort();
+                cancel_watcher.finish().await;
                 return Err(e);
             }
         };
@@ -384,8 +387,7 @@ impl JobExecutors {
         };
 
         drop(machine);
-        cancel_watcher.abort();
-        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+        cancel_watcher.finish().await;
         let _ = progress_task.await; // attendre les derniers états
 
         if let Ok(state) = &exec_res {
@@ -592,7 +594,7 @@ impl JobExecutors {
         {
             Ok(machine) => machine,
             Err(e) => {
-                cancel_watcher.abort();
+                cancel_watcher.finish().await;
                 return Err(e);
             }
         };
@@ -609,8 +611,7 @@ impl JobExecutors {
         };
 
         drop(machine);
-        cancel_watcher.abort();
-        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+        cancel_watcher.finish().await;
         let _ = progress_task.await;
 
         match exec_res {
@@ -736,7 +737,10 @@ impl JobExecutors {
                     .update_progress(&task_id.to_string(), ProgressUpdate::Fsck(cancelled_state))
                     .await
                 {
-                    warn!("[{}] Failed to publish cancelled fsck state: {}", task_id, e);
+                    warn!(
+                        "[{}] Failed to publish cancelled fsck state: {}",
+                        task_id, e
+                    );
                 }
             }
             return Ok(());
@@ -797,8 +801,7 @@ impl JobExecutors {
         debug!("Waiting progress ...");
 
         drop(machine);
-        cancel_watcher.abort();
-        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+        cancel_watcher.finish().await;
 
         let _ = progress_task.await;
 
@@ -986,7 +989,8 @@ impl JobExecutors {
                 task_id, job.profile_name
             );
             let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
-            self.publish_cancelled_archive(&task_id, &job.hostnames).await;
+            self.publish_cancelled_archive(&task_id, &job.hostnames)
+                .await;
             return Ok(());
         }
 
@@ -1197,8 +1201,7 @@ impl JobExecutors {
             }
         }
 
-        cancel_watcher.abort();
-        let _ = clear_cancel_request(&redis_client, &task_id.to_string()).await;
+        cancel_watcher.finish().await;
 
         if !run_state.failed_hosts.is_empty() {
             warn!(
@@ -1224,10 +1227,10 @@ impl JobExecutors {
     /// `cancel_token`: consulted mid-write for tar-family formats (checked
     /// once per manifest entry inside `write_host_tar_archive`'s writer
     /// thread — a truncated tar is cleaned up via the same path as a write
-    /// error). Not yet wired into `Dir` format's own multi-task pipeline; a
-    /// cancel during a `Dir`-format host still takes effect at the host
-    /// boundary in `handle_archive_run` (no further host starts), just not
-    /// mid-sync for the host already in progress.
+    /// error) and, per-entry, inside `sync_host_dir_archive`'s dispatch/
+    /// materialize pipeline for `Dir` — either way a cancel stops the host
+    /// currently in progress without waiting for it to finish, and no
+    /// further host starts.
     async fn archive_one_host(
         &self,
         task_id: &TaskId,
@@ -1271,17 +1274,20 @@ impl JobExecutors {
                     backup,
                     &profile.destination,
                     Some(counters.clone()),
+                    cancel_token,
                 )
                 .await
                 .map(|output| {
                     info!(
-                        "[{}] Synced {} -> {:?} (+{} ~{} -{})",
+                        "[{}] Synced {} -> {:?} (+{} ~{} -{}, skipped {}{})",
                         task_id,
                         hostname,
                         output.destination,
                         output.added,
                         output.modified,
-                        output.removed
+                        output.removed,
+                        output.skipped,
+                        if output.cancelled { ", cancelled" } else { "" }
                     );
                     None
                 })
@@ -1373,10 +1379,16 @@ impl JobExecutors {
                 ..Default::default()
             };
             if let Err(e) = publi
-                .update_progress(&task_id.to_string(), ProgressUpdate::Archive(cancelled_state))
+                .update_progress(
+                    &task_id.to_string(),
+                    ProgressUpdate::Archive(cancelled_state),
+                )
                 .await
             {
-                error!("[{}] Failed to publish cancelled archive state: {}", task_id, e);
+                error!(
+                    "[{}] Failed to publish cancelled archive state: {}",
+                    task_id, e
+                );
             }
         }
     }

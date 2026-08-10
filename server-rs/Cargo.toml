@@ -170,7 +170,9 @@ chrono = { workspace = true }
 rand = { workspace = true }
 
 # Direct dependency on woodstock-rs (replaces shared-rs NAPI proxy)
-woodstock-rs = { workspace = true }
+# acl/xattr: dir-mode archiving (archiving::fs_materialize) restores these
+# best-effort via woodstock-rs::utils::restore_metadata, same as client-rs.
+woodstock-rs = { workspace = true, features = ["acl", "xattr"] }
 
 # OpenAPI/Swagger documentation
 utoipa = { version = "5.4", features = ["axum_extras", "chrono", "uuid"] }

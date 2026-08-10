@@ -1,30 +1,20 @@
-/// Unix implementation for ACL operations.
-///
-/// This module provides concrete implementations for reading and restoring
-/// POSIX Access Control Lists (ACLs) on Unix systems when the 'acl' feature is enabled.
-/// It uses the `posix_acl` crate to interface with the underlying ACL system.
+//! Unix implementation for ACL operations.
+//!
+//! Uses the `posix_acl` crate to interface with the underlying POSIX Access
+//! Control List system.
+
 use std::path::Path;
 
 use eyre::Result;
 use posix_acl::{PosixACL, Qualifier};
-use woodstock::{FileManifestAcl, FileManifestAclQualifier};
+
+use crate::{FileManifestAcl, FileManifestAclQualifier};
 
 /// Reads the Access Control Lists for a file on Unix systems.
 ///
-/// This function reads the POSIX ACLs from a file and converts them to the
-/// application's internal `FileManifestAcl` format for storage.
-///
-/// # Arguments
-/// * `file` - Path to the file to read ACLs from.
-///
-/// # Returns
-/// * `Result<Vec<FileManifestAcl>>` - A vector of ACL entries if successful, or an error.
-///
 /// # Errors
-/// Returns an error if:
-/// * The file does not exist
-/// * The process lacks permissions to read the file's ACLs
-/// * The underlying POSIX ACL functions fail
+/// Returns an error if the file does not exist, the process lacks
+/// permission to read its ACLs, or the underlying POSIX ACL calls fail.
 pub fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
     let acls: PosixACL = PosixACL::read_acl(file)?;
     let acls = acls.entries();
@@ -49,7 +39,6 @@ pub fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
                 Qualifier::Other => FileManifestAclQualifier::Other,
             };
 
-            // Create a FileManifestAcl object representing this ACL entry
             FileManifestAcl {
                 qualifier: qualifier as i32,
                 id,
@@ -63,34 +52,17 @@ pub fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
 
 /// Restores Access Control Lists to a file on Unix systems.
 ///
-/// This function takes a list of `FileManifestAcl` entries and applies them
-/// to the specified file, restoring its access permissions to match the saved state.
-///
-/// # Arguments
-/// * `file` - Path to the file to restore ACLs to.
-/// * `acls` - Vector of ACL entries to restore to the file.
-///
-/// # Returns
-/// * `Result<()>` - Success or error result.
+/// First reads the current ACLs of the file and then modifies them, rather
+/// than creating an entirely new ACL list — this preserves any
+/// system-specific ACL entries that might not be part of the saved ACLs.
 ///
 /// # Errors
-/// Returns an error if:
-/// * The file does not exist
-/// * The process lacks permissions to modify the file's ACLs
-/// * The underlying POSIX ACL functions fail
-///
-/// # Note
-/// This function first reads the current ACLs of the file and then modifies them,
-/// rather than creating an entirely new ACL list. This helps preserve any system-specific
-/// ACL entries that might not be part of the saved ACLs.
+/// Returns an error if the file does not exist, the process lacks
+/// permission to modify its ACLs, or the underlying POSIX ACL calls fail.
 pub fn restore_acl(file: &Path, acls: &[FileManifestAcl]) -> Result<()> {
-    use posix_acl::{PosixACL, Qualifier};
-    use woodstock::FileManifestAclQualifier;
-
     let mut acls_writer: PosixACL = PosixACL::read_acl(file)?;
 
     for acl in acls {
-        // Convert from FileManifestAcl qualifier to POSIX Qualifier
         let qualifier = match acl.qualifier() {
             FileManifestAclQualifier::Undefined => Qualifier::Undefined,
             FileManifestAclQualifier::UserObj => Qualifier::UserObj,
@@ -107,11 +79,9 @@ pub fn restore_acl(file: &Path, acls: &[FileManifestAcl]) -> Result<()> {
             FileManifestAclQualifier::Other => Qualifier::Other,
         };
 
-        // Set the ACL entry with the specified qualifier and permissions
         acls_writer.set(qualifier, acl.perm);
     }
 
-    // Write the modified ACLs back to the file
     acls_writer.write_acl(file)?;
     Ok(())
 }
