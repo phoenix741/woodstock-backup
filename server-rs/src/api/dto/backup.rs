@@ -19,6 +19,9 @@ pub enum BackupStatusTypeDto {
     Completed,
     Aborting,
     Aborted,
+    /// Deliberately stopped by the user (as opposed to `Aborted`, which
+    /// covers critical errors and lock loss).
+    Cancelled,
     Failed,
     Removing,
 }
@@ -120,6 +123,13 @@ impl From<BackupStatus> for BackupStatusDto {
             }
             BackupStatus::Aborted => BackupStatusDto {
                 status_type: BackupStatusTypeDto::Aborted,
+                finishing_stage: None,
+                aborting_stage: None,
+                failed_stage: None,
+                removing_stage: None,
+            },
+            BackupStatus::Cancelled => BackupStatusDto {
+                status_type: BackupStatusTypeDto::Cancelled,
                 finishing_stage: None,
                 aborting_stage: None,
                 failed_stage: None,
@@ -493,6 +503,7 @@ fn backup_error_state_message(s: &woodstock::server::backup::save_state::ErrorSt
 pub enum BackupExecutionState {
     Waiting,
     Skipped,
+    Cancelled,
     Authenticate,
     Initialization,
     PreCommands,
@@ -511,6 +522,7 @@ impl From<woodstock::server::backup::save_state::BackupExecutionState> for Backu
         match s {
             Src::Waiting => BackupExecutionState::Waiting,
             Src::Skipped => BackupExecutionState::Skipped,
+            Src::Cancelled => BackupExecutionState::Cancelled,
             Src::Authenticate => BackupExecutionState::Authenticate,
             Src::Initialization => BackupExecutionState::Initialization,
             Src::PreCommands(_) => BackupExecutionState::PreCommands,

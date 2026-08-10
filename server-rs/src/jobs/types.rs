@@ -15,6 +15,8 @@ pub enum QueueName {
     Interactive,
     Maintenance,
     Nightly,
+    Archive,
+    ArchiveTrigger,
 }
 
 impl QueueName {
@@ -25,6 +27,8 @@ impl QueueName {
             QueueName::Interactive => "interactive",
             QueueName::Maintenance => "maintenance",
             QueueName::Nightly => "nightly",
+            QueueName::Archive => "archive",
+            QueueName::ArchiveTrigger => "archive-trigger",
         }
     }
 }
@@ -103,6 +107,25 @@ impl Default for MaintenanceJobData {
     fn default() -> Self {
         MaintenanceJobData::CleanupRefcnt(CleanupRefcntJobData { target: None })
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchiveRunJobData {
+    /// Name of the archive profile (see `archiving.yml`) driving this run.
+    pub profile_name: String,
+    /// Hosts this run archives, in the order they will be processed.
+    ///
+    /// One job covers every selected host, archived sequentially rather
+    /// than one job per host — deliberately, so a profile only ever drives
+    /// one destination disk at a time instead of N concurrent jobs seeking
+    /// all over it.
+    pub hostnames: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "data")]
+pub enum ArchiveJobData {
+    Run(ArchiveRunJobData),
 }
 
 /// Génère la clé d'unicité identique à TS pour les backups

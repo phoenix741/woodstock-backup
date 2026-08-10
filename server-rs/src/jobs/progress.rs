@@ -2,7 +2,8 @@
 //! Inspired by the BullMQ `job.progress()` API but externalized in Redis.
 
 use crate::jobs::types::{
-    BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData, RestoreJobData, StatsJobData,
+    ArchiveRunJobData, BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData,
+    RestoreJobData, StatsJobData,
 };
 use apalis::prelude::TaskId;
 use eyre::Result;
@@ -14,9 +15,12 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context as TaskContext, Poll},
+    time::Duration,
 };
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
+use woodstock::archiving::ArchiveState;
 use woodstock::server::{
     backup::{remove_state::RemoveState, restore_state::RestoreState, save_state::BackupState},
     pool::{fsck_state::FsckState, pool_cleaner_state::CleanerState},
@@ -39,6 +43,180 @@ const PROGRESS_TTL_ACTIVE_SECS: u64 = 86_400; // 24 h
 /// TTL (seconds) for snapshots of completed or failed jobs.
 /// Keeps the entry visible in the history briefly, then auto-cleaned.
 const PROGRESS_TTL_DONE_SECS: u64 = 86_400; // 24 h (cohérent avec ACTIVE)
+
+/// Prefix for the Redis cancel-request marker key.
+const CANCEL_KEY_PREFIX: &str = "job:cancel:";
+
+/// TTL (seconds) for a cancel-request marker. Generous enough to outlive a
+/// job that is still waiting in the Apalis queue, but never left to survive
+/// indefinitely if the job that should have consumed it never runs.
+const CANCEL_TTL_SECS: u64 = 6 * 60 * 60; // 6 h
+
+/// Interval at which a running job's cancel watcher polls Redis. Independent
+/// of `PROGRESS_THROTTLE_MS`: a job stuck on a slow read (e.g. a gRPC stream
+/// that never yields) never reaches its own progress-publish tick, so the
+/// cancel check cannot piggyback on it and must run on its own timer.
+const CANCEL_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+fn cancel_key(job_id: &str) -> String {
+    format!("{CANCEL_KEY_PREFIX}{job_id}")
+}
+
+/// Requests cancellation of a job by writing its marker in Redis.
+///
+/// Works uniformly whether the job is still queued (not yet picked up by a
+/// worker) or already running: the worker checks this marker both before
+/// starting any real work and periodically while running (see
+/// [`spawn_cancel_watcher`]).
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn request_cancel(client: &RedisClient, job_id: &str) -> Result<()> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let _: () = conn
+        .set_ex(cancel_key(job_id), "1", CANCEL_TTL_SECS)
+        .await?;
+    Ok(())
+}
+
+/// Checks whether cancellation has been requested for a job.
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn is_cancel_requested(client: &RedisClient, job_id: &str) -> Result<bool> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let exists: bool = conn.exists(cancel_key(job_id)).await?;
+    Ok(exists)
+}
+
+/// Clears a job's cancel-request marker, once the job has consumed it and
+/// finalized as cancelled.
+///
+/// # Errors
+///
+/// Returns an error if the Redis connection or command fails.
+pub async fn clear_cancel_request(client: &RedisClient, job_id: &str) -> Result<()> {
+    let mut conn = client.get_multiplexed_async_connection().await?;
+    let _: () = conn.del(cancel_key(job_id)).await?;
+    Ok(())
+}
+
+/// RAII guard for a [`spawn_cancel_watcher`] background task and the Redis
+/// cancel marker it watches. Every code path that creates a watcher — the
+/// happy path and every early-return error path — must stop the watcher
+/// task and remove the marker the same way; a single arm forgetting the
+/// clear (see PR #107 review, `handle_backup`'s `SaveBackupMachine::new()`
+/// error path) used to leave the marker stale for up to [`CANCEL_TTL_SECS`],
+/// wrongly cancelling a retried job with the same `task_id` on sight.
+///
+/// Call [`CancelWatcherGuard::finish`] once the job is actually done, for a
+/// deterministic, awaited cleanup. If the guard is instead just dropped (an
+/// early `?`/`return`, a panic) without `finish` ever being called, `Drop`
+/// still aborts the watcher task and best-effort clears the Redis marker on
+/// a detached task — so no exit path, including ones added later, can leave
+/// a stale marker behind.
+pub struct CancelWatcherGuard {
+    client: RedisClient,
+    job_id: String,
+    abort_handle: Option<tokio::task::AbortHandle>,
+    finished: bool,
+}
+
+impl CancelWatcherGuard {
+    /// Aborts the watcher task and clears the Redis cancel marker, awaiting
+    /// the clear so the caller knows it has actually happened before moving
+    /// on (e.g. before a retried job with the same `task_id` could start).
+    pub async fn finish(mut self) {
+        if let Some(handle) = self.abort_handle.take() {
+            handle.abort();
+        }
+        self.finished = true;
+        if let Err(err) = clear_cancel_request(&self.client, &self.job_id).await {
+            warn!(
+                "Failed to clear cancel marker for job {}: {}",
+                self.job_id, err
+            );
+        }
+    }
+}
+
+impl Drop for CancelWatcherGuard {
+    fn drop(&mut self) {
+        if let Some(handle) = self.abort_handle.take() {
+            handle.abort();
+        }
+        if self.finished {
+            return;
+        }
+        let client = self.client.clone();
+        let job_id = self.job_id.clone();
+        tokio::spawn(async move {
+            if let Err(err) = clear_cancel_request(&client, &job_id).await {
+                warn!("Failed to clear cancel marker for job {job_id}: {err}");
+            }
+        });
+    }
+}
+
+/// Spawns a background task that polls the cancel marker for `job_id` and
+/// cancels the returned [`CancellationToken`] as soon as it appears.
+///
+/// The caller is responsible for threading the returned token down into the
+/// job's actual transfer loop (so cancellation follows the same code path
+/// as any other critical error and reaches normal finalization), and for
+/// calling [`CancelWatcherGuard::finish`] on the returned guard once the job
+/// finishes (or simply letting it drop), so the watcher doesn't keep polling
+/// Redis forever and the cancel marker doesn't outlive the job.
+pub fn spawn_cancel_watcher(
+    client: RedisClient,
+    job_id: String,
+) -> (CancellationToken, CancelWatcherGuard) {
+    let token = CancellationToken::new();
+    let watcher_token = token.clone();
+    let watcher_client = client.clone();
+    let watcher_job_id = job_id.clone();
+
+    let join_handle = tokio::spawn(async move {
+        // A held `ConnectionManager` (auto-reconnecting) rather than a fresh
+        // connection per poll: an 8-hour backup polling every 2s would
+        // otherwise open ~14k short-lived TCP connections over its lifetime.
+        let mut conn = match ConnectionManager::new(watcher_client).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                warn!("Cancel watcher: failed to connect to Redis for job {watcher_job_id}: {err}");
+                return;
+            }
+        };
+
+        let key = cancel_key(&watcher_job_id);
+        let mut interval = tokio::time::interval(CANCEL_POLL_INTERVAL);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            interval.tick().await;
+            match conn.exists::<_, bool>(&key).await {
+                Ok(true) => {
+                    watcher_token.cancel();
+                    break;
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    warn!("Cancel watcher: Redis error for job {watcher_job_id}: {err}");
+                }
+            }
+        }
+    });
+
+    let guard = CancelWatcherGuard {
+        client,
+        job_id,
+        abort_handle: Some(join_handle.abort_handle()),
+        finished: false,
+    };
+
+    (token, guard)
+}
 
 // Global counter to identify each stream
 static STREAM_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -141,6 +319,7 @@ pub enum ProgressUpdate {
     CleanupRefcnt(CleanerState),
     Fsck(FsckState),
     Stats(()), // Stats n'ont pas de progression
+    Archive(ArchiveState),
 }
 
 /// Simple filter applied to snapshots and events
@@ -241,6 +420,7 @@ pub enum JobKind {
     CleanupRefcnt(ProgressData<CleanupRefcntJobData, CleanerState>),
     Fsck(ProgressData<FsckJobData, FsckState>),
     Stats(ProgressData<StatsJobData, ()>),
+    Archive(ProgressData<ArchiveRunJobData, ArchiveState>),
 }
 
 impl JobKind {
@@ -252,6 +432,7 @@ impl JobKind {
             JobKind::CleanupRefcnt(_) => "cleanup_refcnt",
             JobKind::Fsck(_) => "fsck",
             JobKind::Stats(_) => "stats",
+            JobKind::Archive(_) => "archive",
         }
     }
 
@@ -281,6 +462,10 @@ impl JobKind {
             (JobKind::Stats(mut pd), ProgressUpdate::Stats(progress)) => {
                 pd.progress = Some(progress);
                 Ok(JobKind::Stats(pd))
+            }
+            (JobKind::Archive(mut pd), ProgressUpdate::Archive(progress)) => {
+                pd.progress = Some(progress);
+                Ok(JobKind::Archive(pd))
             }
             _ => Err(eyre::eyre!("Progress update type doesn't match job kind")),
         }
@@ -325,6 +510,13 @@ impl JobKind {
 
     pub fn with_stats(data: StatsJobData) -> Self {
         JobKind::Stats(ProgressData {
+            data,
+            progress: None,
+        })
+    }
+
+    pub fn with_archive(data: ArchiveRunJobData) -> Self {
+        JobKind::Archive(ProgressData {
             data,
             progress: None,
         })
@@ -706,14 +898,37 @@ impl ProgressPublisher {
         // Essayer d'abord la nouvelle structure avec HashMap
         let fields: Result<std::collections::HashMap<String, String>, _> = g.hgetall(&key).await;
 
-        if let Ok(fields) = fields {
-            if !fields.is_empty() && fields.contains_key("job_id") {
+        match fields {
+            Ok(fields) if !fields.is_empty() && fields.contains_key("job_id") => {
                 return ProgressEvent::from_redis_hashmap(fields).map(Some);
+            }
+            Ok(fields) if !fields.is_empty() => {
+                warn!(
+                    "get_current_state({}): hash exists but is missing the job_id field ({} fields present)",
+                    job_id,
+                    fields.len()
+                );
+            }
+            Ok(_) => {} // Hash genuinely absent — normal "not found" case, nothing to log
+            Err(err) => {
+                warn!(
+                    "get_current_state({}): hgetall failed, falling back to legacy format: {}",
+                    job_id, err
+                );
             }
         }
 
         // Fallback vers l'ancienne structure avec JSON complet (pour compatibilité)
-        let json: String = g.hget(&key, "json").await.ok().unwrap_or_default();
+        let json: String = match g.hget(&key, "json").await {
+            Ok(json) => json,
+            Err(err) => {
+                warn!(
+                    "get_current_state({}): legacy hget(\"json\") also failed: {}",
+                    job_id, err
+                );
+                return Ok(None);
+            }
+        };
         if json.is_empty() {
             return Ok(None);
         }
@@ -769,9 +984,28 @@ impl ProgressReader {
         let mut g = self.conn.lock().await;
 
         // Essayer d'abord la nouvelle structure avec HashMap
-        let fields: std::collections::HashMap<String, String> = g.hgetall(key).await.ok()?;
+        let fields: std::collections::HashMap<String, String> = match g.hgetall(key).await {
+            Ok(fields) => fields,
+            Err(err) => {
+                warn!("ProgressReader::get_key({}): hgetall failed: {}", key, err);
+                return None;
+            }
+        };
 
-        return ProgressEvent::from_redis_hashmap(fields).ok();
+        if fields.is_empty() {
+            return None;
+        }
+
+        match ProgressEvent::from_redis_hashmap(fields) {
+            Ok(event) => Some(event),
+            Err(err) => {
+                warn!(
+                    "ProgressReader::get_key({}): failed to deserialize hash: {}",
+                    key, err
+                );
+                None
+            }
+        }
     }
 
     pub async fn get(&self, job_id: &str) -> Option<ProgressEvent> {

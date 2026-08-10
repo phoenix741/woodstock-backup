@@ -240,6 +240,41 @@ pub fn unmangle_path(path: &str) -> PathBuf {
     vec_to_path(&decoded)
 }
 
+/// Maps a raw share identifier — a POSIX path like `/etc`, or a Windows
+/// share like `C:\` or `C:\Users` — to a safe relative path prefix, usable
+/// both as a tar archive entry path and as a filesystem directory name.
+///
+/// Windows shares are stored verbatim (e.g. `C:\`, see `hosts/<name>.yml`).
+/// Joining that string directly onto another path is unsafe: on the Linux
+/// server, `\` is not a path separator, so the whole share collapses into a
+/// single opaque component containing a literal backslash and colon —
+/// `tar`'s stricter path validation (e.g. `Header::set_link_name`) rejects
+/// it outright, and on plain disk it creates one oddly-named directory
+/// instead of a `C/Users/...` tree.
+///
+/// Backslashes become forward slashes, the drive letter's `:` is dropped,
+/// and empty/leading-separator components are discarded. `.` and `..`
+/// components are also discarded, so a malformed `share` value (e.g. from
+/// a hand-edited `hosts.yml`) can never walk the result outside the root
+/// it gets `.join()`ed onto.
+///
+/// # Arguments
+///
+/// * `share` - The raw share identifier to normalize.
+///
+/// # Returns
+///
+/// A relative [`PathBuf`] safe to `.join()` onto an archive or destination
+/// root. Never absolute, never empty for a non-empty `share`.
+#[must_use]
+pub fn safe_share_prefix(share: &str) -> PathBuf {
+    let normalized = share.replace('\\', "/").replace(':', "");
+    normalized
+        .split('/')
+        .filter(|c| !c.is_empty() && *c != "." && *c != "..")
+        .collect()
+}
+
 /// Filter all value to return only unique values
 ///
 /// # Arguments
@@ -292,5 +327,55 @@ mod tests {
         let new_path = super::vec_to_path(&vec);
         println!("{:?}", new_path);
         assert_eq!(new_path, Path::new("C:\\Tools\\a\\b\\c"));
+    }
+
+    #[test]
+    fn test_safe_share_prefix_windows_drive_root() {
+        assert_eq!(super::safe_share_prefix("C:\\"), Path::new("C"));
+    }
+
+    #[test]
+    fn test_safe_share_prefix_windows_subpath() {
+        assert_eq!(
+            super::safe_share_prefix("C:\\Users\\evero"),
+            Path::new("C/Users/evero")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_posix_root_share() {
+        assert_eq!(super::safe_share_prefix("/etc"), Path::new("etc"));
+    }
+
+    #[test]
+    fn test_safe_share_prefix_posix_nested_share() {
+        assert_eq!(
+            super::safe_share_prefix("/srv/my-data"),
+            Path::new("srv/my-data")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_parent_dir_traversal() {
+        assert_eq!(
+            super::safe_share_prefix("/srv/../../etc"),
+            Path::new("srv/etc")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_leading_traversal() {
+        assert_eq!(
+            super::safe_share_prefix("../../etc/passwd"),
+            Path::new("etc/passwd")
+        );
+    }
+
+    #[test]
+    fn test_safe_share_prefix_strips_current_dir() {
+        assert_eq!(
+            super::safe_share_prefix("/srv/./data"),
+            Path::new("srv/data")
+        );
     }
 }

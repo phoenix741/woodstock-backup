@@ -125,6 +125,7 @@ async fn server_and_client_stub(
         context,
         app_config,
         backups,
+        tokio_util::sync::CancellationToken::new(),
     );
 
     (serve_future, client)
@@ -189,7 +190,7 @@ async fn test_server_backup() {
 
         client.create_backup(&share_path, None).await.unwrap();
 
-        client.close().await.unwrap();
+        client.close(false).await.unwrap();
 
         client.compact(&share_path).await.unwrap();
 

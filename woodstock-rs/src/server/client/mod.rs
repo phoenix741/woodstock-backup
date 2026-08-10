@@ -106,9 +106,16 @@ pub trait Client {
 
     /// Closes the client connection to the server.
     ///
+    /// # Arguments
+    /// * `aborted` - Whether the session ended without completing normally
+    ///   (user cancel, critical error). Tells the agent to finalize any live
+    ///   snapshot (Btrfs subvolume, VSS shadow copy) as aborted rather than
+    ///   successful, so e.g. a VSS writer never mistakes a cancelled/failed
+    ///   backup for a completed one.
+    ///
     /// # Returns
     ///
     /// * `Ok(())` if the connection is successfully closed.
     /// * `Err(eyre::Report)` if an error occurs during closure.
-    fn close(&self) -> impl Future<Output = Result<()>> + Send;
+    fn close(&self, aborted: bool) -> impl Future<Output = Result<()>> + Send;
 }

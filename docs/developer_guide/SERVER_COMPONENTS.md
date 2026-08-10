@@ -56,7 +56,7 @@ The contact point for agent-initiated communications.
 
 The execution engine. Uses **Apalis** to manage Redis job queues.
 
-* **Role**: Consume pending tasks from 4 distinct Redis queues.
+* **Role**: Consume pending tasks from 5 distinct Redis queues (plus a 6th, `archive-trigger`, used only to tick the archive due-check — it carries no job payloads of its own).
 * **Job Queues**:
 
 | Queue | Job Type | Workers |
@@ -65,6 +65,7 @@ The execution engine. Uses **Apalis** to manage Redis job queues.
 | `backup` | `BackupQueueJob::Save` / `::Remove` | `handle_backup()` / `handle_remove()` |
 | `interactive` | `RestoreJobData` | `handle_restore()` |
 | `maintenance` | `MaintenanceJobData` (Fsck, CleanupRefcnt, Stats) | `handle_fsck()`, `handle_cleanup_refcnt()`, `handle_stats()` |
+| `archive` | `ArchiveJobData::Run` | `handle_archive_run()` — see [Periodic Archiving](ARCHIVING.md) |
 
 * **Backup job lifecycle**:
     1. Dequeued from Redis (via Apalis — no manual BLPOP).
@@ -79,9 +80,10 @@ The execution engine. Uses **Apalis** to manage Redis job queues.
 
 The planner.
 
-* **Role**: Two persistent CRON jobs:
+* **Role**: Three persistent CRON jobs:
   * **`wakeup`** (every 15 min by default): Iterates configured hosts, enqueues `BackupQueueJob::Save` when the scheduling window is reached. Uses `SET NX PX 30s` to prevent duplicates.
   * **`nightly`** (midnight UTC by default): Enqueues `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup.
+  * **`cron-archive`** (every 5 min): checks each `archiving.yml` profile's own schedule for due-ness and fans out `ArchiveJobData::Run` jobs — see [Periodic Archiving](ARCHIVING.md).
 * **Note**: It *never* contacts clients directly.
 
 ## State Management

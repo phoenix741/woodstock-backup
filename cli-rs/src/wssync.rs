@@ -11,6 +11,7 @@
 //! - Any I/O or configuration error occurs during the backup process.
 
 mod backup_resolver;
+mod cancel;
 
 use std::cell::RefCell;
 use std::net::SocketAddr;
@@ -92,6 +93,9 @@ fn message_from_state(state: &BackupExecutionState) -> String {
         BackupExecutionState::Waiting => format!("[0/10] {}Waiting", Emoji("⏳ ", "")),
         BackupExecutionState::Skipped => {
             format!("[0/10] {}Skipped (host unreachable)", Emoji("⏭️ ", ""))
+        }
+        BackupExecutionState::Cancelled => {
+            format!("[0/10] {}Cancelled by user", Emoji("🛑 ", ""))
         }
         BackupExecutionState::Initialization => {
             format!("[2/10] {}Create backup directory", Emoji("🔨 ", ""))
@@ -234,6 +238,7 @@ async fn main() -> Result<()> {
         state.config.clone(),
         state.backups.clone(),
         state.hosts.clone(),
+        crate::cancel::cancellation_token_with_ctrl_c(),
     )
     .await?;
 

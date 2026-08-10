@@ -2,6 +2,7 @@ use std::{path::Path, sync::Arc};
 
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, Instrument};
 use uuid::Uuid;
 
@@ -30,6 +31,8 @@ pub struct RestoreBackupMachine<Clt: Client> {
     progression_state: Arc<Mutex<RestoreState>>,
     /// An optional channel for sending state updates.
     state_tx: Option<mpsc::Sender<RestoreState>>,
+    /// Cancelled when the user requests to stop this restore.
+    cancel_token: CancellationToken,
 }
 
 impl<Clt: Client> RestoreBackupMachine<Clt> {
@@ -61,8 +64,17 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
         config: Arc<Configuration>,
         hosts: Arc<Hosts>,
         backups: Arc<Backups>,
+        cancel_token: CancellationToken,
     ) -> Result<Self> {
-        let client = BackupRestore::new(client, hostname, backup_id, ctxt, config.clone(), backups);
+        let client = BackupRestore::new(
+            client,
+            hostname,
+            backup_id,
+            ctxt,
+            config.clone(),
+            backups,
+            cancel_token.clone(),
+        );
 
         let host_configuration = hosts.get_host(hostname).await?;
         let progression_state = RestoreState::default();
@@ -73,6 +85,7 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
 
             progression_state: Arc::new(Mutex::new(progression_state)),
             state_tx,
+            cancel_token,
         })
     }
 
@@ -277,9 +290,26 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
             let selection = &selection.selection;
 
             self.prepare_restoration(share, selection).await?;
+
+            // Checked here too, not just between the actual transfers below —
+            // otherwise a cancel arriving during preparation (scanning every
+            // manifest entry to compute progress_max for every share) would
+            // wait for all shares to finish preparing before taking effect.
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
         }
 
         for selection in share_selection {
+            // Checked before each share starts (not just after) — covers a
+            // cancel that arrived during preparation above, and skips any
+            // share not yet started. A share already in progress when the
+            // cancel arrives stops on its own via the per-file check inside
+            // `BackupRestore::restore`.
+            if self.cancel_token.is_cancelled() {
+                break;
+            }
+
             let share = selection.share.as_ref();
             let selection = &selection.selection;
 
@@ -301,7 +331,11 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
 
         {
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.complete();
+            if self.cancel_token.is_cancelled() {
+                progression_state.cancel();
+            } else {
+                progression_state.complete();
+            }
         }
         self.send_progress().await;
 

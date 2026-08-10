@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use eyre::{eyre, Result};
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info, Instrument};
 use uuid::Uuid;
 
@@ -16,7 +17,10 @@ use crate::{
     Share, SnapshotMethod,
 };
 
-use super::{save::BackupSave, save_state::BackupState};
+use super::{
+    save::BackupSave,
+    save_state::{BackupExecutionState, BackupState},
+};
 
 /// Represents the execution phase of the backup state machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,9 +108,12 @@ impl BackupPhase {
                 BackupStatus::Completed,
             ),
 
-            // Terminal states — nothing to do
+            // Terminal states — nothing to do. A `Cancelled` backup is resolved
+            // straight to `Finished` like `Aborted`, never resumed as if the
+            // cancelled transfer could still be continued.
             Some(BackupStatus::Completed) => (Self::Finished, BackupStatus::Completed),
             Some(BackupStatus::Aborted) => (Self::Finished, BackupStatus::Aborted),
+            Some(BackupStatus::Cancelled) => (Self::Finished, BackupStatus::Cancelled),
             Some(BackupStatus::Removing(_)) => (Self::Finished, BackupStatus::Aborted),
         }
     }
@@ -136,6 +143,13 @@ pub struct SaveBackupMachine<Clt: Client> {
 
     /// Reference to backups for loading existing backup status
     backups: Arc<Backups>,
+
+    /// Cancelled when the user requests to stop this backup. Distinct from
+    /// the Redis-lock-loss token consumed by the caller's outer `select!`:
+    /// this one is threaded into the actual transfer loop so a user cancel
+    /// flows through the same finalization pipeline as any other critical
+    /// error, instead of bypassing it.
+    cancel_token: CancellationToken,
 }
 
 impl<Clt: Client> SaveBackupMachine<Clt> {
@@ -183,6 +197,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         config: Arc<Configuration>,
         backups: Arc<Backups>,
         hosts: Arc<Hosts>,
+        cancel_token: CancellationToken,
     ) -> Result<Self> {
         let existing_backup = backups.get_backup(hostname, backup_id).await;
 
@@ -211,6 +226,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             ctxt,
             config.clone(),
             backups.clone(),
+            cancel_token.clone(),
         );
 
         let host_configuration = hosts.get_host(hostname).await?;
@@ -228,6 +244,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             hostname: hostname.to_string(),
             backup_id,
             backups,
+            cancel_token,
         })
     }
 
@@ -520,7 +537,11 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                 })
                 .unwrap_or(ShareSnapshotMethod::None);
             let mut progression_state = self.progression_state.lock().await;
-            progression_state.set_share_snapshot_result(&share.share_path, method, sr.failure_reason);
+            progression_state.set_share_snapshot_result(
+                &share.share_path,
+                method,
+                sr.failure_reason,
+            );
         }
 
         self.send_progres().await;
@@ -849,6 +870,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         {
             status = BackupStatus::Aborted;
         }
+        self.check_cancelled(&mut status).await;
 
         if !status.is_aborted()
             && self
@@ -858,21 +880,54 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         {
             status = BackupStatus::Aborted;
         }
+        self.check_cancelled(&mut status).await;
 
+        // The long phase: `create_backup` itself checks the cancel token once
+        // per file in its transfer loop, so a cancel doesn't wait for the
+        // whole share to finish before this outer check even runs.
         if !status.is_aborted() && self.create_backup(operation).await.is_err() {
             status = BackupStatus::Aborted;
         }
+        self.check_cancelled(&mut status).await;
 
         if !status.is_aborted() && self.execute_post_commands(post_commands).await.is_err() {
             status = BackupStatus::Aborted;
         }
+        self.check_cancelled(&mut status).await;
 
-        if let Err(err) = self.client.close().await {
+        if let Err(err) = self.client.close(status.is_aborted()).await {
             error!("Error closing the connection: {}", err);
-            status = BackupStatus::Aborted;
+            // Preserve `Cancelled` rather than overwrite it — the transfer
+            // loop broke out mid-stream on a cancel, so `close()` failing
+            // here is expected, not a new, more severe outcome.
+            if !status.is_aborted() {
+                status = BackupStatus::Aborted;
+            }
         }
 
         Ok(status)
+    }
+
+    /// If the user has requested cancellation, downgrades a non-terminal or
+    /// `Aborted` status to `Cancelled` so the eventual persisted outcome
+    /// reflects a deliberate user action rather than a critical error.
+    /// A status already `Aborted` for another reason (e.g. a hard I/O
+    /// failure) is still reclassified: once cancelled, that's the more
+    /// accurate description of why the backup stopped.
+    ///
+    /// Only called from within `execute_backup_phase` — once the machine has
+    /// moved on to `Compact`/`CountReferences`/`AddToPool`, a cancel request
+    /// is deliberately ignored (this method isn't called there at all).
+    /// Those phases are local finalization, not agent transfer, and must run
+    /// to completion regardless to keep the pool's refcounts consistent —
+    /// the same reason a critical transfer error doesn't skip them either.
+    async fn check_cancelled(&self, status: &mut BackupStatus) {
+        if self.cancel_token.is_cancelled() && *status != BackupStatus::Cancelled {
+            *status = BackupStatus::Cancelled;
+            self.client
+                .set_error_message("Annulé par l'utilisateur")
+                .await;
+        }
     }
 
     /// Executes the recover phase: rebuilds in-memory progression stats from on-disk
@@ -1015,6 +1070,18 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             self.hostname, self.backup_id, existing_status, current_phase, current_status
         );
 
+        // Tracks whether the status actually persisted via `save_backup` (at
+        // whichever exit point) ended up `Cancelled`, since `current_status`
+        // itself gets moved into that call. `BackupState.execution_state`
+        // otherwise always reads `Completed` once the machine finishes
+        // running — regardless of outcome — so a cancelled-mid-run backup
+        // needs this override to avoid showing "Completed" on the task card
+        // while `Backup.status` correctly says `Cancelled`. Every `break` out
+        // of the loop below reassigns this before it's read afterward — the
+        // lint can't see that across the loop's multiple exit points.
+        #[allow(unused_assignments)]
+        let mut ended_cancelled = false;
+
         // State machine main loop
         loop {
             match current_phase {
@@ -1049,11 +1116,15 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                     }
                     Err(err) => {
                         error!("Error during compact phase: {err}");
+                        // Preserve the current status (`Aborted` or `Cancelled`) rather than
+                        // collapsing to `Aborted` — a cancel that fails during finalization
+                        // must still be recorded as cancelled, not misreported as an abort.
                         let failed_status = if current_status.is_aborted() {
-                            BackupStatus::Aborted
+                            current_status.clone()
                         } else {
                             BackupStatus::Failed(FailedStatus::Compact)
                         };
+                        ended_cancelled = failed_status == BackupStatus::Cancelled;
                         self.client.save_backup(failed_status).await?;
                         break;
                     }
@@ -1067,10 +1138,11 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         Err(err) => {
                             error!("Error during count references phase: {err}");
                             let failed_status = if current_status.is_aborted() {
-                                BackupStatus::Aborted
+                                current_status.clone()
                             } else {
                                 BackupStatus::Failed(FailedStatus::RefCount)
                             };
+                            ended_cancelled = failed_status == BackupStatus::Cancelled;
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1085,10 +1157,11 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         Err(err) => {
                             error!("Error during add to pool phase: {err}");
                             let failed_status = if current_status.is_aborted() {
-                                BackupStatus::Aborted
+                                current_status.clone()
                             } else {
                                 BackupStatus::Failed(FailedStatus::InPool)
                             };
+                            ended_cancelled = failed_status == BackupStatus::Cancelled;
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1100,13 +1173,17 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         "Backup state machine completed for {}/{} with status {:?}",
                         self.hostname, self.backup_id, current_status
                     );
+                    ended_cancelled = current_status == BackupStatus::Cancelled;
                     self.client.save_backup(current_status).await?;
                     break;
                 }
             }
         }
 
-        let state = self.progression_state.lock().await.clone();
+        let mut state = self.progression_state.lock().await.clone();
+        if ended_cancelled {
+            state.execution_state = BackupExecutionState::Cancelled;
+        }
         Ok(state)
     }
 }
@@ -1223,6 +1300,13 @@ mod tests {
         assert_eq!(
             BackupPhase::from_existing(Some(BackupStatus::Aborted)),
             (BackupPhase::Finished, BackupStatus::Aborted)
+        );
+        // A cancelled backup must never be resumed as if the cancelled
+        // transfer could still be continued — it resolves straight to
+        // `Finished` like `Aborted`.
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::Cancelled)),
+            (BackupPhase::Finished, BackupStatus::Cancelled)
         );
     }
 

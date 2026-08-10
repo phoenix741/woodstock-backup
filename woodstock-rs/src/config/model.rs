@@ -157,26 +157,37 @@ pub enum BackupStatus {
     Completed,
     Aborting(FinishingStatus),
     Aborted,
+    /// Terminal state for a backup deliberately stopped by the user (as
+    /// opposed to `Aborted`, which covers critical errors and lock loss).
+    /// Winds down through the same `Aborting(stage)` finalization pipeline
+    /// as `Aborted` — only the final persisted status differs.
+    Cancelled,
     Failed(FailedStatus),
     Removing(RemovingStatus),
 }
 
 impl BackupStatus {
-    /// Returns true if the backup is finished (completed, aborted, or failed).
+    /// Returns true if the backup is finished (completed, aborted, cancelled, or failed).
     #[must_use]
     pub fn is_finished(&self) -> bool {
         matches!(
             self,
-            BackupStatus::Completed | BackupStatus::Aborted | BackupStatus::Failed(_)
+            BackupStatus::Completed
+                | BackupStatus::Aborted
+                | BackupStatus::Cancelled
+                | BackupStatus::Failed(_)
         )
     }
 
-    /// Returns true if the backup was aborted or is in the process of aborting.
+    /// Returns true if the backup was aborted, cancelled, or is in the process of winding down.
     #[must_use]
     pub fn is_aborted(&self) -> bool {
         matches!(
             self,
-            BackupStatus::Aborting(_) | BackupStatus::Aborted | BackupStatus::Failed(_)
+            BackupStatus::Aborting(_)
+                | BackupStatus::Aborted
+                | BackupStatus::Cancelled
+                | BackupStatus::Failed(_)
         )
     }
 
@@ -266,6 +277,7 @@ mod tests {
         // Non-resumable states (all finished states)
         assert!(!BackupStatus::Completed.is_resumable());
         assert!(!BackupStatus::Aborted.is_resumable());
+        assert!(!BackupStatus::Cancelled.is_resumable());
         assert!(!BackupStatus::Failed(FailedStatus::Compact).is_resumable());
         assert!(!BackupStatus::Failed(FailedStatus::RefCount).is_resumable());
         assert!(!BackupStatus::Failed(FailedStatus::InPool).is_resumable());
@@ -282,6 +294,7 @@ mod tests {
         assert!(!BackupStatus::Aborting(FinishingStatus::ToAddInPool).is_finished());
         assert!(BackupStatus::Completed.is_finished());
         assert!(BackupStatus::Aborted.is_finished());
+        assert!(BackupStatus::Cancelled.is_finished());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_finished());
         assert!(BackupStatus::Failed(FailedStatus::RefCount).is_finished());
         assert!(BackupStatus::Failed(FailedStatus::InPool).is_finished());
@@ -300,6 +313,7 @@ mod tests {
         assert!(BackupStatus::Aborting(FinishingStatus::ToAddInPool).is_aborted());
         assert!(!BackupStatus::Completed.is_aborted());
         assert!(BackupStatus::Aborted.is_aborted());
+        assert!(BackupStatus::Cancelled.is_aborted());
         assert!(BackupStatus::Failed(FailedStatus::Compact).is_aborted());
         assert!(BackupStatus::Failed(FailedStatus::RefCount).is_aborted());
         assert!(BackupStatus::Failed(FailedStatus::InPool).is_aborted());

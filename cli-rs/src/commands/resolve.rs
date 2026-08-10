@@ -14,7 +14,6 @@ use console::Term;
 use eyre::Result;
 use tokio::select;
 use tokio::time::sleep;
-use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::commands::CliServiceState;
@@ -36,7 +35,7 @@ use crate::commands::CliServiceState;
 pub async fn resolve_mdns(state: CliServiceState, hostname: &str) -> Result<()> {
     let term = Term::stdout();
 
-    let token = CancellationToken::new();
+    let token = crate::cancel::cancellation_token_with_ctrl_c();
     let cloned_token = token.clone();
 
     let Some(resolver) = state.resolver else {
@@ -73,7 +72,13 @@ pub async fn resolve_mdns(state: CliServiceState, hostname: &str) -> Result<()> 
             break;
         }
 
-        sleep(std::time::Duration::from_secs(10)).await;
+        select! {
+            () = token.cancelled() => {
+                info!("mDNS resolution cancelled by user");
+                break;
+            }
+            () = sleep(std::time::Duration::from_secs(10)) => {}
+        }
     }
 
     tokio::spawn(async move {

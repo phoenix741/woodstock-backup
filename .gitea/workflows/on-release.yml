@@ -76,7 +76,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev pkg-config
+          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev pkg-config zstd
 
       - name: Checkout project
         uses: actions/checkout@v3

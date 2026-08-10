@@ -8,12 +8,13 @@ use eyre::Result;
 use std::fs::OpenOptions;
 
 use woodstock::{
-    utils::path::vec_to_path,
+    utils::{
+        path::vec_to_path,
+        restore_metadata::{
+            acl::restore_acl, create_symlink, mknode, restore_permissions, xattr::restore_xattr,
+        },
+    },
     {FileManifest, FileManifestType},
-};
-
-use super::metadata::{
-    acl::restore_acl, create_symlink, mknode, restore_permissions, xattr::restore_xattr,
 };
 
 /// Creates a file from a manifest.
@@ -57,7 +58,7 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
         | FileManifestType::CharacterDevice
         | FileManifestType::Fifo
         | FileManifestType::Socket => {
-            mknode(file_manifest)?;
+            mknode(&path, file_manifest)?;
         }
 
         woodstock::FileManifestType::Directory => {
@@ -76,7 +77,7 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
         }
     }
 
-    restore_permissions(&path, file_manifest)?;
+    restore_permissions(&path, file_manifest.mode())?;
 
     let _ = restore_xattr(&path, &file_manifest.xattr).inspect_err(|err| {
         tracing::warn!("Failed to restore xattr: {}", err);

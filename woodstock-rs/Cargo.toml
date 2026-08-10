@@ -14,6 +14,8 @@ systemd-units = { enable = true }
 [features]
 default = ["mdns"]
 mdns = ["dep:mdns-sd"]
+acl = ["dep:posix-acl"]
+xattr = ["dep:xattr"]
 
 [lib]
 name = "woodstock"
@@ -59,7 +61,7 @@ blake3 = { workspace = true, features = ["rayon", "mmap"] }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
-tokio-util = { workspace = true }
+tokio-util = { workspace = true, features = ["io", "io-util"] }
 ring = { workspace = true }
 rustls = { workspace = true }
 tonic = { workspace = true }
@@ -70,10 +72,17 @@ rayon = { version = "1.11" }
 libc = "0.2"
 sysinfo = { workspace = true }
 cron = "0.15.0"
+tar = { workspace = true }
 mdns-sd = { workspace = true, optional = true }
 
 [target.'cfg(target_env = "musl")'.dependencies]
 libm = "^0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+posix-acl = { version = "^1.2", optional = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+xattr = { version = "^1.6", optional = true }
 
 [dev-dependencies]
 test-log = "^0.2"

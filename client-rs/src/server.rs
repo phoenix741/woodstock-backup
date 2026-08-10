@@ -24,9 +24,10 @@ use woodstock::{manifest::IndexManifest, ChunkHashRequest};
 use woodstock::{
     refresh_cache_request, restore_file_request,
     woodstock_client_service_server::WoodstockClientService, AuthenticateReply,
-    AuthenticateRequest, ChunkHashReply, Empty as EmptyProto, EntryState, EntryType,
-    ExecuteCommandReply, ExecuteCommandRequest, FileChunk, FileManifest, FileManifestJournalEntry,
-    RefreshCacheRequest, RestoreFileReply, RestoreFileRequest, ShareSnapshotResult,
+    AuthenticateRequest, ChunkHashReply, CloseBackupRequest, Empty as EmptyProto, EntryState,
+    EntryType, ExecuteCommandReply, ExecuteCommandRequest, FileChunk, FileManifest,
+    FileManifestJournalEntry, RefreshCacheRequest, RestoreFileReply, RestoreFileRequest,
+    ShareSnapshotResult,
 };
 use woodstock::{
     utils::path::{list_to_globset, vec_to_str},
@@ -63,13 +64,13 @@ impl WoodstockClient {
     pub fn new(certificate_path: &Path, config: &ClientConfig) -> Self {
         let authentification_service = AuthService::new(certificate_path, config);
 
-        if config.acl && !crate::scanner::metadata::acl::SUPPORTED {
+        if config.acl && !woodstock::utils::restore_metadata::acl::SUPPORTED {
             tracing::warn!(
                 "acl is enabled in the configuration, but this build does not support \
                  restoring ACLs on this platform; ACLs will be silently omitted from backups"
             );
         }
-        if config.xattr && !crate::scanner::metadata::xattr::SUPPORTED {
+        if config.xattr && !woodstock::utils::restore_metadata::xattr::SUPPORTED {
             tracing::warn!(
                 "xattr is enabled in the configuration, but this build does not support \
                  extended attributes on this platform; xattrs will be silently omitted from backups"
@@ -757,16 +758,25 @@ impl WoodstockClientService for WoodstockClient {
     /// The close backup reply if successful, otherwise an error.
     async fn close_backup(
         &self,
-        request: tonic::Request<EmptyProto>,
+        request: tonic::Request<CloseBackupRequest>,
     ) -> std::result::Result<tonic::Response<EmptyProto>, tonic::Status> {
-        debug!("Close backup");
+        let aborted = request.get_ref().aborted;
+        debug!("Close backup (aborted={})", aborted);
 
-        self.fs_accessor
-            .write()
-            .await
-            .cleanup_all_snapshots_success()
-            .await
-            .map_err(|err| tonic::Status::internal(err.to_string()))?;
+        // A cancelled/failed session must finalize its snapshot as aborted,
+        // not successful — for VSS this is the difference between
+        // `AbortBackup()` and `BackupComplete()`, and calling the latter on
+        // an incomplete backup would tell VSS writers (e.g. SQL Server) the
+        // backup succeeded, letting them truncate logs against data that was
+        // never fully captured.
+        let mut fs = self.fs_accessor.write().await;
+        let cleanup_result = if aborted {
+            fs.cleanup_all_snapshots().await
+        } else {
+            fs.cleanup_all_snapshots_success().await
+        };
+        drop(fs);
+        cleanup_result.map_err(|err| tonic::Status::internal(err.to_string()))?;
 
         let session_id = self.check_context(request.metadata()).await?;
 

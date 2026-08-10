@@ -4,6 +4,7 @@
 //! - BACKUP_CONCURRENCY (usize, défaut 2)
 //! - RESTORE_CONCURRENCY (usize, défaut 8)
 //! - MAINTENANCE_CONCURRENCY (usize, défaut 2)
+//! - ARCHIVE_CONCURRENCY (usize, défaut 2)
 //! - PROGRESS_SNAPSHOT_TTL (u64 secondes, défaut 86400)
 //! - REDIS_URL (optionnel, override redis_url global)
 //! - HOST_LOCK_TTL_MS (u64, défaut 60000)
@@ -15,6 +16,7 @@ pub struct JobWorkerConfig {
     pub backup_concurrency: usize,
     pub restore_concurrency: usize,
     pub maintenance_concurrency: usize,
+    pub archive_concurrency: usize,
     pub progress_snapshot_ttl_sec: i64,
     pub host_lock_ttl_ms: u64,
 }
@@ -33,6 +35,11 @@ impl Default for JobWorkerConfig {
                 .unwrap_or(8)
                 .max(1),
             maintenance_concurrency: env::var("MAINTENANCE_CONCURRENCY")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2)
+                .max(1),
+            archive_concurrency: env::var("ARCHIVE_CONCURRENCY")
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(2)

@@ -21,6 +21,7 @@ use woodstock::{
     server::resolve::SocketAddrResolver,
 };
 
+pub mod archive;
 pub mod convertion;
 pub mod file_manifest;
 pub mod pool;

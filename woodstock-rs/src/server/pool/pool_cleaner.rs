@@ -170,6 +170,8 @@ impl PoolCleaner {
         let total = refcnt.size();
 
         let total_compressed_size_progress = total_compressed_size.clone();
+        let removed_hashes = Arc::new(tokio::sync::Mutex::new(Vec::<Vec<u8>>::new()));
+        let removed_hashes_progress = removed_hashes.clone();
 
         let (internal_tx, mut internal_rx) =
             mpsc::channel::<Option<PoolUnused>>(DEFAULT_CHANNEL_BUFFER_SIZE);
@@ -182,6 +184,12 @@ impl PoolCleaner {
                         .map(|f| f.compressed_size)
                         .unwrap_or_default();
                     let size = unused.clone().map(|f| f.size).unwrap_or_default();
+                    if let Some(unused) = &unused {
+                        removed_hashes_progress
+                            .lock()
+                            .await
+                            .push(unused.sha256.clone());
+                    }
 
                     total_compressed_size_progress.fetch_add(compressed_size, Ordering::SeqCst);
                     total_size.fetch_add(size, Ordering::SeqCst);
@@ -222,8 +230,9 @@ impl PoolCleaner {
         let informations = EventPoolCleanedInformation {
             count: total as u64,
             size: total_compressed_size.load(Ordering::SeqCst),
+            removed_hashes: removed_hashes.lock().await.clone(),
         };
-        self.create_event_cleaned_end(&id, source, informations)
+        self.create_event_cleaned_end(&id, source, informations.clone())
             .await?;
 
         Ok(informations)

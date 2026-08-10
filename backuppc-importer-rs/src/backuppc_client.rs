@@ -600,7 +600,7 @@ impl Client for BackupPCClient {
         futures::stream::empty()
     }
 
-    fn close(&self) -> impl Future<Output = Result<()>> + Send {
+    fn close(&self, _aborted: bool) -> impl Future<Output = Result<()>> + Send {
         async move { Ok(()) }
     }
 }

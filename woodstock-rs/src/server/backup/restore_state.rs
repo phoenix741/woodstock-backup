@@ -21,6 +21,10 @@ pub enum RestoreExecutionState {
     Preparation(String),
     Restoring(String),
     Completed,
+    /// Stopped by the user before all requested shares were restored. Files
+    /// already restored before the cancel are left in place — only the
+    /// remaining, not-yet-started shares are skipped.
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -183,6 +187,11 @@ impl RestoreState {
     /// Marks the restoration process as completed by updating the execution state.
     pub fn complete(&mut self) {
         self.execution_state = RestoreExecutionState::Completed;
+    }
+
+    /// Marks the restoration process as cancelled by the user.
+    pub fn cancel(&mut self) {
+        self.execution_state = RestoreExecutionState::Cancelled;
     }
 
     /// Sets an error state with the provided error message.

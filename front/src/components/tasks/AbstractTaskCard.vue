@@ -1,7 +1,11 @@
 <template>
   <v-sheet rounded="lg">
     <v-expansion-panels v-model="localExpanded">
-      <v-expansion-panel :value="0" :hide-actions="!$slots.details" :readonly="!$slots.details">
+      <v-expansion-panel
+        :value="0"
+        :hide-actions="!$slots.details && !canCancel"
+        :readonly="!$slots.details && !canCancel"
+      >
         <v-expansion-panel-title>
           <v-container>
             <v-row no-gutters>
@@ -46,15 +50,43 @@
 
         <v-expansion-panel-text>
           <slot name="details"></slot>
+
+          <div v-if="canCancel" class="d-flex align-center justify-end mt-2">
+            <span v-if="cancelFeedback" class="text-caption text-grey mr-3">{{ cancelFeedback }}</span>
+            <v-btn
+              variant="tonal"
+              color="error"
+              prepend-icon="mdi-stop-circle-outline"
+              :loading="cancelling"
+              @click="confirmDialog = true"
+            >
+              Cancel task
+            </v-btn>
+          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
+
+    <v-dialog v-model="confirmDialog" width="480">
+      <v-card>
+        <v-card-title class="text-h6">Cancel this task?</v-card-title>
+        <v-card-text>
+          {{ cancelWarning ?? 'This will stop the task in progress.' }}
+        </v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn variant="text" @click="confirmDialog = false">Keep running</v-btn>
+          <v-btn color="error" variant="flat" :loading="cancelling" @click="onCancel">Cancel task</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-sheet>
 </template>
 
 <script lang="ts" setup>
 import { computed, ref } from 'vue';
 import { toPercent } from '@/components/hosts/hosts.utils';
+import { CancelJobDocument, JobStatus } from '@/generated/graphql';
+import { useMutation } from '@vue/apollo-composable';
 
 const props = defineProps<{
   title: string;
@@ -64,8 +96,22 @@ const props = defineProps<{
   progressMessage?: string;
   errorMessage?: string;
   backupErrorState?: boolean;
+  /** Set once the task was stopped by a user cancel — renders the progress
+   * bar in a neutral color instead of the "in progress" primary one, without
+   * treating it as an error. */
+  cancelled?: boolean;
   /** If true, the panel is expanded on mount (e.g. running task). */
   expanded?: boolean;
+  /** Job id to target with the cancel mutation. Only Backup/Restore/Archive/
+   * Fsck cards pass this — omitting it (the default for other job kinds)
+   * hides the Cancel button entirely. */
+  jobId?: string;
+  /** Only Created/Started jobs can still be cancelled. */
+  jobStatus?: JobStatus;
+  /** Job-kind-specific explanation of what cancelling actually does, shown
+   * in the confirmation dialog (e.g. "files already restored stay in
+   * place"). Falls back to a generic message if omitted. */
+  cancelWarning?: string;
 }>();
 
 // Initialized from prop but allows user interaction afterwards
@@ -75,6 +121,39 @@ const progressColor = computed(() => {
   if (props.backupErrorState) {
     return 'error';
   }
+  if (props.cancelled) {
+    return 'grey';
+  }
   return 'primary';
 });
+
+const canCancel = computed(
+  () => !!props.jobId && (props.jobStatus === JobStatus.Created || props.jobStatus === JobStatus.Started),
+);
+
+const { mutate, loading: cancelling } = useMutation(CancelJobDocument);
+
+const confirmDialog = ref(false);
+
+// `cancelJob` resolves to `false` (not an Apollo error) when the job already
+// reached a terminal status between render and click — a real, if narrow,
+// race the button must surface instead of silently doing nothing.
+const cancelFeedback = ref<string | undefined>(undefined);
+
+async function onCancel() {
+  if (!props.jobId) return;
+  cancelFeedback.value = undefined;
+  try {
+    const result = await mutate({ taskId: props.jobId });
+    if (result?.data?.cancelJob !== true) {
+      cancelFeedback.value = 'Already finished';
+      setTimeout(() => (cancelFeedback.value = undefined), 3000);
+    }
+  } catch {
+    cancelFeedback.value = 'Cancel failed';
+    setTimeout(() => (cancelFeedback.value = undefined), 3000);
+  } finally {
+    confirmDialog.value = false;
+  }
+}
 </script>

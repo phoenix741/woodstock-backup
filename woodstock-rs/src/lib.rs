@@ -25,6 +25,7 @@
 //!
 //! To use this crate, include it in your `Cargo.toml` and import the necessary modules in your Rust code. Refer to the module-level documentation for detailed usage examples.
 
+pub mod archiving;
 pub mod pool;
 pub mod view;
 

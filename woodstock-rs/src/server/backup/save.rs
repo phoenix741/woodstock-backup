@@ -9,13 +9,14 @@ use chrono::{DateTime, Local};
 use eyre::{eyre, Result};
 use futures::{pin_mut, StreamExt};
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, Instrument};
 use uuid::Uuid;
 
 use crate::{
     config::{
-        Backup, BackupStatus, Backups, Configuration, Context, DEFAULT_CHANNEL_BUFFER_SIZE,
-        ShareRecord, ShareSnapshotMethod,
+        Backup, BackupStatus, Backups, Configuration, Context, ShareRecord, ShareSnapshotMethod,
+        DEFAULT_CHANNEL_BUFFER_SIZE,
     },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},
@@ -75,6 +76,13 @@ pub struct BackupSave<Clt: Client> {
     backups: Arc<Backups>,
     /// Snapshot results received from the agent, keyed by share path.
     share_snapshot_results: Arc<Mutex<HashMap<String, ShareSnapshotResult>>>,
+    /// Human-readable cause of the last non-successful outcome (critical error or
+    /// user cancellation), surfaced on the persisted `Backup.error_message`.
+    last_error_message: Arc<Mutex<Option<String>>>,
+    /// Cancelled when the user requests to stop this backup. Checked at file
+    /// boundaries during the (potentially long) chunk-transfer loop so a cancel
+    /// takes effect without waiting for the whole share to finish.
+    cancel_token: CancellationToken,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -100,6 +108,7 @@ impl<Clt: Client> BackupSave<Clt> {
         ctxt: &Context,
         config: Arc<Configuration>,
         backups: Arc<Backups>,
+        cancel_token: CancellationToken,
     ) -> Self {
         // At first backup set the used algorithm
         let _ = config.fix_algorithm();
@@ -129,6 +138,8 @@ impl<Clt: Client> BackupSave<Clt> {
             fake_date: None,
             backups,
             share_snapshot_results: Arc::new(Mutex::new(HashMap::new())),
+            last_error_message: Arc::new(Mutex::new(None)),
+            cancel_token,
         }
     }
 
@@ -189,6 +200,12 @@ impl<Clt: Client> BackupSave<Clt> {
         *self.progression.lock().await
     }
 
+    /// Records the human-readable cause of a critical error or user
+    /// cancellation, later surfaced on the persisted `Backup.error_message`.
+    pub async fn set_error_message(&self, message: impl Into<String>) {
+        *self.last_error_message.lock().await = Some(message.into());
+    }
+
     /// Converts the current state to a `Backup` object.
     ///
     /// # Arguments
@@ -228,7 +245,7 @@ impl<Clt: Client> BackupSave<Clt> {
             },
 
             error_count: progression.error_count,
-            error_message: None,
+            error_message: self.last_error_message.lock().await.clone(),
 
             file_count: progression.file_count,
             new_file_count: progression.new_file_count,
@@ -867,6 +884,19 @@ impl<Clt: Client> BackupSave<Clt> {
         pin_mut!(file_list);
 
         while let Some(mut file_manifest_journal_entry) = file_list.next().await {
+            // Checked once per file rather than wrapped around the download
+            // itself: this is the long-running phase of a backup, so a user
+            // cancel must take effect without waiting for the whole share to
+            // finish, while still leaving each individual file's transfer
+            // atomic. What's already been written flushes normally below.
+            if self.cancel_token.is_cancelled() {
+                info!(
+                    "Backup cancelled by user, stopping share {:?} early",
+                    share_path
+                );
+                break;
+            }
+
             let path = file_manifest_journal_entry.path();
             let is_add = file_manifest_journal_entry.entry_type() == EntryType::Add;
             let is_remove = file_manifest_journal_entry.entry_type() == EntryType::Remove;
@@ -1030,6 +1060,12 @@ impl<Clt: Client> BackupSave<Clt> {
 
     /// Closes the backup process.
     ///
+    /// # Arguments
+    /// * `aborted` - Whether the backup is ending as anything other than a
+    ///   clean completion (critical error or user cancel). Forwarded to the
+    ///   agent so it finalizes any live snapshot (Btrfs/VSS) as aborted
+    ///   rather than successful — see [`Client::close`].
+    ///
     /// # Returns
     ///
     /// * `Ok(())` if the closure succeeds.
@@ -1038,14 +1074,16 @@ impl<Clt: Client> BackupSave<Clt> {
     /// # Errors
     ///
     /// Returns an error if the closure fails.
-    pub async fn close(&self) -> Result<()> {
+    pub async fn close(&self, aborted: bool) -> Result<()> {
         info!("Close backup");
 
         self.progression.lock().await.end_transfer_date = Some(Local::now());
 
-        // FIXME: Manage abort
-
-        self.client.close().await?;
+        // The outcome itself (Completed / Aborted / Cancelled / Failed) is
+        // recorded separately via `save_backup(status)`, which drives
+        // `to_backup()`'s `error_message` and the event log status — `aborted`
+        // here only controls the agent-side snapshot finalization.
+        self.client.close(aborted).await?;
 
         Ok(())
     }
@@ -1383,6 +1421,15 @@ impl<Clt: Client> BackupSave<Clt> {
                 .map(std::string::String::as_str)
                 .collect::<Vec<&str>>();
 
+            // The event log only distinguishes success from failure — the
+            // finer-grained cause (aborted, cancelled by the user, hard
+            // failure at a specific phase) lives in `Backup.status` /
+            // `Backup.error_message`, which is what the UI actually reads.
+            let event_status = match status {
+                BackupStatus::Completed => EventStatus::Success,
+                _ => EventStatus::GenericError,
+            };
+
             // Register the event
             create_event_backup_end(
                 &self.config,
@@ -1393,7 +1440,7 @@ impl<Clt: Client> BackupSave<Clt> {
                 self.backup_id,
                 self.number,
                 &shares,
-                EventStatus::Success,
+                event_status,
             )
             .await?;
         }

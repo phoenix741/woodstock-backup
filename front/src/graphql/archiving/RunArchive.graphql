@@ -1,0 +1,5 @@
+mutation runArchive($profile: String!, $host: String) {
+  runArchive(profile: $profile, host: $host) {
+    jobIds
+  }
+}

@@ -7,7 +7,7 @@ use apalis_redis::RedisStorage;
 use chrono::Local;
 use tracing::instrument;
 use uuid::Uuid;
-use woodstock::config::{BackupStatus, Backups, Hosts};
+use woodstock::config::{ArchivingConfig, BackupStatus, Backups, Hosts};
 use woodstock::server::backup::retention::get_backups_to_delete;
 
 use crate::jobs::progress::{JobKind, ProgressPublisher};
@@ -22,11 +22,13 @@ pub struct Producers {
     pub backup_storage: RedisStorage<BackupQueueJob>,
     pub interactive_storage: RedisStorage<RestoreJobData>,
     pub maintenance_storage: RedisStorage<MaintenanceJobData>,
+    pub archive_storage: RedisStorage<ArchiveJobData>,
     pub progress_publisher: ProgressPublisher,
     pub redis_client: redis::Client,
 }
 
 impl Producers {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         hosts: Arc<Hosts>,
         backups: Arc<Backups>,
@@ -34,6 +36,7 @@ impl Producers {
         backup_storage: RedisStorage<BackupQueueJob>,
         interactive_storage: RedisStorage<RestoreJobData>,
         maintenance_storage: RedisStorage<MaintenanceJobData>,
+        archive_storage: RedisStorage<ArchiveJobData>,
         progress_publisher: ProgressPublisher,
         redis_client: redis::Client,
     ) -> Self {
@@ -44,6 +47,7 @@ impl Producers {
             backup_storage,
             interactive_storage,
             maintenance_storage,
+            archive_storage,
             progress_publisher,
             redis_client,
         }
@@ -245,6 +249,92 @@ impl Producers {
         Ok(parts.task_id.to_string())
     }
 
+    /// Enqueue un job d'archivage pour un (profil, hôte) donné.
+    ///
+    /// Ne vérifie PAS `profile.enabled` — appelée aussi bien par le tick cron
+    /// (qui ne sélectionne que les profils actifs et échus) que par un
+    /// déclenchement manuel (CLI/GraphQL/udev), qui doit fonctionner même si
+    /// le profil est désactivé — exactement comme `enqueue_backup_unique`
+    /// ignore `schedule.activated`.
+    /// Enqueues a single archive job covering `hostnames`, archived
+    /// sequentially by the worker — not one job per host, so a profile
+    /// drives its destination disk one host at a time rather than seeking
+    /// across it from N concurrent jobs. Returns `Ok(None)` without
+    /// enqueuing anything if `hostnames` is empty.
+    #[instrument(skip(self))]
+    pub async fn enqueue_archive_run(
+        &mut self,
+        profile_name: &str,
+        hostnames: Vec<String>,
+    ) -> Result<Option<String>, Error> {
+        if hostnames.is_empty() {
+            return Ok(None);
+        }
+
+        let archive_job_data = ArchiveRunJobData {
+            profile_name: profile_name.to_string(),
+            hostnames,
+        };
+        let data = ArchiveJobData::Run(archive_job_data.clone());
+        let parts = self
+            .archive_storage
+            .push(data)
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+
+        // No single `host` — this job spans every host in `hostnames`. The
+        // host currently being archived is reported through the progress
+        // payload's `current_host` instead as the run advances.
+        self.progress_publisher
+            .create_job(
+                &parts.task_id.to_string(),
+                JobKind::with_archive(archive_job_data),
+                None,
+            )
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+
+        Ok(Some(parts.task_id.to_string()))
+    }
+
+    /// Résout la sélection de machines d'un profil d'archivage et enqueue un
+    /// unique job séquentiel les couvrant toutes. Utilisée par le tick cron
+    /// d'archivage ainsi que par tout déclenchement manuel qui ne cible pas
+    /// un hôte précis (`host: None`).
+    ///
+    /// Retourne l'identifiant du job enqueué, ou une liste vide si le profil
+    /// n'existe plus ou si sa sélection ne résout aucun hôte.
+    #[instrument(skip(self, archiving))]
+    pub async fn enqueue_archive_profile(
+        &mut self,
+        archiving: &ArchivingConfig,
+        profile_name: &str,
+    ) -> Result<Vec<String>, Error> {
+        let profile = archiving
+            .get_profile(profile_name)
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+        let Some(profile) = profile else {
+            return Ok(Vec::new());
+        };
+
+        let all_hosts = self
+            .hosts
+            .list_hosts()
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+        let hosts = profile
+            .host_selection
+            .resolve(&all_hosts)
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+
+        Ok(self
+            .enqueue_archive_run(profile_name, hosts)
+            .await?
+            .into_iter()
+            .collect())
+    }
+
     /// Applique la politique de rétention pour un hôte : calcule les sauvegardes à supprimer
     /// selon la politique configurée, et enqueue un job `Remove` pour chacune.
     ///
@@ -384,6 +474,13 @@ pub fn pipe_cron_to_maintenance_storage(
 }
 
 pub fn pipe_cron_to_nightly_storage(
+    schedule: apalis_cron::Schedule,
+    storage: RedisStorage<ScheduleQueueJob>,
+) -> CronPipe<RedisStorage<ScheduleQueueJob>> {
+    CronStream::new(schedule).pipe_to_storage(storage)
+}
+
+pub fn pipe_cron_to_archive_trigger_storage(
     schedule: apalis_cron::Schedule,
     storage: RedisStorage<ScheduleQueueJob>,
 ) -> CronPipe<RedisStorage<ScheduleQueueJob>> {

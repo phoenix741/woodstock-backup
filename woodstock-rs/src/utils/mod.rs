@@ -24,6 +24,10 @@ pub mod files;
 pub mod lock_redis;
 /// Provides utilities for path manipulation.
 pub mod path;
+/// Restore-side filesystem metadata operations (special nodes, symlinks,
+/// permissions, xattrs, ACLs) — shared between `client-rs`'s restore path
+/// and `archiving::fs_materialize`.
+pub mod restore_metadata;
 /// Serde deserializers: date/time helpers and flexible numeric/string deserializers
 pub mod serde;
 /// HashMap with automatic expiration of entries based on time.

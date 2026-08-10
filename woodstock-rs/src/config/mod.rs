@@ -31,6 +31,9 @@
 //! Most components of the application will receive a reference to the configuration
 //! or specific parts of it as needed.
 
+/// Module for archiving profiles configuration management.
+mod archiving;
+
 /// Module for backup configuration management.
 mod backups;
 
@@ -49,7 +52,10 @@ mod scheduler;
 /// Module defining data models for configuration entities.
 mod model;
 
-pub use backups::{BackupChangedEvent, Backups, ShareRecord, ShareSnapshotMethod, BACKUP_CHANGED_CHANNEL};
+pub use archiving::{ArchiveFormat, ArchiveProfile, ArchivingConfig, HostSelection, TarOptions};
+pub use backups::{
+    BackupChangedEvent, Backups, ShareRecord, ShareSnapshotMethod, BACKUP_CHANGED_CHANNEL,
+};
 pub use constants::{
     BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64, DEFAULT_BACKUP_TIMEOUT_SECS,
     DEFAULT_CHANNEL_BUFFER_SIZE, DEFAULT_PORT, DNS_RESOLVE_MAX_CONCURRENCY,

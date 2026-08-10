@@ -1,0 +1,14 @@
+query ArchiveProfiles {
+  archiveProfiles {
+    name
+    enabled
+    format
+    destination
+    scheduleCron
+    checksum
+    compressionLevel
+    hostSelectionMode
+    hostSelectionPattern
+    hostSelectionHosts
+  }
+}

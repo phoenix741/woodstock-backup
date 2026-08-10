@@ -27,6 +27,7 @@ pub enum JobKind {
     CleanupRefcnt,
     Fsck,
     Stats,
+    Archive,
 }
 
 impl From<crate::jobs::progress::JobKind> for JobKind {
@@ -38,6 +39,7 @@ impl From<crate::jobs::progress::JobKind> for JobKind {
             crate::jobs::progress::JobKind::CleanupRefcnt(_) => JobKind::CleanupRefcnt,
             crate::jobs::progress::JobKind::Fsck(_) => JobKind::Fsck,
             crate::jobs::progress::JobKind::Stats(_) => JobKind::Stats,
+            crate::jobs::progress::JobKind::Archive(_) => JobKind::Archive,
         }
     }
 }
@@ -224,6 +226,8 @@ pub enum RestoreExecutionState {
     Preparation,
     Restoring,
     Completed,
+    /// Stopped by the user before all requested shares were restored.
+    Cancelled,
 }
 impl From<woodstock::server::backup::restore_state::RestoreExecutionState>
     for RestoreExecutionState
@@ -236,6 +240,7 @@ impl From<woodstock::server::backup::restore_state::RestoreExecutionState>
             Src::Preparation(_) => Self::Preparation,
             Src::Restoring(_) => Self::Restoring,
             Src::Completed => Self::Completed,
+            Src::Cancelled => Self::Cancelled,
         }
     }
 }
@@ -373,6 +378,8 @@ pub enum FsckExecutionState {
     VerifyUnused,
     VerifyChunk,
     Completed,
+    Cancelled,
+    Failed,
 }
 impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecutionState {
     fn from(s: woodstock::server::pool::fsck_state::FsckExecutionState) -> Self {
@@ -385,6 +392,8 @@ impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecu
             Src::VerifyUnused => Self::VerifyUnused,
             Src::VerifyChunk => Self::VerifyChunk,
             Src::Completed => Self::Completed,
+            Src::Cancelled => Self::Cancelled,
+            Src::Failed => Self::Failed,
         }
     }
 }
@@ -573,6 +582,7 @@ pub enum BackupQueueProgress {
     JobRemoveState(JobRemoveState),
     JobCleanerTaskState(JobCleanerTaskState),
     JobFsckTaskState(JobFsckTaskState),
+    JobArchiveTaskState(JobArchiveTaskState),
 }
 impl From<crate::jobs::progress::JobKind> for Option<BackupQueueProgress> {
     fn from(kind: crate::jobs::progress::JobKind) -> Self {
@@ -592,6 +602,9 @@ impl From<crate::jobs::progress::JobKind> for Option<BackupQueueProgress> {
             crate::jobs::progress::JobKind::Fsck(pd) => pd
                 .progress
                 .map(|p| BackupQueueProgress::JobFsckTaskState(p.into())),
+            crate::jobs::progress::JobKind::Archive(pd) => pd
+                .progress
+                .map(|p| BackupQueueProgress::JobArchiveTaskState(p.into())),
             crate::jobs::progress::JobKind::Stats(_) => None,
         }
     }
@@ -605,6 +618,7 @@ pub enum BackupQueueData {
     JobCleanupData(JobCleanupData),
     JobFsckData(JobFsckData),
     JobStatsData(JobStatsData),
+    JobArchiveData(JobArchiveData),
 }
 
 #[derive(SimpleObject, Clone)]
@@ -619,6 +633,99 @@ impl Default for JobStatsData {
 impl From<crate::jobs::types::StatsJobData> for JobStatsData {
     fn from(_: crate::jobs::types::StatsJobData) -> Self {
         JobStatsData { empty: true }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct JobArchiveData {
+    pub profile_name: String,
+    pub hostnames: Vec<String>,
+}
+impl From<crate::jobs::types::ArchiveRunJobData> for JobArchiveData {
+    fn from(data: crate::jobs::types::ArchiveRunJobData) -> Self {
+        JobArchiveData {
+            profile_name: data.profile_name,
+            hostnames: data.hostnames,
+        }
+    }
+}
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[graphql(remote = "woodstock::archiving::ArchiveHostExecutionState")]
+pub enum ArchiveHostExecutionState {
+    Waiting,
+    InProgress,
+    Success,
+    Failed,
+    Cancelled,
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct ArchiveHostState {
+    pub hostname: String,
+    pub execution_state: ArchiveHostExecutionState,
+    pub progress_current: BigIntScalar,
+    pub progress_max: BigIntScalar,
+    pub percent: f64,
+    pub file_count: usize,
+    /// `None` until this host reaches `Success`/`Failed` — see the format
+    /// mapping documented on `woodstock::archiving::ArchiveHostState::archive_size`.
+    pub archive_size: Option<BigIntScalar>,
+}
+impl From<woodstock::archiving::ArchiveHostState> for ArchiveHostState {
+    fn from(s: woodstock::archiving::ArchiveHostState) -> Self {
+        Self {
+            execution_state: s.execution_state.into(),
+            progress_current: BigIntScalar(s.progress_current),
+            progress_max: BigIntScalar(s.progress_max),
+            percent: s.percent(),
+            file_count: s.file_count,
+            archive_size: s.archive_size.map(BigIntScalar),
+            hostname: s.hostname,
+        }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct JobArchiveTaskState {
+    /// Host currently being archived, `None` before the first host starts.
+    pub current_host: Option<String>,
+    pub hosts_done: usize,
+    pub hosts_total: usize,
+    pub progress_current: BigIntScalar,
+    pub progress_max: BigIntScalar,
+    pub percent: f64,
+    pub file_count: usize,
+    pub archive_size: BigIntScalar,
+    pub speed: f64,
+    pub failed_hosts: Vec<String>,
+    /// Set once the run was stopped by a user cancel — `JobStatus` alone
+    /// reads as `COMPLETED` in that case (the handler returns `Ok(())`), so
+    /// this is what a UI must check to avoid showing a cancelled run as
+    /// successfully completed.
+    pub cancelled: bool,
+    pub host_states: Vec<ArchiveHostState>,
+}
+impl From<woodstock::archiving::ArchiveState> for JobArchiveTaskState {
+    fn from(s: woodstock::archiving::ArchiveState) -> Self {
+        Self {
+            current_host: s.current_host.clone(),
+            hosts_done: s.hosts_done,
+            hosts_total: s.hosts_total,
+            progress_current: BigIntScalar(s.progress_current),
+            progress_max: BigIntScalar(s.progress_max),
+            percent: s.percent(),
+            file_count: s.file_count,
+            archive_size: BigIntScalar(s.archive_size),
+            speed: s.speed(),
+            failed_hosts: s.failed_hosts.clone(),
+            cancelled: s.cancelled,
+            host_states: s
+                .host_states
+                .into_iter()
+                .map(ArchiveHostState::from)
+                .collect(),
+        }
     }
 }
 
@@ -673,6 +780,12 @@ impl From<crate::jobs::progress::ProgressEvent> for Job {
                 BackupQueueData::JobStatsData(pd.data.into()),
                 None,
             ),
+            crate::jobs::progress::JobKind::Archive(pd) => (
+                JobKind::Archive,
+                BackupQueueData::JobArchiveData(pd.data.into()),
+                pd.progress
+                    .map(|p| BackupQueueProgress::JobArchiveTaskState(p.into())),
+            ),
         };
 
         Job {
@@ -711,4 +824,98 @@ pub struct RestoreInput {
     pub id: String,
     pub destination_directory: String,
     pub files: Vec<RestoreFilesInput>,
+}
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum ArchiveFormat {
+    Tar,
+    TarGz,
+    TarXz,
+    TarZstd,
+    Dir,
+}
+
+impl From<woodstock::config::ArchiveFormat> for ArchiveFormat {
+    fn from(format: woodstock::config::ArchiveFormat) -> Self {
+        match format {
+            woodstock::config::ArchiveFormat::Tar(_) => Self::Tar,
+            woodstock::config::ArchiveFormat::TarGz(_) => Self::TarGz,
+            woodstock::config::ArchiveFormat::TarXz(_) => Self::TarXz,
+            woodstock::config::ArchiveFormat::TarZstd(_) => Self::TarZstd,
+            woodstock::config::ArchiveFormat::Dir => Self::Dir,
+        }
+    }
+}
+
+/// The `mode` tag of an archive profile's `hostSelection` — which of the
+/// mutually-exclusive `Glob`/`Include`/`Exclude` detail fields on
+/// [`ArchiveProfile`] is populated.
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum HostSelectionMode {
+    All,
+    Glob,
+    Include,
+    Exclude,
+}
+
+/// Read-only view of an archive profile from `archiving.yml` — there is no
+/// GraphQL mutation to create/edit profiles, only to list them (for the
+/// manual-trigger UI) and to trigger a run.
+#[derive(SimpleObject, Clone)]
+pub struct ArchiveProfile {
+    pub name: String,
+    pub enabled: bool,
+    pub format: ArchiveFormat,
+    pub destination: String,
+    #[graphql(name = "scheduleCron")]
+    pub schedule_cron: String,
+    pub checksum: bool,
+    /// Tar-family only; `None` means "use the codec's own recommended default".
+    #[graphql(name = "compressionLevel")]
+    pub compression_level: Option<i32>,
+    #[graphql(name = "hostSelectionMode")]
+    pub host_selection_mode: HostSelectionMode,
+    /// Populated only when `hostSelectionMode` is `GLOB`.
+    #[graphql(name = "hostSelectionPattern")]
+    pub host_selection_pattern: Option<String>,
+    /// Populated only when `hostSelectionMode` is `INCLUDE` or `EXCLUDE`.
+    #[graphql(name = "hostSelectionHosts")]
+    pub host_selection_hosts: Option<Vec<String>>,
+}
+
+impl From<woodstock::config::ArchiveProfile> for ArchiveProfile {
+    fn from(profile: woodstock::config::ArchiveProfile) -> Self {
+        let (host_selection_mode, host_selection_pattern, host_selection_hosts) =
+            match profile.host_selection {
+                woodstock::config::HostSelection::All => (HostSelectionMode::All, None, None),
+                woodstock::config::HostSelection::Glob { pattern } => {
+                    (HostSelectionMode::Glob, Some(pattern), None)
+                }
+                woodstock::config::HostSelection::Include { hosts } => {
+                    (HostSelectionMode::Include, None, Some(hosts))
+                }
+                woodstock::config::HostSelection::Exclude { hosts } => {
+                    (HostSelectionMode::Exclude, None, Some(hosts))
+                }
+            };
+        let tar_options = profile.format.tar_options().unwrap_or_default();
+        Self {
+            name: profile.name,
+            enabled: profile.enabled,
+            format: profile.format.into(),
+            destination: profile.destination.display().to_string(),
+            schedule_cron: profile.schedule_cron,
+            checksum: tar_options.checksum,
+            compression_level: tar_options.compression_level,
+            host_selection_mode,
+            host_selection_pattern,
+            host_selection_hosts,
+        }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct ArchiveRunResponse {
+    #[graphql(name = "jobIds")]
+    pub job_ids: Vec<String>,
 }

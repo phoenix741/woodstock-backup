@@ -30,6 +30,16 @@ const routes = [
         component: () => import(/* webpackChunkName: "backups" */ '@/views/BackupDetailsView.vue'),
       },
       {
+        path: 'archive',
+        name: 'Archive',
+        component: () => import(/* webpackChunkName: "archive" */ '@/views/ArchiveView.vue'),
+      },
+      {
+        path: 'archive/:profileName',
+        name: 'ArchiveProfile',
+        component: () => import(/* webpackChunkName: "archive" */ '@/views/ArchiveProfileView.vue'),
+      },
+      {
         path: 'tasks',
         name: 'Tasks',
         component: () => import(/* webpackChunkName: "tasks" */ '@/views/TasksView.vue'),

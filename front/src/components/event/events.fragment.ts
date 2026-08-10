@@ -53,6 +53,7 @@ export const EventPoolCleanedInformationFragment = graphql(/* GraphQL */ `
   fragment EventPoolCleanedInformation on EventPoolCleanedInformation {
     size
     count
+    removedHashes
   }
 `);
 

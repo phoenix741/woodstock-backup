@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::Local;
 use eyre::Result;
 use tokio::sync::{mpsc, Mutex};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
@@ -31,6 +32,12 @@ pub struct FsckMachine {
     state: Arc<Mutex<FsckState>>,
     /// Optional channel for sending state updates to observers or other components.
     state_tx: Option<mpsc::Sender<FsckState>>,
+    /// Cancelled when the user requests to stop this fsck run. Distinct from
+    /// the pool lock's own cancellation token consumed by `execute()`'s
+    /// `select!` (which fires on lock loss and aborts with an error, bypassing
+    /// finalization) — this one is threaded into the actual verification
+    /// loops so a user cancel flows through normal completion instead.
+    cancel_token: CancellationToken,
 }
 
 impl FsckMachine {
@@ -57,6 +64,7 @@ impl FsckMachine {
         config: Arc<Configuration>,
         hosts: Arc<Hosts>,
         backups: Arc<Backups>,
+        cancel_token: CancellationToken,
     ) -> Self {
         let fsck = PoolFsck::new(config.clone(), hosts, backups);
         let state = FsckState::new(dry_run);
@@ -70,6 +78,7 @@ impl FsckMachine {
             skip_ref_unused,
             state: Arc::new(Mutex::new(state)),
             state_tx,
+            cancel_token,
         }
     }
 
@@ -84,6 +93,19 @@ impl FsckMachine {
             if let Err(e) = state_tx.send(state.clone()).await {
                 error!("Failed to send state update: {}", e);
             }
+        }
+    }
+
+    /// If the user has requested cancellation, marks the shared state
+    /// `Cancelled` and returns `true` — callers use this between phases to
+    /// stop before starting the next one.
+    async fn check_cancelled(&self) -> bool {
+        if self.cancel_token.is_cancelled() {
+            let mut state = self.state.lock().await;
+            state.cancel();
+            true
+        } else {
+            false
         }
     }
 
@@ -206,7 +228,10 @@ impl FsckMachine {
         );
 
         // Execute verification
-        let result = self.fsck.verify_refcnt(dry_run, Some(progress_tx)).await;
+        let result = self
+            .fsck
+            .verify_refcnt(dry_run, Some(progress_tx), &self.cancel_token)
+            .await;
 
         // Wait for progression task to complete
         if let Err(e) = progress_task.await {
@@ -271,7 +296,10 @@ impl FsckMachine {
         );
 
         // Execute verification
-        let result = self.fsck.verify_unused(dry_run, Some(progress_tx)).await;
+        let result = self
+            .fsck
+            .verify_unused(dry_run, Some(progress_tx), &self.cancel_token)
+            .await;
 
         // Wait for progression task to complete
         if let Err(e) = progress_task.await {
@@ -334,7 +362,10 @@ impl FsckMachine {
         );
 
         // Execute verification
-        let result = self.fsck.verify_chunk(Some(progress_tx)).await;
+        let result = self
+            .fsck
+            .verify_chunk(Some(progress_tx), &self.cancel_token)
+            .await;
 
         // Wait for progression task to complete
         if let Err(e) = progress_task.await {
@@ -361,6 +392,15 @@ impl FsckMachine {
             debug!("Pending refcnt operations not applied (pool may be dirty - will be cleaned by check_pool_integrity)");
         }
 
+        // Checked before the start event so a cancel requested while still
+        // queued (or right as the run begins) never even logs a start/end
+        // pair for a run that did nothing.
+        if self.check_cancelled().await {
+            self.send_state().await;
+            let state = self.state.lock().await;
+            return Ok(state.clone());
+        }
+
         // Create start event
         let id = self.fsck.create_event_start(self.source).await?;
 
@@ -374,7 +414,13 @@ impl FsckMachine {
         let mut information = EventPoolInformation::default();
         information.fix = !self.dry_run;
 
-        if !self.skip_ref_unused {
+        // Checked between every phase below (not just once) — the point is
+        // to stop before starting the *next* phase, not to interrupt one
+        // already running (each `verify_*` call already checks the token
+        // internally, in its own loop, for that).
+        let mut cancelled = self.check_cancelled().await;
+
+        if !cancelled && !self.skip_ref_unused {
             debug!("Verifying reference counts...");
 
             // Reference count verification
@@ -388,36 +434,40 @@ impl FsckMachine {
                     error!("Error during refcnt verification: {}", e);
                     {
                         let mut state = self.state.lock().await;
-                        state.complete();
+                        state.fail();
                     }
                     self.send_state().await;
                     return Err(e);
                 }
             }
 
-            debug!("Verifying unused files...");
+            cancelled = self.check_cancelled().await;
+            if !cancelled {
+                debug!("Verifying unused files...");
 
-            let unused_result = self.verify_unused(self.dry_run).await;
-            match unused_result {
-                Ok(unused_info) => {
-                    information.in_refcnt = unused_info.in_refcnt as u64;
-                    information.in_unused = unused_info.in_unused as u64;
-                    information.in_nothing = unused_info.in_nothing as u64;
-                    information.missing = unused_info.missing as u64;
-                }
-                Err(e) => {
-                    error!("Error during unused verification: {}", e);
-                    {
-                        let mut state = self.state.lock().await;
-                        state.complete();
+                let unused_result = self.verify_unused(self.dry_run).await;
+                match unused_result {
+                    Ok(unused_info) => {
+                        information.in_refcnt = unused_info.in_refcnt as u64;
+                        information.in_unused = unused_info.in_unused as u64;
+                        information.in_nothing = unused_info.in_nothing as u64;
+                        information.missing = unused_info.missing as u64;
                     }
-                    self.send_state().await;
-                    return Err(e);
+                    Err(e) => {
+                        error!("Error during unused verification: {}", e);
+                        {
+                            let mut state = self.state.lock().await;
+                            state.fail();
+                        }
+                        self.send_state().await;
+                        return Err(e);
+                    }
                 }
+                cancelled = self.check_cancelled().await;
             }
         }
 
-        if self.verify_chunks {
+        if !cancelled && self.verify_chunks {
             debug!("Verifying chunks...");
 
             let chunk_result = self.verify_chunk().await;
@@ -430,7 +480,7 @@ impl FsckMachine {
                     error!("Error during chunk verification: {}", e);
                     {
                         let mut state = self.state.lock().await;
-                        state.complete();
+                        state.fail();
                     }
                     self.send_state().await;
                     return Err(e);
@@ -438,10 +488,20 @@ impl FsckMachine {
             }
         }
 
+        // Re-checked here (not just relying on the `cancelled` flag from the
+        // phase boundaries above) because `verify_chunk`'s own internal loop
+        // — the last phase — can itself have broken early on a cancel that
+        // arrived mid-verification.
+        cancelled = cancelled || self.cancel_token.is_cancelled();
+
         debug!("Registering fsck process completion event...");
         {
             let mut state = self.state.lock().await;
-            state.complete();
+            if cancelled {
+                state.cancel();
+            } else {
+                state.complete();
+            }
         }
         self.send_state().await;
 

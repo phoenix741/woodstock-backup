@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::{
-    config::{ShareSnapshotMethod, ExecuteCommandOperation, HostConfiguration},
+    config::{ExecuteCommandOperation, HostConfiguration, ShareSnapshotMethod},
     server::progression::{BackupProgression, FileListProgression},
     ExecuteCommandReply,
 };
@@ -27,6 +27,11 @@ pub enum ErrorState {
 pub enum BackupExecutionState {
     Waiting,
     Skipped,
+    /// Cancelled by the user before the backup ever started running (still
+    /// queued). Distinct from `Skipped`, which means the scheduler decided
+    /// not to run it this time and will retry later — a cancelled job is
+    /// not retried.
+    Cancelled,
     Authenticate,
     Initialization,
     PreCommands(ExecuteCommandOperation),

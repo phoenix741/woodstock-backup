@@ -5,12 +5,14 @@ use chrono::Local;
 use eyre::Result;
 use futures::{pin_mut, StreamExt};
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, warn};
 
 use crate::{
     config::{Backups, Configuration, Hosts},
     pool::PoolChunkWrapper,
-    PoolRefCount,
+    proto::{CompressedWriter, ProtobufReader, ProtobufWriter},
+    PoolRefCount, PoolUnused,
 };
 use uuid::Uuid;
 
@@ -271,9 +273,23 @@ pub async fn check_unused(
     dry_run: bool,
     progress_tx: mpsc::Sender<FsckUnusedCount>,
     config: Arc<Configuration>,
+    cancel_token: &CancellationToken,
 ) -> Result<FsckUnusedCount> {
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
+
+    let missing_path = config.path.pool_path.join("missing");
+    let mut previously_missing: std::collections::HashSet<Vec<u8>> =
+        std::collections::HashSet::new();
+    if let Ok(mut reader) = ProtobufReader::<PoolUnused>::new(&missing_path, true).await {
+        let messages = reader.into_stream();
+        pin_mut!(messages);
+        while let Some(missing) = messages.next().await {
+            if let Ok(missing) = missing {
+                previously_missing.insert(missing.sha256);
+            }
+        }
+    }
 
     let mut count = FsckUnusedCount {
         in_unused: 0,
@@ -303,7 +319,13 @@ pub async fn check_unused(
         });
     pin_mut!(entries);
 
+    let mut cancelled = false;
     while let Some(hash) = entries.next().await {
+        if cancel_token.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&hash));
         // SAFETY: wrapper was created with Some(&hash) — get_hash_str() always returns Some
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
@@ -333,19 +355,60 @@ pub async fn check_unused(
         }
     }
 
+    let mut still_missing = Vec::new();
     for refcnt in pool_refcnt.list_refcnt() {
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&refcnt.sha256));
         if !wrapper.exists() {
             count.missing += 1;
-            error!(
-                "{} is missing (refcnt {})",
-                hex::encode(&refcnt.sha256),
-                refcnt.ref_count
-            );
+            if previously_missing.contains(&refcnt.sha256) {
+                warn!(
+                    "{} is missing (refcnt {}) — already known missing since last check",
+                    hex::encode(&refcnt.sha256),
+                    refcnt.ref_count
+                );
+            } else {
+                error!(
+                    "{} is missing (refcnt {})",
+                    hex::encode(&refcnt.sha256),
+                    refcnt.ref_count
+                );
+            }
+            still_missing.push(PoolUnused {
+                sha256: refcnt.sha256.clone(),
+                size: refcnt.size,
+                compressed_size: refcnt.compressed_size,
+            });
         }
     }
 
-    if !dry_run {
+    // Refresh the durable `missing` snapshot every run (informational, not a
+    // mutation of pool state) so the next check can tell a recurring miss
+    // from a new one, regardless of dry_run.
+    if let Ok(mut missing_writer) =
+        ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
+            &missing_path,
+            true,
+            config.compression_format,
+        )
+        .await
+    {
+        for entry in &still_missing {
+            if let Err(e) = missing_writer.write(entry).await {
+                error!("Failed to write missing-chunk entry to {missing_path:?}: {e}");
+            }
+        }
+        if let Err(e) = missing_writer.flush().await {
+            error!("Failed to save missing-chunks file {missing_path:?}: {e}");
+        }
+    } else {
+        error!("Failed to open missing-chunks file for writing: {missing_path:?}");
+    }
+
+    // A cancelled walk skips the save entirely — the in-memory `pool_refcnt`
+    // built from a partial walk is not a trustworthy source of truth to
+    // persist, and leaving the on-disk state untouched means a cancelled
+    // unused-check is a pure no-op (dry-run or not), safe to just re-run.
+    if !dry_run && !cancelled {
         pool_refcnt
             .save_refcnt(&Local::now(), true, config.compression_format)
             .await?;

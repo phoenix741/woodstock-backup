@@ -1,6 +1,7 @@
 {
   "possibleTypes": {
     "BackupQueueData": [
+      "JobArchiveData",
       "JobBackupData",
       "JobCleanupData",
       "JobFsckData",
@@ -9,6 +10,7 @@
       "JobStatsData"
     ],
     "BackupQueueProgress": [
+      "JobArchiveTaskState",
       "JobBackupTaskState",
       "JobCleanerTaskState",
       "JobFsckTaskState",

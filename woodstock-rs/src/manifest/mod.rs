@@ -20,6 +20,8 @@
 
 /// Module used to read manifest file
 mod core;
+/// Module diffing two manifests into add/modify/remove journal entries
+mod diff;
 /// Module with extension of the `FileManifest` and `FileManifestJournalEntry`
 mod file_manifest;
 /// Module used to read a file from pool from information in the FileManifest
@@ -28,5 +30,6 @@ mod file_manifest_reader;
 mod index_manifest_model;
 
 pub use core::{Manifest, ManifestChunk};
+pub use diff::{generate_compare_stream, generate_compare_stream_from_manifests};
 pub use file_manifest::FileManifestLight;
 pub use index_manifest_model::{IndexFileEntry, IndexManifest, PathManifest};

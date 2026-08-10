@@ -48,7 +48,9 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 tonic = { workspace = true }
-woodstock-rs = { workspace = true }
+# acl/xattr: `ws_console archive` (dir-mode, archiving::fs_materialize)
+# restores these best-effort via woodstock-rs::utils::restore_metadata.
+woodstock-rs = { workspace = true, features = ["acl", "xattr"] }
 chrono.workspace = true
 redis = { workspace = true }
 uuid = { workspace = true }

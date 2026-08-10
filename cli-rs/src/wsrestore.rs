@@ -1,6 +1,7 @@
 //! Restore utility for Woodstock CLI.
 
 mod backup_resolver;
+mod cancel;
 
 use std::cell::RefCell;
 use std::net::SocketAddr;
@@ -98,6 +99,9 @@ fn message_from_state(state: &RestoreExecutionState) -> String {
             )
         }
         RestoreExecutionState::Completed => format!("[4/4] {}Completed", Emoji("✅ ", "")),
+        RestoreExecutionState::Cancelled => {
+            format!("[4/4] {}Cancelled by user", Emoji("🛑 ", ""))
+        }
     }
 }
 
@@ -199,6 +203,7 @@ async fn main() -> Result<()> {
         state.config.clone(),
         state.hosts.clone(),
         state.backups.clone(),
+        crate::cancel::cancellation_token_with_ctrl_c(),
     )
     .await?;
 

@@ -1,4 +1,4 @@
-//! Job Worker Binary: lance les 3 workers (backup, interactive, maintenance)
+//! Job Worker Binary: lance les 4 workers (backup, interactive, maintenance, archive)
 
 use apalis::{
     layers::{retry::RetryPolicy, tracing::TraceLayer},
@@ -156,6 +156,44 @@ async fn main() -> Result<()> {
                                 e.handle_fsck(task_id, state, data, attempt).await
                             }
                             MaintenanceJobData::Stats(_) => e.handle_stats(state, attempt).await,
+                        };
+                        res.map_err(|err| {
+                            apalis::prelude::Error::from(
+                                Box::<dyn std::error::Error + Send + Sync>::from(err),
+                            )
+                        })
+                    }
+                },
+            )
+    });
+
+    // archive
+    monitor = monitor.register({
+        let storage = state.apalis_redis_storage.archive_storage.clone();
+        let execs = executors.clone();
+        WorkerBuilder::new("archive-worker")
+            .data(state.clone())
+            .retry(RetryPolicy::retries(3))
+            .catch_panic()
+            .concurrency(worker_cfg.archive_concurrency)
+            .layer(
+                woodstock_server_rs::jobs::layers::progress::ProgressLayer::new(
+                    state.progress_publisher.clone(),
+                ),
+            )
+            .layer(TraceLayer::new())
+            .backend(storage)
+            .build_fn(
+                move |job: ArchiveJobData,
+                      task_id: TaskId,
+                      state: Data<Arc<ApiWorkerState>>,
+                      attempt: Attempt| {
+                    let e = execs.clone();
+                    async move {
+                        let res = match job {
+                            ArchiveJobData::Run(data) => {
+                                e.handle_archive_run(task_id, state, data, attempt).await
+                            }
                         };
                         res.map_err(|err| {
                             apalis::prelude::Error::from(
