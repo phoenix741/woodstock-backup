@@ -360,6 +360,8 @@ jobs:
 
       - name: Download artifacts
         uses: christopherhx/gitea-download-artifact@v8
+        with:
+          path: artifacts/
 
       - name: Import GPG key
         if: github.event_name == 'push'
@@ -383,10 +385,8 @@ jobs:
         if: github.event_name == 'push'
         run: |
           mkdir zipfile
-          for dir in */; do
-            case "$dir" in
-              front-dist/|zipfile/) continue ;;
-            esac
+          for dir in artifacts/*/; do
+            [ "$(basename "$dir")" = "front-dist" ] && continue
             mv "$dir"* ./zipfile/
           done
           cd ./zipfile
