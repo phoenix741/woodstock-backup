@@ -371,7 +371,12 @@ jobs:
         if: github.event_name == 'push'
         run: |
           mkdir zipfile
-          mv ./binaries-*/* ./zipfile/
+          for dir in */; do
+            case "$dir" in
+              front-dist/|zipfile/) continue ;;
+            esac
+            mv "$dir"* ./zipfile/
+          done
           cd ./zipfile
           shasum --algorithm 256 --binary ./* | tee ./SHA256SUM.txt
           cat ./SHA256SUM.txt
