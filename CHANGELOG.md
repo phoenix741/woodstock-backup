@@ -1,3 +1,10 @@
+# [2.1.0-alpha.2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.1...v2.1.0-alpha.2) (2026-08-10)
+
+
+### Bug Fixes
+
+* **ci:** 🐛 corrige le chemin des assets de release (client-zip/server-zip n'existent plus) ([c00e987](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c00e987299ccc29c2a1d3c6f1757c7c1bd04bb36))
+
 # [2.1.0-alpha.1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.0.0...v2.1.0-alpha.1) (2026-08-10)
 
 
