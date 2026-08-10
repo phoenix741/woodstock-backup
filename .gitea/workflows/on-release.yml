@@ -153,7 +153,19 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         run: |
-          trivy fs --format cyclonedx --output dependency-results.cdx.json .
+          trivy fs --format cyclonedx --output dependency-results-raw.cdx.json .
+
+      - name: Downgrade CycloneDX spec version for DependencyTrack compatibility
+        run: |
+          # Trivy emits CycloneDX 1.7, which our Dependency-Track instance
+          # (5.0.4) does not parse yet ("Unrecognized specVersion 1.7").
+          # Trivy has no flag to pick the spec version, so downgrade the BOM
+          # with cyclonedx-cli instead. 1.7 support landed in DT 5.1
+          # (https://github.com/DependencyTrack/dependency-track/issues/5818)
+          # — drop this step once the server is upgraded past that.
+          curl -sSL -o cyclonedx-cli https://github.com/CycloneDX/cyclonedx-cli/releases/latest/download/cyclonedx-linux-x64
+          chmod +x cyclonedx-cli
+          ./cyclonedx-cli convert --input-file dependency-results-raw.cdx.json --output-file dependency-results.cdx.json --input-format json --output-format json --output-version v1_6
 
       - name: Extract branch name
         shell: bash
