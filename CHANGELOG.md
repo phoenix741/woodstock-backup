@@ -1,3 +1,10 @@
+# [2.1.0-alpha.3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.2...v2.1.0-alpha.3) (2026-08-11)
+
+
+### Features
+
+* **backup:** ✨ auto-guérit les chunks manquants pendant la sauvegarde ([18fc439](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/18fc439d78f7f16a00987daab8b3258053b18afe))
+
 # [2.1.0-alpha.2](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.1...v2.1.0-alpha.2) (2026-08-10)
 
 
