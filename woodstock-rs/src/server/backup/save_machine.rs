@@ -228,6 +228,7 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
             backups.clone(),
             cancel_token.clone(),
         );
+        client.load_missing_chunks().await;
 
         let host_configuration = hosts.get_host(hostname).await?;
         let progression_state = BackupState::from_configuration(&host_configuration);

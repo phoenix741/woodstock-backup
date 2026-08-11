@@ -54,8 +54,8 @@ mod refcnt;
 mod utils;
 
 pub use fsck::{
-    check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused, FsckCount,
-    FsckUnusedCount,
+    check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
+    load_missing_chunks, save_missing_chunks, FsckCount, FsckUnusedCount,
 };
 pub use pool_chunk_information::{ConvertHashLink, PoolChunkInformation};
 pub use pool_chunk_wrapper::PoolChunkWrapper;

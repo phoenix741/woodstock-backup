@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -20,17 +20,32 @@ use crate::{
     },
     events::{create_event_backup_end, create_event_backup_start},
     file_chunk::{self, Payload},
-    pool::{PoolChunkInformation, PoolChunkWrapper, PoolManager, Refcnt},
+    pool::{
+        load_missing_chunks as load_missing_pool_chunks,
+        save_missing_chunks as save_missing_pool_chunks, PoolChunkInformation, PoolChunkWrapper,
+        PoolManager, Refcnt,
+    },
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
     utils::{chunk_hasher::get_empty_hash, compression::CompressionFormat},
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
-    RefreshCacheRequest, Share, ShareSnapshotResult, SnapshotMethod,
+    PoolUnused, RefreshCacheRequest, Share, ShareSnapshotResult, SnapshotMethod,
 };
 
 use super::{super::client::Client, super::progression::BackupProgression};
+
+/// In-memory view of the pool's durable "missing chunks" snapshot (`<pool_path>/missing`,
+/// written by [`crate::pool::check_unused`]) for the duration of a single backup. Loaded once
+/// at the start of the backup ([`BackupSave::load_missing_chunks`]); entries are removed as the
+/// backup re-confirms a chunk's presence, and `healed` tracks whether the on-disk snapshot
+/// needs rewriting in [`BackupSave::close`].
+#[derive(Default)]
+struct MissingChunkTracker {
+    entries: HashMap<Vec<u8>, PoolUnused>,
+    healed: bool,
+}
 
 pub struct BackupSave<Clt: Client> {
     /// The unique identifier for the save operation.
@@ -83,6 +98,19 @@ pub struct BackupSave<Clt: Client> {
     /// boundaries during the (potentially long) chunk-transfer loop so a cancel
     /// takes effect without waiting for the whole share to finish.
     cancel_token: CancellationToken,
+    /// Chunks the last fsck run found referenced but missing from the pool, loaded once at the
+    /// start of the backup. Healed opportunistically as the transfer loop re-confirms a chunk's
+    /// presence — see [`Self::heal_missing_chunk`].
+    missing_pool_chunks: Arc<Mutex<MissingChunkTracker>>,
+    /// Paths held back from the `RefreshCacheRequest` stream sent to the agent in
+    /// [`Self::synchronize_file_list`] because one of their chunks is in `missing_pool_chunks`
+    /// — the agent then has no record of them and reports them as `Add`. `Self::create_backup`
+    /// reclassifies those back to `Modify` so they go through the normal per-chunk dedup path
+    /// instead of a full re-transfer. Keyed by share path: manifest paths are share-relative, so
+    /// two shares can legitimately hold the same path bytes, and `synchronize_file_list` runs
+    /// for every share before `create_backup` runs for any of them — a flat set would let one
+    /// share's forced path bleed into another's.
+    forced_redownload_paths: Arc<Mutex<HashMap<String, HashSet<Vec<u8>>>>>,
 }
 
 impl<Clt: Client> BackupSave<Clt> {
@@ -140,6 +168,38 @@ impl<Clt: Client> BackupSave<Clt> {
             share_snapshot_results: Arc::new(Mutex::new(HashMap::new())),
             last_error_message: Arc::new(Mutex::new(None)),
             cancel_token,
+            missing_pool_chunks: Arc::new(Mutex::new(MissingChunkTracker::default())),
+            forced_redownload_paths: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    /// Loads the pool's durable "missing chunks" snapshot into memory. Called once at the start
+    /// of the backup (from [`super::save_machine::SaveBackupMachine::new`]) so the transfer loop
+    /// can opportunistically heal an entry the moment it re-confirms the chunk's presence,
+    /// instead of waiting for the next fsck run to notice.
+    pub async fn load_missing_chunks(&self) {
+        let entries = load_missing_pool_chunks(&self.config.path.pool_path).await;
+        if !entries.is_empty() {
+            info!(
+                "Loaded {} known-missing pool chunk(s) for backup {}/{}",
+                entries.len(),
+                self.hostname,
+                self.backup_id
+            );
+        }
+        self.missing_pool_chunks.lock().await.entries = entries;
+    }
+
+    /// Clears `hash` from the known-missing set if present, marking the on-disk snapshot dirty
+    /// so [`Self::close`] persists the fix. No-op if `hash` was never tracked as missing.
+    async fn heal_missing_chunk(&self, hash: &[u8]) {
+        let mut tracker = self.missing_pool_chunks.lock().await;
+        if tracker.entries.remove(hash).is_some() {
+            info!(
+                "Chunk {} confirmed present, clearing missing flag",
+                hex::encode(hash)
+            );
+            tracker.healed = true;
         }
     }
 
@@ -396,6 +456,8 @@ impl<Clt: Client> BackupSave<Clt> {
 
         let share_refresh_stream = share.clone();
         let manifest_refresh_stream = manifest.clone();
+        let missing_pool_chunks = Arc::clone(&self.missing_pool_chunks);
+        let forced_redownload_paths = Arc::clone(&self.forced_redownload_paths);
 
         let refresh_cache_stream = stream!({
             let header = RefreshCacheRequest {
@@ -406,10 +468,40 @@ impl<Clt: Client> BackupSave<Clt> {
 
             yield header;
 
+            // Snapshotted once: the set only ever shrinks during a backup (via
+            // `heal_missing_chunk`), and the common case is empty, so skip the
+            // per-entry lock+scan below over what is otherwise the full previous
+            // manifest walk.
+            let has_known_missing = !missing_pool_chunks.lock().await.entries.is_empty();
+            let share_path = share_refresh_stream.share_path.clone();
+
             let entries = manifest_refresh_stream.read_manifest_entries();
             pin_mut!(entries);
 
             while let Some(entry) = entries.next().await {
+                // Hold back an unchanged file that references a known-missing chunk: the
+                // agent won't find it in its index, so it reports it as `Add` instead of
+                // silently skipping it as unmodified. `create_backup` reclassifies it back
+                // to `Modify` so it still goes through the normal per-chunk dedup path.
+                if has_known_missing {
+                    let has_missing_chunk = {
+                        let missing = missing_pool_chunks.lock().await;
+                        entry
+                            .chunks
+                            .iter()
+                            .any(|hash| missing.entries.contains_key(hash))
+                    };
+                    if has_missing_chunk {
+                        forced_redownload_paths
+                            .lock()
+                            .await
+                            .entry(share_path.clone())
+                            .or_default()
+                            .insert(entry.path);
+                        continue;
+                    }
+                }
+
                 let request = RefreshCacheRequest {
                     payload: Some(refresh_cache_request::Payload::FileManifest(entry)),
                 };
@@ -577,6 +669,7 @@ impl<Clt: Client> BackupSave<Clt> {
                         let chunk_information = writer
                             .shutdown(&mut wrapper, &filename, self.compression_format)
                             .await?;
+                        self.heal_missing_chunk(&chunk_information.sha256).await;
                         if let Err(e) = tx.send(chunk_information.clone()).await {
                             error!("Failed to send chunk information: {}", e);
                         }
@@ -658,6 +751,7 @@ impl<Clt: Client> BackupSave<Clt> {
                 let wrapper = PoolChunkWrapper::new(pool_path, Some(hash));
                 if wrapper.exists() {
                     let chunk_information = wrapper.chunk_information().await?;
+                    self.heal_missing_chunk(hash).await;
                     if let Err(e) = tx.send(chunk_information.clone()).await {
                         error!("Failed to send chunk information: {}", e);
                     }
@@ -839,6 +933,18 @@ impl<Clt: Client> BackupSave<Clt> {
         let mut error_count = 0;
         let mut abort: Option<eyre::Report> = None;
 
+        // Snapshotted once: paths `synchronize_file_list` held back from the agent's index for
+        // *this* share because they reference a known-missing chunk. The agent reports them as
+        // `Add` (unknown file); reclassify them below so they go through the normal per-chunk
+        // dedup path instead of a full re-transfer.
+        let forced_redownload_paths = self
+            .forced_redownload_paths
+            .lock()
+            .await
+            .get(share_path)
+            .cloned()
+            .unwrap_or_default();
+
         let manifest = self
             .backups
             .get_manifest(&self.hostname, self.backup_id, share_path);
@@ -898,7 +1004,16 @@ impl<Clt: Client> BackupSave<Clt> {
             }
 
             let path = file_manifest_journal_entry.path();
-            let is_add = file_manifest_journal_entry.entry_type() == EntryType::Add;
+            let mut is_add = file_manifest_journal_entry.entry_type() == EntryType::Add;
+            if is_add
+                && file_manifest_journal_entry
+                    .manifest
+                    .as_ref()
+                    .is_some_and(|m| forced_redownload_paths.contains(&m.path))
+            {
+                is_add = false;
+                file_manifest_journal_entry.entry_type = EntryType::Modify as i32;
+            }
             let is_remove = file_manifest_journal_entry.entry_type() == EntryType::Remove;
             let is_special_file = file_manifest_journal_entry.is_special_file();
             let is_error = file_manifest_journal_entry.state() == EntryState::Error;
@@ -1078,6 +1193,23 @@ impl<Clt: Client> BackupSave<Clt> {
         info!("Close backup");
 
         self.progression.lock().await.end_transfer_date = Some(Local::now());
+
+        // Persisted before the agent close below: the healed chunks are already durable in
+        // the pool at this point, and a subsequent `client.close()` failure (tolerated by the
+        // caller, which logs it and continues) must not cause that fix to be lost.
+        let tracker = self.missing_pool_chunks.lock().await;
+        if tracker.healed {
+            if let Err(e) = save_missing_pool_chunks(
+                &self.config.path.pool_path,
+                tracker.entries.values(),
+                self.compression_format,
+            )
+            .await
+            {
+                error!("Failed to update missing-chunks file after healing: {e}");
+            }
+        }
+        drop(tracker);
 
         // The outcome itself (Completed / Aborted / Cancelled / Failed) is
         // recorded separately via `save_backup(status)`, which drives

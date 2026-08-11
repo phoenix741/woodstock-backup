@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use async_walkdir::{Filtering, WalkDir};
 use chrono::Local;
@@ -12,6 +16,7 @@ use crate::{
     config::{Backups, Configuration, Hosts},
     pool::PoolChunkWrapper,
     proto::{CompressedWriter, ProtobufReader, ProtobufWriter},
+    utils::compression::CompressionFormat,
     PoolRefCount, PoolUnused,
 };
 use uuid::Uuid;
@@ -269,6 +274,59 @@ pub async fn check_pool_integrity(
 /// # Panics
 ///
 /// This function will panic if the `progress_tx` channel is closed unexpectedly. Ensure that the channel is properly managed and remains open during the operation.
+/// Loads the durable "missing chunks" snapshot at `<pool_path>/missing` into memory, keyed by
+/// chunk hash. This snapshot is written by [`check_unused`] and lists chunks referenced by the
+/// pool's refcnt but absent from disk; it lets a caller (another fsck run, or a backup process
+/// opportunistically healing entries as it re-confirms chunk presence) distinguish a recurring
+/// miss from a new one, or know what's still missing after a partial fix.
+///
+/// # Errors
+///
+/// This function does not return errors: a missing or unreadable snapshot file simply yields an
+/// empty map (nothing known to be missing yet).
+pub async fn load_missing_chunks(pool_path: &Path) -> HashMap<Vec<u8>, PoolUnused> {
+    let missing_path = pool_path.join("missing");
+    let mut missing = HashMap::new();
+
+    if let Ok(mut reader) = ProtobufReader::<PoolUnused>::new(&missing_path, true).await {
+        let messages = reader.into_stream();
+        pin_mut!(messages);
+        while let Some(Ok(entry)) = messages.next().await {
+            missing.insert(entry.sha256.clone(), entry);
+        }
+    }
+
+    missing
+}
+
+/// Persists `missing` as the durable "missing chunks" snapshot at `<pool_path>/missing`,
+/// replacing whatever was there before.
+///
+/// # Errors
+///
+/// Returns an error if the snapshot file cannot be created or written to.
+pub async fn save_missing_chunks<'a>(
+    pool_path: &Path,
+    missing: impl Iterator<Item = &'a PoolUnused>,
+    compression_format: CompressionFormat,
+) -> Result<()> {
+    let missing_path = pool_path.join("missing");
+
+    let mut writer = ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
+        &missing_path,
+        true,
+        compression_format,
+    )
+    .await?;
+
+    for entry in missing {
+        writer.write(entry).await?;
+    }
+    writer.flush().await?;
+
+    Ok(())
+}
+
 pub async fn check_unused(
     dry_run: bool,
     progress_tx: mpsc::Sender<FsckUnusedCount>,
@@ -278,18 +336,7 @@ pub async fn check_unused(
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
 
-    let missing_path = config.path.pool_path.join("missing");
-    let mut previously_missing: std::collections::HashSet<Vec<u8>> =
-        std::collections::HashSet::new();
-    if let Ok(mut reader) = ProtobufReader::<PoolUnused>::new(&missing_path, true).await {
-        let messages = reader.into_stream();
-        pin_mut!(messages);
-        while let Some(missing) = messages.next().await {
-            if let Ok(missing) = missing {
-                previously_missing.insert(missing.sha256);
-            }
-        }
-    }
+    let previously_missing = load_missing_chunks(&config.path.pool_path).await;
 
     let mut count = FsckUnusedCount {
         in_unused: 0,
@@ -360,7 +407,7 @@ pub async fn check_unused(
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&refcnt.sha256));
         if !wrapper.exists() {
             count.missing += 1;
-            if previously_missing.contains(&refcnt.sha256) {
+            if previously_missing.contains_key(&refcnt.sha256) {
                 warn!(
                     "{} is missing (refcnt {}) — already known missing since last check",
                     hex::encode(&refcnt.sha256),
@@ -384,24 +431,14 @@ pub async fn check_unused(
     // Refresh the durable `missing` snapshot every run (informational, not a
     // mutation of pool state) so the next check can tell a recurring miss
     // from a new one, regardless of dry_run.
-    if let Ok(mut missing_writer) =
-        ProtobufWriter::<CompressedWriter, PoolUnused>::new_compressed(
-            &missing_path,
-            true,
-            config.compression_format,
-        )
-        .await
+    if let Err(e) = save_missing_chunks(
+        &config.path.pool_path,
+        still_missing.iter(),
+        config.compression_format,
+    )
+    .await
     {
-        for entry in &still_missing {
-            if let Err(e) = missing_writer.write(entry).await {
-                error!("Failed to write missing-chunk entry to {missing_path:?}: {e}");
-            }
-        }
-        if let Err(e) = missing_writer.flush().await {
-            error!("Failed to save missing-chunks file {missing_path:?}: {e}");
-        }
-    } else {
-        error!("Failed to open missing-chunks file for writing: {missing_path:?}");
+        error!("Failed to save missing-chunks file: {e}");
     }
 
     // A cancelled walk skips the save entirely — the in-memory `pool_refcnt`
@@ -415,4 +452,51 @@ pub async fn check_unused(
     }
 
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn missing_chunks_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let pool_path = dir.path();
+
+        // No snapshot on disk yet — load must yield an empty map, not an error.
+        let loaded = load_missing_chunks(pool_path).await;
+        assert!(loaded.is_empty());
+
+        let entries = vec![
+            PoolUnused {
+                sha256: vec![0x1],
+                size: 10,
+                compressed_size: 5,
+            },
+            PoolUnused {
+                sha256: vec![0x2],
+                size: 20,
+                compressed_size: 8,
+            },
+        ];
+
+        save_missing_chunks(pool_path, entries.iter(), CompressionFormat::Zstd)
+            .await
+            .unwrap();
+
+        let loaded = load_missing_chunks(pool_path).await;
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded.get(&vec![0x1]).unwrap().size, 10);
+        assert_eq!(loaded.get(&vec![0x2]).unwrap().compressed_size, 8);
+
+        // Simulate healing one entry and persisting the shrunk set.
+        let remaining = vec![entries[1].clone()];
+        save_missing_chunks(pool_path, remaining.iter(), CompressionFormat::Zstd)
+            .await
+            .unwrap();
+
+        let loaded = load_missing_chunks(pool_path).await;
+        assert_eq!(loaded.len(), 1);
+        assert!(loaded.contains_key(&vec![0x2]));
+    }
 }
