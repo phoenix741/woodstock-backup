@@ -139,6 +139,8 @@ impl DirectResolveClient {
             .tls_certs_only([root_ca])
             .tls_danger_accept_invalid_hostnames(true)
             .identity(self.identity.clone())
+            .connect_timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(30))
             .build()?;
 
         Ok(client)
