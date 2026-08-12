@@ -17,7 +17,7 @@ use eyre::Result;
 use futures::{pin_mut, stream, Stream, StreamExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{error, info, warn, Instrument};
 
 use super::archive_reader_worker_count;
 use super::fs_materialize;
@@ -141,7 +141,7 @@ async fn dispatch_entries(
             }
             EntryType::Remove => {
                 if let Err(err) = fs_materialize::remove_entry(&dest_path).await {
-                    warn!(
+                    error!(
                         "Skipping removal of {dest_path:?} in dir archive for {hostname} \
                          (share {share}): {err}"
                     );
@@ -176,6 +176,11 @@ async fn dispatch_entries(
 /// consistent with a real failure, so the caller's snapshot-commit gating
 /// (see [`sync_host_dir_archive`]) treats a cancelled run exactly like a
 /// partially-failed one.
+// `span` (the last param) exists solely to propagate the caller's tracing
+// span across the `spawn_blocking` thread boundary — splitting the other
+// params into a struct just to dodge the default 7-arg lint would obscure
+// this internal worker's already-simple call site for no real benefit.
+#[allow(clippy::too_many_arguments)]
 fn materialize_lane(
     mut dispatch_rx: mpsc::Receiver<MaterializeTask>,
     pool_path: PathBuf,
@@ -184,55 +189,59 @@ fn materialize_lane(
     results_tx: mpsc::Sender<MaterializeOutcome>,
     progress: Option<Arc<ArchiveProgressCounters>>,
     cancel_token: CancellationToken,
+    span: tracing::Span,
 ) {
     let handle = tokio::runtime::Handle::current();
-    handle.block_on(async move {
-        while let Some(task) = dispatch_rx.recv().await {
-            let MaterializeTask {
-                dest_path,
-                entry_type,
-                manifest_entry,
-            } = task;
+    handle.block_on(
+        async move {
+            while let Some(task) = dispatch_rx.recv().await {
+                let MaterializeTask {
+                    dest_path,
+                    entry_type,
+                    manifest_entry,
+                } = task;
 
-            if cancel_token.is_cancelled() {
-                if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
-                    return;
+                if cancel_token.is_cancelled() {
+                    if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
+                        return;
+                    }
+                    continue;
                 }
-                continue;
-            }
 
-            if let Err(err) =
-                fs_materialize::materialize_entry(&manifest_entry, &dest_path, &pool_path).await
-            {
-                warn!(
-                    "Skipping {dest_path:?} in dir archive for {hostname} \
-                     (share {share}): {err}"
-                );
-                if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
+                if let Err(err) =
+                    fs_materialize::materialize_entry(&manifest_entry, &dest_path, &pool_path).await
+                {
+                    error!(
+                        "Skipping {dest_path:?} in dir archive for {hostname} \
+                         (share {share}): {err}"
+                    );
+                    if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
+                        return; // coordinator gone — nothing more to usefully report
+                    }
+                    continue;
+                }
+
+                let dir_permission = (manifest_entry.file_mode() == FileManifestType::Directory)
+                    .then(|| (dest_path, manifest_entry.mode()));
+
+                if let Some(progress) = &progress {
+                    progress
+                        .bytes
+                        .fetch_add(manifest_entry.size(), Ordering::Relaxed);
+                    progress.files.fetch_add(1, Ordering::Relaxed);
+                }
+
+                let outcome = MaterializeOutcome::Applied {
+                    entry_type,
+                    dir_permission,
+                };
+                if results_tx.send(outcome).await.is_err() {
                     return; // coordinator gone — nothing more to usefully report
                 }
-                continue;
-            }
-
-            let dir_permission = (manifest_entry.file_mode() == FileManifestType::Directory)
-                .then(|| (dest_path, manifest_entry.mode()));
-
-            if let Some(progress) = &progress {
-                progress
-                    .bytes
-                    .fetch_add(manifest_entry.size(), Ordering::Relaxed);
-                progress.files.fetch_add(1, Ordering::Relaxed);
-            }
-
-            let outcome = MaterializeOutcome::Applied {
-                entry_type,
-                dir_permission,
-            };
-            if results_tx.send(outcome).await.is_err() {
-                return; // coordinator gone — nothing more to usefully report
             }
         }
-    });
+        .instrument(span),
+    );
 }
 
 /// Drains `results_rx` (fed by every [`materialize_lane`] worker) into the
@@ -337,6 +346,12 @@ pub async fn sync_host_dir_archive(
         let worker_count = archive_reader_worker_count();
         let (results_tx, results_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
 
+        // Captured before crossing into `spawn_blocking`'s fresh OS thread,
+        // which does not inherit the current tracing span — `materialize_lane`
+        // instruments its own driving future with it so `JobLogLayer` still
+        // routes its `error!`/`warn!` calls to this job's log file.
+        let span = tracing::Span::current();
+
         let mut dispatch_txs = Vec::with_capacity(worker_count);
         let mut lane_handles = Vec::with_capacity(worker_count);
         for _ in 0..worker_count {
@@ -349,6 +364,7 @@ pub async fn sync_host_dir_archive(
                 let results_tx = results_tx.clone();
                 let progress = progress.clone();
                 let cancel_token = cancel_token.clone();
+                let span = span.clone();
                 move || {
                     materialize_lane(
                         dispatch_rx,
@@ -358,6 +374,7 @@ pub async fn sync_host_dir_archive(
                         results_tx,
                         progress,
                         cancel_token,
+                        span,
                     )
                 }
             }));

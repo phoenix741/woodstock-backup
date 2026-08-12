@@ -24,7 +24,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::io::{StreamReader, SyncIoBridge};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, warn, Instrument};
 
 use super::archive_reader_worker_count;
 use crate::config::{ArchiveFormat, Backup, Backups, BUFFER_SIZE, DEFAULT_CHANNEL_BUFFER_SIZE};
@@ -367,38 +367,42 @@ fn run_reader_worker(
     mut dispatch_rx: mpsc::Receiver<(PathBuf, FileManifest)>,
     pool_path: PathBuf,
     header_tx: mpsc::Sender<Result<EntryMsg>>,
+    span: tracing::Span,
 ) {
     let handle = tokio::runtime::Handle::current();
-    handle.block_on(async move {
-        while let Some((archive_path, entry)) = dispatch_rx.recv().await {
-            if has_body(&entry) {
-                let (body_tx, body_rx) = mpsc::channel(TAR_BODY_CHANNEL_CAPACITY);
-                let msg = EntryMsg {
-                    archive_path,
-                    entry: entry.clone(),
-                    body_rx: Some(body_rx),
-                };
-                if header_tx.send(Ok(msg)).await.is_err() {
-                    return; // writer stopped; nothing more to produce
-                }
-                // Header (and this channel's receiver) already handed to the
-                // writer — stream the body now so the writer can start
-                // draining it concurrently with this worker reading ahead,
-                // and other workers decompressing their own entries in
-                // parallel.
-                stream_body(&entry, &pool_path, body_tx).await;
-            } else {
-                let msg = EntryMsg {
-                    archive_path,
-                    entry,
-                    body_rx: None,
-                };
-                if header_tx.send(Ok(msg)).await.is_err() {
-                    return;
+    handle.block_on(
+        async move {
+            while let Some((archive_path, entry)) = dispatch_rx.recv().await {
+                if has_body(&entry) {
+                    let (body_tx, body_rx) = mpsc::channel(TAR_BODY_CHANNEL_CAPACITY);
+                    let msg = EntryMsg {
+                        archive_path,
+                        entry: entry.clone(),
+                        body_rx: Some(body_rx),
+                    };
+                    if header_tx.send(Ok(msg)).await.is_err() {
+                        return; // writer stopped; nothing more to produce
+                    }
+                    // Header (and this channel's receiver) already handed to the
+                    // writer — stream the body now so the writer can start
+                    // draining it concurrently with this worker reading ahead,
+                    // and other workers decompressing their own entries in
+                    // parallel.
+                    stream_body(&entry, &pool_path, body_tx).await;
+                } else {
+                    let msg = EntryMsg {
+                        archive_path,
+                        entry,
+                        body_rx: None,
+                    };
+                    if header_tx.send(Ok(msg)).await.is_err() {
+                        return;
+                    }
                 }
             }
         }
-    });
+        .instrument(span),
+    );
 }
 
 /// Drives `tar::Builder` off entries received on `header_rx`, mirroring the
@@ -412,7 +416,15 @@ fn run_writer(
     sync_writer: SyncIoBridge<Box<dyn AsyncWrite + Send + Unpin>>,
     progress: Option<Arc<ArchiveProgressCounters>>,
     cancel_token: CancellationToken,
+    span: tracing::Span,
 ) -> Result<SyncIoBridge<Box<dyn AsyncWrite + Send + Unpin>>> {
+    // Unlike `run_reader_worker`, this function's work (tar-building via
+    // `append_entry`, including its `warn!`/`error!` calls) runs as plain
+    // sync code interleaved between `block_on(header_rx.recv())` calls, not
+    // inside one continuously-polled future — `.instrument()` on just the
+    // `recv()` future would exit the span before that sync code runs. A
+    // held guard for the whole function is what's actually needed here.
+    let _guard = span.enter();
     let buffered_writer = std::io::BufWriter::with_capacity(BRIDGE_BUFFER_SIZE, sync_writer);
     let mut builder = Builder::new(buffered_writer);
     builder.mode(tar::HeaderMode::Complete);
@@ -569,6 +581,12 @@ async fn write_tar_stream(
     let (header_tx, header_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
     let worker_count = archive_reader_worker_count();
 
+    // Captured before crossing into `spawn_blocking`'s fresh OS threads,
+    // which don't inherit the current tracing span — passed into
+    // `run_reader_worker`/`run_writer` so `JobLogLayer` still routes their
+    // `warn!`/`error!` calls to this job's log file.
+    let span = tracing::Span::current();
+
     let mut dispatch_txs = Vec::with_capacity(worker_count);
     let mut worker_handles = Vec::with_capacity(worker_count);
     for _ in 0..worker_count {
@@ -576,8 +594,9 @@ async fn write_tar_stream(
         dispatch_txs.push(dispatch_tx);
         let pool_path = pool_path.to_path_buf();
         let header_tx = header_tx.clone();
+        let span = span.clone();
         worker_handles.push(tokio::task::spawn_blocking(move || {
-            run_reader_worker(dispatch_rx, pool_path, header_tx)
+            run_reader_worker(dispatch_rx, pool_path, header_tx, span)
         }));
     }
 
@@ -588,7 +607,7 @@ async fn write_tar_stream(
     drop(header_tx);
 
     let writer_handle = tokio::task::spawn_blocking(move || {
-        run_writer(header_rx, sync_writer, progress, cancel_token)
+        run_writer(header_rx, sync_writer, progress, cancel_token, span)
     });
 
     // `tokio::join!`, not `try_join!`: always wait for EVERY task before

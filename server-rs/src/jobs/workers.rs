@@ -1277,7 +1277,8 @@ impl JobExecutors {
                     cancel_token,
                 )
                 .await
-                .map(|output| {
+                .map_err(|e| eyre!(e.to_string()))
+                .and_then(|output| {
                     info!(
                         "[{}] Synced {} -> {:?} (+{} ~{} -{}, skipped {}{})",
                         task_id,
@@ -1289,9 +1290,24 @@ impl JobExecutors {
                         output.skipped,
                         if output.cancelled { ", cancelled" } else { "" }
                     );
-                    None
+                    // Entries that failed to materialize (permission denied,
+                    // missing pool chunk, ...) are logged as `error!` where
+                    // they happen but don't abort the sync — every other
+                    // entry still gets a best-effort attempt. Surfacing that
+                    // here as an `Err` is what makes the host actually show
+                    // up as failed (`ArchiveHostExecutionState::Failed` /
+                    // `failed_hosts`, below) instead of a silent `Success`
+                    // despite files never landing on disk.
+                    if output.skipped > 0 {
+                        Err(eyre!(
+                            "{} entr{} failed to materialize (see archive log)",
+                            output.skipped,
+                            if output.skipped == 1 { "y" } else { "ies" }
+                        ))
+                    } else {
+                        Ok(None)
+                    }
                 })
-                .map_err(|e| eyre!(e.to_string()))
             }
         }
     }
