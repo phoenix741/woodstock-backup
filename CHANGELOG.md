@@ -1,3 +1,10 @@
+# [2.1.0-alpha.4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.3...v2.1.0-alpha.4) (2026-08-12)
+
+
+### Bug Fixes
+
+* **archive:** 🐛 échec de fichier en mode dir marque l'hôte failed et logue dans le job ([98b1970](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/98b1970a99406ef61c9e426e94d6e32ad95ebd52))
+
 # [2.1.0-alpha.3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.2...v2.1.0-alpha.3) (2026-08-11)
 
 
