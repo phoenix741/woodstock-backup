@@ -1,3 +1,10 @@
+# [2.1.0-alpha.5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.4...v2.1.0-alpha.5) (2026-08-12)
+
+
+### Bug Fixes
+
+* add timeout on client ([d3cf833](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d3cf833e3cc51b21115577e0e140534dc09b16cf))
+
 # [2.1.0-alpha.4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.3...v2.1.0-alpha.4) (2026-08-12)
 
 
