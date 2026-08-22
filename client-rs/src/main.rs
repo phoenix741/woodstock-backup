@@ -307,14 +307,37 @@ async fn main() -> Result<()> {
             let (signal_tx, signal_rx) = oneshot::channel::<()>();
 
             tokio::spawn(async move {
-                if let Err(e) = tokio::signal::ctrl_c().await {
-                    error!("Failed to watch for Ctrl-C signal: {e}");
+                #[cfg(unix)]
+                {
+                    let mut sigterm = tokio::signal::unix::signal(
+                        tokio::signal::unix::SignalKind::terminate(),
+                    )
+                    .expect("Failed to install SIGTERM handler");
+
+                    tokio::select! {
+                        res = tokio::signal::ctrl_c() => {
+                            if let Err(e) = res {
+                                error!("Failed to watch for Ctrl-C signal: {e}");
+                            }
+                            info!("SIGINT received, shutting down");
+                        }
+                        _ = sigterm.recv() => {
+                            info!("SIGTERM received, shutting down");
+                        }
+                    }
                 }
+
+                #[cfg(not(unix))]
+                {
+                    if let Err(e) = tokio::signal::ctrl_c().await {
+                        error!("Failed to watch for Ctrl-C signal: {e}");
+                    }
+                    info!("Ctrl-C received, shutting down");
+                }
+
                 if signal_tx.send(()).is_err() {
                     error!("Failed to send shutdown signal: shutdown receiver was dropped");
                 }
-
-                info!("Ctrl-C received, shutting down");
             });
 
             start_client(args.config_dir, signal_rx).await?;
