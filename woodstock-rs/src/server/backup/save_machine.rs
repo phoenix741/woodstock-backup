@@ -165,6 +165,27 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         }
     }
 
+    /// Determines the status to persist when a finalization phase itself fails.
+    ///
+    /// If the backup was already winding down (`Aborted`/`Cancelled`), returns the
+    /// resumable `Aborting(stage)` marker instead of re-persisting the terminal
+    /// status directly — otherwise a second, unrelated failure during finalization
+    /// would collapse an already-cancelled/aborted backup to a dead-end terminal
+    /// state, and the refcount of chunks already written to the pool would never
+    /// get applied (nothing resumes a terminal status). A backup still targeting
+    /// `Completed` keeps its existing `Failed(stage)` resumable marker.
+    fn status_after_finalization_failure(
+        current_status: &BackupStatus,
+        stage: FinishingStatus,
+        failed: FailedStatus,
+    ) -> BackupStatus {
+        if current_status.is_aborted() {
+            Self::get_status_for_stage(current_status, stage)
+        } else {
+            BackupStatus::Failed(failed)
+        }
+    }
+
     /// Creates a new instance of `SaveBackupMachine`.
     ///
     /// # Arguments
@@ -1117,15 +1138,12 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                     }
                     Err(err) => {
                         error!("Error during compact phase: {err}");
-                        // Preserve the current status (`Aborted` or `Cancelled`) rather than
-                        // collapsing to `Aborted` — a cancel that fails during finalization
-                        // must still be recorded as cancelled, not misreported as an abort.
-                        let failed_status = if current_status.is_aborted() {
-                            current_status.clone()
-                        } else {
-                            BackupStatus::Failed(FailedStatus::Compact)
-                        };
-                        ended_cancelled = failed_status == BackupStatus::Cancelled;
+                        let failed_status = Self::status_after_finalization_failure(
+                            &current_status,
+                            FinishingStatus::ToCompact,
+                            FailedStatus::Compact,
+                        );
+                        ended_cancelled = current_status == BackupStatus::Cancelled;
                         self.client.save_backup(failed_status).await?;
                         break;
                     }
@@ -1138,12 +1156,12 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         }
                         Err(err) => {
                             error!("Error during count references phase: {err}");
-                            let failed_status = if current_status.is_aborted() {
-                                current_status.clone()
-                            } else {
-                                BackupStatus::Failed(FailedStatus::RefCount)
-                            };
-                            ended_cancelled = failed_status == BackupStatus::Cancelled;
+                            let failed_status = Self::status_after_finalization_failure(
+                                &current_status,
+                                FinishingStatus::ToCountRef,
+                                FailedStatus::RefCount,
+                            );
+                            ended_cancelled = current_status == BackupStatus::Cancelled;
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1157,12 +1175,12 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         }
                         Err(err) => {
                             error!("Error during add to pool phase: {err}");
-                            let failed_status = if current_status.is_aborted() {
-                                current_status.clone()
-                            } else {
-                                BackupStatus::Failed(FailedStatus::InPool)
-                            };
-                            ended_cancelled = failed_status == BackupStatus::Cancelled;
+                            let failed_status = Self::status_after_finalization_failure(
+                                &current_status,
+                                FinishingStatus::ToAddInPool,
+                                FailedStatus::InPool,
+                            );
+                            ended_cancelled = current_status == BackupStatus::Cancelled;
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1324,6 +1342,57 @@ mod tests {
                 RemovingStatus::RemoveFromHost
             ))),
             (BackupPhase::Finished, BackupStatus::Aborted)
+        );
+    }
+
+    // ── status_after_finalization_failure ──────────────────────────────────
+
+    #[test]
+    fn test_finalization_failure_while_completed_stays_resumable_as_failed() {
+        // Backup still targeting Completed: unchanged behavior, resumable via Failed(stage).
+        assert_eq!(
+            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
+                &BackupStatus::Completed,
+                FinishingStatus::ToCompact,
+                FailedStatus::Compact,
+            ),
+            BackupStatus::Failed(FailedStatus::Compact)
+        );
+    }
+
+    #[test]
+    fn test_finalization_failure_while_aborted_stays_resumable_as_aborting() {
+        assert_eq!(
+            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
+                &BackupStatus::Aborted,
+                FinishingStatus::ToCountRef,
+                FailedStatus::RefCount,
+            ),
+            BackupStatus::Aborting(FinishingStatus::ToCountRef)
+        );
+    }
+
+    #[test]
+    fn test_finalization_failure_while_cancelled_stays_resumable_instead_of_collapsing() {
+        // Regression: a Cancelled backup whose own finalization phase then fails must
+        // keep a resumable `Aborting(stage)` marker, not collapse straight to the
+        // terminal `Cancelled` status — otherwise nothing ever resumes it and the
+        // refcount for chunks already written to the pool is never applied.
+        assert_eq!(
+            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
+                &BackupStatus::Cancelled,
+                FinishingStatus::ToCompact,
+                FailedStatus::Compact,
+            ),
+            BackupStatus::Aborting(FinishingStatus::ToCompact)
+        );
+        assert_eq!(
+            SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
+                &BackupStatus::Cancelled,
+                FinishingStatus::ToAddInPool,
+                FailedStatus::InPool,
+            ),
+            BackupStatus::Aborting(FinishingStatus::ToAddInPool)
         );
     }
 
