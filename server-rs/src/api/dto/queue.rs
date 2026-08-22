@@ -341,6 +341,7 @@ pub enum FsckErrorState {
     InitializationError,
     VerifyRefcntError,
     VerifyUnusedError,
+    VerifyMissingError,
     VerifyChunkError,
     Unknown,
 }
@@ -352,6 +353,7 @@ impl From<woodstock::server::pool::fsck_state::ErrorState> for FsckErrorState {
             Src::InitializationError(_) => Self::InitializationError,
             Src::VerifyRefcntError(_) => Self::VerifyRefcntError,
             Src::VerifyUnusedError(_) => Self::VerifyUnusedError,
+            Src::VerifyMissingError(_) => Self::VerifyMissingError,
             Src::VerifyChunkError(_) => Self::VerifyChunkError,
             Src::Unknown(_) => Self::Unknown,
         }
@@ -364,6 +366,7 @@ fn fsck_error_message(e: &woodstock::server::pool::fsck_state::ErrorState) -> St
         | Src::InitializationError(m)
         | Src::VerifyRefcntError(m)
         | Src::VerifyUnusedError(m)
+        | Src::VerifyMissingError(m)
         | Src::VerifyChunkError(m)
         | Src::Unknown(m) => m.clone(),
     }
@@ -376,6 +379,7 @@ pub enum FsckExecutionState {
     Initialization,
     VerifyRefcnt,
     VerifyUnused,
+    VerifyMissing,
     VerifyChunk,
     Completed,
     Cancelled,
@@ -390,6 +394,7 @@ impl From<woodstock::server::pool::fsck_state::FsckExecutionState> for FsckExecu
             Src::Initialization => Self::Initialization,
             Src::VerifyRefcnt => Self::VerifyRefcnt,
             Src::VerifyUnused => Self::VerifyUnused,
+            Src::VerifyMissing => Self::VerifyMissing,
             Src::VerifyChunk => Self::VerifyChunk,
             Src::Completed => Self::Completed,
             Src::Cancelled => Self::Cancelled,
@@ -423,7 +428,6 @@ pub struct UnusedProgression {
     pub in_nothing: usize,
     pub in_refcnt: usize,
     pub in_unused: usize,
-    pub missing: usize,
 }
 impl From<woodstock::server::pool::fsck_state::UnusedProgression> for UnusedProgression {
     fn from(p: woodstock::server::pool::fsck_state::UnusedProgression) -> Self {
@@ -433,6 +437,21 @@ impl From<woodstock::server::pool::fsck_state::UnusedProgression> for UnusedProg
             in_nothing: p.in_nothing,
             in_refcnt: p.in_refcnt,
             in_unused: p.in_unused,
+        }
+    }
+}
+
+#[derive(SimpleObject, Clone)]
+pub struct MissingProgression {
+    pub progress_max: usize,
+    pub progress_current: usize,
+    pub missing: usize,
+}
+impl From<woodstock::server::pool::fsck_state::MissingProgression> for MissingProgression {
+    fn from(p: woodstock::server::pool::fsck_state::MissingProgression) -> Self {
+        Self {
+            progress_max: p.progress_max,
+            progress_current: p.progress_current,
             missing: p.missing,
         }
     }
@@ -463,6 +482,7 @@ pub struct JobFsckTaskState {
     pub error_message: Option<String>,
     pub refcnt_progression: RefcntProgression,
     pub unused_progression: UnusedProgression,
+    pub missing_progression: MissingProgression,
     pub chunk_progression: ChunkProgression,
     pub dry_run: bool,
 }
@@ -478,6 +498,7 @@ impl From<woodstock::server::pool::fsck_state::FsckState> for JobFsckTaskState {
             error_message,
             refcnt_progression: s.refcnt_progression.into(),
             unused_progression: s.unused_progression.into(),
+            missing_progression: s.missing_progression.into(),
             chunk_progression: s.chunk_progression.into(),
             dry_run: s.dry_run,
         }

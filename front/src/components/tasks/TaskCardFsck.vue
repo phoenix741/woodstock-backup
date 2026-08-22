@@ -86,10 +86,6 @@
                   {{ toNumber(progress?.unusedProgression?.progressCurrent) }} /
                   {{ toNumber(progress?.unusedProgression?.progressMax) }} items
                 </span>
-                <span v-if="progress?.unusedProgression?.missing > 0" class="mr-4 text-error">
-                  <v-icon size="small">mdi-help-circle</v-icon>
-                  {{ toNumber(progress?.unusedProgression?.missing) }} missing
-                </span>
                 <span v-if="progress?.unusedProgression?.inNothing > 0" class="mr-4 text-warning">
                   <v-icon size="small">mdi-circle-outline</v-icon>
                   {{ toNumber(progress?.unusedProgression?.inNothing) }} neither in refcnt or unused
@@ -101,6 +97,25 @@
                 <span class="mr-4">
                   <v-icon size="small">mdi-delete</v-icon>
                   {{ toNumber(progress?.unusedProgression?.inUnused) }} in unused
+                </span>
+              </div>
+            </div>
+
+            <!-- Missing Progress -->
+            <div class="mb-3">
+              <div class="text-subtitle-2 mb-2">Missing Chunk Verification</div>
+              <v-progress-linear color="primary" :model-value="missingProgressionPercent" height="20" class="mb-2">
+                <small>{{ toPercent(missingProgressionPercent) }}</small>
+              </v-progress-linear>
+              <div class="text-caption text-secondary">
+                <span class="mr-4">
+                  <v-icon size="small">mdi-magnify</v-icon>
+                  {{ toNumber(progress?.missingProgression?.progressCurrent) }} /
+                  {{ toNumber(progress?.missingProgression?.progressMax) }} items
+                </span>
+                <span v-if="progress?.missingProgression?.missing > 0" class="mr-4 text-error">
+                  <v-icon size="small">mdi-help-circle</v-icon>
+                  {{ toNumber(progress?.missingProgression?.missing) }} missing
                 </span>
               </div>
             </div>
@@ -188,6 +203,8 @@ const subtitle = computed(() => {
       return 'Verifying reference counts';
     case FsckExecutionState.VerifyUnused:
       return 'Verifying unused chunks';
+    case FsckExecutionState.VerifyMissing:
+      return 'Verifying missing chunks';
     case FsckExecutionState.VerifyChunk:
       return 'Verifying chunk integrity';
     case FsckExecutionState.Completed:
@@ -205,10 +222,12 @@ const progressPercent = computed(() => {
   const progressMax =
     (progress?.refcntProgression?.progressMax ?? 0) +
     (progress?.unusedProgression?.progressMax ?? 0) +
+    (progress?.missingProgression?.progressMax ?? 0) +
     (progress?.chunkProgression?.progressMax ?? 0);
   const progressCurrent =
     (progress?.refcntProgression?.progressCurrent ?? 0) +
     (progress?.unusedProgression?.progressCurrent ?? 0) +
+    (progress?.missingProgression?.progressCurrent ?? 0) +
     (progress?.chunkProgression?.progressCurrent ?? 0);
 
   return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
@@ -222,6 +241,11 @@ const refcntProgressionPercent = computed(() => {
 const unusedProgressionPercent = computed(() => {
   if (!progress?.unusedProgression) return 0;
   return (progress.unusedProgression.progressCurrent / progress.unusedProgression.progressMax) * 100;
+});
+
+const missingProgressionPercent = computed(() => {
+  if (!progress?.missingProgression) return 0;
+  return (progress.missingProgression.progressCurrent / progress.missingProgression.progressMax) * 100;
 });
 
 const chunkProgressionPercent = computed(() => {
@@ -241,6 +265,8 @@ const progressMessage = computed(() => {
       return 'Checking reference consistency';
     case FsckExecutionState.VerifyUnused:
       return 'Identifying unused chunks';
+    case FsckExecutionState.VerifyMissing:
+      return 'Checking for chunks missing from disk';
     case FsckExecutionState.VerifyChunk:
       return 'Verifying chunk data integrity';
     default:
@@ -264,6 +290,9 @@ const errorMessage = computed(() => {
     case FsckErrorState.VerifyUnusedError:
       message.push('Failed to verify unused chunks');
       break;
+    case FsckErrorState.VerifyMissingError:
+      message.push('Failed to verify missing chunks');
+      break;
     case FsckErrorState.VerifyChunkError:
       message.push('Failed to verify chunk integrity');
       break;
@@ -285,7 +314,7 @@ const totalErrorCount = computed((): number => {
 
   return (
     (progress?.refcntProgression?.errorCount ?? 0) +
-    (progress?.unusedProgression?.missing ?? 0) +
+    (progress?.missingProgression?.missing ?? 0) +
     (progress?.unusedProgression?.inNothing ?? 0) +
     (progress?.chunkProgression?.errorCount ?? 0)
   );

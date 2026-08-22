@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use chrono::Local;
 use eyre::Result;
@@ -8,7 +8,7 @@ use tracing::{debug, error, info, warn, Instrument};
 
 use crate::{
     config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
-    pool::{FsckUnusedCount, PoolManager},
+    pool::{CheckUnusedOutcome, FsckMissingCount, FsckUnusedCount, PoolManager, Refcnt},
     utils::lock_redis::{LockOperation, PoolLockOperation, PoolLockRedis},
     EventPoolInformation, EventSource,
 };
@@ -162,6 +162,7 @@ impl FsckMachine {
         // Get initialization results for each verification type
         let refcnt_max_result = self.fsck.verify_refcnt_max().await;
         let unused_max_result = self.fsck.verify_unused_max().await;
+        let missing_max_result = self.fsck.verify_missing_max().await;
         let chunk_max_result = if self.verify_chunks {
             self.fsck.verify_chunk_max().await
         } else {
@@ -173,6 +174,7 @@ impl FsckMachine {
             return state.process_initialization_result(
                 refcnt_max_result,
                 unused_max_result,
+                missing_max_result,
                 chunk_max_result,
             );
         }
@@ -248,19 +250,23 @@ impl FsckMachine {
 
     /// Verifies the unused space.
     ///
+    /// Only walks the pool directory and classifies chunks against the loaded refcnt — it
+    /// does not check for refcnt entries missing from disk; that's [`Self::verify_missing`],
+    /// which needs the `refcnt`/`seen` returned here (see [`CheckUnusedOutcome`]).
+    ///
     /// # Arguments
     ///
     /// * `dry_run` - Whether to perform a dry run.
     ///
     /// # Returns
     ///
-    /// * `Ok(EventPoolInformation)` if the verification succeeds.
+    /// * `Ok(CheckUnusedOutcome)` if the verification succeeds.
     /// * `Err(eyre::Report)` if an error occurs during verification.
     ///
     /// # Errors
     ///
     /// Returns an error if any step of the unused space verification process fails.
-    async fn verify_unused(&self, dry_run: bool) -> Result<FsckUnusedCount> {
+    async fn verify_unused(&self, dry_run: bool) -> Result<CheckUnusedOutcome> {
         {
             let mut state = self.state.lock().await;
             state.start_verify_unused();
@@ -306,10 +312,100 @@ impl FsckMachine {
             error!("Error in unused verification progression task: {}", e);
         }
 
+        // Split off `refcnt`/`seen` before handing the count through the usual
+        // process_verify_*_result state-update path — they're plain data `verify_missing`
+        // needs next, not part of the progression state.
+        let (refcnt_seen, count_result) = match result {
+            Ok(outcome) => (Some((outcome.refcnt, outcome.seen)), Ok(outcome.count)),
+            Err(e) => (None, Err(e)),
+        };
+        let count_result = {
+            let mut state = self.state.lock().await;
+            state.process_verify_unused_result(count_result)
+        };
+        // Send state after releasing the lock
+        self.send_state().await;
+
+        match (count_result, refcnt_seen) {
+            (Ok(count), Some((refcnt, seen))) => Ok(CheckUnusedOutcome {
+                count,
+                refcnt,
+                seen,
+            }),
+            (Err(e), _) => Err(e),
+            (Ok(_), None) => unreachable!("refcnt_seen is Some exactly when result was Ok"),
+        }
+    }
+
+    /// Verifies refcnt entries that reference a chunk absent from disk.
+    ///
+    /// # Arguments
+    ///
+    /// * `refcnt` - The `Refcnt` loaded by the preceding [`Self::verify_unused`] call.
+    /// * `seen` - The set of chunk hashes [`Self::verify_unused`] found present on disk.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(FsckMissingCount)` if the verification succeeds.
+    /// * `Err(eyre::Report)` if an error occurs during verification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any step of the missing chunks verification process fails.
+    async fn verify_missing(
+        &self,
+        refcnt: &Refcnt,
+        seen: &HashSet<[u8; 32]>,
+    ) -> Result<FsckMissingCount> {
+        {
+            let mut state = self.state.lock().await;
+            state.start_verify_missing();
+        }
+        self.send_state().await;
+
+        // Create a channel to receive progression updates
+        let (progress_tx, mut progress_rx) =
+            mpsc::channel::<FsckMissingCount>(DEFAULT_CHANNEL_BUFFER_SIZE);
+
+        // Create a task to process progression updates
+        let state_clone = self.state.clone();
+        let state_tx_clone = self.state_tx.clone();
+
+        let progress_task = tokio::spawn(
+            async move {
+                while let Some(progress) = progress_rx.recv().await {
+                    let mut state = state_clone.lock().await;
+                    state.process_verify_missing_progress(&progress);
+
+                    // Send updated state
+                    if let Some(tx) = &state_tx_clone {
+                        if let Err(e) = tx.send(state.clone()).await {
+                            error!(
+                                "Failed to send state update during missing chunks verification: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            .in_current_span(),
+        );
+
+        // Execute verification
+        let result = self
+            .fsck
+            .verify_missing(refcnt, seen, Some(progress_tx), &self.cancel_token)
+            .await;
+
+        // Wait for progression task to complete
+        if let Err(e) = progress_task.await {
+            error!("Error in missing chunks verification progression task: {}", e);
+        }
+
         // Process result and update state, sans let inutile ni move
         let result = {
             let mut state = self.state.lock().await;
-            state.process_verify_unused_result(result)
+            state.process_verify_missing_result(result)
         };
         // Send state after releasing the lock
         self.send_state().await;
@@ -446,12 +542,12 @@ impl FsckMachine {
                 debug!("Verifying unused files...");
 
                 let unused_result = self.verify_unused(self.dry_run).await;
-                match unused_result {
-                    Ok(unused_info) => {
-                        information.in_refcnt = unused_info.in_refcnt as u64;
-                        information.in_unused = unused_info.in_unused as u64;
-                        information.in_nothing = unused_info.in_nothing as u64;
-                        information.missing = unused_info.missing as u64;
+                let outcome = match unused_result {
+                    Ok(outcome) => {
+                        information.in_refcnt = outcome.count.in_refcnt as u64;
+                        information.in_unused = outcome.count.in_unused as u64;
+                        information.in_nothing = outcome.count.in_nothing as u64;
+                        outcome
                     }
                     Err(e) => {
                         error!("Error during unused verification: {}", e);
@@ -462,8 +558,33 @@ impl FsckMachine {
                         self.send_state().await;
                         return Err(e);
                     }
-                }
+                };
+
+                // Checked before starting the missing-chunk scan — a cancel that arrived
+                // during (or right after) the walk above must skip this phase entirely
+                // rather than pay its cost and persist a `missing` snapshot built from a
+                // `seen` set that a partial walk can't be trusted to represent.
                 cancelled = self.check_cancelled().await;
+                if !cancelled {
+                    debug!("Verifying missing chunks...");
+
+                    let missing_result = self.verify_missing(&outcome.refcnt, &outcome.seen).await;
+                    match missing_result {
+                        Ok(missing_info) => {
+                            information.missing = missing_info.missing as u64;
+                        }
+                        Err(e) => {
+                            error!("Error during missing chunks verification: {}", e);
+                            {
+                                let mut state = self.state.lock().await;
+                                state.fail();
+                            }
+                            self.send_state().await;
+                            return Err(e);
+                        }
+                    }
+                    cancelled = self.check_cancelled().await;
+                }
             }
         }
 

@@ -112,6 +112,7 @@ fn fsck_message_from_state(state: &FsckExecutionState) -> String {
         FsckExecutionState::ApplyingRefcnt => "Applying reference counts".to_string(),
         FsckExecutionState::VerifyRefcnt => "Verifying references".to_string(),
         FsckExecutionState::VerifyUnused => "Verifying unused files".to_string(),
+        FsckExecutionState::VerifyMissing => "Verifying missing chunks".to_string(),
         FsckExecutionState::VerifyChunk => "Verifying chunks".to_string(),
         FsckExecutionState::Completed => "Verification completed".to_string(),
         FsckExecutionState::Cancelled => "Verification cancelled".to_string(),
@@ -191,10 +192,12 @@ pub async fn verify_all(
                 | FsckExecutionState::ApplyingRefcnt
                 | FsckExecutionState::VerifyRefcnt
                 | FsckExecutionState::VerifyUnused
+                | FsckExecutionState::VerifyMissing
                 | FsckExecutionState::VerifyChunk => {
                     let length = state.chunk_progression.progress_max
                         + state.refcnt_progression.progress_max
-                        + state.unused_progression.progress_max;
+                        + state.unused_progression.progress_max
+                        + state.missing_progression.progress_max;
 
                     if progress_bar.length().is_none() && length > 0 {
                         progress_bar.set_position(0);
@@ -203,6 +206,7 @@ pub async fn verify_all(
 
                     let position = state.refcnt_progression.progress_current
                         + state.unused_progression.progress_current
+                        + state.missing_progression.progress_current
                         + state.chunk_progression.progress_current;
                     progress_bar.set_position(position as u64);
                 }
@@ -230,8 +234,8 @@ pub async fn verify_all(
                         HumanCount(state.unused_progression.in_nothing as u64)
                     ));
                     let _ = term.write_line(&format!(
-                        "- Missing: {}",
-                        HumanCount(state.unused_progression.missing as u64)
+                        "Missing chunks verification results: {}",
+                        HumanCount(state.missing_progression.missing as u64)
                     ));
 
                     if verify_chunks {

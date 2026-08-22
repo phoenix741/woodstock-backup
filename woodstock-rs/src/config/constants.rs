@@ -58,6 +58,14 @@ pub const BUFFER_SIZE: usize = 1 << 17; // 128KB (128 * 128Kb = 16MB)
 /// usage and performance.
 pub const DEFAULT_CHANNEL_BUFFER_SIZE: usize = 100;
 
+/// How many items the fsck unused/missing scans process between progress updates.
+///
+/// These scans can walk millions of pool chunks; sending a progress message on every
+/// single item would flood the bounded progress channel (and the Redis snapshot it
+/// feeds) and can back-pressure the scan itself. Sending every N items keeps the
+/// progress bar moving smoothly without paying that cost per item.
+pub const FSCK_PROGRESS_BATCH_SIZE: usize = 200;
+
 /// Maximum expected duration of a long-running job (backup, restore, fsck) in seconds.
 ///
 /// This constant is the single source of truth for job session duration across the system:

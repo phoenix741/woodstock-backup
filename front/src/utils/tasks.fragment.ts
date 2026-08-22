@@ -191,6 +191,10 @@ export const FsckTaskStateFragmentDoc = graphql(/* GraphQL */ `
       inNothing
       inRefcnt
       inUnused
+    }
+    missingProgression {
+      progressMax
+      progressCurrent
       missing
     }
     chunkProgression {

@@ -2,7 +2,10 @@ use eyre::Result;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
-use crate::{pool::FsckUnusedCount, server::pool::fsck::FsckProgression};
+use crate::{
+    pool::{FsckMissingCount, FsckUnusedCount},
+    server::pool::fsck::FsckProgression,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ErrorState {
@@ -10,6 +13,7 @@ pub enum ErrorState {
     InitializationError(String),
     VerifyRefcntError(String),
     VerifyUnusedError(String),
+    VerifyMissingError(String),
     VerifyChunkError(String),
     Unknown(String),
 }
@@ -21,6 +25,10 @@ pub enum FsckExecutionState {
     Initialization,
     VerifyRefcnt,
     VerifyUnused,
+    /// Scans every refcnt entry for a chunk missing from disk. Kept as its own phase
+    /// (distinct from `VerifyUnused`, which only walks the pool directory) so it gets its
+    /// own visible progress in the UI instead of silently running behind a frozen bar.
+    VerifyMissing,
     VerifyChunk,
     Completed,
     /// Stopped by the user. In dry-run mode nothing was ever written, so
@@ -53,6 +61,12 @@ pub struct UnusedProgression {
     pub in_nothing: usize,
     pub in_refcnt: usize,
     pub in_unused: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct MissingProgression {
+    pub progress_max: usize,
+    pub progress_current: usize,
     pub missing: usize,
 }
 
@@ -70,6 +84,7 @@ pub struct FsckState {
     pub error_state: Option<ErrorState>,
     pub refcnt_progression: RefcntProgression,
     pub unused_progression: UnusedProgression,
+    pub missing_progression: MissingProgression,
     pub chunk_progression: ChunkProgression,
     pub dry_run: bool,
 }
@@ -81,6 +96,7 @@ impl Default for FsckState {
             error_state: None,
             refcnt_progression: RefcntProgression::default(),
             unused_progression: UnusedProgression::default(),
+            missing_progression: MissingProgression::default(),
             chunk_progression: ChunkProgression::default(),
             dry_run: true,
         }
@@ -114,6 +130,7 @@ impl FsckState {
     /// # Arguments
     /// * `refcnt_max_result` - The result of the reference count maximum calculation.
     /// * `unused_max_result` - The result of the unused maximum calculation.
+    /// * `missing_max_result` - The result of the missing-chunk maximum calculation.
     /// * `chunk_max_result` - The result of the chunk maximum calculation.
     ///
     /// # Returns
@@ -123,11 +140,12 @@ impl FsckState {
     ///
     /// # Errors
     ///
-    /// Returns an error if any of the initialization steps (reference count, unused, or chunk maximum calculation) fails.
+    /// Returns an error if any of the initialization steps (reference count, unused, missing, or chunk maximum calculation) fails.
     pub fn process_initialization_result(
         &mut self,
         refcnt_max_result: Result<usize>,
         unused_max_result: Result<usize>,
+        missing_max_result: Result<usize>,
         chunk_max_result: Result<Vec<Vec<u8>>>,
     ) -> Result<()> {
         // Process the result for refcnt_max
@@ -161,6 +179,24 @@ impl FsckState {
                 error!("Error initializing fsck for unused: {}", err);
                 self.error_state = Some(ErrorState::InitializationError(format!(
                     "Failed to initialize unused check: {err}",
+                )));
+                return Err(err);
+            }
+        }
+
+        // Process the result for missing_max
+        match missing_max_result {
+            Ok(max) => {
+                info!(
+                    "Fsck initialization for missing successful, found {} items to check",
+                    max
+                );
+                self.missing_progression.progress_max = max;
+            }
+            Err(err) => {
+                error!("Error initializing fsck for missing: {}", err);
+                self.error_state = Some(ErrorState::InitializationError(format!(
+                    "Failed to initialize missing check: {err}",
                 )));
                 return Err(err);
             }
@@ -248,11 +284,10 @@ impl FsckState {
     /// * `progress` - The current progression state.
     pub fn process_verify_unused_progress(&mut self, progress: &FsckUnusedCount) {
         self.unused_progression.progress_current =
-            progress.in_nothing + progress.in_refcnt + progress.in_unused + progress.missing;
+            progress.in_nothing + progress.in_refcnt + progress.in_unused;
         self.unused_progression.in_nothing = progress.in_nothing;
         self.unused_progression.in_refcnt = progress.in_refcnt;
         self.unused_progression.in_unused = progress.in_unused;
-        self.unused_progression.missing = progress.missing;
     }
 
     /// Processes the result of the unused verification process.
@@ -274,18 +309,72 @@ impl FsckState {
     ) -> Result<FsckUnusedCount> {
         match result {
             Ok(info) => {
-                info!("Fsck verify unused completed successfully, found {} in refcnt, {} in unused, {} in nothing, {} missing", 
-                    info.in_refcnt, info.in_unused, info.in_nothing, info.missing);
+                info!(
+                    "Fsck verify unused completed successfully, found {} in refcnt, {} in unused, {} in nothing",
+                    info.in_refcnt, info.in_unused, info.in_nothing
+                );
                 self.unused_progression.in_refcnt = info.in_refcnt;
                 self.unused_progression.in_unused = info.in_unused;
                 self.unused_progression.in_nothing = info.in_nothing;
-                self.unused_progression.missing = info.missing;
+                // Throttled progress sends may leave the last received value short of the
+                // max — pin it to 100% now that the phase is actually done.
+                self.unused_progression.progress_current = self.unused_progression.progress_max;
 
                 Ok(info)
             }
             Err(err) => {
                 error!("Error verifying unused: {}", err);
                 self.error_state = Some(ErrorState::VerifyUnusedError(err.to_string()));
+                Err(err)
+            }
+        }
+    }
+
+    /// Starts the missing chunks verification process by updating the execution state.
+    pub fn start_verify_missing(&mut self) {
+        self.execution_state = FsckExecutionState::VerifyMissing;
+    }
+
+    /// Updates the missing progression state with the provided progress.
+    ///
+    /// # Arguments
+    /// * `progress` - The current progression state.
+    pub fn process_verify_missing_progress(&mut self, progress: &FsckMissingCount) {
+        self.missing_progression.progress_current = progress.checked;
+        self.missing_progression.missing = progress.missing;
+    }
+
+    /// Processes the result of the missing chunks verification process.
+    ///
+    /// # Arguments
+    /// * `result` - The result of the missing chunks verification.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(FsckMissingCount)` if the verification was successful.
+    /// * `Err(eyre::Report)` if an error occurred during verification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the missing chunks verification fails or if the result contains an error.
+    pub fn process_verify_missing_result(
+        &mut self,
+        result: Result<FsckMissingCount>,
+    ) -> Result<FsckMissingCount> {
+        match result {
+            Ok(info) => {
+                info!(
+                    "Fsck verify missing completed successfully, {} checked, {} missing",
+                    info.checked, info.missing
+                );
+                self.missing_progression.missing = info.missing;
+                self.missing_progression.progress_current = self.missing_progression.progress_max;
+
+                Ok(info)
+            }
+            Err(err) => {
+                error!("Error verifying missing chunks: {}", err);
+                self.error_state = Some(ErrorState::VerifyMissingError(err.to_string()));
                 Err(err)
             }
         }

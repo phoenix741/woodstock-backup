@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::{collections::HashSet, sync::Arc, time::SystemTime};
 use tokio::sync::mpsc;
 
 use eyre::Result;
@@ -10,8 +10,9 @@ use crate::{
     config::{Backups, Configuration, Hosts, DEFAULT_CHANNEL_BUFFER_SIZE},
     events::append_events,
     pool::{
-        check_backup_integrity, check_host_integrity, check_pool_integrity, check_unused,
-        FsckUnusedCount, PoolChunkWrapper, Refcnt,
+        check_backup_integrity, check_host_integrity, check_missing, check_pool_integrity,
+        check_unused, CheckUnusedOutcome, FsckMissingCount, FsckUnusedCount, PoolChunkWrapper,
+        Refcnt,
     },
     woodstock::event::Information,
     Event, EventPoolInformation, EventSource, EventStatus, EventStep, EventType,
@@ -389,7 +390,8 @@ impl PoolFsck {
     ///
     /// # Returns
     ///
-    /// * `Ok(FsckUnusedCount)` - Information about the unused chunk check.
+    /// * `Ok(CheckUnusedOutcome)` - Information about the unused chunk check, plus the
+    ///   loaded `Refcnt` and set of hashes seen on disk — both needed by [`Self::verify_missing`].
     /// * `Err(eyre::Report)` if an error occurs.
     ///
     /// # Errors
@@ -400,7 +402,7 @@ impl PoolFsck {
         dry_run: bool,
         progress_tx: Option<mpsc::Sender<FsckUnusedCount>>,
         cancel_token: &CancellationToken,
-    ) -> Result<FsckUnusedCount> {
+    ) -> Result<CheckUnusedOutcome> {
         info!("Starting unused files verification");
 
         let (internal_tx, mut internal_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
@@ -417,15 +419,80 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let result = check_unused(dry_run, internal_tx, self.config.clone(), cancel_token).await?;
+        let outcome =
+            check_unused(dry_run, internal_tx, self.config.clone(), cancel_token).await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in file list progression task: {}", e);
         }
 
         info!(
-            "Unused files verification completed with {} in refcnt, {} in unused, {} in nothing, and {} missing",
-            result.in_refcnt, result.in_unused, result.in_nothing, result.missing
+            "Unused files verification completed with {} in refcnt, {} in unused, and {} in nothing",
+            outcome.count.in_refcnt, outcome.count.in_unused, outcome.count.in_nothing
+        );
+        Ok(outcome)
+    }
+
+    /// Calculates the maximum number of refcnt entries to check for missing chunks.
+    ///
+    /// The missing-chunk scan iterates every refcnt entry exactly once, so this is the same
+    /// count as [`Self::verify_unused_max`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if loading the reference count data fails.
+    pub async fn verify_missing_max(&self) -> Result<usize> {
+        self.verify_unused_max().await
+    }
+
+    /// Identifies refcnt entries that reference a chunk absent from disk.
+    ///
+    /// Must be called with the `refcnt` and `seen` set produced by a prior
+    /// [`Self::verify_unused`] call — it reuses them instead of re-walking or `stat`-ing the
+    /// pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the durable "missing chunks" snapshot cannot be written.
+    pub async fn verify_missing(
+        &self,
+        refcnt: &Refcnt,
+        seen: &HashSet<[u8; 32]>,
+        progress_tx: Option<mpsc::Sender<FsckMissingCount>>,
+        cancel_token: &CancellationToken,
+    ) -> Result<FsckMissingCount> {
+        info!("Starting missing chunks verification");
+
+        let (internal_tx, mut internal_rx) = mpsc::channel(DEFAULT_CHANNEL_BUFFER_SIZE);
+        let progress_thread = tokio::spawn(
+            async move {
+                while let Some(p) = internal_rx.recv().await {
+                    if let Some(tx) = &progress_tx {
+                        if let Err(e) = tx.send(p).await {
+                            error!("Failed to send missing chunks verification progress: {}", e);
+                        }
+                    }
+                }
+            }
+            .in_current_span(),
+        );
+
+        let result = check_missing(
+            refcnt,
+            seen,
+            internal_tx,
+            self.config.clone(),
+            cancel_token,
+        )
+        .await?;
+
+        if let Err(e) = progress_thread.await {
+            error!("Error in missing chunks progression task: {}", e);
+        }
+
+        info!(
+            "Missing chunks verification completed with {} checked and {} missing",
+            result.checked, result.missing
         );
         Ok(result)
     }

@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use crate::{
-    config::{Backups, Configuration, Hosts},
+    config::{Backups, Configuration, Hosts, FSCK_PROGRESS_BATCH_SIZE},
     pool::PoolChunkWrapper,
     proto::{CompressedWriter, ProtobufReader, ProtobufWriter},
     utils::compression::CompressionFormat,
@@ -53,6 +53,11 @@ pub struct FsckUnusedCount {
     pub in_unused: usize,
     pub in_refcnt: usize,
     pub in_nothing: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FsckMissingCount {
+    pub checked: usize,
     pub missing: usize,
 }
 
@@ -254,26 +259,6 @@ pub async fn check_pool_integrity(
     })
 }
 
-/// Identifies and manages unused chunks in the pool.
-///
-/// # Arguments
-///
-/// * `dry_run` - If true, do not modify any data.
-/// * `progress_tx` - Channel for progress updates.
-/// * `config` - Reference to the Woodstock [`Configuration`] struct.
-///
-/// # Returns
-///
-/// * `Ok(FsckUnusedCount)` - The result of the unused chunk check.
-/// * `Err(eyre::Report)` if an error occurs.
-///
-/// # Errors
-///
-/// Returns an error if the pool cannot be loaded or the unused chunk check fails.
-///
-/// # Panics
-///
-/// This function will panic if the `progress_tx` channel is closed unexpectedly. Ensure that the channel is properly managed and remains open during the operation.
 /// Loads the durable "missing chunks" snapshot at `<pool_path>/missing` into memory, keyed by
 /// chunk hash. This snapshot is written by [`check_unused`] and lists chunks referenced by the
 /// pool's refcnt but absent from disk; it lets a caller (another fsck run, or a backup process
@@ -327,23 +312,48 @@ pub async fn save_missing_chunks<'a>(
     Ok(())
 }
 
+/// Outcome of [`check_unused`]: the per-category counts, the loaded (and possibly
+/// walk-augmented, for chunks found `in_nothing`) [`Refcnt`], and the set of chunk hashes
+/// actually observed on disk during the walk. The latter two are handed to
+/// [`check_missing`] so it can determine which refcnt entries are missing without
+/// re-touching the disk.
+pub struct CheckUnusedOutcome {
+    pub count: FsckUnusedCount,
+    pub refcnt: Refcnt,
+    pub seen: HashSet<[u8; 32]>,
+}
+
+/// Identifies unused chunks in the pool by walking the on-disk pool directory and
+/// classifying each chunk found against the loaded refcnt.
+///
+/// This only performs the disk walk (the "unused" phase) — it does not check for refcnt
+/// entries that are missing from disk; that's [`check_missing`], which reuses the `seen`
+/// set and `Refcnt` this function returns instead of re-walking or re-`stat`-ing anything.
+///
+/// # Arguments
+///
+/// * `dry_run` - If true, do not persist the recalculated refcnt.
+/// * `progress_tx` - Channel for progress updates.
+/// * `config` - Reference to the Woodstock [`Configuration`] struct.
+///
+/// # Errors
+///
+/// Returns an error if the pool cannot be loaded or the unused chunk check fails.
 pub async fn check_unused(
     dry_run: bool,
     progress_tx: mpsc::Sender<FsckUnusedCount>,
     config: Arc<Configuration>,
     cancel_token: &CancellationToken,
-) -> Result<FsckUnusedCount> {
+) -> Result<CheckUnusedOutcome> {
     let mut pool_refcnt = Refcnt::new(&config.path.pool_path);
     pool_refcnt.load_refcnt(false).await;
-
-    let previously_missing = load_missing_chunks(&config.path.pool_path).await;
 
     let mut count = FsckUnusedCount {
         in_unused: 0,
         in_refcnt: 0,
         in_nothing: 0,
-        missing: 0,
     };
+    let mut seen: HashSet<[u8; 32]> = HashSet::new();
 
     // FIXME: Remove walkdir and use unfold like get_files_recursive
     let entries = WalkDir::new(&config.path.pool_path)
@@ -367,10 +377,20 @@ pub async fn check_unused(
     pin_mut!(entries);
 
     let mut cancelled = false;
+    let mut processed: usize = 0;
     while let Some(hash) = entries.next().await {
         if cancel_token.is_cancelled() {
             cancelled = true;
             break;
+        }
+
+        processed += 1;
+
+        // Record presence for check_missing — every hash reaching this point is a real
+        // `.zz` file on disk. A malformed 64-hex-char filename (shouldn't happen; chunk
+        // filenames are always the hash itself) just doesn't get recorded as seen.
+        if let Ok(fixed_hash) = <[u8; 32]>::try_from(hash.as_slice()) {
+            seen.insert(fixed_hash);
         }
 
         let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&hash));
@@ -378,13 +398,14 @@ pub async fn check_unused(
         let hash_str = wrapper.get_hash_str().as_ref().unwrap();
 
         let refcnt = pool_refcnt.get_refcnt(&hash);
+        // Send on every anomaly (in_nothing) for immediate visibility, otherwise batched —
+        // this walk can cover millions of chunks and a message per item would flood the
+        // progress channel and the Redis snapshot it feeds.
+        let mut should_send = processed.is_multiple_of(FSCK_PROGRESS_BATCH_SIZE);
         if refcnt.is_some_and(|r| r.ref_count == 0) {
             count.in_unused += 1;
         } else if refcnt.is_some_and(|r| r.ref_count > 0) {
             count.in_refcnt += 1;
-            if let Err(e) = progress_tx.send(count.clone()).await {
-                error!("Failed to send progress update: {}", e);
-            }
         } else {
             let information = wrapper.chunk_information().await?;
 
@@ -399,46 +420,17 @@ pub async fn check_unused(
                 &crate::pool::RefcntApplySens::Increase,
             );
             error!("{} is not in unused nor in refcnt", hash_str);
+            should_send = true;
         }
-    }
 
-    let mut still_missing = Vec::new();
-    for refcnt in pool_refcnt.list_refcnt() {
-        let wrapper = PoolChunkWrapper::new(&config.path.pool_path, Some(&refcnt.sha256));
-        if !wrapper.exists() {
-            count.missing += 1;
-            if previously_missing.contains_key(&refcnt.sha256) {
-                warn!(
-                    "{} is missing (refcnt {}) — already known missing since last check",
-                    hex::encode(&refcnt.sha256),
-                    refcnt.ref_count
-                );
-            } else {
-                error!(
-                    "{} is missing (refcnt {})",
-                    hex::encode(&refcnt.sha256),
-                    refcnt.ref_count
-                );
+        if should_send {
+            if let Err(e) = progress_tx.send(count.clone()).await {
+                error!("Failed to send progress update: {}", e);
             }
-            still_missing.push(PoolUnused {
-                sha256: refcnt.sha256.clone(),
-                size: refcnt.size,
-                compressed_size: refcnt.compressed_size,
-            });
         }
     }
-
-    // Refresh the durable `missing` snapshot every run (informational, not a
-    // mutation of pool state) so the next check can tell a recurring miss
-    // from a new one, regardless of dry_run.
-    if let Err(e) = save_missing_chunks(
-        &config.path.pool_path,
-        still_missing.iter(),
-        config.compression_format,
-    )
-    .await
-    {
-        error!("Failed to save missing-chunks file: {e}");
+    if let Err(e) = progress_tx.send(count.clone()).await {
+        error!("Failed to send progress update: {}", e);
     }
 
     // A cancelled walk skips the save entirely — the in-memory `pool_refcnt`
@@ -449,6 +441,98 @@ pub async fn check_unused(
         pool_refcnt
             .save_refcnt(&Local::now(), true, config.compression_format)
             .await?;
+    }
+
+    Ok(CheckUnusedOutcome {
+        count,
+        refcnt: pool_refcnt,
+        seen,
+    })
+}
+
+/// Identifies refcnt entries that reference a chunk absent from disk — the counterpart to
+/// [`check_unused`], run as its own fsck phase.
+///
+/// Reuses the `refcnt` and `seen` set produced by [`check_unused`] instead of re-walking or
+/// `stat`-ing the pool: a refcnt entry is missing precisely when its hash isn't in `seen`.
+/// This avoids one `stat()` syscall per refcnt entry (which, scattered across the pool's
+/// 3-level hex-sharded directories, previously dominated fsck runtime on large pools).
+///
+/// # Errors
+///
+/// Returns an error if the durable "missing chunks" snapshot cannot be written.
+pub async fn check_missing(
+    refcnt: &Refcnt,
+    seen: &HashSet<[u8; 32]>,
+    progress_tx: mpsc::Sender<FsckMissingCount>,
+    config: Arc<Configuration>,
+    cancel_token: &CancellationToken,
+) -> Result<FsckMissingCount> {
+    let previously_missing = load_missing_chunks(&config.path.pool_path).await;
+
+    let mut count = FsckMissingCount::default();
+    let mut still_missing = Vec::new();
+    let mut cancelled = false;
+
+    for entry in refcnt.list_refcnt() {
+        if cancel_token.is_cancelled() {
+            cancelled = true;
+            break;
+        }
+
+        count.checked += 1;
+
+        let is_present = <[u8; 32]>::try_from(entry.sha256.as_slice())
+            .is_ok_and(|hash| seen.contains(&hash));
+
+        let mut should_send = count.checked.is_multiple_of(FSCK_PROGRESS_BATCH_SIZE);
+        if !is_present {
+            count.missing += 1;
+            should_send = true;
+            if previously_missing.contains_key(&entry.sha256) {
+                warn!(
+                    "{} is missing (refcnt {}) — already known missing since last check",
+                    hex::encode(&entry.sha256),
+                    entry.ref_count
+                );
+            } else {
+                error!(
+                    "{} is missing (refcnt {})",
+                    hex::encode(&entry.sha256),
+                    entry.ref_count
+                );
+            }
+            still_missing.push(PoolUnused {
+                sha256: entry.sha256.clone(),
+                size: entry.size,
+                compressed_size: entry.compressed_size,
+            });
+        }
+
+        if should_send {
+            if let Err(e) = progress_tx.send(count.clone()).await {
+                error!("Failed to send missing chunks verification progress: {}", e);
+            }
+        }
+    }
+    if let Err(e) = progress_tx.send(count.clone()).await {
+        error!("Failed to send missing chunks verification progress: {}", e);
+    }
+
+    // Refresh the durable `missing` snapshot every run (informational, not a mutation of
+    // pool state) so the next check can tell a recurring miss from a new one — unless this
+    // scan itself was cancelled part-way, in which case the partial `still_missing` list
+    // isn't trustworthy enough to persist.
+    if !cancelled {
+        if let Err(e) = save_missing_chunks(
+            &config.path.pool_path,
+            still_missing.iter(),
+            config.compression_format,
+        )
+        .await
+        {
+            error!("Failed to save missing-chunks file: {e}");
+        }
     }
 
     Ok(count)
