@@ -1,3 +1,16 @@
+# [2.1.0-alpha.6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.5...v2.1.0-alpha.6) (2026-08-22)
+
+
+### Bug Fixes
+
+* 🐛 gérer SIGTERM dans ws_client_daemon pour un arrêt gracieux ([8b21db1](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8b21db12f07122ac83bfe7c1c620b44f5867356c))
+* **backup:** 🐛 préserver le statut reprenable si la finalisation échoue après cancel/abort ([399b880](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/399b880f189d5d66aaa99538ea15c1950a6e5c04))
+
+
+### Performance Improvements
+
+* **fsck:** 🐛 accélérer la vérification des chunks manquants et lui donner sa propre étape ([f7caea8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f7caea8411516e30c4bee0946ac331502b4c2afe))
+
 # [2.1.0-alpha.5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.4...v2.1.0-alpha.5) (2026-08-12)
 
 

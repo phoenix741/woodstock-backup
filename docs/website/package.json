@@ -1,6 +1,6 @@
 {
   "name": "website",
-  "version": "2.1.0-alpha.5",
+  "version": "2.1.0-alpha.6",
   "private": true,
   "description": "Woodstock backup documentation",
   "scripts": {
