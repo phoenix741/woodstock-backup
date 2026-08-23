@@ -1,3 +1,10 @@
+# [2.1.0-alpha.7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.6...v2.1.0-alpha.7) (2026-08-23)
+
+
+### Features
+
+* **events:** 🎉 refonte page Évènements + statuts Cancelled/Aborted ([9d990c9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9d990c9fc0e540a814ef599a634202c2a825ea08))
+
 # [2.1.0-alpha.6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.5...v2.1.0-alpha.6) (2026-08-22)
 
 
