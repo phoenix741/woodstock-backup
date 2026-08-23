@@ -148,6 +148,8 @@ impl PoolFsck {
     /// # Arguments
     /// * `id` - The identifier of the event.
     /// * `information` - Additional information about the reference count operation.
+    /// * `cancelled` - Whether the run was cancelled by the user; takes priority over any
+    ///   error counts found in `information`, since those are incidental to an interrupted run.
     ///
     /// # Returns
     /// * `Ok(())` if the event was successfully created.
@@ -160,6 +162,7 @@ impl PoolFsck {
         id: &[u8],
         information: EventPoolInformation,
         source: EventSource,
+        cancelled: bool,
     ) -> Result<()> {
         let event = Event {
             id: id.to_vec(),
@@ -171,7 +174,9 @@ impl PoolFsck {
             source: source as i32,
             user: String::new(),
             error_messages: Vec::new(),
-            status: if information.refcount_error > 0
+            status: if cancelled {
+                EventStatus::Cancelled
+            } else if information.refcount_error > 0
                 || information.chunk_error > 0
                 || information.missing > 0
                 || information.in_nothing > 0

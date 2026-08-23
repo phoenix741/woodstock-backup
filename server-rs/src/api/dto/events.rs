@@ -1,9 +1,9 @@
-use async_graphql::{Enum, SimpleObject, Union};
+use async_graphql::{Enum, InputObject, SimpleObject, Union};
 use chrono::{TimeZone, Utc};
 
 use crate::graphql::scalars::BigIntScalar;
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Debug, Copy, Clone, Eq, PartialEq)]
 #[graphql(remote = "woodstock::EventType")]
 pub enum EventType {
     Backup,
@@ -21,7 +21,7 @@ pub enum EventStep {
     End,
 }
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Debug, Copy, Clone, Eq, PartialEq)]
 #[graphql(remote = "woodstock::EventSource")]
 pub enum EventSource {
     User,
@@ -30,7 +30,7 @@ pub enum EventSource {
     Cli,
 }
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Debug, Copy, Clone, Eq, PartialEq)]
 #[graphql(remote = "woodstock::EventStatus")]
 pub enum EventStatus {
     None,
@@ -38,6 +38,8 @@ pub enum EventStatus {
     ClientDisconnected,
     ServerCrashed,
     GenericError,
+    Cancelled,
+    Aborted,
 }
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
@@ -56,6 +58,9 @@ pub struct EventBackupInformation {
     pub number: i32,
     #[graphql(name = "sharePath")]
     pub share_path: Vec<String>,
+    /// UUID of the backup, when known (older on-disk events may predate this field)
+    #[graphql(name = "backupId")]
+    pub backup_id: Option<String>,
 }
 
 #[derive(SimpleObject, Clone)]
@@ -113,6 +118,39 @@ pub struct ApplicationEvent {
     pub information: Option<EventInformation>,
 }
 
+/// Logical event: a Start+End pair sharing the same `uuid`, merged into a single row.
+#[derive(SimpleObject, Clone)]
+pub struct MergedApplicationEvent {
+    pub uuid: String,
+    #[graphql(name = "type")]
+    pub type_: EventType,
+    pub source: EventSource,
+    #[graphql(name = "startDate")]
+    pub start_date: Option<chrono::DateTime<Utc>>,
+    #[graphql(name = "endDate")]
+    pub end_date: Option<chrono::DateTime<Utc>>,
+    #[graphql(name = "errorMessages")]
+    pub error_messages: Vec<String>,
+    pub status: EventStatus,
+    pub information: Option<EventInformation>,
+}
+
+#[derive(SimpleObject)]
+pub struct EventsPage {
+    pub items: Vec<MergedApplicationEvent>,
+    #[graphql(name = "totalCount")]
+    pub total_count: i32,
+}
+
+#[derive(InputObject, Default, Debug)]
+pub struct EventsFilterInput {
+    #[graphql(name = "type")]
+    pub type_: Option<EventType>,
+    pub status: Option<EventStatus>,
+    pub source: Option<EventSource>,
+    pub hostname: Option<String>,
+}
+
 impl From<woodstock::Event> for ApplicationEvent {
     fn from(e: woodstock::Event) -> Self {
         let uuid =
@@ -132,6 +170,7 @@ impl From<woodstock::Event> for ApplicationEvent {
                     hostname: b.hostname,
                     number: b.number as i32,
                     share_path: b.share_path,
+                    backup_id: (!b.id.is_empty()).then_some(b.id),
                 }),
             ),
             woodstock::event::Information::PoolCleaned(pc) => Some(

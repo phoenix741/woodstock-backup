@@ -374,7 +374,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         // cancelled it — check the same token consulted throughout the
         // transfer loop.
         let event_status = if self.cancel_token.is_cancelled() {
-            EventStatus::GenericError
+            EventStatus::Cancelled
         } else {
             EventStatus::Success
         };

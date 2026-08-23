@@ -1,35 +1,32 @@
 <template>
-  <v-timeline-item :dot-color="eventStatusColor" size="small">
-    <template v-slot:opposite>
-      {{ startDate }}
-      {{ event.endDate && `- ${toDateTime(event.endDate)}` }}
-    </template>
-    <v-card
-      :prepend-icon="icon"
-      :append-icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-      class="mx-auto"
-      :width="344"
-      :subtitle="subtitle"
-      :title="title"
-      @click="show = !show"
-    >
-      <v-card-text v-if="show">
+  <div class="event-row" :class="{ 'event-row--open': show }">
+    <div class="event-row__main" @click="show = !show">
+      <v-icon :icon="icon" :color="eventStatusColor || undefined" size="small" class="event-row__icon"></v-icon>
+      <span class="event-row__time text-medium-emphasis">{{ timeLabel }}</span>
+      <div class="event-row__title">
+        <div class="text-body-2 font-weight-medium">{{ title }}</div>
+        <div class="text-caption text-medium-emphasis event-row__subtitle">
+          <router-link v-if="backupLink" :to="backupLink" @click.stop>{{ subtitle }}</router-link>
+          <span v-else>{{ subtitle }}</span>
+        </div>
+      </div>
+      <span v-if="executionTime" class="event-row__duration text-caption text-medium-emphasis">{{
+        executionTime
+      }}</span>
+      <v-chip v-if="statusChip" :color="statusChip.color" size="small" label variant="tonal" class="event-row__chip">{{
+        statusChip.text
+      }}</v-chip>
+      <v-icon size="small" class="text-medium-emphasis">{{ show ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+    </div>
+
+    <v-expand-transition>
+      <div v-if="show" class="event-row__detail">
         <div class="d-flex flex-wrap">
-          <v-chip
-            v-if="event.status && event.status !== EventStatus.None"
-            :color="eventStatusColor"
-            class="ma-2"
-            label
-            >{{ event.status }}</v-chip
-          >
-          <v-chip title="Source" v-if="event.source" class="ma-2" label>
-            <v-icon icon="mdi-target" start></v-icon>{{ event.source }}
+          <v-chip title="Source" v-if="event.source" class="ma-1" size="small" label>
+            <v-icon icon="mdi-target" start></v-icon>{{ eventSourceLabel(event.source) }}
           </v-chip>
-          <v-chip title="Start date" v-if="startDate" class="ma-2" label>
+          <v-chip title="Start date" v-if="startDate" class="ma-1" size="small" label>
             <v-icon icon="mdi-calendar-start" start></v-icon>{{ startDate }}
-          </v-chip>
-          <v-chip title="Execution time" v-if="executionTime" class="ma-2" label>
-            <v-icon icon="mdi-timer" start></v-icon>{{ executionTime }}
           </v-chip>
 
           <EventBackupInformationComponent
@@ -51,7 +48,7 @@
         </div>
 
         <template v-if="event.errorMessages?.length">
-          <v-alert type="error" dense>
+          <v-alert type="error" dense class="mt-2">
             <v-row v-for="error in event.errorMessages" :key="error">
               <v-col>
                 {{ error }}
@@ -59,12 +56,13 @@
             </v-row>
           </v-alert>
         </template>
-      </v-card-text>
-      <v-card-actions v-if="shoudFix">
-        <v-btn color="teal-accent-4" text="Fix" variant="text" @click="launchFix()"></v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-timeline-item>
+
+        <div v-if="shoudFix" class="mt-1">
+          <v-btn color="teal-accent-4" text="Fix" variant="text" size="small" @click="launchFix()"></v-btn>
+        </div>
+      </div>
+    </v-expand-transition>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -72,7 +70,7 @@ import { parseDateTime, toDateTime, toNumber } from '@/components/hosts/hosts.ut
 import { useFragment } from '@/generated';
 import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
-import { formatDurationValue } from '@/utils/formatting';
+import { formatDateValue, formatDurationValue } from '@/utils/formatting';
 import { usePool } from '@/utils/pool';
 import { computed, ref } from 'vue';
 import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
@@ -85,6 +83,7 @@ import {
   EventPoolInformationFragment,
   EventHashConversionInformationFragment,
 } from './events.fragment';
+import { eventSourceLabel, eventStatusLabel } from './events.labels';
 import type { MergedApplicationEvent } from './events.model';
 
 const { fsckPool } = usePool();
@@ -116,7 +115,7 @@ const icon = computed(() => {
 });
 
 const executionTime = computed(() => {
-  if (props.event.endDate) {
+  if (props.event.endDate && props.event.startDate) {
     const endDate = parseDateTime(props.event.endDate);
     const startDate = parseDateTime(props.event.startDate);
     return formatDurationValue(endDate.getTime() - startDate.getTime(), {
@@ -132,6 +131,11 @@ const startDate = computed(() => {
   return props.event.startDate ? toDateTime(props.event.startDate) : 'unknown';
 });
 
+const timeLabel = computed(() => {
+  const reference = props.event.startDate ?? props.event.endDate;
+  return reference ? formatDateValue(reference, { timeStyle: 'short' }) : '--:--';
+});
+
 const eventStatusColor = computed(() => {
   switch (props.event.status) {
     case EventStatus.Success:
@@ -139,10 +143,23 @@ const eventStatusColor = computed(() => {
     case EventStatus.ClientDisconnected:
     case EventStatus.GenericError:
     case EventStatus.ServerCrashed:
+    case EventStatus.Aborted:
       return 'error';
+    case EventStatus.Cancelled:
+      return 'warning';
     default:
       return '';
   }
+});
+
+const statusChip = computed(() => {
+  if (props.event.status && props.event.status !== EventStatus.None) {
+    return { text: eventStatusLabel(props.event.status), color: eventStatusColor.value };
+  }
+  if (!props.event.endDate) {
+    return { text: 'In progress', color: 'info' };
+  }
+  return undefined;
 });
 
 const title = computed(() => {
@@ -172,6 +189,20 @@ const title = computed(() => {
     default:
       return `Event of type ${props.event.type}`;
   }
+});
+
+const backupLink = computed(() => {
+  if (props.event?.information?.__typename !== 'EventBackupInformation') {
+    return undefined;
+  }
+  const backupInformation = useFragment(EventBackupInformationFragment, props.event.information);
+  if (!backupInformation?.backupId) {
+    return undefined;
+  }
+  return {
+    name: 'BackupDetails',
+    params: { deviceId: backupInformation.hostname, backupId: backupInformation.backupId },
+  };
 });
 
 const subtitle = computed(() => {
@@ -228,3 +259,61 @@ async function launchFix() {
   }
 }
 </script>
+
+<style scoped>
+.event-row {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.event-row__main {
+  display: grid;
+  grid-template-columns: 24px 76px 1fr auto auto 20px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  cursor: pointer;
+}
+
+.event-row__icon {
+  justify-self: center;
+}
+
+.event-row__time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.event-row__title {
+  min-width: 0;
+}
+
+.event-row__subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-row__duration {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.event-row__chip {
+  justify-self: end;
+}
+
+.event-row__detail {
+  padding: 0 4px 12px 60px;
+}
+
+@media (max-width: 600px) {
+  .event-row__main {
+    grid-template-columns: 24px 1fr auto 20px;
+  }
+  .event-row__time,
+  .event-row__duration {
+    display: none;
+  }
+}
+</style>

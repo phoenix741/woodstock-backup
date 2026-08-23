@@ -1,15 +1,14 @@
 <template>
-  <v-chip title="File count" class="ma-2" label
+  <v-chip title="File count" class="ma-1" size="small" label
     ><v-icon icon="mdi-file-outline" start></v-icon>{{ toNumber(information.count) }}</v-chip
   >
-  <v-chip title="Total size" class="ma-2" label
+  <v-chip title="Total size" class="ma-1" size="small" label
     ><v-icon icon="mdi-weight" start></v-icon>{{ filesize(information.size) }}</v-chip
   >
   <v-tooltip v-if="information.removedHashes.length" location="bottom">
     <template #activator="{ props: tooltipProps }">
-      <v-chip v-bind="tooltipProps" title="Removed chunk hashes" class="ma-2" label
-        ><v-icon icon="mdi-identifier" start></v-icon
-        >{{ toNumber(information.removedHashes.length) }}</v-chip
+      <v-chip v-bind="tooltipProps" title="Removed chunk hashes" class="ma-1" size="small" label
+        ><v-icon icon="mdi-identifier" start></v-icon>{{ toNumber(information.removedHashes.length) }}</v-chip
       >
     </template>
     <div v-for="hash in information.removedHashes" :key="hash">{{ hash }}</div>

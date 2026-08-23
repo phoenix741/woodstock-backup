@@ -627,7 +627,7 @@ impl FsckMachine {
         self.send_state().await;
 
         self.fsck
-            .create_event_refcnt_end(&id, information, self.source)
+            .create_event_refcnt_end(&id, information, self.source, cancelled)
             .await?;
 
         debug!("End of fsck process ...");

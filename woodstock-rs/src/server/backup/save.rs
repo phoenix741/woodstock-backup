@@ -1553,12 +1553,13 @@ impl<Clt: Client> BackupSave<Clt> {
                 .map(std::string::String::as_str)
                 .collect::<Vec<&str>>();
 
-            // The event log only distinguishes success from failure — the
-            // finer-grained cause (aborted, cancelled by the user, hard
-            // failure at a specific phase) lives in `Backup.status` /
-            // `Backup.error_message`, which is what the UI actually reads.
+            // The finer-grained failure phase still lives only in `Backup.status` /
+            // `Backup.error_message`, but cancel vs. abort vs. generic failure is now
+            // distinguishable in the event log too.
             let event_status = match status {
                 BackupStatus::Completed => EventStatus::Success,
+                BackupStatus::Cancelled => EventStatus::Cancelled,
+                BackupStatus::Aborted => EventStatus::Aborted,
                 _ => EventStatus::GenericError,
             };
 

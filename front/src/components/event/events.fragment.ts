@@ -1,12 +1,12 @@
 import { graphql } from '@/generated';
 
-export const ApplicationEventFragment = graphql(/* GraphQL */ `
-  fragment ApplicationEvent on ApplicationEvent {
+export const MergedApplicationEventFragment = graphql(/* GraphQL */ `
+  fragment MergedApplicationEvent on MergedApplicationEvent {
     uuid
     type
-    step
     source
-    timestamp
+    startDate
+    endDate
     errorMessages
     status
     information {
@@ -32,6 +32,7 @@ export const EventBackupInformationFragment = graphql(/* GraphQL */ `
     hostname
     number
     sharePath
+    backupId
   }
 `);
 

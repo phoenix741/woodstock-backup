@@ -6,9 +6,10 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::api::dto::{
-    ApplicationEvent, ArchiveProfile, BigIntTimeSerie, DiskUsage as GqlDiskUsage, GqlStatistics,
-    Host, HostStatistics as GqlHostStatistics, Job, NumberTimeSerie, PoolHealthStatusDto,
-    PoolUsage as GqlPoolUsage, QueueListInput, QueueStats,
+    ApplicationEvent, ArchiveProfile, BigIntTimeSerie, DiskUsage as GqlDiskUsage, EventInformation,
+    EventStep, EventsFilterInput, EventsPage, GqlStatistics, Host,
+    HostStatistics as GqlHostStatistics, Job, MergedApplicationEvent, NumberTimeSerie,
+    PoolHealthStatusDto, PoolUsage as GqlPoolUsage, QueueListInput, QueueStats,
     ServerInformations as GqlServerInformations,
 };
 use crate::api::ApiServerState;
@@ -241,11 +242,12 @@ impl QueryRoot {
         ctx: &Context<'_>,
         #[graphql(name = "firstEvent")] first_event: chrono::DateTime<Local>,
         #[graphql(name = "lastEvent")] last_event: chrono::DateTime<Local>,
+        filter: Option<EventsFilterInput>,
         // Maximum number of events to return (default: 50, max: 500)
         limit: Option<i32>,
         // Pagination offset (default: 0)
         offset: Option<i32>,
-    ) -> GqlResult<Vec<ApplicationEvent>> {
+    ) -> GqlResult<EventsPage> {
         let state = ctx.data::<ApiServerState>()?;
         let start_date = first_event.date_naive();
         let end_date = last_event.date_naive();
@@ -257,15 +259,93 @@ impl QueryRoot {
         )
         .await
         .map_err(super::util::map_err)?;
-        let mut list: Vec<ApplicationEvent> = events.into_iter().map(Into::into).collect();
-        list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        let raw: Vec<ApplicationEvent> = events.into_iter().map(Into::into).collect();
 
-        // Server-side pagination: reduces the amount of data sent to the client
+        // Merge Start/End rows sharing the same uuid into one logical event, so
+        // pagination/filtering operate on the unit the UI actually displays.
+        let mut merged: std::collections::HashMap<String, MergedApplicationEvent> =
+            std::collections::HashMap::new();
+        for event in raw {
+            let uuid = event.uuid.clone();
+            let entry = merged
+                .entry(uuid)
+                .or_insert_with(|| MergedApplicationEvent {
+                    uuid: event.uuid.clone(),
+                    type_: event.type_,
+                    source: event.source,
+                    start_date: None,
+                    end_date: None,
+                    error_messages: Vec::new(),
+                    status: event.status,
+                    information: None,
+                });
+            match event.step {
+                EventStep::Start => {
+                    entry.start_date = Some(event.timestamp);
+                    // Fallback so an in-progress event (no End row yet) still shows its info.
+                    if entry.information.is_none() {
+                        entry.information = event.information;
+                        entry.status = event.status;
+                        entry.error_messages = event.error_messages;
+                    }
+                }
+                EventStep::End => {
+                    entry.end_date = Some(event.timestamp);
+                    entry.information = event.information;
+                    entry.status = event.status;
+                    entry.error_messages = event.error_messages;
+                }
+            }
+        }
+
+        let mut list: Vec<MergedApplicationEvent> = merged.into_values().collect();
+
+        if let Some(filter) = filter.as_ref() {
+            list.retain(|event| {
+                if let Some(type_) = filter.type_ {
+                    if event.type_ != type_ {
+                        return false;
+                    }
+                }
+                if let Some(status) = filter.status {
+                    if event.status != status {
+                        return false;
+                    }
+                }
+                if let Some(source) = filter.source {
+                    if event.source != source {
+                        return false;
+                    }
+                }
+                if let Some(hostname) = &filter.hostname {
+                    let matches_hostname = matches!(
+                        &event.information,
+                        Some(EventInformation::EventBackupInformation(info)) if &info.hostname == hostname
+                    );
+                    if !matches_hostname {
+                        return false;
+                    }
+                }
+                true
+            });
+        }
+
+        // End is always after Start when both are present, so it's the natural sort key;
+        // fall back to Start for events that haven't ended yet.
+        list.sort_by(|a, b| {
+            let a_key = a.end_date.or(a.start_date);
+            let b_key = b.end_date.or(b.start_date);
+            b_key.cmp(&a_key)
+        });
+
+        // total_count reflects the merged, filtered unit the UI paginates over.
+        let total_count = list.len() as i32;
+
         let skip = offset.unwrap_or(0).max(0) as usize;
         let take = limit.unwrap_or(50).clamp(1, 500) as usize;
-        let list = list.into_iter().skip(skip).take(take).collect();
+        let items = list.into_iter().skip(skip).take(take).collect();
 
-        Ok(list)
+        Ok(EventsPage { items, total_count })
     }
 
     async fn informations(&self, _ctx: &Context<'_>) -> GqlResult<GqlServerInformations> {
