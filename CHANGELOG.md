@@ -1,3 +1,11 @@
+# [2.1.0-alpha.8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.7...v2.1.0-alpha.8) (2026-08-24)
+
+
+### Bug Fixes
+
+* **archiving:** 🐛 gate permission restore by source/target OS match ([d5ec566](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d5ec5665cec33c7ba000bf00f4d0cf0275a99c5c))
+* **archiving:** 🐛 skip root-only test assertion in CI ([381c442](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/381c44234d1bf90e6291d1b88a575edf94476fa7))
+
 # [2.1.0-alpha.7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.6...v2.1.0-alpha.7) (2026-08-23)
 
 

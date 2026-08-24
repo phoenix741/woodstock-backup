@@ -1599,7 +1599,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "e2e-tests"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "eyre",
  "futures",
@@ -6387,7 +6387,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "woodstock-cli-rs"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -6418,7 +6418,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-client-rs"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "async-stream",
  "chrono",
@@ -6464,7 +6464,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-rs"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "async-compression",
  "async-stream",
@@ -6522,7 +6522,7 @@ dependencies = [
 
 [[package]]
 name = "woodstock-server-rs"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "apalis",
  "apalis-cron",
@@ -6582,7 +6582,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "ws_backuppc_importer"
-version = "2.1.0-alpha.7"
+version = "2.1.0-alpha.8"
 dependencies = [
  "async-stream",
  "backuppc_pool_reader",
