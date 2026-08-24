@@ -428,10 +428,21 @@ mod tests {
     /// `dir`-archive destinations need a one-time manual remediation
     /// (`chmod -R u+w <dest>`) after deploying this fix — self-healing this
     /// automatically was explicitly left out of scope for this change.
+    ///
+    /// Skipped when running as root (e.g. our CI containers): root ignores
+    /// DAC permission checks entirely, so `open()` on a `0o040` file never
+    /// fails with `EACCES` there — the premise this test documents only
+    /// holds for an unprivileged process, same as the real job_worker.
     #[cfg(unix)]
     #[tokio::test]
     async fn re_materializing_an_already_corrupted_file_still_fails() {
         use std::os::unix::fs::PermissionsExt;
+
+        // SAFETY: geteuid() takes no arguments and has no preconditions.
+        if unsafe { libc::geteuid() } == 0 {
+            eprintln!("skipping: root ignores DAC permission checks");
+            return;
+        }
 
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("regular");
