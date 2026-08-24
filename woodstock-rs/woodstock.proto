@@ -135,6 +135,16 @@ enum FileManifestType {
   FILE_MANIFEST_TYPE_UNKNOWN           = 99;
 }
 
+// Which OS produced this entry's `mode` field. `mode` means POSIX permission
+// bits for SOURCE_OS_UNIX, but raw Windows FILE_ATTRIBUTE_* bits for
+// SOURCE_OS_WINDOWS — the two must never be blindly cross-applied (see
+// restore_metadata::restore_permissions).
+enum SourceOs {
+  SOURCE_OS_UNSPECIFIED = 0;
+  SOURCE_OS_UNIX        = 1;
+  SOURCE_OS_WINDOWS     = 2;
+}
+
 message FileManifestStat {
   uint32           owner_id       = 1;
   uint32           group_id       = 2;
@@ -151,6 +161,8 @@ message FileManifestStat {
 
   uint64 ino   = 12;
   uint64 nlink = 13;
+
+  SourceOs source_os = 14;
 }
 
 enum FileManifestAclQualifier {

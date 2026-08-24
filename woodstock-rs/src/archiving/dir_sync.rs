@@ -27,7 +27,7 @@ use crate::manifest::{generate_compare_stream_from_manifests, Manifest};
 use crate::proto::save_file;
 use crate::utils::compression::CompressionFormat;
 use crate::utils::path::mangle;
-use crate::{EntryType, FileManifest, FileManifestJournalEntry, FileManifestType};
+use crate::{EntryType, FileManifest, FileManifestJournalEntry, FileManifestType, SourceOs};
 
 /// Summary of one `dir`-mode sync run for a host.
 #[derive(Debug, Clone, Default)]
@@ -68,7 +68,7 @@ struct MaterializeTask {
 enum MaterializeOutcome {
     Applied {
         entry_type: EntryType,
-        dir_permission: Option<(PathBuf, u32)>,
+        dir_permission: Option<(PathBuf, u32, SourceOs)>,
     },
     Skipped,
 }
@@ -222,7 +222,7 @@ fn materialize_lane(
                 }
 
                 let dir_permission = (manifest_entry.file_mode() == FileManifestType::Directory)
-                    .then(|| (dest_path, manifest_entry.mode()));
+                    .then(|| (dest_path, manifest_entry.mode(), manifest_entry.source_os()));
 
                 if let Some(progress) = &progress {
                     progress
@@ -252,7 +252,7 @@ fn materialize_lane(
 /// results channel never backs up and blocks a lane mid-materialize.
 async fn aggregate_materialize_results(
     mut results_rx: mpsc::Receiver<MaterializeOutcome>,
-) -> (usize, usize, usize, Vec<(PathBuf, u32)>) {
+) -> (usize, usize, usize, Vec<(PathBuf, u32, SourceOs)>) {
     let mut added = 0usize;
     let mut modified = 0usize;
     let mut skipped = 0usize;
@@ -413,9 +413,9 @@ pub async fn sync_host_dir_archive(
         // returned): every `Add`/`Modify` in this share — from every lane —
         // has already been materialized.
         pending_dir_permissions
-            .sort_by_key(|(path, _)| std::cmp::Reverse(path.components().count()));
-        for (path, mode) in pending_dir_permissions {
-            fs_materialize::set_directory_permissions(&path, mode).await;
+            .sort_by_key(|(path, _, _)| std::cmp::Reverse(path.components().count()));
+        for (path, mode, source_os) in pending_dir_permissions {
+            fs_materialize::set_directory_permissions(&path, mode, source_os).await;
         }
 
         // The destination only actually matches `backup_manifest` for this

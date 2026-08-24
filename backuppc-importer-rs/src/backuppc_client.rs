@@ -25,7 +25,7 @@ use woodstock::{
     EntryState, EntryType, ExecuteCommandReply, FileChunk, FileChunkData, FileChunkEndOfFile,
     FileChunkFooter, FileChunkHeader, FileManifest, FileManifestJournalEntry, FileManifestStat,
     FileManifestType, FileManifestXAttr, RefreshCacheRequest, RestoreFileReply, RestoreFileRequest,
-    Share,
+    Share, SourceOs,
 };
 
 use crate::backuppc_manifest::{FileManifestBackupPC, BPC_DIGEST};
@@ -106,6 +106,7 @@ fn file_attribute_to_manifest(path: &[&[u8]], file: FileAttributes) -> FileManif
             rdev: 0,
             nlink: u64::from(file.nlinks),
             compressed_size: 0,
+            source_os: SourceOs::Unix as i32,
         }),
         metadata,
     }

@@ -42,7 +42,7 @@ use crate::{
     config::CHUNK_SIZE_U64,
     utils::path::{path_to_vec, vec_to_path},
     woodstock::{FileManifest, FileManifestJournalEntry, FileManifestType},
-    EntryState, EntryType, FileManifestStat,
+    EntryState, EntryType, FileManifestStat, SourceOs,
 };
 
 use super::PathManifest;
@@ -129,6 +129,19 @@ impl FileManifest {
         self.stats
             .as_ref()
             .map(|stats| stats.mode)
+            .unwrap_or_default()
+    }
+
+    /// Returns which OS produced this entry's `mode` — POSIX bits for
+    /// [`SourceOs::Unix`], raw Windows `FILE_ATTRIBUTE_*` bits for
+    /// [`SourceOs::Windows`]. Restore-side code must never apply `mode`
+    /// across a source/target OS mismatch (see
+    /// `restore_metadata::restore_permissions`).
+    #[must_use]
+    pub fn source_os(&self) -> SourceOs {
+        self.stats
+            .as_ref()
+            .map(FileManifestStat::source_os)
             .unwrap_or_default()
     }
 

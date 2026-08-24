@@ -27,7 +27,7 @@ use tracing::{debug, warn};
 
 use crate::utils::path::vec_to_path;
 use crate::utils::restore_metadata;
-use crate::{FileManifest, FileManifestType};
+use crate::{FileManifest, FileManifestType, SourceOs};
 
 /// Materializes one manifest entry at `path` (already rewritten to point
 /// inside the destination tree — see `dir_sync`), creating parent
@@ -195,7 +195,7 @@ pub async fn remove_entry(path: &Path) -> Result<()> {
 }
 
 async fn set_permissions(path: &Path, entry: &FileManifest) {
-    set_mode(path, entry.mode()).await;
+    set_mode(path, entry.mode(), entry.source_os()).await;
 }
 
 /// Attempts to restore `entry`'s extended attributes and ACLs onto `path`
@@ -234,10 +234,10 @@ async fn restore_xattr_and_acl(path: &Path, entry: &FileManifest) {
 /// Used by [`materialize_entry`] for files/symlinks right after creation,
 /// and by `dir_sync` for directories in a deferred, bottom-up pass — see
 /// [`set_directory_permissions`].
-async fn set_mode(path: &Path, mode: u32) {
+async fn set_mode(path: &Path, mode: u32, source_os: SourceOs) {
     let owned_path = path.to_path_buf();
     let result = tokio::task::spawn_blocking(move || {
-        restore_metadata::restore_permissions(&owned_path, mode)
+        restore_metadata::restore_permissions(&owned_path, mode, source_os)
     })
     .await;
     match result {
@@ -257,9 +257,10 @@ async fn set_mode(path: &Path, mode: u32) {
 /// disaster-recovery-by-hand copy (see module docs), and a captured mode that
 /// happens to omit the owner's execute bit (some real-world directories do,
 /// e.g. iscsi node configs) must never lock the archive's own owner out of
-/// their own copy.
-pub async fn set_directory_permissions(path: &Path, mode: u32) {
-    set_mode(path, mode | 0o700).await;
+/// their own copy. Still subject to the same source/target OS gating as
+/// [`set_permissions`] — see [`restore_metadata::restore_permissions`].
+pub async fn set_directory_permissions(path: &Path, mode: u32, source_os: SourceOs) {
+    set_mode(path, mode | 0o700, source_os).await;
 }
 
 #[cfg(test)]
@@ -355,6 +356,134 @@ mod tests {
         assert!(
             tokio::fs::symlink_metadata(&path).await.is_err(),
             "no file should have been created for a socket entry"
+        );
+    }
+
+    fn regular_file_entry(mode: u32, source_os: SourceOs) -> FileManifest {
+        FileManifest {
+            path: b"regular".to_vec(),
+            stats: Some(FileManifestStat {
+                file_type: FileManifestType::RegularFile as i32,
+                mode,
+                source_os: source_os as i32,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[cfg(unix)]
+    fn unix_mode_bits(path: &std::path::Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    /// Prevents the regression from ever occurring: a Windows-sourced
+    /// entry's `mode` is a raw `FILE_ATTRIBUTE_*` bitmask (here
+    /// `FILE_ATTRIBUTE_ARCHIVE = 32`, masking to `0o040` — no owner bits at
+    /// all), not POSIX bits. Materializing it must NOT chmod the
+    /// destination to that garbage value — otherwise a later re-sync's
+    /// `OpenOptions::write(true).open()` on the already-existing file fails
+    /// `EACCES` forever, exactly as seen in production (`+739 ~0 -19
+    /// (skipped 175)`, every skip a failed re-materialization). This only
+    /// covers files materialized *after* this fix ships — see
+    /// [`re_materializing_an_already_corrupted_file_still_fails`] for the
+    /// known limitation on files a pre-fix run already broke.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn windows_sourced_mode_is_not_applied_on_unix_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+        let pool_path = tmp.path().join("pool");
+
+        let entry = regular_file_entry(32, SourceOs::Windows);
+        materialize_entry(&entry, &path, &pool_path).await.unwrap();
+
+        let mode = unix_mode_bits(&path);
+        assert_ne!(
+            mode, 0o040,
+            "Windows FILE_ATTRIBUTE_* bits must never be chmod'd onto a Unix target"
+        );
+        assert_eq!(
+            mode & 0o200,
+            0o200,
+            "owner-write bit must survive, or a later re-sync can never re-open this file for writing"
+        );
+
+        // Re-materializing (simulating a re-sync after the source changed)
+        // must still succeed, since this file was never corrupted to begin
+        // with under the fixed code.
+        materialize_entry(&entry, &path, &pool_path)
+            .await
+            .expect("re-materializing an existing file must not fail with Permission denied");
+    }
+
+    /// Documents a known limitation, not a regression: this fix only stops
+    /// *new* corruption. A file a pre-fix run already chmod'd to a
+    /// Windows-attribute-derived garbage mode (e.g. `0o040`, no owner bits)
+    /// stays broken — `materialize_entry`'s `OpenOptions::write(true).open()`
+    /// still hits `EACCES` on it regardless of `source_os`, because the
+    /// fix's chmod-skip only ever prevents applying a *new* bad mode, it
+    /// never repairs a mode already on disk. Existing corrupted
+    /// `dir`-archive destinations need a one-time manual remediation
+    /// (`chmod -R u+w <dest>`) after deploying this fix — self-healing this
+    /// automatically was explicitly left out of scope for this change.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn re_materializing_an_already_corrupted_file_still_fails() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+        let pool_path = tmp.path().join("pool");
+
+        // Simulate a file left behind by a pre-fix run: content exists, but
+        // the destination's mode was already corrupted to 0o040 (no owner
+        // bits) by the old, unconditional chmod.
+        std::fs::write(&path, b"old content").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o040)).unwrap();
+
+        let entry = regular_file_entry(32, SourceOs::Windows);
+        let result = materialize_entry(&entry, &path, &pool_path).await;
+
+        assert!(
+            result.is_err(),
+            "a file already corrupted by a pre-fix run is not self-healing; this documents the \
+             known limitation, not a desired outcome — see this test's doc comment"
+        );
+    }
+
+    /// Non-regression: a Unix-sourced entry's captured mode is still applied
+    /// as before.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn unix_sourced_mode_is_still_applied_on_unix_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+        let pool_path = tmp.path().join("pool");
+
+        let entry = regular_file_entry(0o600, SourceOs::Unix);
+        materialize_entry(&entry, &path, &pool_path).await.unwrap();
+
+        assert_eq!(unix_mode_bits(&path), 0o600);
+    }
+
+    /// A Windows-sourced directory's captured `FILE_ATTRIBUTE_*` bits must
+    /// not be chmod'd onto the destination directory either.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn windows_sourced_directory_permission_is_not_applied_on_unix_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("dir");
+        std::fs::create_dir_all(&path).unwrap();
+        let before = unix_mode_bits(&path);
+
+        set_directory_permissions(&path, 32, SourceOs::Windows).await;
+
+        assert_eq!(
+            unix_mode_bits(&path),
+            before,
+            "a Windows-sourced directory mode must not be chmod'd onto a Unix target"
         );
     }
 }

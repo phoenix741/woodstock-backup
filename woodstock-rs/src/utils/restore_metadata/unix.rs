@@ -5,7 +5,7 @@ use eyre::Result;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use crate::{FileManifest, FileManifestType};
+use crate::{FileManifest, FileManifestType, SourceOs};
 
 /// Creates a block/character device, FIFO, or socket node at `path` via
 /// `mknod`, based on `entry`'s manifest type and permission bits, using
@@ -59,7 +59,18 @@ pub fn create_symlink<P: AsRef<Path>>(path: P, target: P) -> Result<()> {
 }
 
 /// Applies `mode`'s permission bits (masked to `0o777`, ignoring any file
-/// type bits a raw `st_mode`-derived value may also carry) to `path`.
+/// type bits a raw `st_mode`-derived value may also carry) to `path` — but
+/// only when `source_os` is [`SourceOs::Unix`] (or [`SourceOs::Unspecified`],
+/// for manifests captured before this field existed — treated as "assume
+/// same as target" so already-correct legacy Unix backups keep restoring as
+/// before). [`SourceOs::Windows`] is skipped entirely: `mode` there is a raw
+/// `FILE_ATTRIBUTE_*` bitmask, not POSIX bits, and blindly chmod'ing it
+/// produces near-arbitrary permissions (e.g. `FILE_ATTRIBUTE_ARCHIVE = 32`
+/// masks to `0o040`, stripping every owner bit) that can permanently lock a
+/// later re-sync out of its own file with `EACCES`. The file/dir content
+/// itself is still created/written by the caller regardless of this
+/// function's outcome — skipping here only means the destination keeps
+/// whatever default permissions its creation left it with.
 ///
 /// Takes a plain `mode` rather than a `&FileManifest` since some callers
 /// (e.g. `dir_sync`'s deferred, bottom-up directory-permission pass) only
@@ -74,8 +85,52 @@ pub fn create_symlink<P: AsRef<Path>>(path: P, target: P) -> Result<()> {
 /// # Errors
 /// Returns an error if `path` does not exist or its permissions cannot be
 /// set.
-pub fn restore_permissions<P: AsRef<Path>>(path: P, mode: u32) -> Result<()> {
+pub fn restore_permissions<P: AsRef<Path>>(path: P, mode: u32, source_os: SourceOs) -> Result<()> {
+    if source_os == SourceOs::Windows {
+        return Ok(());
+    }
+
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode & 0o777))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn current_mode(path: &Path) -> u32 {
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn skips_a_windows_sourced_mode() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        // FILE_ATTRIBUTE_ARCHIVE = 32, masks to 0o040 — must never be applied.
+        restore_permissions(tmp.path(), 32, SourceOs::Windows).unwrap();
+
+        assert_eq!(current_mode(tmp.path()), 0o644, "mode must be left untouched");
+    }
+
+    #[test]
+    fn applies_a_unix_sourced_mode() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        restore_permissions(tmp.path(), 0o600, SourceOs::Unix).unwrap();
+
+        assert_eq!(current_mode(tmp.path()), 0o600);
+    }
+
+    #[test]
+    fn applies_an_unspecified_source_mode_for_legacy_manifests() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        restore_permissions(tmp.path(), 0o600, SourceOs::Unspecified).unwrap();
+
+        assert_eq!(current_mode(tmp.path()), 0o600);
+    }
 }

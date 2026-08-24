@@ -11,6 +11,7 @@ use std::os::unix::fs::MetadataExt;
 
 use woodstock::FileManifestStat;
 use woodstock::FileManifestType;
+use woodstock::SourceOs;
 
 /// Creates a `FileManifestStat` structure from a file's metadata on Unix systems.
 ///
@@ -52,6 +53,7 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
         rdev: metadata.rdev(),
         ino: metadata.ino(),
         nlink: metadata.nlink(),
+        source_os: SourceOs::Unix as i32,
         file_type: match file_type_bits {
             x if x == S_IFREG as u32 => FileManifestType::RegularFile,
             x if x == S_IFLNK as u32 => FileManifestType::Symlink,

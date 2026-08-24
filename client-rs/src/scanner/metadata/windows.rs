@@ -9,6 +9,7 @@
 use std::os::windows::fs::MetadataExt;
 use woodstock::FileManifestStat;
 use woodstock::FileManifestType;
+use woodstock::SourceOs;
 
 /// Windows file attribute constant for directory.
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 16u32;
@@ -83,6 +84,7 @@ pub fn create_stats_from_metadata(metadata: &std::fs::Metadata) -> FileManifestS
         rdev: 0,
         ino: 0,
         nlink: 0,
+        source_os: SourceOs::Windows as i32,
         file_type: if (metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY)
             == FILE_ATTRIBUTE_DIRECTORY
         {

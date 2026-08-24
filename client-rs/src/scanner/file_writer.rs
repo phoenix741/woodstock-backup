@@ -77,7 +77,7 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
         }
     }
 
-    restore_permissions(&path, file_manifest.mode())?;
+    restore_permissions(&path, file_manifest.mode(), file_manifest.source_os())?;
 
     let _ = restore_xattr(&path, &file_manifest.xattr).inspect_err(|err| {
         tracing::warn!("Failed to restore xattr: {}", err);

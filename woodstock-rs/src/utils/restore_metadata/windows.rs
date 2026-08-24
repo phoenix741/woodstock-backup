@@ -7,7 +7,7 @@
 use eyre::Result;
 use std::path::Path;
 
-use crate::FileManifest;
+use crate::{FileManifest, SourceOs};
 
 /// No-op on Windows: there is no equivalent of a Unix special device/FIFO
 /// node to create.
@@ -32,12 +32,20 @@ pub fn create_symlink<P: AsRef<Path>>(path: P, target: P) -> Result<()> {
     Ok(())
 }
 
-/// No-op on Windows: permission bits are a POSIX mode concept, and Windows'
-/// ACL-based permission model would need a real translation this stub
-/// doesn't attempt.
+/// No-op on Windows in every case: for a Unix-sourced entry, POSIX
+/// permission bits have no ACL translation attempted here; for a
+/// Windows-sourced entry (`source_os == SourceOs::Windows`), real
+/// `FILE_ATTRIBUTE_*` restoration is a pre-existing gap this signature only
+/// makes explicit — not implemented by this fix, tracked as a separate
+/// future enhancement rather than folded into the source/target OS mismatch
+/// this parameter exists to guard against (see the `unix.rs` counterpart).
 ///
 /// # Errors
 /// Never returns an error.
-pub fn restore_permissions<P: AsRef<Path>>(_path: P, _mode: u32) -> Result<()> {
+pub fn restore_permissions<P: AsRef<Path>>(
+    _path: P,
+    _mode: u32,
+    _source_os: SourceOs,
+) -> Result<()> {
     Ok(())
 }

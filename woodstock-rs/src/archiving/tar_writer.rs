@@ -30,7 +30,7 @@ use super::archive_reader_worker_count;
 use crate::config::{ArchiveFormat, Backup, Backups, BUFFER_SIZE, DEFAULT_CHANNEL_BUFFER_SIZE};
 use crate::proto::ProtobufReader;
 use crate::utils::chunk_hasher::{create_chunk_hasher, ChunkHasher};
-use crate::{ChunkAlgorithm, FileManifest, FileManifestType};
+use crate::{ChunkAlgorithm, FileManifest, FileManifestType, SourceOs};
 
 /// Result of a successful tar-family archive run for one host.
 #[derive(Debug, Clone)]
@@ -715,8 +715,21 @@ fn append_entry<W: std::io::Write>(
     // bits (`S_IFREG`/`S_IFDIR`/...) alongside the permission bits — masked
     // here to just the permission bits, matching
     // `fs_materialize::set_mode`'s equivalent mask for the `dir` archive
-    // format, so both archive formats agree on what `mode` means.
-    header.set_mode(stats.mode & 0o777);
+    // format, so both archive formats agree on what `mode` means. But a tar
+    // header's mode is always interpreted as POSIX bits by every extractor
+    // (the format has no "no permission info" escape hatch), so a
+    // Windows-sourced entry's raw `FILE_ATTRIBUTE_*` bitmask (e.g.
+    // `FILE_ATTRIBUTE_ARCHIVE = 32` masking to `0o040`, no owner bits at
+    // all) must never be written verbatim here — it would reproduce the
+    // exact same broken-permission bug on any later `tar xf` on a POSIX
+    // system. Substitute a fixed, sane default instead.
+    header.set_mode(match stats.source_os() {
+        SourceOs::Windows => match entry.file_mode() {
+            FileManifestType::Directory => 0o755,
+            _ => 0o644,
+        },
+        SourceOs::Unix | SourceOs::Unspecified => stats.mode & 0o777,
+    });
     header.set_uid(u64::from(stats.owner_id));
     header.set_gid(u64::from(stats.group_id));
     header.set_mtime(stats.last_modified.max(0).cast_unsigned());
