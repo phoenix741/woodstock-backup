@@ -10,42 +10,50 @@
           <span v-else>{{ subtitle }}</span>
         </div>
       </div>
-      <span v-if="executionTime" class="event-row__duration text-caption text-medium-emphasis">{{
+      <v-chip v-if="executionTime" size="small" label variant="tonal" class="event-row__duration">{{
         executionTime
-      }}</span>
+      }}</v-chip>
       <v-chip v-if="statusChip" :color="statusChip.color" size="small" label variant="tonal" class="event-row__chip">{{
         statusChip.text
       }}</v-chip>
-      <v-icon size="small" class="text-medium-emphasis">{{ show ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+      <v-icon size="small" class="text-medium-emphasis event-row__caret">{{
+        show ? 'mdi-chevron-up' : 'mdi-chevron-down'
+      }}</v-icon>
     </div>
 
     <v-expand-transition>
       <div v-if="show" class="event-row__detail">
-        <div class="d-flex flex-wrap">
-          <v-chip title="Source" v-if="event.source" class="ma-1" size="small" label>
-            <v-icon icon="mdi-target" start></v-icon>{{ eventSourceLabel(event.source) }}
-          </v-chip>
-          <v-chip title="Start date" v-if="startDate" class="ma-1" size="small" label>
-            <v-icon icon="mdi-calendar-start" start></v-icon>{{ startDate }}
-          </v-chip>
+        <v-card variant="tonal" rounded="lg" class="event-row__detail-card">
+          <v-table density="compact" class="bg-transparent">
+            <tbody>
+              <tr v-if="event.source">
+                <td>Source</td>
+                <td class="text-right">{{ eventSourceLabel(event.source) }}</td>
+              </tr>
+              <tr v-if="startDate">
+                <td>Start date</td>
+                <td class="text-right">{{ startDate }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card>
 
-          <EventBackupInformationComponent
-            v-if="event.information?.__typename === 'EventBackupInformation'"
-            :information="event.information"
-          ></EventBackupInformationComponent>
-          <EventPoolInformationComponent
-            v-else-if="event.information?.__typename === 'EventPoolInformation'"
-            :information="event.information"
-          ></EventPoolInformationComponent>
-          <EventPoolCleanedInformationComponent
-            v-else-if="event.information?.__typename === 'EventPoolCleanedInformation'"
-            :information="event.information"
-          ></EventPoolCleanedInformationComponent>
-          <EventHashConversionComponent
-            v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
-            :information="event.information"
-          ></EventHashConversionComponent>
-        </div>
+        <EventBackupInformationComponent
+          v-if="event.information?.__typename === 'EventBackupInformation'"
+          :information="event.information"
+        ></EventBackupInformationComponent>
+        <EventPoolInformationComponent
+          v-else-if="event.information?.__typename === 'EventPoolInformation'"
+          :information="event.information"
+        ></EventPoolInformationComponent>
+        <EventPoolCleanedInformationComponent
+          v-else-if="event.information?.__typename === 'EventPoolCleanedInformation'"
+          :information="event.information"
+        ></EventPoolCleanedInformationComponent>
+        <EventHashConversionComponent
+          v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
+          :information="event.information"
+        ></EventHashConversionComponent>
 
         <template v-if="event.errorMessages?.length">
           <v-alert type="error" dense class="mt-2">
@@ -92,12 +100,21 @@ const props = defineProps<{ event: MergedApplicationEvent }>();
 
 const show = ref(false);
 
+// Types that never emit an End row (logged once, after the fact, always terminal).
+// Can't be inferred from `status === None`: a genuinely in-progress Start/End type
+// (Backup, PoolChecked, ...) also has `status === None` while running — that's the
+// exact ambiguity that caused the original bug. Only the event TYPE tells you whether
+// an End row will ever arrive, so a new single-shot type must be added here explicitly.
+const SINGLE_SHOT_EVENT_TYPES: EventType[] = [EventType.Delete];
+const isSingleShot = computed(() => SINGLE_SHOT_EVENT_TYPES.includes(props.event.type));
+
 const icon = computed(() => {
   switch (props.event.type) {
     case EventType.Backup:
-    case EventType.Delete:
     case EventType.Restore:
       return `mdi-server`;
+    case EventType.Delete:
+      return `mdi-delete`;
 
     case EventType.PoolChecked:
       if (props.event.endDate) {
@@ -156,7 +173,7 @@ const statusChip = computed(() => {
   if (props.event.status && props.event.status !== EventStatus.None) {
     return { text: eventStatusLabel(props.event.status), color: eventStatusColor.value };
   }
-  if (!props.event.endDate) {
+  if (!isSingleShot.value && !props.event.endDate) {
     return { text: 'In progress', color: 'info' };
   }
   return undefined;
@@ -268,6 +285,7 @@ async function launchFix() {
 .event-row__main {
   display: grid;
   grid-template-columns: 24px 76px 1fr auto auto 20px;
+  grid-template-areas: 'icon time title duration chip caret';
   align-items: center;
   gap: 12px;
   padding: 8px 4px;
@@ -275,16 +293,19 @@ async function launchFix() {
 }
 
 .event-row__icon {
+  grid-area: icon;
   justify-self: center;
 }
 
 .event-row__time {
+  grid-area: time;
   font-variant-numeric: tabular-nums;
   font-size: 0.75rem;
   white-space: nowrap;
 }
 
 .event-row__title {
+  grid-area: title;
   min-width: 0;
 }
 
@@ -295,21 +316,39 @@ async function launchFix() {
 }
 
 .event-row__duration {
+  grid-area: duration;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .event-row__chip {
+  grid-area: chip;
   justify-self: end;
+}
+
+.event-row__caret {
+  grid-area: caret;
 }
 
 .event-row__detail {
   padding: 0 4px 12px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-row__detail-card {
+  max-width: 480px;
+}
+
+.event-row__detail :deep(.v-table) {
+  --v-table-row-height: 36px;
 }
 
 @media (max-width: 600px) {
   .event-row__main {
     grid-template-columns: 24px 1fr auto 20px;
+    grid-template-areas: 'icon title chip caret';
   }
   .event-row__time,
   .event-row__duration {

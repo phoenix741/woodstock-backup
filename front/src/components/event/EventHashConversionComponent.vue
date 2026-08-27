@@ -1,10 +1,18 @@
 <template>
-  <v-chip title="Chunk count" class="ma-1" size="small" label
-    ><v-icon icon="mdi-dots-grid" start></v-icon>{{ toNumber(information.count) }}</v-chip
-  >
-  <v-chip title="Conversion algorithm" class="ma-1" size="small" label
-    ><v-icon icon="mdi-pound" start></v-icon>{{ information.algorithm }}</v-chip
-  >
+  <v-card variant="tonal" rounded="lg" style="max-width: 480px">
+    <v-table density="compact" class="bg-transparent">
+      <tbody>
+        <tr>
+          <td>Chunk count</td>
+          <td class="text-right">{{ toNumber(information.count) }}</td>
+        </tr>
+        <tr>
+          <td>Conversion algorithm</td>
+          <td class="text-right">{{ information.algorithm }}</td>
+        </tr>
+      </tbody>
+    </v-table>
+  </v-card>
 </template>
 
 <script setup lang="ts">

@@ -431,10 +431,21 @@ mod tests {
     /// chmod'ing the file writable once the first attempt hits
     /// `PermissionDenied`, so no manual `chmod -R u+w <dest>` remediation is
     /// needed after this fix ships (unlike before it did).
+    ///
+    /// Skipped as root: root bypasses the DAC check that makes opening a
+    /// `0o040` file for write hit `PermissionDenied` in the first place, so
+    /// the retry/unlock path this test exercises never triggers — same as
+    /// every other permission-check test in this crate (see `dir_sync.rs`).
     #[cfg(unix)]
     #[tokio::test]
     async fn re_materializing_a_file_stuck_at_a_restrictive_mode_now_succeeds() {
         use std::os::unix::fs::PermissionsExt;
+
+        // SAFETY: geteuid() takes no arguments and has no preconditions.
+        if unsafe { libc::geteuid() } == 0 {
+            eprintln!("skipping: root bypasses the permission check this test relies on");
+            return;
+        }
 
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("regular");

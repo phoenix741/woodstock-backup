@@ -334,6 +334,10 @@ pub async fn create_event_backup_remove<P: AsRef<Path>>(
         source: source as i32,
         user: String::new(),
         error_messages: Vec::new(),
+        // Single-shot event, no End counterpart ever written: `Delete` is inherently
+        // terminal, so there's no "in progress" state to distinguish from "done". The
+        // display layer (frontend) treats this type as always-complete regardless of
+        // status, rather than this field trying to encode a status that doesn't apply.
         status: EventStatus::None as i32,
 
         information: Some(Information::Backup(EventBackupInformation {

@@ -1,18 +1,29 @@
 <template>
-  <v-chip title="File count" class="ma-1" size="small" label
-    ><v-icon icon="mdi-file-outline" start></v-icon>{{ toNumber(information.count) }}</v-chip
-  >
-  <v-chip title="Total size" class="ma-1" size="small" label
-    ><v-icon icon="mdi-weight" start></v-icon>{{ filesize(information.size) }}</v-chip
-  >
-  <v-tooltip v-if="information.removedHashes.length" location="bottom">
-    <template #activator="{ props: tooltipProps }">
-      <v-chip v-bind="tooltipProps" title="Removed chunk hashes" class="ma-1" size="small" label
-        ><v-icon icon="mdi-identifier" start></v-icon>{{ toNumber(information.removedHashes.length) }}</v-chip
-      >
-    </template>
-    <div v-for="hash in information.removedHashes" :key="hash">{{ hash }}</div>
-  </v-tooltip>
+  <v-card variant="tonal" rounded="lg" style="max-width: 480px">
+    <v-table density="compact" class="bg-transparent">
+      <tbody>
+        <tr>
+          <td>File count</td>
+          <td class="text-right">{{ toNumber(information.count) }}</td>
+        </tr>
+        <tr>
+          <td>Total size</td>
+          <td class="text-right">{{ filesize(information.size) }}</td>
+        </tr>
+        <tr v-if="information.removedHashes.length">
+          <td>Removed chunk hashes</td>
+          <td class="text-right">
+            <v-tooltip location="bottom">
+              <template #activator="{ props: tooltipProps }">
+                <span v-bind="tooltipProps">{{ toNumber(information.removedHashes.length) }}</span>
+              </template>
+              <div v-for="hash in information.removedHashes" :key="hash">{{ hash }}</div>
+            </v-tooltip>
+          </td>
+        </tr>
+      </tbody>
+    </v-table>
+  </v-card>
 </template>
 
 <script setup lang="ts">
