@@ -1,8 +1,53 @@
+use std::fs::{File, OpenOptions};
+use std::io;
 use std::path::Path;
 
 use eyre::Result;
 use reflink_copy::reflink;
 use uuid::Uuid;
+
+/// Creates/truncates the file at `path` for a full-content rewrite,
+/// self-healing a destination stuck at a restrictive mode instead of
+/// failing forever. Shared between `archiving::fs_materialize` (wrapped in
+/// `spawn_blocking`, since that caller is async) and `client-rs`'s
+/// synchronous real-restore path, which calls this directly.
+///
+/// A pre-existing destination file can be unwritable for legitimate reasons
+/// (e.g. git leaves its loose objects/packs at `0o444`) or because an
+/// earlier bug wrote a garbage mode onto it (the historical Windows
+/// `FILE_ATTRIBUTE_*`-as-POSIX-mode bug) — either way, `open()` fails
+/// `EACCES` before the caller's permission-restore step (called right after
+/// this) ever runs. Retrying only on that failure (never chmod'ing up
+/// front) keeps the common case — a file that's already writable — at zero
+/// extra syscalls.
+///
+/// This always succeeds when the block is a restrictive mode: `chmod` is
+/// gated on uid match (or `CAP_FOWNER`), never on the file's own permission
+/// bits, and this process is the same one that created every pre-existing
+/// destination file here. It correctly still fails if the destination was
+/// `chown`'d to another user by an admin — that's a real permission error,
+/// not a stale-mode one.
+///
+/// # Errors
+/// Returns an error if the file cannot be opened even after the retry.
+pub fn open_for_write_retrying_on_eacces(path: &Path) -> io::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+
+    match opts.open(path) {
+        #[cfg(unix)]
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied && path.exists() => {
+            use std::os::unix::fs::PermissionsExt;
+
+            // The 0o600 set here never survives on disk: the caller's
+            // permission-restore step re-applies the entry's real final
+            // mode (e.g. 0o444 for a git object) right after this returns.
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+            opts.open(path)
+        }
+        other => other,
+    }
+}
 
 /// Copy a file from the source directory to the destination directory.
 /// The file is copied atomically using reflink if supported, otherwise it falls back to a standard copy.

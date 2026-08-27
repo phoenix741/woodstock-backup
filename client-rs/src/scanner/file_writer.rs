@@ -5,10 +5,10 @@
 /// extended attributes, and access control lists. It handles different file types
 /// including regular files, directories, symlinks, and special files like devices.
 use eyre::Result;
-use std::fs::OpenOptions;
 
 use woodstock::{
     utils::{
+        files::open_for_write_retrying_on_eacces,
         path::vec_to_path,
         restore_metadata::{
             acl::restore_acl, create_symlink, mknode, restore_permissions, xattr::restore_xattr,
@@ -69,13 +69,10 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
             create_symlink(&path, &symlink)?;
         }
         _ => {
-            OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&path)?;
+            open_for_write_retrying_on_eacces(&path)?;
         }
     }
+
 
     restore_permissions(&path, file_manifest.mode(), file_manifest.source_os())?;
 
@@ -87,4 +84,49 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
     });
 
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use woodstock::utils::path::path_to_vec;
+    use woodstock::{FileManifestStat, SourceOs};
+
+    fn regular_file_entry(path: &std::path::Path, mode: u32, source_os: SourceOs) -> FileManifest {
+        FileManifest {
+            path: path_to_vec(path),
+            stats: Some(FileManifestStat {
+                file_type: FileManifestType::RegularFile as i32,
+                mode,
+                source_os: source_os as i32,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn unix_mode_bits(path: &std::path::Path) -> u32 {
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    /// Same self-healing this fix gives `fs_materialize::materialize_entry`
+    /// (the archiving path) — a real restore onto a destination stuck at a
+    /// restrictive mode (git's real `0o444` loose objects, or historical
+    /// Windows-mode garbage) must not fail `EACCES` forever.
+    #[test]
+    fn restoring_over_a_file_stuck_at_a_restrictive_mode_now_succeeds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+
+        std::fs::write(&path, b"old content").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+        let entry = regular_file_entry(&path, 0o444, SourceOs::Unix);
+        create_file_from_manifest(&entry)
+            .expect("a legitimate real-Unix restrictive mode must not block restoring");
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"");
+        assert_eq!(unix_mode_bits(&path), 0o444);
+    }
 }

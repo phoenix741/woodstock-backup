@@ -9,12 +9,15 @@
 //! [`crate::manifest::generate_compare_stream_from_manifests`]) and only the
 //! resulting `Add`/`Modify`/`Remove` entries are applied — no full re-copy.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use eyre::Result;
-use futures::{pin_mut, stream, Stream, StreamExt};
+use futures::{future, pin_mut, Stream, StreamExt};
+#[cfg(test)]
+use futures::stream;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn, Instrument};
@@ -37,9 +40,10 @@ pub struct DirSyncOutput {
     pub modified: usize,
     pub removed: usize,
     /// Entries that failed to materialize/remove and were `warn!`-logged —
-    /// when non-zero for a share, that share's snapshot manifest was left
-    /// untouched (see [`sync_host_dir_archive`]) so the next run retries
-    /// them instead of silently treating them as done.
+    /// when non-zero for a share, those specific entries are excluded from
+    /// that share's committed snapshot (see [`sync_host_dir_archive`]) so
+    /// the next run retries just them, instead of silently treating them as
+    /// done.
     pub skipped: usize,
     /// Whether the run stopped early because of a user cancel — some shares
     /// may not have been processed at all.
@@ -62,15 +66,16 @@ struct MaterializeTask {
 
 /// Outcome of one `Add`/`Modify` entry, reported back to
 /// [`aggregate_materialize_results`] — including a skip (failed,
-/// `warn!`-logged entry), unlike before: the caller needs the skip count to
-/// decide whether the destination actually matches the backup manifest
-/// (see [`sync_host_dir_archive`]'s snapshot-commit gating).
+/// `warn!`-logged entry) with the manifest path it targeted: the caller
+/// needs that path to exclude it from the new snapshot, so the rest of the
+/// share's successfully-applied entries can still be committed (see
+/// [`sync_host_dir_archive`]'s snapshot-commit logic).
 enum MaterializeOutcome {
     Applied {
         entry_type: EntryType,
         dir_permission: Option<(PathBuf, u32, SourceOs)>,
     },
-    Skipped,
+    Skipped { path: PathBuf },
 }
 
 /// Drains `diff_stream`, round-robining `Add`/`Modify` entries across
@@ -99,6 +104,12 @@ enum MaterializeOutcome {
 /// Stops picking up new entries as soon as `cancel_token` fires — already
 /// dispatched `Add`/`Modify` tasks still drain through their lanes (see
 /// [`materialize_lane`]), but nothing new starts.
+///
+/// Returns `(removed, remove_failed_paths)`: a failed removal leaves the
+/// path still physically present at the destination, so its old snapshot
+/// entry must survive into the new snapshot (see
+/// [`sync_host_dir_archive`]) — otherwise the next run's diff would never
+/// see it needs removing again.
 async fn dispatch_entries(
     diff_stream: impl Stream<Item = FileManifestJournalEntry>,
     share_root: PathBuf,
@@ -106,11 +117,11 @@ async fn dispatch_entries(
     hostname: String,
     share: String,
     cancel_token: CancellationToken,
-) -> (usize, usize) {
+) -> (usize, Vec<PathBuf>) {
     pin_mut!(diff_stream);
     let mut next_worker = 0usize;
     let mut removed = 0usize;
-    let mut remove_failed = 0usize;
+    let mut remove_failed_paths = Vec::new();
 
     while let Some(journal_entry) = diff_stream.next().await {
         if cancel_token.is_cancelled() {
@@ -136,7 +147,7 @@ async fn dispatch_entries(
                     // That lane died (panicked) — its `JoinHandle` will
                     // surface the panic once joined; nothing more to
                     // usefully dispatch for this share.
-                    return (removed, remove_failed);
+                    return (removed, remove_failed_paths);
                 }
             }
             EntryType::Remove => {
@@ -145,7 +156,7 @@ async fn dispatch_entries(
                         "Skipping removal of {dest_path:?} in dir archive for {hostname} \
                          (share {share}): {err}"
                     );
-                    remove_failed += 1;
+                    remove_failed_paths.push(manifest_entry.path());
                     continue;
                 }
                 removed += 1;
@@ -154,7 +165,7 @@ async fn dispatch_entries(
         }
     }
 
-    (removed, remove_failed)
+    (removed, remove_failed_paths)
 }
 
 /// One of the N parallel materialize lane workers spawned by
@@ -202,7 +213,10 @@ fn materialize_lane(
                 } = task;
 
                 if cancel_token.is_cancelled() {
-                    if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
+                    let outcome = MaterializeOutcome::Skipped {
+                        path: manifest_entry.path(),
+                    };
+                    if results_tx.send(outcome).await.is_err() {
                         return;
                     }
                     continue;
@@ -215,7 +229,10 @@ fn materialize_lane(
                         "Skipping {dest_path:?} in dir archive for {hostname} \
                          (share {share}): {err}"
                     );
-                    if results_tx.send(MaterializeOutcome::Skipped).await.is_err() {
+                    let outcome = MaterializeOutcome::Skipped {
+                        path: manifest_entry.path(),
+                    };
+                    if results_tx.send(outcome).await.is_err() {
                         return; // coordinator gone — nothing more to usefully report
                     }
                     continue;
@@ -245,17 +262,18 @@ fn materialize_lane(
 }
 
 /// Drains `results_rx` (fed by every [`materialize_lane`] worker) into the
-/// `(added, modified, skipped, pending_dir_permissions)` quadruple
+/// `(added, modified, failed_paths, pending_dir_permissions)` quadruple
 /// `sync_host_dir_archive` folds into its running [`DirSyncOutput`] and uses
-/// to gate the snapshot commit. Runs concurrently with the lanes (via
+/// to build the new snapshot (excluding `failed_paths` from it — see
+/// [`sync_host_dir_archive`]). Runs concurrently with the lanes (via
 /// `tokio::spawn`, not joined until after `dispatch_entries` returns) so the
 /// results channel never backs up and blocks a lane mid-materialize.
 async fn aggregate_materialize_results(
     mut results_rx: mpsc::Receiver<MaterializeOutcome>,
-) -> (usize, usize, usize, Vec<(PathBuf, u32, SourceOs)>) {
+) -> (usize, usize, HashSet<PathBuf>, Vec<(PathBuf, u32, SourceOs)>) {
     let mut added = 0usize;
     let mut modified = 0usize;
-    let mut skipped = 0usize;
+    let mut failed_paths = HashSet::new();
     let mut pending_dir_permissions = Vec::new();
 
     while let Some(outcome) = results_rx.recv().await {
@@ -275,11 +293,13 @@ async fn aggregate_materialize_results(
                     pending_dir_permissions.push(dir_permission);
                 }
             }
-            MaterializeOutcome::Skipped => skipped += 1,
+            MaterializeOutcome::Skipped { path } => {
+                failed_paths.insert(path);
+            }
         }
     }
 
-    (added, modified, skipped, pending_dir_permissions)
+    (added, modified, failed_paths, pending_dir_permissions)
 }
 
 /// Syncs every share of `hostname`'s `backup` into
@@ -301,11 +321,18 @@ async fn aggregate_materialize_results(
 /// Returns an error if a manifest cannot be read, or if applying a change to
 /// the destination filesystem fails. On error, the snapshot manifest for the
 /// share being processed is left untouched, so the next run re-diffs from
-/// the last known-good state rather than a half-applied one. The same is
-/// true, without an `Err`, whenever any entry was skipped or the run was
-/// cancelled (see [`DirSyncOutput::skipped`]/[`DirSyncOutput::cancelled`]):
-/// the snapshot commit for that share is skipped so the next run retries
-/// the entries that never actually landed on disk.
+/// the last known-good state rather than a half-applied one.
+///
+/// Without an `Err`, a share whose entries were all applied gets its
+/// snapshot fully replaced by `backup_manifest`. If some entries were
+/// skipped (see [`DirSyncOutput::skipped`]), the snapshot is still
+/// committed, minus exactly those entries (plus any failed `Remove`'s old
+/// entry, kept so it's retried too) — one stuck entry no longer freezes the
+/// rest of the share's progress. Only a cancelled run (see
+/// [`DirSyncOutput::cancelled`]) skips the commit entirely: `dispatch_entries`
+/// stops consuming the diff stream immediately on cancel, so entries further
+/// down it were never even looked at, and there's no way to tell which of
+/// `backup_manifest`'s entries those were.
 pub async fn sync_host_dir_archive(
     backups: &Backups,
     pool_path: &Path,
@@ -383,7 +410,7 @@ pub async fn sync_host_dir_archive(
 
         let aggregate_handle = tokio::spawn(aggregate_materialize_results(results_rx));
 
-        let (removed, remove_failed) = dispatch_entries(
+        let (removed, remove_failed_paths) = dispatch_entries(
             diff_stream,
             share_root,
             dispatch_txs,
@@ -396,8 +423,9 @@ pub async fn sync_host_dir_archive(
         for lane_joined in futures::future::join_all(lane_handles).await {
             lane_joined?; // propagate a lane-thread panic
         }
-        let (added, modified, skipped, mut pending_dir_permissions) = aggregate_handle.await?;
-        let skipped = skipped + remove_failed;
+        let (added, modified, failed_add_modify_paths, mut pending_dir_permissions) =
+            aggregate_handle.await?;
+        let skipped = failed_add_modify_paths.len() + remove_failed_paths.len();
 
         output.added += added;
         output.modified += modified;
@@ -418,29 +446,53 @@ pub async fn sync_host_dir_archive(
             fs_materialize::set_directory_permissions(&path, mode, source_os).await;
         }
 
-        // The destination only actually matches `backup_manifest` for this
-        // share if every entry was applied — atomically replace the
-        // snapshot with a copy of it so the next run diffs from this
-        // known-good state. If anything was skipped or cancelled, leave the
-        // existing snapshot untouched so the next run's diff still sees
-        // (and retries) whatever never actually landed on disk, instead of
-        // silently and permanently treating it as done.
-        if skipped == 0 && !cancel_token.is_cancelled() {
-            let entries = backup_manifest.read_manifest_entries_to_end().await?;
+        // Commit a snapshot reflecting what's actually on disk, not an
+        // all-or-nothing "every entry landed" gate: a single stuck entry
+        // must not freeze the rest of the share's progress forever (it used
+        // to — one skip meant the whole share re-diffed from scratch every
+        // run). `backup_manifest`'s entries minus whatever failed to
+        // Add/Modify is what's really there; a failed `Remove` leaves its
+        // path physically present too, so its old snapshot entry is carried
+        // forward instead of dropped, or the next diff would never notice
+        // it still needs removing.
+        //
+        // Skipped only on `cancelled`: `dispatch_entries` breaks out of the
+        // diff stream immediately on cancel, so entries further down that
+        // stream never got an outcome (`Applied` or `Skipped`) at all —
+        // there is no way to tell which of `backup_manifest`'s entries they
+        // were, so a partial commit can't be built safely. The whole
+        // snapshot is left untouched instead, same as before.
+        if cancel_token.is_cancelled() {
+            warn!(
+                "dir archive for {hostname} (share {share}): snapshot not updated \
+                 (cancelled, {skipped} entr{plural} skipped) — next run will retry",
+                plural = if skipped == 1 { "y" } else { "ies" }
+            );
+        } else {
+            let remove_failed_paths: HashSet<PathBuf> = remove_failed_paths.into_iter().collect();
+
+            let survivors = backup_manifest
+                .read_manifest_entries()
+                .filter(|entry| future::ready(!failed_add_modify_paths.contains(&entry.path())));
+            let kept_removed = snapshot
+                .read_manifest_entries()
+                .filter(|entry| future::ready(remove_failed_paths.contains(&entry.path())));
+
             save_file(
                 &snapshot.manifest_path,
-                stream::iter(entries),
+                survivors.chain(kept_removed),
                 true,
                 CompressionFormat::Zstd,
             )
             .await?;
-        } else {
-            warn!(
-                "dir archive for {hostname} (share {share}): snapshot not updated \
-                 ({skipped} entr{plural} skipped, cancelled={}) — next run will retry",
-                cancel_token.is_cancelled(),
-                plural = if skipped == 1 { "y" } else { "ies" }
-            );
+
+            if skipped > 0 {
+                warn!(
+                    "dir archive for {hostname} (share {share}): snapshot partially updated \
+                     ({skipped} entr{plural} skipped) — next run will retry just those",
+                    plural = if skipped == 1 { "y" } else { "ies" }
+                );
+            }
         }
 
         if cancel_token.is_cancelled() {
@@ -673,14 +725,16 @@ mod tests {
     }
 
     /// An entry that fails to materialize (here: its chunk was never
-    /// written to the pool) must not be silently treated as done — the
-    /// snapshot for that share must stay uncommitted so the next run's diff
+    /// written to the pool) must not be silently treated as done — it must
+    /// stay excluded from the committed snapshot so the next run's diff
     /// still sees it as an `Add` and retries it, instead of the file
     /// permanently missing from the dir-mode archive with no error and no
-    /// retry (see PR #107 review, `sync_host_dir_archive`'s snapshot-commit
-    /// gating on `DirSyncOutput::skipped`).
+    /// retry (see PR #107 review, and the later partial-commit fix:
+    /// `sync_host_dir_archive` used to leave the *entire* share's snapshot
+    /// uncommitted over one bad entry — it now commits everything else that
+    /// did land, and only excludes the entry that didn't).
     #[tokio::test]
-    async fn skipped_entry_leaves_snapshot_untouched_so_next_run_retries() {
+    async fn skipped_entry_is_excluded_from_the_committed_snapshot_so_next_run_retries_it() {
         let tmp = tempfile::tempdir().unwrap();
         let config = Arc::new(Configuration::from_backup_path(tmp.path().to_path_buf()));
         let backups = Backups::new(config.clone());
@@ -739,8 +793,144 @@ mod tests {
         .unwrap();
         assert_eq!(
             second.skipped, 1,
-            "an uncommitted snapshot means the second run retries the same skipped entry"
+            "the file entry, excluded from the committed snapshot, is retried"
         );
+        assert_eq!(
+            second.added, 0,
+            "the dir entry, already part of the committed snapshot, must not be re-added"
+        );
+    }
+
+    /// A `Remove` that fails must not be silently dropped from the new
+    /// snapshot — that would be worse than the old all-or-nothing gating: a
+    /// file that was never actually deleted would permanently vanish from
+    /// tracking, with `removed_file_count` at 0 and no diff ever surfacing
+    /// it again. The failed entry's old snapshot record must survive into
+    /// the new snapshot so the next run's diff still emits a `Remove` for
+    /// it and keeps retrying.
+    ///
+    /// Skipped as root: this forces the failure via the containing
+    /// directory's write permission (`unlink` needs write+execute on the
+    /// parent, not on the file itself) — a DAC check the kernel bypasses
+    /// entirely for root, same as every other permission check in this
+    /// module's tests.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_removal_keeps_its_entry_in_the_snapshot_so_next_run_retries_it() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // SAFETY: geteuid() takes no arguments and has no preconditions.
+        if unsafe { libc::geteuid() } == 0 {
+            eprintln!("skipping: root bypasses the directory-write check unlink relies on");
+            return;
+        }
+
+        let tmp = tempfile::tempdir().unwrap();
+        let config = Arc::new(Configuration::from_backup_path(tmp.path().to_path_buf()));
+        let backups = Backups::new(config.clone());
+        let hostname = "fakehost";
+        let dest_dir = tmp.path().join("archive-out");
+        let hostname_dir = dest_dir.join(hostname).join("share/dir");
+
+        let backup1_id = Uuid::now_v7();
+        let content = b"about to become unremovable".to_vec();
+        let hash = write_chunk(&config, &content).await;
+        write_backup_manifest(&backups, hostname, backup1_id, "/share", &content, &hash).await;
+        sync_host_dir_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &fake_backup(backup1_id),
+            &dest_dir,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert!(hostname_dir.join("file.txt").exists());
+
+        // Deny write on the containing directory: `unlink("dir/file.txt")`
+        // now fails `EACCES` regardless of `file.txt`'s own mode.
+        std::fs::set_permissions(&hostname_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        // Backup 2: same "dir", but "dir/file.txt" is gone from the
+        // manifest — a `Remove` for it, which will fail to apply.
+        let backup2_id = Uuid::now_v7();
+        let backup2_dest_dir = backups.get_backup_destination_directory(hostname, backup2_id);
+        tokio::fs::create_dir_all(&backup2_dest_dir).await.unwrap();
+        backups
+            .add_backup_share_record(
+                hostname,
+                backup2_id,
+                ShareRecord {
+                    path: "/share".to_string(),
+                    snapshot_method: ShareSnapshotMethod::None,
+                    snapshot_failure_reason: None,
+                },
+            )
+            .await
+            .unwrap();
+        let manifest2 = backups.get_manifest(hostname, backup2_id, "/share");
+        let dir_only_entry = FileManifest {
+            path: b"dir".to_vec(),
+            stats: Some(FileManifestStat {
+                file_type: FileManifestType::Directory as i32,
+                mode: 0o755,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        save_file(
+            &manifest2.manifest_path,
+            stream::iter(vec![dir_only_entry]),
+            false,
+            CompressionFormat::Zstd,
+        )
+        .await
+        .unwrap();
+
+        let resync = sync_host_dir_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &fake_backup(backup2_id),
+            &dest_dir,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(resync.removed, 0, "the removal fails, it must not count as applied");
+        assert_eq!(resync.skipped, 1);
+        assert!(
+            hostname_dir.join("file.txt").exists(),
+            "the removal genuinely failed — the file is still there"
+        );
+
+        // Restore write permission and resync the *same* backup 2 manifest
+        // again: if the failed removal's entry had been dropped from the
+        // snapshot instead of carried forward, this diff would now see
+        // "already gone on both sides" and never retry it — the file would
+        // silently stay behind forever with no error and no further retry.
+        std::fs::set_permissions(&hostname_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let retry = sync_host_dir_archive(
+            &backups,
+            &config.path.pool_path,
+            hostname,
+            &fake_backup(backup2_id),
+            &dest_dir,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            retry.removed, 1,
+            "the carried-forward snapshot entry must still trigger a Remove"
+        );
+        assert_eq!(retry.skipped, 0);
+        assert!(!hostname_dir.join("file.txt").exists());
     }
 
     #[tokio::test]

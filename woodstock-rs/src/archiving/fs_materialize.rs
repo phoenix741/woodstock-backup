@@ -22,7 +22,6 @@
 use std::path::Path;
 
 use eyre::Result;
-use tokio::fs::OpenOptions;
 use tracing::{debug, warn};
 
 use crate::utils::path::vec_to_path;
@@ -82,12 +81,7 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
             // dangling one) rather than the link itself.
         }
         FileManifestType::RegularFile | FileManifestType::Unknown => {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(path)
-                .await?;
+            let mut file = open_for_write_retrying_on_eacces(path).await?;
 
             let reader = entry.open_from_pool(pool_path);
             tokio::pin!(reader);
@@ -192,6 +186,18 @@ pub async fn remove_entry(path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Async wrapper around [`crate::utils::files::open_for_write_retrying_on_eacces`]
+/// (shared with `client-rs`'s synchronous real-restore path) — run via
+/// `spawn_blocking` since the retry does a blocking `chmod` on the failure
+/// path.
+async fn open_for_write_retrying_on_eacces(path: &Path) -> Result<tokio::fs::File> {
+    let owned_path = path.to_path_buf();
+    let std_file =
+        tokio::task::spawn_blocking(move || crate::utils::files::open_for_write_retrying_on_eacces(&owned_path))
+            .await??;
+    Ok(tokio::fs::File::from_std(std_file))
 }
 
 async fn set_permissions(path: &Path, entry: &FileManifest) {
@@ -418,31 +424,17 @@ mod tests {
             .expect("re-materializing an existing file must not fail with Permission denied");
     }
 
-    /// Documents a known limitation, not a regression: this fix only stops
-    /// *new* corruption. A file a pre-fix run already chmod'd to a
-    /// Windows-attribute-derived garbage mode (e.g. `0o040`, no owner bits)
-    /// stays broken — `materialize_entry`'s `OpenOptions::write(true).open()`
-    /// still hits `EACCES` on it regardless of `source_os`, because the
-    /// fix's chmod-skip only ever prevents applying a *new* bad mode, it
-    /// never repairs a mode already on disk. Existing corrupted
-    /// `dir`-archive destinations need a one-time manual remediation
-    /// (`chmod -R u+w <dest>`) after deploying this fix — self-healing this
-    /// automatically was explicitly left out of scope for this change.
-    ///
-    /// Skipped when running as root (e.g. our CI containers): root ignores
-    /// DAC permission checks entirely, so `open()` on a `0o040` file never
-    /// fails with `EACCES` there — the premise this test documents only
-    /// holds for an unprivileged process, same as the real job_worker.
+    /// A destination already stuck at a restrictive mode — whether garbage
+    /// left by a pre-fix run's Windows-mode chmod, or (see the sibling test
+    /// below) a legitimate real Unix mode — must self-heal instead of
+    /// failing `EACCES` forever: `materialize_entry` retries the open after
+    /// chmod'ing the file writable once the first attempt hits
+    /// `PermissionDenied`, so no manual `chmod -R u+w <dest>` remediation is
+    /// needed after this fix ships (unlike before it did).
     #[cfg(unix)]
     #[tokio::test]
-    async fn re_materializing_an_already_corrupted_file_still_fails() {
+    async fn re_materializing_a_file_stuck_at_a_restrictive_mode_now_succeeds() {
         use std::os::unix::fs::PermissionsExt;
-
-        // SAFETY: geteuid() takes no arguments and has no preconditions.
-        if unsafe { libc::geteuid() } == 0 {
-            eprintln!("skipping: root ignores DAC permission checks");
-            return;
-        }
 
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("regular");
@@ -455,13 +447,51 @@ mod tests {
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o040)).unwrap();
 
         let entry = regular_file_entry(32, SourceOs::Windows);
-        let result = materialize_entry(&entry, &path, &pool_path).await;
+        materialize_entry(&entry, &path, &pool_path)
+            .await
+            .expect("a restrictive existing mode must not block re-materializing");
 
-        assert!(
-            result.is_err(),
-            "a file already corrupted by a pre-fix run is not self-healing; this documents the \
-             known limitation, not a desired outcome — see this test's doc comment"
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"",
+            "content must actually have been overwritten, not just the open() call succeeding"
         );
+        // source_os is Windows, so restore_permissions skips chmod'ing the
+        // final mode — it stays at whatever the retry's temporary unlock set
+        // it to, which must at least keep the file writable for the next run.
+        assert_eq!(unix_mode_bits(&path) & 0o200, 0o200);
+    }
+
+    /// Same self-healing behavior, but for a legitimate real Unix mode that
+    /// blocks a rewrite — not a Windows-mode bug artifact. Git leaves its
+    /// loose objects and packs at `0o444` (read-only, no owner-write); a
+    /// `dir`-archive destination mirroring a git bare repo hits the exact
+    /// same `EACCES`-on-reopen wall as the Windows case, purely from a
+    /// correct, intentional source permission (this is the `server-ovh-6`
+    /// production incident: a Linux host, `source_os` already correctly
+    /// `Unix`, failing on `.git/objects/**`).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn re_materializing_a_file_at_a_legitimate_readonly_unix_mode_now_succeeds() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+        let pool_path = tmp.path().join("pool");
+
+        std::fs::write(&path, b"old git object content").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+        let entry = regular_file_entry(0o444, SourceOs::Unix);
+        materialize_entry(&entry, &path, &pool_path)
+            .await
+            .expect("a legitimate real-Unix restrictive mode must not block re-materializing");
+
+        assert_eq!(std::fs::read(&path).unwrap(), b"");
+        // source_os is Unix, so restore_permissions re-applies the real
+        // final mode afterward — the file must end up back at 0o444, not
+        // stuck at the retry's temporary 0o600 unlock.
+        assert_eq!(unix_mode_bits(&path), 0o444);
     }
 
     /// Non-regression: a Unix-sourced entry's captured mode is still applied
