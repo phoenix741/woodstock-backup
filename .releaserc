@@ -39,6 +39,8 @@
           "backuppc-importer-rs/Cargo.toml",
           "cli-rs/Cargo.toml",
           "client-rs/Cargo.toml",
+          "server-rs/Cargo.toml",
+          "e2e-tests/Cargo.toml",
           "shared-rs/Cargo.toml",
           "woodstock-rs/Cargo.toml"
         ]
