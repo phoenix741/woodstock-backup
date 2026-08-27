@@ -128,6 +128,13 @@ pub fn vec_to_path(vec: &[u8]) -> PathBuf {
 
 /// Converts a list of string slices to a `GlobSet`.
 ///
+/// A pattern with a trailing `/` (e.g. `"**/vendor/"`, used to mark "this
+/// must be a directory" in rsync-style exclude lists) is stripped of that
+/// slash before compiling: matched paths never carry a trailing separator
+/// (see `client-rs`'s scanner, which joins child names without appending
+/// one), so a pattern ending in `/` would otherwise compile to a glob that
+/// can never match anything — a silently dead exclude/include rule.
+///
 /// # Arguments
 /// * `list` - A list of string slices.
 ///
@@ -142,6 +149,7 @@ pub fn vec_to_path(vec: &[u8]) -> PathBuf {
 pub fn list_to_globset(list: &[&str]) -> Result<globset::GlobSet, globset::Error> {
     let mut builder = GlobSetBuilder::new();
     for pattern in list {
+        let pattern = pattern.trim_end_matches('/');
         builder.add(GlobBuilder::new(pattern).build()?);
     }
     builder.build()
@@ -377,5 +385,30 @@ mod tests {
             super::safe_share_prefix("/srv/./data"),
             Path::new("srv/data")
         );
+    }
+
+    // A pattern ending in '/' (e.g. copied from an rsync exclude list to mean
+    // "directory only") must still match, even though matched paths never
+    // carry a trailing separator. Without stripping it, the pattern is a
+    // silently dead no-op — see `list_to_globset`.
+    #[test]
+    fn test_list_to_globset_matches_recursive_pattern_with_trailing_slash() {
+        let globset = super::list_to_globset(&["**/vendor/"]).unwrap();
+        assert!(globset.is_match("project/vendor"));
+        assert!(globset.is_match("vendor"));
+        assert!(!globset.is_match("project/vendor-extra"));
+    }
+
+    #[test]
+    fn test_list_to_globset_matches_literal_pattern_with_trailing_slash() {
+        let globset = super::list_to_globset(&[".cache/lm-studio/"]).unwrap();
+        assert!(globset.is_match(".cache/lm-studio"));
+        assert!(!globset.is_match("other/.cache/lm-studio"));
+    }
+
+    #[test]
+    fn test_list_to_globset_still_matches_pattern_without_trailing_slash() {
+        let globset = super::list_to_globset(&["**/node_modules"]).unwrap();
+        assert!(globset.is_match("project/node_modules"));
     }
 }
