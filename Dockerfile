@@ -59,6 +59,12 @@ RUN strip /src/target/release/api_server \
   /src/target/release/ws_sync \
   /src/target/release/ws_restore
 
+# Alias stage: by default just re-exports build-sharedrs's output, so a plain
+# `docker build .` is unaffected. CI overrides this stage with an "additional
+# build context" (buildx --build-context binaries=<dir>) pointing at binaries
+# already compiled by the clientrs job, skipping the compile above entirely.
+FROM build-sharedrs AS binaries
+
 #
 # -------- Dependencies -------
 
@@ -80,7 +86,12 @@ FROM dependencies AS build-front
 
 WORKDIR /src/front
 COPY front/ /src/front/
-RUN npm run build 
+RUN npm run build
+
+# Alias stage: same pattern as `binaries` above — default `docker build .`
+# resolves this to build-front unchanged; CI can override it with the
+# front-dist artifact already built by the unittest job.
+FROM build-front AS frontend
 
 #
 # -------- Build client -------
@@ -111,7 +122,7 @@ RUN groupadd --gid $APP_UID $APP_USER && \
 # Ensure the client looks for config in the volume mount point
 ENV CLIENT_PATH=/etc/woodstock
 
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_client_daemon /app/cli/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/ws_client_daemon /app/cli/
 
 VOLUME [ "/etc/woodstock" ]
 
@@ -142,17 +153,17 @@ RUN groupadd --gid $APP_UID $APP_USER && \
 WORKDIR /app
 
 # Copy Rust binaries
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/api_server /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/client_api_server /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/job_worker /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/scheduler /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_backuppc_importer /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_console /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_sync /app/
-COPY --chown=$APP_USER:$APP_USER --from=build-sharedrs /src/target/release/ws_restore /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/client_api_server /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/job_worker /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/scheduler /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/ws_backuppc_importer /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/ws_console /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/ws_sync /app/
+COPY --chown=$APP_USER:$APP_USER --from=binaries /src/target/release/ws_restore /app/
 
 # Copy Frontend static files
-COPY --chown=$APP_USER:$APP_USER --from=build-front /src/front/dist /app/static
+COPY --chown=$APP_USER:$APP_USER --from=frontend /src/front/dist /app/static
 
 ENV STATIC_PATH=/app/static
 ENV BACKUP_PATH=/backups

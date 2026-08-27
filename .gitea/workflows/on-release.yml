@@ -411,7 +411,7 @@ jobs:
   debian_rs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
-    needs: [upload, prerelease]
+    needs: [upload, prerelease, clientrs]
     runs-on: ubuntu-latest
     # Build the .deb on the distribution it targets: the resulting packages
     # declare a libc6 dependency matching the build host, and they are published
@@ -427,7 +427,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y protobuf-compiler cmake make build-essential git-lfs libacl1-dev libfuse-dev
+          apt-get install -y build-essential git-lfs pkg-config unzip
 
       - name: Checkout project
         uses: actions/checkout@v3
@@ -456,6 +456,23 @@ jobs:
           name: front-dist
           path: server-rs/front-dist/
 
+      # Reuses the release binaries already built by clientrs (binaries-linux,
+      # --features default target x86_64-unknown-linux-gnu) instead of letting
+      # `cargo deb` recompile the whole workspace a second time — same pattern
+      # already used by the freebsd_pkg job.
+      - name: Download Linux binaries artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: binaries-linux
+          path: artifacts/binaries-linux/
+
+      - name: Place prebuilt binaries for cargo-deb --no-build
+        run: |
+          mkdir -p target/${{ matrix.target }}/release
+          INNER_ZIP=$(find artifacts/binaries-linux -name "*.zip" | head -1)
+          unzip -o "${INNER_ZIP}" -d target/${{ matrix.target }}/release
+          chmod +x target/${{ matrix.target }}/release/*
+
       - name: Installation de cargo-deb
         run: cargo install cargo-deb
 
@@ -467,10 +484,10 @@ jobs:
 
       - name: Generate debian package
         run: |
-          cargo deb -p woodstock-client-rs --target ${{ matrix.target }}
-          cargo deb -p woodstock-cli-rs --target ${{ matrix.target }}
-          cargo deb -p ws_backuppc_importer --target ${{ matrix.target }}
-          cargo deb -p woodstock-server-rs --target ${{ matrix.target }}
+          cargo deb --no-build -p woodstock-client-rs --target ${{ matrix.target }}
+          cargo deb --no-build -p woodstock-cli-rs --target ${{ matrix.target }}
+          cargo deb --no-build -p ws_backuppc_importer --target ${{ matrix.target }}
+          cargo deb --no-build -p woodstock-server-rs --target ${{ matrix.target }}
 
       - name: Upload Debian packages as artifact
         uses: christopherhx/gitea-upload-artifact@v7
@@ -569,6 +586,7 @@ jobs:
     env:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     needs: [upload]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -581,13 +599,41 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y git-lfs
+          apt-get install -y git-lfs unzip
 
       - name: Checkout project
         uses: actions/checkout@v3
         with:
           lfs: true
           ref: ${{ github.ref }}
+
+      - name: Download Linux binaries artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: binaries-linux
+          path: artifacts/binaries-linux/
+
+      - name: Download frontend dist artifact
+        uses: christopherhx/gitea-download-artifact@v8
+        with:
+          name: front-dist
+          path: artifacts/front-dist/
+
+      - name: Prepare Docker build contexts from prebuilt artifacts
+        run: |
+          # Reuses the release binaries already built by clientrs (binaries-linux)
+          # and the frontend already built by unittest, instead of letting the
+          # Dockerfile recompile everything from source in the `binaries`/`frontend`
+          # stages (see Dockerfile: these stages default to compiling from source
+          # for a plain local `docker build .`, and are only overridden here via
+          # buildx additional build contexts).
+          mkdir -p ci-context-binaries/src/target/release
+          INNER_ZIP=$(find artifacts/binaries-linux -name "*.zip" | head -1)
+          unzip -o "${INNER_ZIP}" -d ci-context-binaries/src/target/release
+          chmod +x ci-context-binaries/src/target/release/*
+
+          mkdir -p ci-context-frontend/src/front/dist
+          cp -r artifacts/front-dist/. ci-context-frontend/src/front/dist/
 
       - name: Get version from package.json
         id: version
@@ -660,6 +706,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha
+          build-contexts: |
+            binaries=./ci-context-binaries
+            frontend=./ci-context-frontend
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
@@ -680,6 +729,8 @@ jobs:
           labels: ${{ steps.meta-client.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha
+          build-contexts: |
+            binaries=./ci-context-binaries
           build-args: |
             RUST_VERSION=${{matrix.rust_version}}
             NODE_VERSION=${{ env.NODE_VERSION }}-slim
