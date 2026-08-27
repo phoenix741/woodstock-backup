@@ -1,3 +1,10 @@
+# [2.1.0-alpha.10](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.9...v2.1.0-alpha.10) (2026-08-27)
+
+
+### Performance Improvements
+
+* **ci:** ⚡️ skip redundant release recompiles in debian_rs and docker jobs ([5eb070e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5eb070ee81d0f0174acc3b61b6053b7950d0e822))
+
 # [2.1.0-alpha.9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.8...v2.1.0-alpha.9) (2026-08-27)
 
 
