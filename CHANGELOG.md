@@ -1,3 +1,14 @@
+# [2.1.0-alpha.9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.8...v2.1.0-alpha.9) (2026-08-27)
+
+
+### Bug Fixes
+
+* **archiving:** 🐛 self-heal materialization stuck on a restrictive destination mode ([e123234](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/e12323489cab31379a895ae8fccf7a90d206291a))
+* **ci:** 🐛 include server-rs and e2e-tests Cargo.toml in release git assets ([0274973](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/0274973dea118101d0face7af89807fa9df9f4c7))
+* **config:** 🐛 strip trailing slash before compiling exclude/include globs ([d272565](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d272565ddbeb1ccb1c95952f20bb8efd1cc28c6d))
+* **deps:** 🔒️ resync Cargo.lock versions for e2e-tests and woodstock-server-rs ([a0bcd5f](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/a0bcd5f925198d0eace3651ed9196c57a3858325))
+* **front:** 🐛 correct Delete event status and rework event detail UI ([60cade6](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/60cade6c8e79d1d34abd704df0abb2857dbcc083))
+
 # [2.1.0-alpha.8](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.7...v2.1.0-alpha.8) (2026-08-24)
 
 
