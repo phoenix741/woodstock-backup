@@ -8,7 +8,6 @@ use std::{
     hash::Hash,
     path::{Component, Path, PathBuf, MAIN_SEPARATOR_STR},
 };
-use tracing::warn;
 
 /// Converts a vector of byte vectors to a vector of string slices.
 ///
@@ -90,8 +89,13 @@ pub fn path_to_vec<P: AsRef<Path>>(path: P) -> Vec<u8> {
             Component::Prefix(prefix) => {
                 buff.extend(osstr_to_vec(prefix.as_os_str()));
             }
-            _ => {
-                warn!("Unsupported path component: {:?}", component);
+            Component::ParentDir => {
+                buff.extend(b"..");
+                buff.push(b'/');
+            }
+            Component::CurDir => {
+                buff.extend(b".");
+                buff.push(b'/');
             }
         }
     }
@@ -309,6 +313,26 @@ mod tests {
         let vec = super::path_to_vec(path);
         let new_path = super::vec_to_path(&vec);
         assert_eq!(new_path, Path::new("/test/path/to/convert"));
+    }
+
+    // A relative symlink target like "../../lib/libfoo.so" must round-trip
+    // exactly: `path_to_vec` is used to store symlink targets, and dropping
+    // `..` components (as the pre-fix `_` wildcard branch did, only warning)
+    // silently changes what the restored symlink points to.
+    #[test]
+    fn test_path_conversion_preserves_parent_dir_components() {
+        let path = Path::new("../../lib/libfoo.so");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("../../lib/libfoo.so"));
+    }
+
+    #[test]
+    fn test_path_conversion_preserves_cur_dir_component() {
+        let path = Path::new("./foo/bar");
+        let vec = super::path_to_vec(path);
+        let new_path = super::vec_to_path(&vec);
+        assert_eq!(new_path, Path::new("./foo/bar"));
     }
 
     // Test vec_to_path and path_to_vec
