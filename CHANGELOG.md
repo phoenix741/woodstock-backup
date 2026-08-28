@@ -1,3 +1,10 @@
+# [2.1.0-alpha.11](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.10...v2.1.0-alpha.11) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ci:** 🐛 disambiguate clientrs artifact names so binaries-linux is downloadable ([61d5419](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/61d541913839337a99d52e4b67a937a21efc5db8))
+
 # [2.1.0-alpha.10](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.9...v2.1.0-alpha.10) (2026-08-27)
 
 
