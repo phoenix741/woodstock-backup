@@ -238,11 +238,32 @@ pub fn uninstall_service() -> eyre::Result<()> {
     Ok(())
 }
 
+/// Waits (polling) for the service to reach `target_state`, up to `timeout`.
+fn wait_for_state(
+    service: &windows_service::service::Service,
+    target_state: ServiceState,
+    timeout: Duration,
+) -> eyre::Result<bool> {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if service.query_status()?.current_state == target_state {
+            return Ok(true);
+        }
+        sleep(Duration::from_secs(1));
+    }
+    Ok(false)
+}
+
+/// Stops then starts the service, verifying it actually comes back to
+/// `Running` — retrying the start once before giving up.
+///
+/// # Errors
+/// Returns an error if the service cannot be reached, or if it fails to
+/// reach `Running` after the stop/start cycle and one retry.
 pub fn restart_service() -> eyre::Result<()> {
     let manager_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let service_manager = ServiceManager::local_computer(None::<&str>, manager_access)?;
 
-    println!("Opening service...");
     info!("Opening service...");
 
     let service = service_manager.open_service(
@@ -254,31 +275,33 @@ pub fn restart_service() -> eyre::Result<()> {
     )?;
 
     if service.query_status()?.current_state == ServiceState::Running {
-        println!("Stopping service...");
-        info!("Stopping service...");
-
+        info!("Stopping service for restart...");
         service.stop()?;
 
-        println!("Waiting for service to stop...");
         info!("Waiting for service to stop...");
-
-        let start = Instant::now();
-        let timeout = Duration::from_secs(5);
-        while start.elapsed() < timeout {
-            if service.query_status()?.current_state == ServiceState::Stopped {
-                break;
-            }
-            sleep(Duration::from_secs(1));
+        if !wait_for_state(&service, ServiceState::Stopped, Duration::from_secs(5))? {
+            error!("Service did not reach Stopped state within timeout, starting anyway");
         }
     }
 
-    println!("Starting service...");
-    info!("Starting service...");
+    for attempt in 1..=2 {
+        info!("Starting service (attempt {attempt}/2)...");
+        if let Err(e) = service.start(&Vec::<OsString>::new()) {
+            error!("service.start() failed on attempt {attempt}/2: {e:?}");
+        } else if wait_for_state(&service, ServiceState::Running, Duration::from_secs(10))? {
+            info!("Service restarted successfully");
+            return Ok(());
+        } else {
+            error!(
+                "Service did not reach Running state after start (attempt {attempt}/2), current state: {:?}",
+                service.query_status()?.current_state
+            );
+        }
+    }
 
-    service.start(&Vec::<OsString>::new())?;
-
-    println!("Service restarted");
-    info!("Service restarted");
-
-    Ok(())
+    let final_state = service.query_status()?.current_state;
+    error!("Failed to restart service after 2 attempts, final state: {final_state:?}");
+    Err(eyre::eyre!(
+        "Failed to restart service: did not reach Running state, final state: {final_state:?}"
+    ))
 }

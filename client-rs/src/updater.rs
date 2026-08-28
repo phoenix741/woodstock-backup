@@ -12,7 +12,6 @@ use tracing::{error, info};
 /// # Errors
 /// Returns an error if the update process fails.
 pub fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
-    println!("Checking for updates...");
     info!("Checking for updates...");
 
     let result = self_update::backends::gitea::Update::configure()
@@ -29,7 +28,6 @@ pub fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
 
     match result {
         self_update::Status::UpToDate(_) => {
-            println!("Already up-to-date");
             info!("Already up-to-date");
         }
         self_update::Status::Updated(version) => {
@@ -40,11 +38,12 @@ pub fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
 
                 if let Some(config_path) = _config_path.as_ref().to_str() {
                     let config_path = config_path.to_string();
+                    let version = version.clone();
                     let _ = std::thread::spawn(move || {
                         let exe = match std::env::current_exe() {
                             Ok(exe) => exe,
                             Err(e) => {
-                                println!("Failed to get executable path: {e}");
+                                error!("Failed to get executable path, cannot restart service for update to {version}: {e}");
                                 return;
                             }
                         };
@@ -52,21 +51,23 @@ pub fn update<P: AsRef<Path>>(_config_path: P, automatic: bool) -> Result<()> {
                             .args(["--config-dir", &config_path, "restart-service"])
                             .creation_flags(DETACHED_PROCESS)
                             .spawn();
-                        if let Err(err) = result {
-                            println!("Failed to restart service: {}", err);
-                            info!("Failed to restart service: {}", err);
-                        } else {
-                            println!("Service restarted");
-                            info!("Service restarted");
+                        match result {
+                            Err(err) => {
+                                error!("Failed to spawn restart-service helper for update to {version}: {err}");
+                            }
+                            Ok(child) => {
+                                info!(
+                                    "Spawned restart-service helper (pid {}) for update to {version}",
+                                    child.id()
+                                );
+                            }
                         }
                     });
                 } else {
-                    println!("Cannot restart service: config path contains non-UTF-8 characters");
-                    info!("Cannot restart service: config path contains non-UTF-8 characters");
+                    error!("Cannot restart service: config path contains non-UTF-8 characters");
                 }
             }
 
-            println!("Updated to {version}");
             info!("Updated to {}", version);
         }
     }

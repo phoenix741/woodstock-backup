@@ -254,8 +254,10 @@ async fn main() -> Result<()> {
     let config_path = args.config_dir.as_ref().map(PathBuf::from);
     let config_path = config_path.unwrap_or_else(get_config_path);
 
-    // Initialize platform-specific logging first
-    setup_platform_logging(&config_path)?;
+    // Initialize platform-specific logging first. Kept alive for the rest of
+    // `main`: on Windows it owns the file-appender's background writer
+    // thread, which flushes and stops when this guard drops at process exit.
+    let _log_guard = setup_platform_logging(&config_path)?;
 
     let config_yml = config_path.join("config.yaml");
     let config = read_config(config_yml).wrap_err("Failed to read Woodstock config")?;
@@ -356,7 +358,9 @@ async fn main() -> Result<()> {
 /// and are automatically captured by journald. On Windows, logs go to stdout and
 /// can be captured by the Windows event system.
 #[cfg(not(windows))]
-fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+fn setup_platform_logging(
+    _config_path: &Path,
+) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>> {
     let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -370,16 +374,23 @@ fn setup_platform_logging(_config_path: &Path) -> Result<()> {
         .init();
 
     info!("Logging initialized - platform logging ready");
-    Ok(())
+    Ok(None)
 }
 
 /// Platform-specific logging configuration for Windows
 ///
-/// Configures two output sinks:
+/// Configures three output sinks:
 /// - `stdout` (via `tracing_subscriber::fmt`) for interactive/debug sessions
 /// - Windows ETW (via `tracing_etw`) visible in the Event Viewer and WPA/PerfView
+/// - a daily rolling file under `<config_dir>/logs/`, same pattern as
+///   `server-rs::logger`. `stdout` is lost for the `restart-service` helper
+///   (spawned with `DETACHED_PROCESS`, no console) and ETW is only captured
+///   by an actively-listening trace session, so the file sink is the only
+///   sink that reliably survives to be inspected after the fact.
 #[cfg(windows)]
-fn setup_platform_logging(_config_path: &Path) -> Result<()> {
+fn setup_platform_logging(
+    config_path: &Path,
+) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>> {
     use tracing_subscriber::prelude::*;
 
     let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
@@ -396,12 +407,21 @@ fn setup_platform_logging(_config_path: &Path) -> Result<()> {
         .build()
         .map_err(|e| eyre::eyre!("Failed to initialize ETW logging: {e}"))?;
 
+    let file_appender = tracing_appender::rolling::daily(config_path.join("logs"), "client.log");
+    let (file_appender, guard) = tracing_appender::non_blocking(file_appender);
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_target(true)
+        .with_level(true)
+        .with_ansi(false)
+        .with_writer(file_appender);
+
     tracing_subscriber::registry()
         .with(env_filter)
         .with(fmt_layer)
         .with(etw_layer)
+        .with(file_layer)
         .init();
 
     info!("Woodstock Client Service started - logging initialized");
-    Ok(())
+    Ok(Some(guard))
 }
