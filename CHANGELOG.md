@@ -1,3 +1,11 @@
+# [2.1.0-alpha.12](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.11...v2.1.0-alpha.12) (2026-08-28)
+
+
+### Bug Fixes
+
+* **client:** 🐛 harden Windows service self-restart and persist its logs ([65c958a](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/65c958affe82169a620fa3574196c67e6c1c0334))
+* **client:** 🐛 preserve `..`/`.` components when encoding symlink targets ([c723c4e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c723c4e150a7b77322a33e97de8257dc1fccdfd0))
+
 # [2.1.0-alpha.11](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.10...v2.1.0-alpha.11) (2026-08-28)
 
 

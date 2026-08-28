@@ -1,6 +1,6 @@
 [package]
 name = "e2e-tests"
-version = "2.1.0-alpha.11"
+version = "2.1.0-alpha.12"
 edition = "2021"
 
 [dependencies]
