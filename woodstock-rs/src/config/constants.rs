@@ -80,3 +80,9 @@ pub const DEFAULT_BACKUP_TIMEOUT_SECS: u64 = 12 * 3600; // 12h
 ///
 /// This key is used in Redis to store and retrieve DNS entries for remote clients.
 pub const REDIS_WOODSTOCK_KEY_DNS: &str = "woodstock_dns";
+
+/// Redis Pub/Sub channel a host's registration transitions from offline to online on.
+///
+/// Published (best-effort) by `SocketAddrResolver::register_service` so the scheduler
+/// can react immediately instead of waiting for its periodic safety-net wakeup.
+pub const HOST_ONLINE_CHANNEL: &str = "woodstock:host:online";

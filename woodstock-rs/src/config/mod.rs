@@ -37,6 +37,9 @@ mod archiving;
 /// Module for backup configuration management.
 mod backups;
 
+/// Module for blackout window configuration and evaluation.
+mod blackout;
+
 /// Module providing core configuration structures and functionality.
 mod core;
 
@@ -56,11 +59,12 @@ pub use archiving::{ArchiveFormat, ArchiveProfile, ArchivingConfig, HostSelectio
 pub use backups::{
     BackupChangedEvent, Backups, ShareRecord, ShareSnapshotMethod, BACKUP_CHANGED_CHANNEL,
 };
+pub use blackout::{blackout_status_at, BlackoutWindow};
 pub use constants::{
     BUFFER_SIZE, CHUNK_SIZE, CHUNK_SIZE_U64, DEFAULT_BACKUP_TIMEOUT_SECS,
     DEFAULT_CHANNEL_BUFFER_SIZE, DEFAULT_PORT, DNS_RESOLVE_MAX_CONCURRENCY,
-    DNS_RESOLVE_TIMEOUT_SEC, FSCK_PROGRESS_BATCH_SIZE, MDNS_SERVICE_NAME, MDNS_SUFFIX,
-    MDNS_TIMEOUT_MSEC, REDIS_WOODSTOCK_KEY_DNS,
+    DNS_RESOLVE_TIMEOUT_SEC, FSCK_PROGRESS_BATCH_SIZE, HOST_ONLINE_CHANNEL, MDNS_SERVICE_NAME,
+    MDNS_SUFFIX, MDNS_TIMEOUT_MSEC, REDIS_WOODSTOCK_KEY_DNS,
 };
 pub use core::{
     Configuration, ConfigurationPath, Context, OptionalConfigurationPath, RedisConfiguration,

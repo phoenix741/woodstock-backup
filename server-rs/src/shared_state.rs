@@ -84,7 +84,6 @@ impl SharedState {
                 config.clone(),
                 hosts.clone(),
                 backups.clone(),
-                scheduler.clone(),
                 resolver.clone(),
             )
             .wrap_err("Failed to create JobUtility")?,

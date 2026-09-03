@@ -80,7 +80,7 @@ services:
     volumes:
       - "backups_storage:/backups"
 
-  # Scheduler (Cron jobs)
+  # Scheduler (event-driven + dynamic wakeup, single instance)
   server-scheduler:
     image: phoenix741/woodstock-backup:develop
     command: ["/app/scheduler"]

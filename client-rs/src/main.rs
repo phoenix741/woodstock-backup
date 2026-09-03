@@ -311,10 +311,9 @@ async fn main() -> Result<()> {
             tokio::spawn(async move {
                 #[cfg(unix)]
                 {
-                    let mut sigterm = tokio::signal::unix::signal(
-                        tokio::signal::unix::SignalKind::terminate(),
-                    )
-                    .expect("Failed to install SIGTERM handler");
+                    let mut sigterm =
+                        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                            .expect("Failed to install SIGTERM handler");
 
                     tokio::select! {
                         res = tokio::signal::ctrl_c() => {

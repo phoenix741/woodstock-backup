@@ -55,6 +55,15 @@ pub struct Schedule {
     pub activated: Option<bool>,
     pub backup_period: Option<i64>,
     pub backup_to_keep: Option<ScheduledBackupToKeep>,
+    /// Recurring windows during which a new backup should not be started
+    /// unless `blackout_override_after_periods` allows it (see below).
+    #[serde(default)]
+    pub blackout: Option<Vec<super::BlackoutWindow>>,
+    /// Overrides `blackout` once the host is late by more than this multiple
+    /// of `backup_period` (e.g. `1.5`). `None` means the blackout is strict —
+    /// no automatic override.
+    #[serde(default)]
+    pub blackout_override_after_periods: Option<f32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -63,6 +72,33 @@ pub struct ApplicationScheduler {
     pub wakeup_schedule: String,
     pub nightly_schedule: String,
     pub default_schedule: Schedule,
+    /// Floor under the scanner's dynamic sleep, so a host/profile/nightly trigger stuck
+    /// permanently "due" can never turn the loop into a busy-poll. See
+    /// `server-rs/src/bin/scheduler.rs::compute_next_wakeup`.
+    #[serde(default = "default_wakeup_floor_secs")]
+    pub wakeup_floor_secs: i64,
+    /// Cooldown recorded after a successful enqueue, so the scanner doesn't immediately
+    /// re-consider the same host before the job it just enqueued has had a chance to start.
+    /// See `server-rs/src/jobs/decision.rs`.
+    #[serde(default = "default_retry_backoff_after_success_secs")]
+    pub retry_backoff_after_success_secs: i64,
+    /// Cooldown recorded after a refused scheduling attempt (host unreachable, already
+    /// running, or blocked by an active pool fsck lock). See
+    /// `server-rs/src/jobs/decision.rs`.
+    #[serde(default = "default_retry_backoff_on_refusal_secs")]
+    pub retry_backoff_on_refusal_secs: i64,
+}
+
+pub(crate) fn default_wakeup_floor_secs() -> i64 {
+    30
+}
+
+pub(crate) fn default_retry_backoff_after_success_secs() -> i64 {
+    5 * 60
+}
+
+pub(crate) fn default_retry_backoff_on_refusal_secs() -> i64 {
+    15 * 60
 }
 
 // ************* Host **************
@@ -319,5 +355,44 @@ mod tests {
         assert!(BackupStatus::Failed(FailedStatus::InPool).is_aborted());
         assert!(!BackupStatus::Removing(RemovingStatus::ToRemoveInPool).is_aborted());
         assert!(!BackupStatus::Removing(RemovingStatus::RemoveFromHost).is_aborted());
+    }
+
+    #[test]
+    fn application_scheduler_cadence_fields_default_when_absent() {
+        let yaml = r"
+wakeupSchedule: '0 0 * * * * *'
+nightlySchedule: '0 0 0 * * * *'
+defaultSchedule:
+  activated: true
+  backupPeriod: 86400
+";
+        let scheduler: ApplicationScheduler = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(scheduler.wakeup_floor_secs, default_wakeup_floor_secs());
+        assert_eq!(
+            scheduler.retry_backoff_after_success_secs,
+            default_retry_backoff_after_success_secs()
+        );
+        assert_eq!(
+            scheduler.retry_backoff_on_refusal_secs,
+            default_retry_backoff_on_refusal_secs()
+        );
+    }
+
+    #[test]
+    fn application_scheduler_cadence_fields_round_trip_when_set() {
+        let yaml = r"
+wakeupSchedule: '0 0 * * * * *'
+nightlySchedule: '0 0 0 * * * *'
+defaultSchedule:
+  activated: true
+  backupPeriod: 86400
+wakeupFloorSecs: 10
+retryBackoffAfterSuccessSecs: 120
+retryBackoffOnRefusalSecs: 60
+";
+        let scheduler: ApplicationScheduler = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(scheduler.wakeup_floor_secs, 10);
+        assert_eq!(scheduler.retry_backoff_after_success_secs, 120);
+        assert_eq!(scheduler.retry_backoff_on_refusal_secs, 60);
     }
 }

@@ -1,6 +1,7 @@
 //! Jobs module: définitions, exécuteurs (workers) et producteurs (enqueue)
 
 pub mod config;
+pub mod decision;
 pub mod layers;
 pub mod producers;
 pub mod progress;

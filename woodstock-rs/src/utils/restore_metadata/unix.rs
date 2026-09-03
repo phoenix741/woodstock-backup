@@ -111,7 +111,11 @@ mod tests {
         // FILE_ATTRIBUTE_ARCHIVE = 32, masks to 0o040 — must never be applied.
         restore_permissions(tmp.path(), 32, SourceOs::Windows).unwrap();
 
-        assert_eq!(current_mode(tmp.path()), 0o644, "mode must be left untouched");
+        assert_eq!(
+            current_mode(tmp.path()),
+            0o644,
+            "mode must be left untouched"
+        );
     }
 
     #[test]

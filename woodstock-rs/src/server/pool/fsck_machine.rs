@@ -399,7 +399,10 @@ impl FsckMachine {
 
         // Wait for progression task to complete
         if let Err(e) = progress_task.await {
-            error!("Error in missing chunks verification progression task: {}", e);
+            error!(
+                "Error in missing chunks verification progression task: {}",
+                e
+            );
         }
 
         // Process result and update state, sans let inutile ni move

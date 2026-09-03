@@ -31,6 +31,7 @@ This is the foundation of the project. It contains no executable binary (except 
   * `Configuration` / `ConfigurationPath` (paths — overridable via environment variables).
   * `Backups` / `Hosts` (accessors for host/backup metadata).
   * `ApplicationScheduler` / `Schedule` / `ScheduledBackupToKeep` (scheduling).
+  * `blackout.rs` : `BlackoutWindow`, `blackout_status_at()` — pure recurring time-window evaluation for `Schedule.blackout`.
   * Full `BackupStatus` enum (`InProgress`, `Completing`, `Completed`, `Failed`, …).
   * `HostConfiguration` (per-host YAML: addresses, shares, pre/post commands).
 * `src/events/` : **Audit log**.
@@ -53,7 +54,7 @@ Contains the application-level server implementation.
 * `src/bin/` : Binary entry points.
   * `api_server.rs` : Public Axum HTTP server (REST + GraphQL).
   * `client_api_server.rs` : HTTP/mTLS server for agent registrations.
-  * `scheduler.rs` : Scheduling process (Apalis cron).
+  * `scheduler.rs` : Event-driven + dynamic-wakeup scheduling process (single instance) — one unified loop drives hosts, archive profiles, and nightly maintenance, no Apalis cron.
   * `job_worker.rs` : Task execution process (backup, restore, maintenance).
 * `src/api/` : REST API logic.
   * `handlers/` : HTTP controllers (hosts, backups, files, server, metrics).
@@ -70,6 +71,7 @@ Contains the application-level server implementation.
   * `workers.rs` : Job executors (`handle_backup`, `handle_restore`, `handle_remove`, `handle_fsck`, …).
   * `storage.rs` : Configuration of the 4 Redis queues (schedule, backup, interactive, maintenance).
   * `producers.rs` : Job enqueue methods (`enqueue_backup_unique`, `enqueue_restore`, …).
+  * `decision.rs` : `try_schedule_host()` — shared scheduling gate (cooldown, running, due, blackout, fsck lock, reachability) used by both the scanner loop and the event-driven subscriber in `bin/scheduler.rs`.
   * `progress.rs` : Redis Pub/Sub for publishing progress states.
   * `types.rs` : Payload definitions (`BackupQueueJob`, `RestoreJobData`, `MaintenanceJobData`).
   * `layers/` : Apalis middlewares (progress, job_log).

@@ -4,11 +4,16 @@ use eyre::Result;
 use tokio::fs::read_to_string;
 use tracing::debug;
 
+use crate::config::model::{
+    default_retry_backoff_after_success_secs, default_retry_backoff_on_refusal_secs,
+    default_wakeup_floor_secs,
+};
 use crate::config::{ApplicationScheduler, ScheduledBackupToKeep};
 
 use super::{Configuration, Schedule};
 
-/// Service pour charger le scheduler global (defaultSchedule) similaire à la version TS.
+/// Service to load the global scheduler config (`defaultSchedule`), re-read fresh on every
+/// call — same hot-reload-by-re-read pattern as `ArchivingConfig`.
 pub struct Scheduler {
     config: Arc<Configuration>,
 }
@@ -36,9 +41,13 @@ impl Scheduler {
     }
 
     fn fallback_schedule() -> ApplicationScheduler {
-        // backup_period interprété en heures (24h) pour correspondre à u8
         ApplicationScheduler {
-            wakeup_schedule: "0 */15 * * * * *".into(),
+            // Applied once, globally, as a safety-net cap on the scanner's dynamic sleep —
+            // not a per-host polling cadence anymore (see `compute_next_wakeup` in
+            // `server-rs/src/bin/scheduler.rs`). Real due dates already drive the wakeup;
+            // this only bounds how long a config change (new host, re-activated schedule,
+            // shortened backupPeriod) can go unnoticed.
+            wakeup_schedule: "0 0 * * * * *".into(),
             nightly_schedule: "0 0 0 * * * *".into(),
             default_schedule: Schedule {
                 activated: Some(true),
@@ -51,7 +60,12 @@ impl Scheduler {
                     yearly: Some(1),
                     yearly_limit: None,
                 }),
+                blackout: None,
+                blackout_override_after_periods: None,
             },
+            wakeup_floor_secs: default_wakeup_floor_secs(),
+            retry_backoff_after_success_secs: default_retry_backoff_after_success_secs(),
+            retry_backoff_on_refusal_secs: default_retry_backoff_on_refusal_secs(),
         }
     }
 }

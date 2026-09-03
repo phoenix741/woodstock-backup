@@ -45,11 +45,13 @@ operations:
 
 Inside the `schedule` field:
 
-| Field        | Default value                                                  | Description                                  |
-| ------------ | -------------------------------------------------------------- | -------------------------------------------- |
-| activated    | true                                                           | Enable or disable automatic backups          |
-| backupPeriod | 86400                                                           | Period between two backups in seconds (default: 24 hours) |
-| backupToKeep | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1, yearly_limit: null }` | Number of backups to keep in each category. Defines representatives to keep for each time window. `yearly_limit` sets a maximum number of yearly representatives. |
+| Field                       | Default value                                                  | Description                                  |
+| --------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
+| activated                   | true                                                           | Enable or disable automatic backups          |
+| backupPeriod                | 86400                                                           | Period between two backups in seconds (default: 24 hours) |
+| backupToKeep                | `{ hourly: -1, daily: 7, weekly: 4, monthly: 12, yearly: -1, yearly_limit: null }` | Number of backups to keep in each category. Defines representatives to keep for each time window. `yearly_limit` sets a maximum number of yearly representatives. |
+| blackout                    | none                                                            | List of recurring windows during which a new backup should not be started for this host. See [Updating the Scheduler](./scheduler.md) for the format and how it combines with the global default. |
+| blackoutOverrideAfterPeriods | none                                                           | Overrides `blackout` once the host is late by more than this multiple of `backupPeriod` (e.g. `1.5`). Omit to make the blackout strict (no automatic override). |
 
 ### Operations
 

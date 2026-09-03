@@ -243,6 +243,10 @@ impl Hosts {
         scheduler.activated = scheduler.activated.or(global_scheduler.activated);
         scheduler.backup_period = scheduler.backup_period.or(global_scheduler.backup_period);
         scheduler.backup_to_keep = scheduler.backup_to_keep.or(global_scheduler.backup_to_keep);
+        scheduler.blackout = scheduler.blackout.or(global_scheduler.blackout);
+        scheduler.blackout_override_after_periods = scheduler
+            .blackout_override_after_periods
+            .or(global_scheduler.blackout_override_after_periods);
 
         debug!("Schedule for host {hostname}: {scheduler:?}");
 

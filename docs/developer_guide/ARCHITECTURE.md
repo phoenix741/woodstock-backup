@@ -41,7 +41,7 @@ Unlike systems where clients push their backups, Woodstock uses a Pull model:
 The "Server" is not a single process but a collection of specialised binaries working in concert:
 
 * **API Server (`api_server`)**: Management interface for the Frontend (Vue.js). Exposes a REST API and a **GraphQL** API (with WebSocket Subscriptions for real-time progress). Does not perform heavy work.
-* **Scheduler (`scheduler`)**: Lightweight metronome that injects tasks into the job queue via two CRON jobs (wakeup every 15 min + nightly maintenance at midnight UTC).
+* **Scheduler (`scheduler`)**: Event-driven + dynamic-wakeup planner (single instance). Backs up a host as soon as it comes back online (Redis Pub/Sub), and otherwise sleeps until the next real deadline across hosts, archive profiles, and nightly maintenance instead of a fixed tick — bounded by a global safety-net ceiling (`wakeupSchedule`) that only guards against config changes going unnoticed, not a polling cadence. No Apalis cron involved: each category (host, archive profile, nightly) tracks its own persisted "last done" state and is checked in the same unified loop. Honors per-host/global blackout windows. See [SERVER_COMPONENTS.md](SERVER_COMPONENTS.md#4-scheduler).
 * **Job Worker (`job_worker`)**: Heavy-duty worker that processes backups, restores, and maintenance. Consumes 4 distinct Redis queues via **Apalis**. Can be scaled horizontally.
 * **Client API (`client_api_server`)**: HTTP server with mTLS. Allows agents to register themselves (notify their network address). This is *not* a gRPC server — it is an Axum endpoint secured by client certificate.
 
@@ -56,7 +56,7 @@ All communication between the server and agents goes through **gRPC** secured by
 
 ## Typical Backup Flow
 
-1. **Scheduling**: The `scheduler` detects it is time to back up `host-abc`. It enqueues a `BackupQueueJob::Save` in Redis (atomic deduplication via `SET NX`).
+1. **Scheduling**: The `scheduler` decides `host-abc` is due for a backup — either right away, triggered by `host-abc` registering itself online, or at the next dynamic wakeup — and, outside any blackout window, enqueues a `BackupQueueJob::Save` in Redis (atomic deduplication via `SET NX`).
 2. **Pickup**: An available `job_worker` dequeues the job via **Apalis**.
 3. **Connection**: The worker contacts the `ws_client_daemon` agent on `host-abc` via gRPC mTLS.
 4. **Authentication**: JWT handshake (`authenticate()`).

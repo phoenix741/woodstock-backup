@@ -14,9 +14,7 @@ pub enum QueueName {
     Backup,
     Interactive,
     Maintenance,
-    Nightly,
     Archive,
-    ArchiveTrigger,
 }
 
 impl QueueName {
@@ -26,9 +24,7 @@ impl QueueName {
             QueueName::Backup => "backup",
             QueueName::Interactive => "interactive",
             QueueName::Maintenance => "maintenance",
-            QueueName::Nightly => "nightly",
             QueueName::Archive => "archive",
-            QueueName::ArchiveTrigger => "archive-trigger",
         }
     }
 }

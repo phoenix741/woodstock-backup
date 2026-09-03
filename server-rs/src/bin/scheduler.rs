@@ -1,18 +1,51 @@
-//! Scheduler Binary: persiste deux crons (scanner */10, nightly 02:30) vers Redis
+//! Scheduler Binary: drives hosts, archive profiles, and nightly maintenance through a
+//! single dynamic-wakeup loop plus an event-driven Pub/Sub subscriber (see
+//! `run_scanner_loop`/`run_host_online_subscriber` below) — instead of separate Apalis
+//! crons. Each category (host, archive profile, nightly) carries its own cron/period and
+//! its own persisted "last run" state (backup timestamps for hosts, `ArchiveRunStatus` for
+//! archive, a Redis key for nightly); the loop just computes, on every iteration, the
+//! closest real deadline among the three and sleeps until then.
+//!
+//! Must run as a single instance: unlike `job_worker` (horizontally scalable via the Apalis
+//! queues), `run_scanner_loop`/`run_host_online_subscriber` hold no distributed lock on the
+//! scan/subscription itself — only the final enqueue is deduplicated
+//! (`Producers::enqueue_backup_unique`, the archive/nightly job's name, and each category's
+//! "last run" state). Multiple active instances at once duplicate scheduling work
+//! (harmless but wasteful), never an actual backup.
 
-use apalis::prelude::*;
 use apalis_cron::Schedule;
+use chrono::{DateTime, Duration as ChronoDuration, Local, TimeZone};
 use color_eyre::eyre::Result;
 use eyre::eyre;
-use std::{str::FromStr, sync::Arc};
+use futures::StreamExt;
+use redis::AsyncCommands;
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::sync::Mutex;
-use tracing::info;
-use woodstock::archiving::{is_profile_due, ArchiveRunStatus};
-use woodstock::config::{ArchivingConfig, Configuration, Scheduler};
+use tracing::{info, warn};
+use woodstock::archiving::ArchiveRunStatus;
+use woodstock::config::{ArchivingConfig, Configuration, Scheduler, HOST_ONLINE_CHANNEL};
+use woodstock::server::resolve::HostOnlineEvent;
+use woodstock::utils::cron_due::next_due_at;
 use woodstock_server_rs::{
-    jobs::{producers::*, state::ApiWorkerState, types::*},
+    jobs::{
+        decision::{
+            get_next_attempt, try_schedule_host, SchedulingConfig, SchedulingOutcome, Trigger,
+        },
+        producers::Producers,
+        state::ApiWorkerState,
+    },
     logger::init_logging,
 };
+
+/// Fallback safety-net ceiling used only if `wakeupSchedule` fails to parse as a cron
+/// expression. Under normal operation the ceiling is the next tick of `wakeupSchedule`
+/// itself (see [`compute_next_wakeup`]) — that field's role shifted from "the scanner's
+/// fixed cadence" to "the safety-net upper bound for hosts that never self-register".
+const WAKEUP_CEILING_FALLBACK_SECS: i64 = 3600;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -26,6 +59,7 @@ async fn main() -> Result<()> {
     let woodstock_config = Arc::new(Configuration::default());
     let scheduler_service = Scheduler::new(woodstock_config.clone());
     let scheduler = scheduler_service.get_schedule().await?;
+    let scheduling_config = SchedulingConfig::from_application_scheduler(&scheduler);
 
     let state = Arc::new(ApiWorkerState::new(woodstock_config.clone()).await?);
 
@@ -35,39 +69,10 @@ async fn main() -> Result<()> {
     let redis_url = woodstock_config.redis_url();
     info!("Connecting to Redis at: {}", redis_url);
 
-    // Build persisted cron backends
-    let scanner_sched = Schedule::from_str(&scheduler.wakeup_schedule)
-        .map_err(|e| eyre!("Invalid cron expression for wakeup schedule: {e}"))?;
-    let nightly_sched = Schedule::from_str(&scheduler.nightly_schedule)
-        .map_err(|e| eyre!("Invalid cron expression for nightly schedule: {e}"))?;
-
-    let scanner_backend = pipe_cron_to_backup_storage(
-        scanner_sched,
-        state.apalis_redis_storage.schedule_storage.clone(),
-    );
-
-    // Nightly cron: utilise un storage dédié (QueueName::Nightly) pour être enregistré
-    // comme backend indépendant dans le Monitor. C'est la seule façon de faire tourner
-    // le pipe_heartbeat interne à CronPipe (cf. apalis-cron CronPipe::poll).
-    let nightly_backend = pipe_cron_to_nightly_storage(
-        nightly_sched,
-        state.apalis_redis_storage.nightly_storage.clone(),
-    );
-
-    // Archive trigger: ticks every 5 minutes; the worker itself checks each
-    // configured profile's own `schedule_cron` for due-ness (profiles are
-    // configured in archiving.yml, not here — there is no single global
-    // archiving cron).
-    let archive_trigger_sched = Schedule::from_str("0 */5 * * * * *")
-        .map_err(|e| eyre!("Invalid cron expression for archive trigger: {e}"))?;
-    let archive_trigger_backend = pipe_cron_to_archive_trigger_storage(
-        archive_trigger_sched,
-        state.apalis_redis_storage.archive_trigger_storage.clone(),
-    );
-
     let archiving_config = Arc::new(ArchivingConfig::new(woodstock_config.clone()));
 
-    // Producers to enqueue jobs when cron ticks are persisted
+    // Producers to enqueue jobs when a host, archive profile, or nightly maintenance
+    // is found due by the unified scanner loop below.
     let redis_client = redis::Client::open(redis_url.clone())?;
     let producers = Arc::new(Mutex::new(Producers::new(
         state.hosts.clone(),
@@ -78,168 +83,476 @@ async fn main() -> Result<()> {
         state.apalis_redis_storage.maintenance_storage.clone(),
         state.apalis_redis_storage.archive_storage.clone(),
         state.progress_publisher.clone(),
-        redis_client,
+        redis_client.clone(),
     )));
 
-    // Worker consuming the scanner cron stream and producing backup jobs
-    let mut monitor = Monitor::new();
+    // Listener of host-online events (transition offline -> online).
+    // Publish from woodstock-rs/src/server/resolve.rs
+    let subscriber_handle = tokio::spawn(run_host_online_subscriber(
+        redis_client.clone(),
+        state.clone(),
+        producers.clone(),
+        scheduling_config,
+    ));
 
-    // Scanner: iterate hosts and enqueue backup unique per host
-    monitor = monitor.register({
-        let producers_scanner = producers.clone();
-        WorkerBuilder::new("cron-scanner")
-            .data(state.clone())
-            .catch_panic()
-            .concurrency(1)
-            .backend(scanner_backend)
-            .build_fn(
-                move |_: ScheduleQueueJob, state: Data<Arc<ApiWorkerState>>| {
-                    let producers = producers_scanner.clone();
-                    async move {
-                        let res: eyre::Result<()> = async {
-                            let hosts = state.hosts.list_hosts().await?;
-                            for host in hosts {
-                                // Check if a job is already running for this host
-                                let is_running = state.job_utility.is_job_running(&host).await?;
-                                if is_running {
-                                    info!("Skipping host {}: job already running", host);
-                                    continue;
-                                }
+    // Unified scanner: runs the scheduling decision for every known host, every enabled
+    // archive profile, and nightly maintenance, then sleeps until the next real deadline
+    // across all three, computed by `compute_next_wakeup` — instead of ticking on a fixed
+    // cron interval per category.
+    let scanner_handle = tokio::spawn(run_scanner_loop(
+        redis_client.clone(),
+        state.clone(),
+        producers.clone(),
+        archiving_config.clone(),
+        woodstock_config.path.jobs_path.clone(),
+        scheduler.nightly_schedule.clone(),
+        scheduler.wakeup_schedule.clone(),
+        scheduling_config,
+    ));
 
-                                // Check if host is available and should be backuped
-                                let should_backup =
-                                    state.job_utility.should_backup_host(&host, false).await?;
-                                let can_launch = state.job_utility.can_launch_backup(&host).await?;
-                                if should_backup && can_launch {
-                                    let host_available =
-                                        state.job_utility.host_available(&host).await?;
+    // Both background tasks (`run_scanner_loop`, `run_host_online_subscriber`) loop
+    // forever and only ever end via a panic — a panic in either is loud (process exit, so
+    // a supervisor like systemd restarts a clean scheduler) instead of silently leaving
+    // the scheduler running with no scheduling.
+    tokio::select! {
+        res = scanner_handle => {
+            return Err(match res {
+                Ok(()) => eyre!("Scanner loop task ended unexpectedly"),
+                Err(e) => eyre!("Scanner loop task panicked: {e}"),
+            });
+        }
+        res = subscriber_handle => {
+            return Err(match res {
+                Ok(()) => eyre!("Host-online subscriber task ended unexpectedly"),
+                Err(e) => eyre!("Host-online subscriber task panicked: {e}"),
+            });
+        }
+    }
+}
 
-                                    if host_available {
-                                        let mut prod = producers.lock().await;
-                                        let _ = prod.enqueue_backup_unique(&host, false).await;
-                                    }
-                                }
-                            }
-                            Ok(())
-                        }
-                        .await;
-                        res
-                    }
-                },
+/// Subscribes to [`HOST_ONLINE_CHANNEL`] and immediately runs the scheduling decision for
+/// any host that just transitioned from offline to online (see
+/// `SocketAddrResolver::register_service`), instead of waiting for the scanner's next
+/// dynamic wakeup. Runs forever: any Redis/connection error just logs a warning and
+/// retries after a short delay — this path is a responsiveness improvement on top of the
+/// scanner loop's safety net, never the only way a host gets backed up.
+async fn run_host_online_subscriber(
+    redis_client: redis::Client,
+    state: Arc<ApiWorkerState>,
+    producers: Arc<Mutex<Producers>>,
+    scheduling_config: SchedulingConfig,
+) {
+    loop {
+        let mut pubsub = match redis_client.get_async_pubsub().await {
+            Ok(pubsub) => pubsub,
+            Err(e) => {
+                warn!("Failed to open Redis pubsub for {HOST_ONLINE_CHANNEL}: {e}");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+
+        if let Err(e) = pubsub.subscribe(HOST_ONLINE_CHANNEL).await {
+            warn!("Failed to subscribe to {HOST_ONLINE_CHANNEL}: {e}");
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            continue;
+        }
+        info!("Subscribed to {HOST_ONLINE_CHANNEL} for event-driven backups");
+
+        let mut messages = pubsub.into_on_message();
+        while let Some(msg) = messages.next().await {
+            let payload: String = match msg.get_payload() {
+                Ok(payload) => payload,
+                Err(e) => {
+                    warn!("Bad payload on {HOST_ONLINE_CHANNEL}: {e}");
+                    continue;
+                }
+            };
+            let event: HostOnlineEvent = match serde_json::from_str(&payload) {
+                Ok(event) => event,
+                Err(e) => {
+                    warn!("Failed to parse HostOnlineEvent from {HOST_ONLINE_CHANNEL}: {e}");
+                    continue;
+                }
+            };
+
+            info!(
+                "Host {} just came online, checking for a due backup",
+                event.hostname
+            );
+            // Bypass any recorded cooldown: the host coming online is exactly the new
+            // information that invalidates a previous `SkippedUnreachable` backoff.
+            match try_schedule_host(
+                &state.job_utility,
+                &producers,
+                &redis_client,
+                &event.hostname,
+                false,
+                Trigger::OnlineEvent,
+                &scheduling_config,
             )
-    });
-
-    // Nightly: enqueue le job de cleanup refcnt dans maintenance_storage.
-    // Le CronPipe doit impérativement être enregistré dans le Monitor pour que
-    // pipe_heartbeat (qui pousse les ticks dans Redis) soit pollé.
-    monitor = monitor.register({
-        let producers_nightly = producers.clone();
-        WorkerBuilder::new("cron-nightly")
-            .catch_panic()
-            .concurrency(1)
-            .backend(nightly_backend)
-            .build_fn(move |_: ScheduleQueueJob| {
-                let producers = producers_nightly.clone();
-                async move {
-                    let mut prod = producers.lock().await;
-                    let res = prod.enqueue_cleanup_refcnt().await;
-                    if let Err(e) = &res {
-                        tracing::error!("Failed to enqueue nightly cleanup refcnt: {e}");
-                    } else {
-                        info!("Nightly cleanup refcnt job enqueued");
-                    }
-                    res.map(|_| ())
+            .await
+            {
+                Ok(outcome) => {
+                    info!(
+                        "Event-driven scheduling for {}: {:?}",
+                        event.hostname, outcome
+                    )
                 }
-            })
-    });
+                Err(e) => warn!("Event-driven scheduling failed for {}: {e}", event.hostname),
+            }
+        }
 
-    // Archive: on each tick, check every profile's due-ness and enqueue a run
-    // (one job per selected host) for those that are due.
-    monitor = monitor.register({
-        let producers_archive = producers.clone();
-        let archiving_config = archiving_config.clone();
-        let jobs_path = woodstock_config.path.jobs_path.clone();
-        WorkerBuilder::new("cron-archive")
-            .catch_panic()
-            .concurrency(1)
-            .backend(archive_trigger_backend)
-            .build_fn(move |_: ScheduleQueueJob| {
-                let producers = producers_archive.clone();
-                let archiving_config = archiving_config.clone();
-                let jobs_path = jobs_path.clone();
-                async move {
-                    let now = chrono::Local::now();
-                    let profiles = match archiving_config.list_profiles().await {
-                        Ok(profiles) => profiles,
-                        Err(e) => {
-                            tracing::error!("Failed to load archiving.yml: {e}");
-                            return Ok(());
-                        }
-                    };
+        // The pubsub stream ended (connection dropped): loop back and resubscribe.
+        warn!("Redis pubsub stream for {HOST_ONLINE_CHANNEL} ended, reconnecting");
+    }
+}
 
-                    for profile in profiles {
-                        if !profile.enabled {
-                            continue;
-                        }
+/// Redis key holding the nightly maintenance trigger's last-run timestamp — the nightly
+/// equivalent of [`ArchiveRunStatus`]. Needed because the unified scanner loop no longer
+/// relies on Apalis-cron's own persisted-tick replay to survive a restart: due-ness is
+/// instead recomputed from this timestamp plus `nightlySchedule` on every iteration, via
+/// [`next_due_at`] — the same mechanism already used for archive profiles and, in spirit,
+/// for hosts (real persisted completion state, not tick-stream replay).
+const NIGHTLY_LAST_RUN_KEY: &str = "woodstock:schedule:nightly:last-run";
 
-                        let status = ArchiveRunStatus::load(&jobs_path, &profile.name)
-                            .await
-                            .unwrap_or_default();
+async fn get_nightly_last_run(redis_client: &redis::Client) -> Option<DateTime<Local>> {
+    let mut con = match redis_client.get_multiplexed_async_connection().await {
+        Ok(con) => con,
+        Err(e) => {
+            warn!("Failed to get Redis connection to read nightly last-run: {e}");
+            return None;
+        }
+    };
+    let ts: Option<i64> = match con.get(NIGHTLY_LAST_RUN_KEY).await {
+        Ok(ts) => ts,
+        Err(e) => {
+            warn!("Failed to read nightly last-run: {e}");
+            return None;
+        }
+    };
+    ts.and_then(|ts| Local.timestamp_opt(ts, 0).single())
+}
 
-                        let due = match is_profile_due(&profile.schedule_cron, status.last_run, now)
-                        {
-                            Ok(due) => due,
-                            Err(e) => {
-                                tracing::warn!(
-                                    "Skipping archive profile '{}': {e}",
-                                    profile.name
-                                );
-                                continue;
-                            }
-                        };
+async fn set_nightly_last_run(redis_client: &redis::Client, at: DateTime<Local>) {
+    let Ok(mut con) = redis_client.get_multiplexed_async_connection().await else {
+        warn!("Failed to get Redis connection to persist nightly last-run");
+        return;
+    };
+    if let Err(e) = con
+        .set::<_, _, ()>(NIGHTLY_LAST_RUN_KEY, at.timestamp())
+        .await
+    {
+        warn!("Failed to persist nightly last-run: {e}");
+    }
+}
 
-                        if !due {
-                            continue;
-                        }
+/// Checks every enabled archive profile's due-ness and enqueues a run for those that are
+/// due — the scanner-loop equivalent of the former `cron-archive` Apalis worker's body,
+/// now driven by [`next_due_at`] instead of a fixed 5-minute tick.
+async fn check_and_enqueue_due_archives(
+    archiving_config: &ArchivingConfig,
+    jobs_path: &Path,
+    producers: &Arc<Mutex<Producers>>,
+    now: DateTime<Local>,
+) {
+    let profiles = match archiving_config.list_profiles().await {
+        Ok(profiles) => profiles,
+        Err(e) => {
+            warn!("Scanner: failed to load archiving.yml: {e}");
+            return;
+        }
+    };
 
-                        let mut prod = producers.lock().await;
-                        match prod
-                            .enqueue_archive_profile(&archiving_config, &profile.name)
-                            .await
-                        {
-                            Ok(job_ids) => {
-                                if job_ids.is_empty() {
-                                    info!(
-                                        "Archive profile '{}' due: no host matched its selection, nothing enqueued",
-                                        profile.name
-                                    );
-                                } else {
-                                    info!("Archive profile '{}' due: enqueued 1 job", profile.name);
-                                }
-                                let new_status = ArchiveRunStatus { last_run: Some(now) };
-                                if let Err(e) = new_status.save(&jobs_path, &profile.name).await {
-                                    tracing::error!(
-                                        "Failed to persist run status for archive profile '{}': {e}",
-                                        profile.name
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to enqueue archive profile '{}': {e}",
-                                    profile.name
-                                );
-                            }
-                        }
-                    }
+    for profile in profiles {
+        if !profile.enabled {
+            continue;
+        }
 
-                    eyre::Result::<()>::Ok(())
+        let status = ArchiveRunStatus::load(jobs_path, &profile.name)
+            .await
+            .unwrap_or_default();
+
+        let due = match next_due_at(&profile.schedule_cron, status.last_run, now) {
+            Ok(Some(due_at)) => due_at <= now,
+            Ok(None) => false,
+            Err(e) => {
+                warn!("Scanner: skipping archive profile '{}': {e}", profile.name);
+                continue;
+            }
+        };
+
+        if !due {
+            continue;
+        }
+
+        let mut prod = producers.lock().await;
+        match prod
+            .enqueue_archive_profile(archiving_config, &profile.name)
+            .await
+        {
+            Ok(job_ids) => {
+                if job_ids.is_empty() {
+                    info!(
+                        "Archive profile '{}' due: no host matched its selection, nothing enqueued",
+                        profile.name
+                    );
+                } else {
+                    info!("Archive profile '{}' due: enqueued 1 job", profile.name);
                 }
-            })
-    });
+                let new_status = ArchiveRunStatus {
+                    last_run: Some(now),
+                };
+                if let Err(e) = new_status.save(jobs_path, &profile.name).await {
+                    tracing::error!(
+                        "Failed to persist run status for archive profile '{}': {e}",
+                        profile.name
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to enqueue archive profile '{}': {e}", profile.name);
+            }
+        }
+    }
+}
 
-    monitor.run().await?;
+/// Checks the nightly maintenance trigger's due-ness (via [`next_due_at`] against
+/// [`NIGHTLY_LAST_RUN_KEY`]) and enqueues `CleanupRefcnt` if due — the scanner-loop
+/// equivalent of the former `cron-nightly` Apalis worker's body.
+async fn check_and_enqueue_nightly(
+    redis_client: &redis::Client,
+    producers: &Arc<Mutex<Producers>>,
+    nightly_schedule: &str,
+    now: DateTime<Local>,
+) {
+    let last_run = get_nightly_last_run(redis_client).await;
+    let due = match next_due_at(nightly_schedule, last_run, now) {
+        Ok(Some(due_at)) => due_at <= now,
+        Ok(None) => false,
+        Err(e) => {
+            warn!("Scanner: invalid nightlySchedule cron expression: {e}");
+            false
+        }
+    };
+    if !due {
+        return;
+    }
 
-    info!("Scheduler shutting down");
-    Ok(())
+    let mut prod = producers.lock().await;
+    match prod.enqueue_cleanup_refcnt().await {
+        Ok(_) => {
+            info!("Nightly cleanup refcnt job enqueued");
+            drop(prod);
+            set_nightly_last_run(redis_client, now).await;
+        }
+        Err(e) => tracing::error!("Failed to enqueue nightly cleanup refcnt: {e}"),
+    }
+}
+
+/// Unified safety-net scanner: on each iteration, runs the scheduling decision for every
+/// known host, checks every enabled archive profile and the nightly maintenance trigger
+/// for due-ness, then sleeps until the next real deadline across all three, computed by
+/// [`compute_next_wakeup`] — instead of ticking on a fixed cron interval per category.
+async fn run_scanner_loop(
+    redis_client: redis::Client,
+    state: Arc<ApiWorkerState>,
+    producers: Arc<Mutex<Producers>>,
+    archiving_config: Arc<ArchivingConfig>,
+    jobs_path: PathBuf,
+    nightly_schedule: String,
+    wakeup_ceiling_cron: String,
+    scheduling_config: SchedulingConfig,
+) {
+    loop {
+        let hosts = match state.hosts.list_hosts().await {
+            Ok(hosts) => hosts,
+            Err(e) => {
+                warn!("Scanner: failed to list hosts: {e}");
+                tokio::time::sleep(std::time::Duration::from_secs(
+                    scheduling_config.wakeup_floor_secs as u64,
+                ))
+                .await;
+                continue;
+            }
+        };
+
+        for host in &hosts {
+            match try_schedule_host(
+                &state.job_utility,
+                &producers,
+                &redis_client,
+                host,
+                false,
+                Trigger::Scan,
+                &scheduling_config,
+            )
+            .await
+            {
+                Ok(SchedulingOutcome::NotDue | SchedulingOutcome::SkippedCooldown { .. }) => {}
+                Ok(outcome) => info!("Scanner: {host} -> {outcome:?}"),
+                Err(e) => warn!("Scanner: scheduling failed for {host}: {e}"),
+            }
+        }
+
+        let now = Local::now();
+        check_and_enqueue_due_archives(&archiving_config, &jobs_path, &producers, now).await;
+        check_and_enqueue_nightly(&redis_client, &producers, &nightly_schedule, now).await;
+
+        let (next_wakeup, reason) = compute_next_wakeup(
+            &state,
+            &redis_client,
+            &hosts,
+            &archiving_config,
+            &jobs_path,
+            &nightly_schedule,
+            &wakeup_ceiling_cron,
+            &scheduling_config,
+        )
+        .await;
+        let sleep_for =
+            (next_wakeup - Local::now())
+                .to_std()
+                .unwrap_or(std::time::Duration::from_secs(
+                    scheduling_config.wakeup_floor_secs as u64,
+                ));
+        info!("Scanner: sleeping {sleep_for:?}, next wakeup at {next_wakeup} ({reason})");
+        tokio::time::sleep(sleep_for).await;
+    }
+}
+
+/// Computes when the scanner should next wake up: the earliest, across all hosts, enabled
+/// archive profiles, and the nightly maintenance trigger, of "when it's next due" (bumped
+/// forward by any recorded backoff for hosts). Each category's due-date is a real calendar
+/// date computed from its own persisted "last done" state (see `JobUtility::get_time_to_next_backup`
+/// for hosts, [`next_due_at`] for archive profiles/nightly), not an estimate — so there is
+/// nothing to gain by waking up any earlier than that: for a host that isn't due yet
+/// `should_backup_host` would just refuse (it runs *before* any reachability check, so a
+/// too-early wake doesn't even ping the host), and for archive/nightly a too-early wake
+/// finds nothing due either.
+///
+/// `wakeup_ceiling_cron` is applied once, globally, as a final safety-net cap on the result
+/// — not per category — for the one case actual due-dates can't cover: a config change (new
+/// host, re-activated schedule, shortened `backupPeriod`, a new/edited archive profile, an
+/// edited `nightlySchedule`) made between now and the computed wakeup, which the scanner can
+/// only notice by waking up and re-reading configuration.
+async fn compute_next_wakeup(
+    state: &ApiWorkerState,
+    redis_client: &redis::Client,
+    hosts: &[String],
+    archiving_config: &ArchivingConfig,
+    jobs_path: &Path,
+    nightly_schedule: &str,
+    wakeup_ceiling_cron: &str,
+    scheduling_config: &SchedulingConfig,
+) -> (DateTime<Local>, String) {
+    let now = Local::now();
+    let floor = now + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
+    let ceiling_dt = match Schedule::from_str(wakeup_ceiling_cron) {
+        Ok(schedule) => schedule
+            .after(&now)
+            .next()
+            .unwrap_or(now + ChronoDuration::seconds(WAKEUP_CEILING_FALLBACK_SECS)),
+        Err(e) => {
+            warn!(
+                "Invalid wakeupSchedule cron expression {wakeup_ceiling_cron:?} ({e}), falling back to a {WAKEUP_CEILING_FALLBACK_SECS}s ceiling"
+            );
+            now + ChronoDuration::seconds(WAKEUP_CEILING_FALLBACK_SECS)
+        }
+    };
+
+    let mut winner: Option<(DateTime<Local>, String)> = None;
+
+    for host in hosts {
+        let due = match state.job_utility.get_time_to_next_backup(host).await {
+            Ok(Some(due)) => due,
+            Ok(None) => continue, // schedule not activated for this host
+            Err(e) => {
+                warn!("Scanner: failed to compute time-to-next-backup for {host}: {e}");
+                continue;
+            }
+        };
+
+        let mut candidate = now + due;
+        let mut reason = format!("{host} due in {due:?}");
+        if let Some(next_attempt) = get_next_attempt(redis_client, host).await {
+            if next_attempt > candidate {
+                candidate = next_attempt;
+                reason = format!("{host} backoff until {next_attempt}");
+            }
+        }
+
+        if candidate < floor {
+            candidate = floor;
+            reason = format!("{host} capped by wakeup floor");
+        }
+
+        if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
+            winner = Some((candidate, reason));
+        }
+    }
+
+    match archiving_config.list_profiles().await {
+        Ok(profiles) => {
+            for profile in profiles {
+                if !profile.enabled {
+                    continue;
+                }
+                let status = ArchiveRunStatus::load(jobs_path, &profile.name)
+                    .await
+                    .unwrap_or_default();
+                let due_at = match next_due_at(&profile.schedule_cron, status.last_run, now) {
+                    Ok(Some(due_at)) => due_at,
+                    Ok(None) => continue,
+                    Err(e) => {
+                        warn!(
+                            "Scanner: invalid schedule for archive profile '{}': {e}",
+                            profile.name
+                        );
+                        continue;
+                    }
+                };
+
+                let mut candidate = due_at;
+                let mut reason = format!("archive profile '{}' due at {due_at}", profile.name);
+                if candidate < floor {
+                    candidate = floor;
+                    reason = format!("archive profile '{}' capped by wakeup floor", profile.name);
+                }
+                if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
+                    winner = Some((candidate, reason));
+                }
+            }
+        }
+        Err(e) => warn!("Scanner: failed to load archiving.yml: {e}"),
+    }
+
+    let nightly_last_run = get_nightly_last_run(redis_client).await;
+    match next_due_at(nightly_schedule, nightly_last_run, now) {
+        Ok(Some(due_at)) => {
+            let mut candidate = due_at;
+            let mut reason = format!("nightly maintenance due at {due_at}");
+            if candidate < floor {
+                candidate = floor;
+                reason = "nightly maintenance capped by wakeup floor".into();
+            }
+            if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
+                winner = Some((candidate, reason));
+            }
+        }
+        Ok(None) => {}
+        Err(e) => warn!("Scanner: invalid nightlySchedule cron expression: {e}"),
+    }
+
+    match winner {
+        None => (
+            ceiling_dt.max(floor),
+            "nothing due (no host, archive profile, or nightly schedule active), using wakeup ceiling as safety net".into(),
+        ),
+        Some((candidate, _reason)) if candidate > ceiling_dt => (
+            ceiling_dt.max(floor),
+            "safety-net ceiling (next real due date is later, catches config changes)".into(),
+        ),
+        Some(winner) => winner,
+    }
 }

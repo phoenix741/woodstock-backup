@@ -482,8 +482,8 @@ pub async fn check_missing(
 
         count.checked += 1;
 
-        let is_present = <[u8; 32]>::try_from(entry.sha256.as_slice())
-            .is_ok_and(|hash| seen.contains(&hash));
+        let is_present =
+            <[u8; 32]>::try_from(entry.sha256.as_slice()).is_ok_and(|hash| seen.contains(&hash));
 
         let mut should_send = count.checked.is_multiple_of(FSCK_PROGRESS_BATCH_SIZE);
         if !is_present {

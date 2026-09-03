@@ -454,35 +454,3 @@ pub(crate) async fn enqueue_retention_removals(
     }
     enqueued
 }
-
-/// Planification Cron: utilitaires de persistance vers RedisStorage
-use apalis_cron::pipe::CronPipe;
-use apalis_cron::CronStream;
-
-pub fn pipe_cron_to_backup_storage(
-    schedule: apalis_cron::Schedule,
-    storage: RedisStorage<ScheduleQueueJob>,
-) -> CronPipe<RedisStorage<ScheduleQueueJob>> {
-    CronStream::new(schedule).pipe_to_storage(storage)
-}
-
-pub fn pipe_cron_to_maintenance_storage(
-    schedule: apalis_cron::Schedule,
-    storage: RedisStorage<MaintenanceJobData>,
-) -> CronPipe<RedisStorage<MaintenanceJobData>> {
-    CronStream::new(schedule).pipe_to_storage(storage)
-}
-
-pub fn pipe_cron_to_nightly_storage(
-    schedule: apalis_cron::Schedule,
-    storage: RedisStorage<ScheduleQueueJob>,
-) -> CronPipe<RedisStorage<ScheduleQueueJob>> {
-    CronStream::new(schedule).pipe_to_storage(storage)
-}
-
-pub fn pipe_cron_to_archive_trigger_storage(
-    schedule: apalis_cron::Schedule,
-    storage: RedisStorage<ScheduleQueueJob>,
-) -> CronPipe<RedisStorage<ScheduleQueueJob>> {
-    CronStream::new(schedule).pipe_to_storage(storage)
-}

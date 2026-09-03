@@ -259,6 +259,20 @@ impl JobExecutors {
             info!("[{}] Policy check passed for host: {}", task_id, host);
         }
 
+        // Re-check blackout at execution time, not just at enqueue time: a job can sit in
+        // the queue long enough for a blackout window to start after `decision::try_schedule_host`
+        // already let it through.
+        if !force {
+            if let Some(retry_at) = state.job_utility.is_in_blackout_now(&host).await? {
+                warn!(
+                    "[{}] Skip backup for host {}: now in blackout until {}",
+                    task_id, host, retry_at
+                );
+                self.publish_skipped_backup(&task_id, &host).await;
+                return Ok(());
+            }
+        }
+
         if !has_resumable_backup {
             if !state.job_utility.host_available(&host).await? {
                 warn!(

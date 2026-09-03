@@ -424,8 +424,7 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let outcome =
-            check_unused(dry_run, internal_tx, self.config.clone(), cancel_token).await?;
+        let outcome = check_unused(dry_run, internal_tx, self.config.clone(), cancel_token).await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in file list progression task: {}", e);
@@ -482,14 +481,8 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let result = check_missing(
-            refcnt,
-            seen,
-            internal_tx,
-            self.config.clone(),
-            cancel_token,
-        )
-        .await?;
+        let result =
+            check_missing(refcnt, seen, internal_tx, self.config.clone(), cancel_token).await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in missing chunks progression task: {}", e);

@@ -16,6 +16,8 @@ pub mod cache;
 pub mod chunk_hasher;
 /// Provides utililties for compress / uncompress
 pub mod compression;
+/// Generic "when is this cron-scheduled recurring task next due" computation.
+pub mod cron_due;
 /// Handles encryption and decryption operations.
 pub mod encryption;
 /// Contains file manipulation utilities.

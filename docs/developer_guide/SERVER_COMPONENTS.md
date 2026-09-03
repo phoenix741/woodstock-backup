@@ -56,12 +56,11 @@ The contact point for agent-initiated communications.
 
 The execution engine. Uses **Apalis** to manage Redis job queues.
 
-* **Role**: Consume pending tasks from 5 distinct Redis queues (plus a 6th, `archive-trigger`, used only to tick the archive due-check — it carries no job payloads of its own).
+* **Role**: Consume pending tasks from 4 distinct Redis queues.
 * **Job Queues**:
 
 | Queue | Job Type | Workers |
 |-------|----------|---------|
-| `schedule` | `ScheduleQueueJob` | Scanner (cron) → dispatches to the backup queue |
 | `backup` | `BackupQueueJob::Save` / `::Remove` | `handle_backup()` / `handle_remove()` |
 | `interactive` | `RestoreJobData` | `handle_restore()` |
 | `maintenance` | `MaintenanceJobData` (Fsck, CleanupRefcnt, Stats) | `handle_fsck()`, `handle_cleanup_refcnt()`, `handle_stats()` |
@@ -78,12 +77,52 @@ The execution engine. Uses **Apalis** to manage Redis job queues.
 
 ### 4. `scheduler`
 
-The planner.
+The planner. Must run as a single instance — see the module-level doc comment in
+`server-rs/src/bin/scheduler.rs`.
 
-* **Role**: Three persistent CRON jobs:
-  * **`wakeup`** (every 15 min by default): Iterates configured hosts, enqueues `BackupQueueJob::Save` when the scheduling window is reached. Uses `SET NX PX 30s` to prevent duplicates.
-  * **`nightly`** (midnight UTC by default): Enqueues `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup.
-  * **`cron-archive`** (every 5 min): checks each `archiving.yml` profile's own schedule for due-ness and fans out `ArchiveJobData::Run` jobs — see [Periodic Archiving](ARCHIVING.md).
+* **Role**: A single unified dynamic-wakeup scanner plus an event-driven subscriber — no
+  Apalis `Monitor`/`CronPipe` involved at all, unlike `job_worker`:
+  * **Dynamic-wakeup scanner** (`run_scanner_loop`): each iteration runs the scheduling
+    decision for every host, every enabled archive profile, and the nightly maintenance
+    trigger, then sleeps until the next real deadline across all three
+    (`compute_next_wakeup`) instead of ticking on a fixed interval.
+    * *Hosts*: the shared decision function `try_schedule_host`
+      (`server-rs/src/jobs/decision.rs`) — in order: cooldown → already running → due for
+      backup → blackout window → pool fsck lock → reachable → `enqueue_backup_unique`
+      (still `SET NX PX 30s` to prevent duplicates). Every refusal/success is recorded in a
+      per-host Redis key (`next-attempt`), which both backs off that host and feeds
+      `compute_next_wakeup`'s sleep calculation. Backoff durations and the anti-busy-poll
+      floor are configurable (`retryBackoffAfterSuccessSecs`/`retryBackoffOnRefusalSecs`/
+      `wakeupFloorSecs` in `scheduler.yml`, defaults 5 min/15 min/30s) via
+      `SchedulingConfig::from_application_scheduler`, threaded into `try_schedule_host` and
+      `compute_next_wakeup` instead of hardcoded constants.
+    * *Archive profiles*: `check_and_enqueue_due_archives` checks each `archiving.yml`
+      profile's own `schedule_cron` against its persisted `ArchiveRunStatus.last_run` via
+      `next_due_at` (`woodstock-rs/src/utils/cron_due.rs`), and fans out
+      `ArchiveJobData::Run` jobs for due ones — see [Periodic Archiving](ARCHIVING.md).
+    * *Nightly*: `check_and_enqueue_nightly` checks `nightlySchedule` against a Redis-persisted
+      last-run timestamp (same `next_due_at` mechanism) and enqueues
+      `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup when due.
+    * The sleep is bounded by a floor (anti busy-poll) and a global safety-net ceiling — the
+      old `wakeupSchedule` cron, now applied once across all three categories to catch config
+      changes (new host, re-activated schedule, shortened `backupPeriod`, an added/edited
+      archive profile, an edited `nightlySchedule`) that fall between two computed due dates,
+      rather than to poll any of them, which real due dates already drive.
+  * **Event-driven subscriber** (`run_host_online_subscriber`): subscribes to the Redis
+    Pub/Sub channel `HOST_ONLINE_CHANNEL`, published by `SocketAddrResolver::register_service`
+    on a genuine offline→online transition (not every heartbeat). On receipt it runs the same
+    `try_schedule_host`, bypassing the cooldown gate, so a host that just came back online is
+    backed up immediately instead of waiting for the next scan.
+* **Blackout windows**: `Schedule.blackout` (per-host, falling back to
+  `ApplicationScheduler.default_schedule.blackout`) defines recurring time ranges during
+  which `try_schedule_host` refuses to start a new backup, unless
+  `blackout_override_after_periods` lets an overdue host through. Pure evaluation logic lives
+  in `woodstock-rs/src/config/blackout.rs`; the gate itself is
+  `JobUtility::is_in_blackout_now`. Re-checked at job execution time too
+  (`server-rs/src/jobs/workers.rs::handle_backup`), since a queued job can outlive the
+  blackout-free moment it was enqueued in.
+* The two loops are raced against each other via `tokio::select!` in `main()`, so a panic in
+  either is fatal to the whole process instead of silently killing the scheduler.
 * **Note**: It *never* contacts clients directly.
 
 ## State Management

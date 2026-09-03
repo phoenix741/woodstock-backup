@@ -15,9 +15,9 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use eyre::Result;
-use futures::{future, pin_mut, Stream, StreamExt};
 #[cfg(test)]
 use futures::stream;
+use futures::{future, pin_mut, Stream, StreamExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn, Instrument};
@@ -75,7 +75,9 @@ enum MaterializeOutcome {
         entry_type: EntryType,
         dir_permission: Option<(PathBuf, u32, SourceOs)>,
     },
-    Skipped { path: PathBuf },
+    Skipped {
+        path: PathBuf,
+    },
 }
 
 /// Drains `diff_stream`, round-robining `Add`/`Modify` entries across
@@ -270,7 +272,12 @@ fn materialize_lane(
 /// results channel never backs up and blocks a lane mid-materialize.
 async fn aggregate_materialize_results(
     mut results_rx: mpsc::Receiver<MaterializeOutcome>,
-) -> (usize, usize, HashSet<PathBuf>, Vec<(PathBuf, u32, SourceOs)>) {
+) -> (
+    usize,
+    usize,
+    HashSet<PathBuf>,
+    Vec<(PathBuf, u32, SourceOs)>,
+) {
     let mut added = 0usize;
     let mut modified = 0usize;
     let mut failed_paths = HashSet::new();
@@ -900,7 +907,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(resync.removed, 0, "the removal fails, it must not count as applied");
+        assert_eq!(
+            resync.removed, 0,
+            "the removal fails, it must not count as applied"
+        );
         assert_eq!(resync.skipped, 1);
         assert!(
             hostname_dir.join("file.txt").exists(),

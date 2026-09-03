@@ -121,6 +121,8 @@ pub struct Schedule {
     pub activated: Option<bool>,
     pub backup_period: Option<i64>,
     pub backup_to_keep: Option<ScheduledBackupToKeep>,
+    pub blackout: Option<Vec<BlackoutWindow>>,
+    pub blackout_override_after_periods: Option<f32>,
 }
 
 impl From<woodstock::config::Schedule> for Schedule {
@@ -129,6 +131,28 @@ impl From<woodstock::config::Schedule> for Schedule {
             activated: schedule.activated,
             backup_period: schedule.backup_period,
             backup_to_keep: schedule.backup_to_keep.map(ScheduledBackupToKeep::from),
+            blackout: schedule
+                .blackout
+                .map(|windows| windows.into_iter().map(BlackoutWindow::from).collect()),
+            blackout_override_after_periods: schedule.blackout_override_after_periods,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, SimpleObject)]
+#[serde(rename_all = "camelCase")]
+pub struct BlackoutWindow {
+    pub days: Vec<u8>,
+    pub start: String,
+    pub end: String,
+}
+
+impl From<woodstock::config::BlackoutWindow> for BlackoutWindow {
+    fn from(window: woodstock::config::BlackoutWindow) -> Self {
+        Self {
+            days: window.days,
+            start: window.start,
+            end: window.end,
         }
     }
 }

@@ -194,9 +194,10 @@ pub async fn remove_entry(path: &Path) -> Result<()> {
 /// path.
 async fn open_for_write_retrying_on_eacces(path: &Path) -> Result<tokio::fs::File> {
     let owned_path = path.to_path_buf();
-    let std_file =
-        tokio::task::spawn_blocking(move || crate::utils::files::open_for_write_retrying_on_eacces(&owned_path))
-            .await??;
+    let std_file = tokio::task::spawn_blocking(move || {
+        crate::utils::files::open_for_write_retrying_on_eacces(&owned_path)
+    })
+    .await??;
     Ok(tokio::fs::File::from_std(std_file))
 }
 

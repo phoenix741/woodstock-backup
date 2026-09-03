@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc};
 
 use chrono::{DateTime, Duration, Local};
 use eyre::Result;
@@ -7,7 +7,8 @@ use tracing::debug;
 
 use crate::{
     config::{
-        Backups, Configuration, HostConfiguration, Hosts, Scheduler, DNS_RESOLVE_MAX_CONCURRENCY,
+        blackout_status_at, Backups, Configuration, HostConfiguration, Hosts,
+        DNS_RESOLVE_MAX_CONCURRENCY,
     },
     server::{
         resolve::{resolve_dns_async, SocketAddrResolver},
@@ -21,7 +22,6 @@ pub struct JobUtility {
     configuration: Arc<Configuration>,
     hosts_config: Arc<Hosts>,
     backups_config: Arc<Backups>,
-    scheduler: Arc<Scheduler>,
     resolver: Arc<SocketAddrResolver>,
 }
 
@@ -32,13 +32,11 @@ impl JobUtility {
         configuration: Arc<Configuration>,
         hosts_config: Arc<Hosts>,
         backups_config: Arc<Backups>,
-        scheduler: Arc<Scheduler>,
         resolver: Arc<SocketAddrResolver>,
     ) -> Result<Self> {
         Ok(Self {
             hosts_config,
             backups_config,
-            scheduler,
             resolver,
             configuration,
         })
@@ -85,17 +83,78 @@ impl JobUtility {
             return Ok(None);
         };
 
-        let scheduler = self.scheduler.get_schedule().await?;
-        let scheduler = scheduler.wakeup_schedule;
-
         let next_date = Local::now() + duration;
 
-        // Use cron to calculate the next wakeup time
-        debug!("Calculate schedule with the scheduler: {scheduler}");
-        let wakeup_scheduler = cron::Schedule::from_str(&scheduler)?;
-        let next_date = wakeup_scheduler.after(&next_date).next();
+        // If the natural next-attempt date falls inside a blackout window, the actual
+        // attempt won't happen before the window ends — reflect that in the displayed date
+        // (informational only: the override logic in `is_in_blackout_now` is for the
+        // scheduler's decision at attempt time, not for this display value).
+        let schedule = self.hosts_config.get_schedule(hostname).await?;
+        let next_date = match schedule.blackout.as_ref().filter(|w| !w.is_empty()) {
+            Some(windows) => blackout_status_at(next_date, windows).unwrap_or(next_date),
+            None => next_date,
+        };
 
-        Ok(next_date)
+        Ok(Some(next_date))
+    }
+
+    /// Returns `Some(retry_at)` if `host` should not be scheduled right now because of an
+    /// active blackout window, or `None` if scheduling may proceed (no active window, or the
+    /// host is late enough for `blackout_override_after_periods` to override it).
+    ///
+    /// `retry_at` is the earliest moment scheduling could legitimately be retried: either the
+    /// window's natural end, or the moment `blackout_override_after_periods` will kick in,
+    /// whichever comes first — callers (the scanner's dynamic-wakeup computation) rely on this
+    /// being the *exact* next useful moment, not an arbitrary short backoff, otherwise a
+    /// multi-hour blackout window turns into a busy-poll for its whole duration.
+    ///
+    /// Distinct from [`Self::can_launch_backup`] on purpose: this is a calendar gate on
+    /// *starting a new* backup, not a lock-based gate on pool operations.
+    pub async fn is_in_blackout_now(&self, host: &str) -> Result<Option<DateTime<Local>>> {
+        let schedule = self.hosts_config.get_schedule(host).await?;
+        let Some(windows) = schedule.blackout.as_ref().filter(|w| !w.is_empty()) else {
+            return Ok(None);
+        };
+
+        let now = Local::now();
+        let Some(blackout_end) = blackout_status_at(now, windows) else {
+            return Ok(None);
+        };
+
+        let Some(ratio) = schedule.blackout_override_after_periods else {
+            debug!("Host {host} is in blackout until {blackout_end} (no override configured)");
+            return Ok(Some(blackout_end));
+        };
+
+        let backup_period = schedule.backup_period.unwrap_or_default();
+        if backup_period <= 0 {
+            return Ok(Some(blackout_end));
+        }
+
+        let Some(last_backup) = self.backups_config.get_last_backup(host).await else {
+            debug!("Host {host}: never backed up, overriding blackout for the first backup");
+            return Ok(None);
+        };
+        if last_backup.status.is_aborted() {
+            debug!(
+                "Host {host}: last backup was aborted, overriding blackout to retry immediately"
+            );
+            return Ok(None);
+        }
+        let Some(end_date) = last_backup.end_date else {
+            return Ok(Some(blackout_end));
+        };
+
+        let override_at =
+            end_date + Duration::seconds((backup_period as f64 * f64::from(ratio)) as i64);
+        if now >= override_at {
+            debug!("Host {host} passed its blackout override threshold at {override_at}, overriding blackout");
+            return Ok(None);
+        }
+
+        let retry_at = blackout_end.min(override_at);
+        debug!("Host {host} is in blackout until {retry_at} (window end {blackout_end}, override at {override_at})");
+        Ok(Some(retry_at))
     }
 
     pub async fn resolve_from_config(

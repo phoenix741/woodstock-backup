@@ -17,12 +17,13 @@ pub use state::{ArchiveHostExecutionState, ArchiveHostState, ArchiveState};
 pub use tar_writer::ArchiveProgressCounters;
 
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use chrono::{DateTime, Local};
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use tokio::fs::read_to_string;
+
+use crate::utils::cron_due::next_due_at;
 
 /// Number of parallel pool-reading/decompression workers used by both
 /// [`tar_writer`]'s reader side and [`dir_sync`]'s materialize side. Shared
@@ -111,18 +112,7 @@ pub fn is_profile_due(
     last_run: Option<DateTime<Local>>,
     now: DateTime<Local>,
 ) -> Result<bool> {
-    let schedule = cron::Schedule::from_str(schedule_cron)
-        .map_err(|e| eyre::eyre!("Invalid cron expression '{schedule_cron}': {e}"))?;
-
-    let due = match last_run {
-        None => true,
-        Some(last_run) => schedule
-            .after(&last_run)
-            .next()
-            .is_some_and(|next_fire| next_fire <= now),
-    };
-
-    Ok(due)
+    Ok(next_due_at(schedule_cron, last_run, now)?.is_some_and(|due_at| due_at <= now))
 }
 
 #[cfg(test)]
