@@ -142,7 +142,18 @@ impl JobUtility {
             return Ok(None);
         }
         let Some(end_date) = last_backup.end_date else {
-            return Ok(Some(blackout_end));
+            // No `end_date` means the last backup never reached a terminal state (worker
+            // crashed mid-run). Both callers have already ruled out "still genuinely
+            // running" before reaching this point (`try_schedule_host` checks
+            // `is_job_running` first; `workers.rs`'s execution-time recheck only calls this
+            // under `!force`, and a resumable backup forces `force = true`) — so this can
+            // only be an orphaned backup. Treat it like "never backed up" (see above):
+            // override rather than block it until the window's natural end, otherwise it
+            // gets indefinitely postponed exactly like the case this override exists for.
+            debug!(
+                "Host {host}: last backup never completed (no end_date), overriding blackout to retry immediately"
+            );
+            return Ok(None);
         };
 
         let override_at =
