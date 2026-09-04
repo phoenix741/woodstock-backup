@@ -607,6 +607,15 @@ impl Backups {
 
         let backup_file = self.get_backup_file(hostname);
 
+        // Ensure the host directory exists instead of relying on some other call (e.g.
+        // `clone_backup`'s `create_dir_all` on the backup subdirectory) having already
+        // created it as a side effect — `save()` can now run before `clone_backup` in
+        // `init_backup_directory` (persisting the InProgress entry first closes a
+        // tracking-window race), so it must not depend on that ordering.
+        if let Some(host_dir) = backup_file.parent() {
+            create_dir_all(host_dir).await?;
+        }
+
         // Write-temp-then-rename instead of a direct write: `tokio::fs::write` is
         // open+truncate+write, not crash-safe — a kill mid-write leaves `backup.yml`
         // truncated/corrupt. `rename` within the same directory is atomic, so a crash
