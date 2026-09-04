@@ -204,8 +204,13 @@ async fn run_host_online_subscriber(
             }
         }
 
-        // The pubsub stream ended (connection dropped): loop back and resubscribe.
+        // The pubsub stream ended (connection dropped, or the server closed a subscriber
+        // it still accepted — e.g. hitting maxclients, or a proxy dropping idle
+        // subscribers): loop back and resubscribe, with the same short delay as the
+        // connect/subscribe error paths above, so a server that keeps closing the
+        // subscription right after accepting it can't turn this into a tight busy-loop.
         warn!("Redis pubsub stream for {HOST_ONLINE_CHANNEL} ended, reconnecting");
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
 }
 
@@ -428,33 +433,34 @@ async fn run_scanner_loop(
     scheduling_config: SchedulingConfig,
 ) {
     loop {
-        let hosts = match state.hosts.list_hosts().await {
-            Ok(hosts) => hosts,
+        // A failure here only prevents *host* scheduling this iteration — archive
+        // profiles and nightly maintenance don't depend on the host list, so they still
+        // get checked below instead of being delayed by an unrelated failure.
+        let (hosts, hosts_list_ok) = match state.hosts.list_hosts().await {
+            Ok(hosts) => (hosts, true),
             Err(e) => {
                 warn!("Scanner: failed to list hosts: {e}");
-                tokio::time::sleep(std::time::Duration::from_secs(
-                    scheduling_config.wakeup_floor_secs as u64,
-                ))
-                .await;
-                continue;
+                (Vec::new(), false)
             }
         };
 
-        for host in &hosts {
-            match try_schedule_host(
-                &state.job_utility,
-                &producers,
-                &redis_client,
-                host,
-                false,
-                Trigger::Scan,
-                &scheduling_config,
-            )
-            .await
-            {
-                Ok(SchedulingOutcome::NotDue | SchedulingOutcome::SkippedCooldown { .. }) => {}
-                Ok(outcome) => info!("Scanner: {host} -> {outcome:?}"),
-                Err(e) => warn!("Scanner: scheduling failed for {host}: {e}"),
+        if hosts_list_ok {
+            for host in &hosts {
+                match try_schedule_host(
+                    &state.job_utility,
+                    &producers,
+                    &redis_client,
+                    host,
+                    false,
+                    Trigger::Scan,
+                    &scheduling_config,
+                )
+                .await
+                {
+                    Ok(SchedulingOutcome::NotDue | SchedulingOutcome::SkippedCooldown { .. }) => {}
+                    Ok(outcome) => info!("Scanner: {host} -> {outcome:?}"),
+                    Err(e) => warn!("Scanner: scheduling failed for {host}: {e}"),
+                }
             }
         }
 
@@ -477,7 +483,7 @@ async fn run_scanner_loop(
         )
         .await;
 
-        let (next_wakeup, reason) = compute_next_wakeup(
+        let (mut next_wakeup, mut reason) = compute_next_wakeup(
             &state,
             &redis_client,
             &hosts,
@@ -488,6 +494,19 @@ async fn run_scanner_loop(
             &scheduling_config,
         )
         .await;
+
+        // `hosts` was empty because listing failed, not because there are genuinely no
+        // hosts — don't let that empty list push the computed wakeup out to the ceiling
+        // (up to an hour); retry listing at the usual floor instead.
+        if !hosts_list_ok {
+            let retry_floor =
+                Local::now() + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
+            if retry_floor < next_wakeup {
+                next_wakeup = retry_floor;
+                reason = "host list unavailable, retrying at wakeup floor".into();
+            }
+        }
+
         let sleep_for =
             (next_wakeup - Local::now())
                 .to_std()
