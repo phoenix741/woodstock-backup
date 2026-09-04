@@ -1,3 +1,21 @@
+# [2.1.0-alpha.13](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.12...v2.1.0-alpha.13) (2026-09-04)
+
+
+### Bug Fixes
+
+* **backup:** 🐛 close the backup-directory tracking window that orphans backups ([31f7186](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/31f7186b95a2c6fdf884bf78ad86cb392f4a7250))
+* **backup:** 🐛 create the host directory in Backups::save instead of relying on clone_backup's side effect ([f663722](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f663722e500445e80cd01ff30e4ded8969de8ee1))
+* **jobs:** 🐛 stop checkAndFixPool mutation failing when only progress tracking fails ([f2ece3d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f2ece3d87682144ea4d85a26e82041489616c158))
+* **scheduler:** 🐛 back off archive/nightly checks on repeated enqueue failure ([9f9b311](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9f9b311c8f9aaee89cea2a0b44572c50a5def5c5))
+* **scheduler:** 🐛 don't let a crashed backup be stuck behind a blackout window ([29c43be](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/29c43be86a22b7e59d2a00dd3b22d90517c781bb))
+* **scheduler:** 🐛 fix pubsub busy-loop and host-list failure blocking archives/nightly ([79985c3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/79985c3983f9f2072a342a4050718a0b8fc586c0))
+* **scheduler:** 🐛 honor force in blackout check, expose a real translatable queueStats.nextWakeup ([68c0f92](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/68c0f92396e5d5ccfeeeab2138cd46a7474d7dd1))
+
+
+### Features
+
+* **scheduler:** ✨ event-driven dynamic-wakeup scheduler with blackout windows ([5eb3890](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5eb38907ef1f516b2c42b4aebcbcd3e5eeac7746))
+
 # [2.1.0-alpha.12](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.11...v2.1.0-alpha.12) (2026-08-28)
 
 
