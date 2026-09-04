@@ -104,13 +104,12 @@ impl Producers {
                 })?;
 
             self.progress_publisher
-                .create_job(
+                .create_job_best_effort(
                     &parts.task_id.to_string(),
                     JobKind::with_backup(backup_job_data),
                     Some(&host),
                 )
-                .await
-                .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+                .await;
 
             Ok(Some(parts.task_id.to_string()))
         } else {
@@ -141,13 +140,12 @@ impl Producers {
             .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_remove(remove_job_data),
                 Some(&host),
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(parts.task_id.to_string())
     }
@@ -162,13 +160,12 @@ impl Producers {
             .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_restore(job.clone()),
                 Some(&job.host),
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(parts.task_id.to_string())
     }
@@ -192,13 +189,12 @@ impl Producers {
             .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_fsck(fsck_job_data),
                 None,
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(parts.task_id.to_string())
     }
@@ -215,13 +211,12 @@ impl Producers {
             .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_stats(stats_job_data),
                 None,
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(parts.task_id.to_string())
     }
@@ -238,13 +233,12 @@ impl Producers {
             .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_cleanup_refcnt(cleanup_refcnt_job_data),
                 None,
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(parts.task_id.to_string())
     }
@@ -286,13 +280,12 @@ impl Producers {
         // host currently being archived is reported through the progress
         // payload's `current_host` instead as the run advances.
         self.progress_publisher
-            .create_job(
+            .create_job_best_effort(
                 &parts.task_id.to_string(),
                 JobKind::with_archive(archive_job_data),
                 None,
             )
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+            .await;
 
         Ok(Some(parts.task_id.to_string()))
     }

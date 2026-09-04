@@ -2,8 +2,8 @@
 //! Inspired by the BullMQ `job.progress()` API but externalized in Redis.
 
 use crate::jobs::types::{
-    ArchiveRunJobData, BackupJobData, CleanupRefcntJobData, FsckJobData, RemoveJobData,
-    RestoreJobData, StatsJobData,
+    ArchiveJobData, ArchiveRunJobData, BackupJobData, BackupQueueJob, CleanupRefcntJobData,
+    FsckJobData, MaintenanceJobData, RemoveJobData, RestoreJobData, StatsJobData,
 };
 use apalis::prelude::TaskId;
 use eyre::Result;
@@ -683,6 +683,53 @@ impl ProgressEvent {
     }
 }
 
+/// Fait correspondre le payload d'un job dequeue à son `JobKind` de suivi de
+/// progression. Permet à `ProgressLayer` de recréer génériquement un snapshot
+/// perdu, pour n'importe quel type de job, plutôt que de dupliquer cette
+/// logique dans chaque handler.
+pub trait ToJobKind {
+    fn to_job_kind(&self) -> (JobKind, Option<String>);
+}
+
+impl ToJobKind for BackupQueueJob {
+    fn to_job_kind(&self) -> (JobKind, Option<String>) {
+        match self {
+            BackupQueueJob::Save(data) => {
+                (JobKind::with_backup(data.clone()), Some(data.host.clone()))
+            }
+            BackupQueueJob::Remove(data) => {
+                (JobKind::with_remove(data.clone()), Some(data.host.clone()))
+            }
+        }
+    }
+}
+
+impl ToJobKind for RestoreJobData {
+    fn to_job_kind(&self) -> (JobKind, Option<String>) {
+        (JobKind::with_restore(self.clone()), Some(self.host.clone()))
+    }
+}
+
+impl ToJobKind for MaintenanceJobData {
+    fn to_job_kind(&self) -> (JobKind, Option<String>) {
+        match self {
+            MaintenanceJobData::CleanupRefcnt(data) => {
+                (JobKind::with_cleanup_refcnt(data.clone()), None)
+            }
+            MaintenanceJobData::Fsck(data) => (JobKind::with_fsck(data.clone()), None),
+            MaintenanceJobData::Stats(data) => (JobKind::with_stats(data.clone()), None),
+        }
+    }
+}
+
+impl ToJobKind for ArchiveJobData {
+    fn to_job_kind(&self) -> (JobKind, Option<String>) {
+        match self {
+            ArchiveJobData::Run(data) => (JobKind::with_archive(data.clone()), None),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ProgressPublisher {
     _client: RedisClient,
@@ -710,7 +757,6 @@ impl ProgressPublisher {
 
     // Méthode interne de publication (sans throttling)
     async fn publish_internal(&self, ev: &ProgressEvent) -> Result<()> {
-        let mut g = self.conn.lock().await;
         let key = Self::snapshot_key(&ev.job_id);
 
         // Générer les champs (une seule sérialisation dans to_redis_fields)
@@ -725,7 +771,6 @@ impl ProgressPublisher {
 
         // Convertir pour Redis
         let field_refs: Vec<(&str, &str)> = fields.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let _: () = g.hset_multiple(&key, &field_refs).await?;
 
         // Set a TTL on the snapshot to prevent orphaned entries:
         // - CREATED / STARTED : 24 h (job may wait or run for a long time)
@@ -734,12 +779,40 @@ impl ProgressPublisher {
             JobStatus::Completed | JobStatus::Failed => PROGRESS_TTL_DONE_SECS,
             _ => PROGRESS_TTL_ACTIVE_SECS,
         };
-        let _: () = g.expire(&key, ttl as i64).await?;
 
-        // Réutiliser le JSON déjà sérialisé pour le PUBLISH
-        let _: () = g.publish(PROGRESS_CHANNEL, event_json).await?;
+        // A held `ConnectionManager` can hand back one stale/dead connection
+        // after a network hiccup (it reconnects in the background, but the
+        // in-flight command on the old socket still fails). Retry a couple
+        // of times with a short delay so a transient error here doesn't
+        // permanently orphan the job's progress tracking.
+        const RETRY_DELAYS_MS: [u64; 2] = [50, 200];
+        let mut attempt = 0;
+        loop {
+            let write_result: redis::RedisResult<()> = async {
+                let mut g = self.conn.lock().await;
+                let _: () = g.hset_multiple(&key, &field_refs).await?;
+                let _: () = g.expire(&key, ttl as i64).await?;
+                let _: () = g.publish(PROGRESS_CHANNEL, &event_json).await?;
+                Ok(())
+            }
+            .await;
 
-        Ok(())
+            match write_result {
+                Ok(()) => return Ok(()),
+                Err(err) if attempt < RETRY_DELAYS_MS.len() => {
+                    warn!(
+                        "publish_internal({}): redis write failed (attempt {}/{}), retrying: {}",
+                        ev.job_id,
+                        attempt + 1,
+                        RETRY_DELAYS_MS.len() + 1,
+                        err
+                    );
+                    tokio::time::sleep(Duration::from_millis(RETRY_DELAYS_MS[attempt])).await;
+                    attempt += 1;
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
     }
 
     async fn can_publish_progress(&self, job_id: &str) -> bool {
@@ -763,6 +836,32 @@ impl ProgressPublisher {
             event = event.with_host(host);
         }
         self.publish_internal(&event).await
+    }
+
+    /// Variante best-effort de `create_job`, pour un job déjà enfilé avec
+    /// succès dans Apalis : n'échoue jamais l'appelant si l'écriture du
+    /// snapshot rate (log en `warn!`) puisque le job va tourner de toute
+    /// façon, et que `ProgressLayer` recrée le snapshot au démarrage effectif
+    /// s'il manque encore (voir `ensure_job`).
+    pub async fn create_job_best_effort(&self, job_id: &str, kind: JobKind, host: Option<&str>) {
+        if let Err(e) = self.create_job(job_id, kind, host).await {
+            warn!(
+                "Failed to write initial progress snapshot for job {}: {}",
+                job_id, e
+            );
+        }
+    }
+
+    /// Recrée le snapshot du job s'il est absent de Redis, sans rien faire s'il
+    /// existe déjà. Sert de filet de rattrapage quand l'écriture faite par
+    /// `create_job` au moment de l'enfilement a été perdue (erreur Redis
+    /// transitoire) : appelée par `ProgressLayer` au démarrage effectif du
+    /// job, avec les données réelles du job dequeue.
+    pub async fn ensure_job(&self, job_id: &str, kind: JobKind, host: Option<&str>) -> Result<()> {
+        if self.get_current_state(job_id).await?.is_some() {
+            return Ok(());
+        }
+        self.create_job(job_id, kind, host).await
     }
 
     /// Met à jour les champs `ip` et `start_date` du `BackupJobData` stocké dans Redis.
@@ -909,7 +1008,11 @@ impl ProgressPublisher {
                     fields.len()
                 );
             }
-            Ok(_) => {} // Hash genuinely absent — normal "not found" case, nothing to log
+            // Hash genuinely absent — normal "not found" case. Return early
+            // instead of falling through to the legacy fallback below: a
+            // `hget` on a key that doesn't exist at all returns `nil`, which
+            // only produces a noisy, meaningless type-conversion warning.
+            Ok(_) => return Ok(None),
             Err(err) => {
                 warn!(
                     "get_current_state({}): hgetall failed, falling back to legacy format: {}",

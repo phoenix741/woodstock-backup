@@ -6,9 +6,9 @@ use std::task::{Context, Poll};
 
 use apalis::prelude::Request;
 use tower::{Layer, Service};
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::jobs::progress::{JobStatus, ProgressPublisher};
+use crate::jobs::progress::{JobKind, JobStatus, ProgressPublisher, ToJobKind};
 
 /// Layer qui enveloppe un service Apalis et publie les statuts Started/Completed/Failed
 #[derive(Clone)]
@@ -46,6 +46,7 @@ where
     S::Future: Send + 'static,
     S::Response: Send + 'static,
     E: std::error::Error + Send + Sync + 'static,
+    J: ToJobKind,
 {
     type Response = S::Response;
     type Error = E;
@@ -61,11 +62,20 @@ where
     {
         // Récupère l'identifiant du job depuis les parties de la requête
         let task_id_str = req.parts.task_id.to_string();
+        // Capture le kind/host du job avant que `req` soit consommé, pour
+        // pouvoir recréer son snapshot de progression s'il a été perdu.
+        let (kind, host) = req.args.to_job_kind();
 
         // Prépare l'appel interne (ne démarre pas tant qu'on n'attend pas le futur)
         let fut = self.inner.call(req);
         let publisher = self.publisher.clone();
-        Box::pin(run_with_status::<_, _, _>(publisher, task_id_str, fut))
+        Box::pin(run_with_status::<_, _, _>(
+            publisher,
+            task_id_str,
+            kind,
+            host,
+            fut,
+        ))
     }
 }
 
@@ -73,6 +83,8 @@ where
 async fn run_with_status<R, E, F>(
     publisher: ProgressPublisher,
     task_id_str: String,
+    kind: JobKind,
+    host: Option<String>,
     fut: F,
 ) -> Result<R, E>
 where
@@ -81,13 +93,39 @@ where
 
     E: std::error::Error + Send + Sync + 'static,
 {
-    // Publie Started avant d'exécuter le handler, log en cas d'échec
+    // Publie Started avant d'exécuter le handler. Dans l'immense majorité
+    // des cas, le snapshot créé à l'enfilement (Producers::create_job_best_effort)
+    // existe déjà et cet appel réussit du premier coup — même coût qu'avant
+    // l'ajout du filet de rattrapage ci-dessous. Ce n'est que si le snapshot
+    // manque (écriture Redis perdue à l'enfilement) qu'on paie le coût de le
+    // recréer ici, avec les données réelles du job dequeue, puis de
+    // republier Started.
     debug!("Marking job {} as Started", task_id_str);
     if let Err(e) = publisher
         .update_status(&task_id_str, JobStatus::Started)
         .await
     {
-        debug!("Failed to publish Started for job {}: {}", task_id_str, e);
+        warn!(
+            "Failed to publish Started for job {} (snapshot likely missing), recreating it: {}",
+            task_id_str, e
+        );
+        if let Err(e) = publisher
+            .ensure_job(&task_id_str, kind, host.as_deref())
+            .await
+        {
+            warn!(
+                "Failed to ensure progress snapshot for job {}: {}",
+                task_id_str, e
+            );
+        } else if let Err(e) = publisher
+            .update_status(&task_id_str, JobStatus::Started)
+            .await
+        {
+            warn!(
+                "Failed to publish Started for job {} even after recreating its snapshot: {}",
+                task_id_str, e
+            );
+        }
     }
 
     debug!("Running job handler for job {}", task_id_str);
@@ -101,14 +139,14 @@ where
             //     .await?;
             debug!("Marking job {} as Completed", task_id_str);
             if let Err(e) = publisher.mark_completed(&task_id_str).await {
-                debug!("Failed to publish Completed for job {}: {}", task_id_str, e);
+                warn!("Failed to publish Completed for job {}: {}", task_id_str, e);
             }
         }
         Err(err) => {
             debug!("Marking job {} as Failed with reason {}", task_id_str, err);
             let msg = err.to_string();
             if let Err(e) = publisher.mark_failed(&task_id_str, &msg).await {
-                debug!(
+                warn!(
                     "Failed to publish Failed for job {} ({}): {}",
                     task_id_str, msg, e
                 );
