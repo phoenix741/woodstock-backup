@@ -155,9 +155,15 @@ pub async fn try_schedule_host(
         return Ok(SchedulingOutcome::NotDue);
     }
 
-    if let Some(retry_at) = job_utility.is_in_blackout_now(host).await? {
-        set_next_attempt(redis_client, host, retry_at, config).await;
-        return Ok(SchedulingOutcome::SkippedBlackout { retry_at });
+    // Mirrors workers.rs's execution-time recheck, which only calls `is_in_blackout_now`
+    // under `!force` — a forced attempt (e.g. a manually resumed/forced backup) must not
+    // be silently refused by a calendar gate `force` is supposed to override, exactly like
+    // `should_backup_host` above already bypasses the due-check for `force`.
+    if !force {
+        if let Some(retry_at) = job_utility.is_in_blackout_now(host).await? {
+            set_next_attempt(redis_client, host, retry_at, config).await;
+            return Ok(SchedulingOutcome::SkippedBlackout { retry_at });
+        }
     }
 
     if !job_utility.can_launch_backup(host).await? {

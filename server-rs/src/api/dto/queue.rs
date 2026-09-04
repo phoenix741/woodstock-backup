@@ -44,6 +44,43 @@ impl From<crate::jobs::progress::JobKind> for JobKind {
     }
 }
 
+/// Category of [`ScannerWakeupReason`] — a plain enum (no per-variant data) so a future
+/// translation layer can key off the GraphQL enum value directly; the variable part (which
+/// host, which archive profile) travels separately as [`ScannerWakeupReason::subject`].
+#[derive(Enum, Debug, Copy, Clone, Eq, PartialEq)]
+#[graphql(remote = "crate::jobs::scanner_status::ScannerWakeupReasonCategory")]
+pub enum ScannerWakeupReasonCategory {
+    HostDue,
+    HostBackoff,
+    HostCappedByFloor,
+    ArchiveProfileDue,
+    ArchiveProfileBackoff,
+    ArchiveProfileCappedByFloor,
+    NightlyDue,
+    NightlyBackoff,
+    NightlyCappedByFloor,
+    NothingDueCeiling,
+    SafetyCeiling,
+    HostListUnavailable,
+}
+
+/// Why the scanner computed `QueueStats.nextWakeup` the way it did — see
+/// `jobs::scanner_status::ScannerWakeupReason` for the full rationale.
+#[derive(SimpleObject, Clone)]
+pub struct ScannerWakeupReason {
+    pub category: ScannerWakeupReasonCategory,
+    pub subject: Option<String>,
+}
+
+impl From<crate::jobs::scanner_status::ScannerWakeupReason> for ScannerWakeupReason {
+    fn from(reason: crate::jobs::scanner_status::ScannerWakeupReason) -> Self {
+        Self {
+            category: reason.category.into(),
+            subject: reason.subject,
+        }
+    }
+}
+
 #[derive(InputObject, Default, Debug)]
 pub struct QueueListInput {
     #[graphql(default)]
@@ -831,6 +868,9 @@ pub struct QueueStats {
     pub dead: usize,
     pub last_execution: Option<chrono::DateTime<Local>>,
     pub next_wakeup: Option<chrono::DateTime<Local>>,
+    /// Why `next_wakeup` is what it is — structured (category + optional host/profile
+    /// name) instead of free text, so a client can translate it.
+    pub next_wakeup_reason: Option<ScannerWakeupReason>,
 }
 
 #[derive(InputObject)]

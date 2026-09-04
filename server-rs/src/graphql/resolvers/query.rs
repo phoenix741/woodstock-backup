@@ -1,7 +1,6 @@
 use async_graphql::ID;
 use async_graphql::{Context, Object, Result as GqlResult};
 use chrono::Local;
-use std::str::FromStr;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -183,22 +182,23 @@ impl QueryRoot {
             .filter(|j| j.status == crate::jobs::progress::JobStatus::Failed)
             .count();
 
-        let (last_execution, next_wakeup) = {
-            let sched = state
-                .scheduler
-                .get_schedule()
-                .await
-                .map_err(super::util::map_err)?;
-
-            match apalis_cron::Schedule::from_str(&sched.wakeup_schedule) {
-                Ok(schedule) => {
-                    let now = Local::now();
-                    let next_dt = schedule.after(&now).next();
-                    let prev_dt = schedule.after(&now).next_back();
-                    (prev_dt, next_dt)
-                }
-                Err(_) => (None, None),
-            }
+        // `wakeupSchedule` is only a safety-net ceiling on the scheduler's dynamic-wakeup
+        // loop now (see `bin/scheduler.rs`'s module doc), not a fixed polling cadence, so it
+        // can no longer stand in for "next wakeup". The real value — the earliest due-date
+        // across every host, archive profile, and nightly maintenance — is computed from
+        // live state inside the separate scheduler process (`compute_next_wakeup`), which
+        // persists its last computed status to Redis after every iteration (see
+        // `set_scanner_status`) precisely so this resolver can read it back instead of
+        // guessing.
+        let scanner_status =
+            crate::jobs::scanner_status::get_scanner_status(&state.redis_client).await;
+        let (last_execution, next_wakeup, next_wakeup_reason) = match scanner_status {
+            Some(status) => (
+                Some(status.last_execution),
+                Some(status.next_wakeup),
+                Some(status.next_wakeup_reason.into()),
+            ),
+            None => (None, None, None),
         };
 
         Ok(QueueStats {
@@ -209,6 +209,7 @@ impl QueryRoot {
             dead: 0, // not tracked in ProgressReader
             last_execution,
             next_wakeup,
+            next_wakeup_reason,
         })
     }
 

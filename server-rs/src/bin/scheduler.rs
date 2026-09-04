@@ -37,6 +37,7 @@ use woodstock_server_rs::{
             SchedulingOutcome, Trigger,
         },
         producers::Producers,
+        scanner_status::{set_scanner_status, ScannerWakeupReason, ScannerWakeupReasonCategory},
         state::ApiWorkerState,
     },
     logger::init_logging,
@@ -503,7 +504,9 @@ async fn run_scanner_loop(
                 Local::now() + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
             if retry_floor < next_wakeup {
                 next_wakeup = retry_floor;
-                reason = "host list unavailable, retrying at wakeup floor".into();
+                reason = ScannerWakeupReason::without_subject(
+                    ScannerWakeupReasonCategory::HostListUnavailable,
+                );
             }
         }
 
@@ -514,6 +517,10 @@ async fn run_scanner_loop(
                     scheduling_config.wakeup_floor_secs as u64,
                 ));
         info!("Scanner: sleeping {sleep_for:?}, next wakeup at {next_wakeup} ({reason})");
+        // Persist the same status just logged, so `queueStats` (a separate process) can
+        // report it instead of re-running this computation without access to the live
+        // state (Redis cooldowns, per-host schedules, archive profiles) it depends on.
+        set_scanner_status(&redis_client, now, next_wakeup, &reason).await;
         tokio::time::sleep(sleep_for).await;
     }
 }
@@ -542,7 +549,9 @@ async fn compute_next_wakeup(
     nightly_schedule: &str,
     wakeup_ceiling_cron: &str,
     scheduling_config: &SchedulingConfig,
-) -> (DateTime<Local>, String) {
+) -> (DateTime<Local>, ScannerWakeupReason) {
+    use ScannerWakeupReasonCategory::*;
+
     let now = Local::now();
     let floor = now + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
     let ceiling_dt = match Schedule::from_str(wakeup_ceiling_cron) {
@@ -558,7 +567,7 @@ async fn compute_next_wakeup(
         }
     };
 
-    let mut winner: Option<(DateTime<Local>, String)> = None;
+    let mut winner: Option<(DateTime<Local>, ScannerWakeupReason)> = None;
 
     for host in hosts {
         let due = match state.job_utility.get_time_to_next_backup(host).await {
@@ -571,17 +580,17 @@ async fn compute_next_wakeup(
         };
 
         let mut candidate = now + due;
-        let mut reason = format!("{host} due in {due:?}");
+        let mut reason = ScannerWakeupReason::new(HostDue, host.clone());
         if let Some(next_attempt) = get_next_attempt(redis_client, host).await {
             if next_attempt > candidate {
                 candidate = next_attempt;
-                reason = format!("{host} backoff until {next_attempt}");
+                reason = ScannerWakeupReason::new(HostBackoff, host.clone());
             }
         }
 
         if candidate < floor {
             candidate = floor;
-            reason = format!("{host} capped by wakeup floor");
+            reason = ScannerWakeupReason::new(HostCappedByFloor, host.clone());
         }
 
         if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
@@ -611,20 +620,19 @@ async fn compute_next_wakeup(
                 };
 
                 let mut candidate = due_at;
-                let mut reason = format!("archive profile '{}' due at {due_at}", profile.name);
+                let mut reason = ScannerWakeupReason::new(ArchiveProfileDue, profile.name.clone());
                 let attempt_key = archive_profile_attempt_key(&profile.name);
                 if let Some(next_attempt) = get_next_attempt(redis_client, &attempt_key).await {
                     if next_attempt > candidate {
                         candidate = next_attempt;
-                        reason = format!(
-                            "archive profile '{}' backoff until {next_attempt}",
-                            profile.name
-                        );
+                        reason =
+                            ScannerWakeupReason::new(ArchiveProfileBackoff, profile.name.clone());
                     }
                 }
                 if candidate < floor {
                     candidate = floor;
-                    reason = format!("archive profile '{}' capped by wakeup floor", profile.name);
+                    reason =
+                        ScannerWakeupReason::new(ArchiveProfileCappedByFloor, profile.name.clone());
                 }
                 if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
                     winner = Some((candidate, reason));
@@ -638,16 +646,16 @@ async fn compute_next_wakeup(
     match next_due_at(nightly_schedule, nightly_last_run, now) {
         Ok(Some(due_at)) => {
             let mut candidate = due_at;
-            let mut reason = format!("nightly maintenance due at {due_at}");
+            let mut reason = ScannerWakeupReason::without_subject(NightlyDue);
             if let Some(next_attempt) = get_next_attempt(redis_client, NIGHTLY_ATTEMPT_KEY).await {
                 if next_attempt > candidate {
                     candidate = next_attempt;
-                    reason = format!("nightly maintenance backoff until {next_attempt}");
+                    reason = ScannerWakeupReason::without_subject(NightlyBackoff);
                 }
             }
             if candidate < floor {
                 candidate = floor;
-                reason = "nightly maintenance capped by wakeup floor".into();
+                reason = ScannerWakeupReason::without_subject(NightlyCappedByFloor);
             }
             if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
                 winner = Some((candidate, reason));
@@ -660,11 +668,11 @@ async fn compute_next_wakeup(
     match winner {
         None => (
             ceiling_dt.max(floor),
-            "nothing due (no host, archive profile, or nightly schedule active), using wakeup ceiling as safety net".into(),
+            ScannerWakeupReason::without_subject(NothingDueCeiling),
         ),
         Some((candidate, _reason)) if candidate > ceiling_dt => (
             ceiling_dt.max(floor),
-            "safety-net ceiling (next real due date is later, catches config changes)".into(),
+            ScannerWakeupReason::without_subject(SafetyCeiling),
         ),
         Some(winner) => winner,
     }

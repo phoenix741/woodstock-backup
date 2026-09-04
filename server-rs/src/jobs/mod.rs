@@ -5,6 +5,7 @@ pub mod decision;
 pub mod layers;
 pub mod producers;
 pub mod progress;
+pub mod scanner_status;
 pub mod state;
 pub mod storage;
 pub mod types;
