@@ -1,3 +1,10 @@
+# [2.1.0-alpha.14](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.13...v2.1.0-alpha.14) (2026-09-04)
+
+
+### Bug Fixes
+
+* **scheduler:** 🐛 stop waking up periodically for offline hosts, remove the hourly config-catch ceiling ([467cdc7](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/467cdc71a7020a19018337a3ef0ec022d9ff8c52))
+
 # [2.1.0-alpha.13](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.12...v2.1.0-alpha.13) (2026-09-04)
 
 
