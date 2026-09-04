@@ -32,6 +32,7 @@ use clap::{Parser, Subcommand};
 use commands::archive::{
     diff_archive_profile, list_archive_profiles, run_archive_profile, verify_archive_profile,
 };
+use commands::backups::clean_orphan_backups;
 use commands::convertion::convert_hash_repo;
 use commands::file_manifest::compare;
 use commands::read_chunk::search_chunk;
@@ -102,6 +103,15 @@ enum Commands {
 
     /// Add reference count to the pool for a specific backup.
     CompactRefcnt {},
+
+    /// Find (and optionally remove) `hosts/<host>/<uuid>/` backup directories that have
+    /// no corresponding entry in that host's `backup.yml` — orphaned by a crash between
+    /// directory creation and the first tracking write. Defaults to a dry run.
+    CleanOrphanBackups {
+        /// Actually delete the orphan directories instead of just listing them.
+        #[clap(long)]
+        no_dry_run: bool,
+    },
 
     /// Clean unused chunks from the pool.
     CleanUnused {
@@ -285,6 +295,11 @@ async fn main() -> Result<()> {
                 .apply_pending(&Local::now())
                 .await
                 .wrap_err("Failed to compact refcnt")?;
+        }
+        Commands::CleanOrphanBackups { no_dry_run } => {
+            clean_orphan_backups(state, !no_dry_run)
+                .await
+                .wrap_err("Clean orphan backups failed")?;
         }
         Commands::CleanUnused { target } => {
             clean_unused_pool(state, context.source, target)

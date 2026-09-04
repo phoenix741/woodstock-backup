@@ -378,14 +378,14 @@ impl<Clt: Client> BackupSave<Clt> {
             backup_id = self.backup_id,
         );
 
+        self.save_backup(BackupStatus::InProgress).await?;
+
         self.backups
             .clone_backup(&self.hostname, previous_backup, self.backup_id, shares)
             .await?;
 
         // Load Reference count
         self.refcnt.lock().await.load_refcnt(true).await;
-
-        self.save_backup(BackupStatus::InProgress).await?;
 
         // Register the event
         create_event_backup_start(

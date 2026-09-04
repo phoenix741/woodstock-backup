@@ -48,7 +48,7 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all};
+use tokio::fs::{copy, create_dir_all, read_to_string, remove_dir_all, rename};
 use tokio::sync::Mutex;
 use tracing::error;
 use uuid::Uuid;
@@ -193,7 +193,7 @@ impl Backups {
     /// Must be used by **all write operations** so that the read-modify-write
     /// cycle always works on the authoritative on-disk state, not on a
     /// potentially stale cache entry.
-    async fn read_backups_for_write(&self, hostname: &str) -> Vec<Backup> {
+    async fn read_backups_for_write(&self, hostname: &str) -> Result<Vec<Backup>> {
         let path = self.get_backup_file(hostname);
         Self::read_backups_from_disk(path).await
     }
@@ -216,24 +216,24 @@ impl Backups {
     }
 
     /// Reads the backup list for `hostname` directly from disk, without any cache.
-    async fn read_backups_from_disk(path: PathBuf) -> Vec<Backup> {
-        let backups = read_to_string(path).await;
-        match backups {
-            Ok(backups) => {
-                let backups: std::result::Result<Vec<Backup>, serde_yaml_ng::Error> =
-                    serde_yaml_ng::from_str(&backups);
-                match backups {
-                    Ok(backups) => backups,
-                    Err(e) => {
-                        error!("Failed to parse backups: {e}");
-                        vec![]
-                    }
-                }
-            }
+    async fn read_backups_from_disk(path: PathBuf) -> Result<Vec<Backup>> {
+        match read_to_string(&path).await {
+            Ok(content) => serde_yaml_ng::from_str(&content)
+                .map_err(|e| eyre::eyre!("Failed to parse backups from {path:?}: {e}")),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(vec![]),
+            Err(e) => Err(eyre::eyre!("Failed to read backups from {path:?}: {e}")),
+        }
+    }
+
+    /// Reads the backup list for `hostname` from disk, tolerating read/parse failures by
+    /// logging and falling back to an empty list. Only safe for read-only callers
+    /// (`get_backups`) — write paths must use [`Self::read_backups_from_disk`] directly
+    /// and propagate the error instead, or risk overwriting `backup.yml` with data loss.
+    async fn read_backups_from_disk_lenient(path: PathBuf) -> Vec<Backup> {
+        match Self::read_backups_from_disk(path).await {
+            Ok(backups) => backups,
             Err(e) => {
-                if e.kind() != ErrorKind::NotFound {
-                    error!("Failed to read backups: {e}");
-                }
+                error!("{e}");
                 vec![]
             }
         }
@@ -284,11 +284,11 @@ impl Backups {
                 conn,
                 &backup_cache_key(hostname),
                 CACHE_TTL_SECS,
-                || async move { Self::read_backups_from_disk(path).await },
+                || async move { Self::read_backups_from_disk_lenient(path).await },
             )
             .await;
         }
-        Self::read_backups_from_disk(path).await
+        Self::read_backups_from_disk_lenient(path).await
     }
 
     /// Explicitly invalidates the Redis cache entry for `hostname`'s backup list.
@@ -474,7 +474,7 @@ impl Backups {
     /// Returns an error if the backup list cannot be read or written to disk.
     pub async fn add_or_replace_backup(&self, hostname: &str, backup: &Backup) -> Result<()> {
         let _lock = self.lock_host_for_write(hostname).await?;
-        let backups = self.read_backups_for_write(hostname).await;
+        let backups = self.read_backups_for_write(hostname).await?;
 
         // Find the index of backup.id in backup_file if found
         let index = backups
@@ -513,7 +513,7 @@ impl Backups {
         F: FnMut(&mut Backup),
     {
         let _lock = self.lock_host_for_write(hostname).await?;
-        let backups = self.read_backups_for_write(hostname).await;
+        let backups = self.read_backups_for_write(hostname).await?;
 
         // Find the backup to update
         let index = backups
@@ -549,7 +549,7 @@ impl Backups {
         let backup_destination = self.get_backup_destination_directory(hostname, backup_id);
 
         let _lock = self.lock_host_for_write(hostname).await?;
-        let mut backups = self.read_backups_for_write(hostname).await;
+        let mut backups = self.read_backups_for_write(hostname).await?;
 
         // Find the index of backup.id in backup_file
         let index = backups
@@ -598,7 +598,7 @@ impl Backups {
     ///
     /// Returns an error if the backups cannot be serialized or written to disk.
     async fn save(&self, hostname: &str, backups: &Vec<Backup>) -> Result<()> {
-        let backups = serde_yaml_ng::to_string(&backups).map_err(|_| {
+        let content = serde_yaml_ng::to_string(&backups).map_err(|_| {
             Error::new(
                 ErrorKind::InvalidData,
                 "Failed to serialize backups to yaml string",
@@ -607,8 +607,110 @@ impl Backups {
 
         let backup_file = self.get_backup_file(hostname);
 
-        tokio::fs::write(&backup_file, backups).await?;
+        // Write-temp-then-rename instead of a direct write: `tokio::fs::write` is
+        // open+truncate+write, not crash-safe — a kill mid-write leaves `backup.yml`
+        // truncated/corrupt. `rename` within the same directory is atomic, so a crash
+        // here either leaves the old file untouched or the new one fully in place.
+        let tmp_file = backup_file.with_extension("yml.tmp");
+        tokio::fs::write(&tmp_file, content).await?;
+        rename(&tmp_file, &backup_file).await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{BackupStatus, Configuration};
+    use chrono::Local;
+
+    fn sample_backup(id: Uuid, number: usize) -> Backup {
+        Backup {
+            id,
+            number,
+            status: BackupStatus::InProgress,
+            start_date: Local::now(),
+            end_date: None,
+            error_count: 0,
+            error_message: None,
+            file_count: 0,
+            new_file_count: 0,
+            removed_file_count: 0,
+            modified_file_count: 0,
+            existing_file_count: 0,
+            file_size: 0,
+            new_file_size: 0,
+            modified_file_size: 0,
+            existing_file_size: 0,
+            compressed_file_size: 0,
+            new_compressed_file_size: 0,
+            modified_compressed_file_size: 0,
+            existing_compressed_file_size: 0,
+            speed: 0.0,
+            agent_version: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn read_backups_from_disk_missing_file_is_empty_ok() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("backup.yml");
+
+        let result = Backups::read_backups_from_disk(path).await;
+
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn read_backups_from_disk_corrupt_file_is_err() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("backup.yml");
+        tokio::fs::write(&path, b"{ this is not valid yaml for a Vec<Backup>")
+            .await
+            .unwrap();
+
+        let result = Backups::read_backups_from_disk(path).await;
+
+        // Must fail loudly rather than silently returning an empty list — a caller in
+        // the write path would otherwise overwrite backup.yml with a near-empty list,
+        // wiping every previously tracked backup for that host.
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn save_round_trip_via_add_or_replace_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Arc::new(Configuration::from_backup_path(dir.path().to_path_buf()));
+        create_dir_all(config.path.hosts_path.join("myhost"))
+            .await
+            .unwrap();
+        let backups = Backups::new(config);
+
+        let id = Uuid::now_v7();
+        backups
+            .add_or_replace_backup("myhost", &sample_backup(id, 1))
+            .await
+            .unwrap();
+
+        let loaded = backups.get_backups("myhost").await;
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, id);
+
+        // The atomic write must not leave a stray .yml.tmp file behind.
+        let tmp_file = backups.get_backup_file("myhost").with_extension("yml.tmp");
+        assert!(!tmp_file.exists());
+
+        // A second write (replace, not append) must still round-trip cleanly.
+        let mut updated = sample_backup(id, 1);
+        updated.status = BackupStatus::Completed;
+        backups
+            .add_or_replace_backup("myhost", &updated)
+            .await
+            .unwrap();
+
+        let loaded = backups.get_backups("myhost").await;
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].status, BackupStatus::Completed);
     }
 }

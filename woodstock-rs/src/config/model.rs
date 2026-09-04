@@ -310,7 +310,9 @@ mod tests {
 
     #[test]
     fn test_is_not_resumable_for_finished_states() {
-        // Non-resumable states (all finished states)
+        // Non-resumable states (all finished states). `Failed(_)` is deliberately
+        // terminal here: a failed backup needs a human to look at it and decide
+        // whether to fix and retry, not an automatic resume.
         assert!(!BackupStatus::Completed.is_resumable());
         assert!(!BackupStatus::Aborted.is_resumable());
         assert!(!BackupStatus::Cancelled.is_resumable());

@@ -22,6 +22,7 @@ use woodstock::{
 };
 
 pub mod archive;
+pub mod backups;
 pub mod convertion;
 pub mod file_manifest;
 pub mod pool;
