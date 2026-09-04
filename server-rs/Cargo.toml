@@ -112,6 +112,7 @@ redis = { workspace = true, features = [
   "tokio-comp",
   "connection-manager",
   "safe_iterators",
+  "streams",
 ] }
 
 # Job queue (Apalis)

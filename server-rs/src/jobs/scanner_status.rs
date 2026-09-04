@@ -14,13 +14,23 @@ use tracing::warn;
 
 const SCANNER_STATUS_KEY: &str = "woodstock:schedule:scanner-status";
 
-/// Generous upper bound on how long a status snapshot stays valid: the scanner rewrites it
-/// every iteration, and even an idle scanner rewrites it at least as often as its wakeup
-/// ceiling (defaults to hourly, see `bin/scheduler.rs`'s `WAKEUP_CEILING_FALLBACK_SECS`). No
-/// update for well past that means the scheduler process itself is down, not just idle, so
-/// let the entry expire and read back as unknown rather than showing an indefinitely stale
-/// status.
-const SCANNER_STATUS_TTL_SECS: u64 = 6 * 3600;
+/// Grace margin added on top of `next_wakeup - last_execution` (see [`status_ttl_secs`]) so
+/// the entry doesn't expire right as the scanner is about to legitimately rewrite it.
+const SCANNER_STATUS_TTL_GRACE_SECS: i64 = 3600;
+
+/// Floor under the computed TTL, for the (degenerate, near-instant) case where `next_wakeup`
+/// is essentially now — still leaves the grace margin's worth of slack.
+const SCANNER_STATUS_TTL_FLOOR_SECS: i64 = SCANNER_STATUS_TTL_GRACE_SECS;
+
+/// How long a status snapshot stays valid before reading back as unknown, computed per call
+/// from how far out this iteration's `next_wakeup` actually is — unlike a fixed TTL, this
+/// scales with a scanner that's genuinely, legitimately asleep for a long time (a host not
+/// due for days is not a down scheduler) instead of misreporting it as one. No update by the
+/// time this elapses means the scheduler process itself is down, not just idle.
+fn status_ttl_secs(last_execution: DateTime<Local>, next_wakeup: DateTime<Local>) -> i64 {
+    let sleep_span = (next_wakeup - last_execution).num_seconds().max(0);
+    (sleep_span + SCANNER_STATUS_TTL_GRACE_SECS).max(SCANNER_STATUS_TTL_FLOOR_SECS)
+}
 
 /// Category of [`ScannerWakeupReason`] — deliberately a plain enum with no attached data, so
 /// it maps 1:1 onto a GraphQL enum (`api::dto::queue::ScannerWakeupReasonCategory`) a future
@@ -38,8 +48,13 @@ pub enum ScannerWakeupReasonCategory {
     NightlyDue,
     NightlyBackoff,
     NightlyCappedByFloor,
-    NothingDueCeiling,
-    SafetyCeiling,
+    /// Nothing is due anywhere (no active host schedule, no enabled archive profile, nightly
+    /// disabled) — see `bin/scheduler.rs`'s `NO_WORK_FALLBACK_SECS`.
+    NothingDue,
+    /// At least one host is due but known offline in the resolver cache, so it was excluded
+    /// from the wakeup computation entirely — it's waiting on its own online event, not a
+    /// timer. `subject` carries the affected hostname(s), comma-separated if more than one.
+    OnlineEventPending,
     HostListUnavailable,
 }
 
@@ -59,8 +74,8 @@ impl ScannerWakeupReasonCategory {
             Self::NightlyDue => "nightly_due",
             Self::NightlyBackoff => "nightly_backoff",
             Self::NightlyCappedByFloor => "nightly_capped_by_floor",
-            Self::NothingDueCeiling => "nothing_due_ceiling",
-            Self::SafetyCeiling => "safety_ceiling",
+            Self::NothingDue => "nothing_due",
+            Self::OnlineEventPending => "online_event_pending",
             Self::HostListUnavailable => "host_list_unavailable",
         }
     }
@@ -76,8 +91,8 @@ impl ScannerWakeupReasonCategory {
             "nightly_due" => Self::NightlyDue,
             "nightly_backoff" => Self::NightlyBackoff,
             "nightly_capped_by_floor" => Self::NightlyCappedByFloor,
-            "nothing_due_ceiling" => Self::NothingDueCeiling,
-            "safety_ceiling" => Self::SafetyCeiling,
+            "nothing_due" => Self::NothingDue,
+            "online_event_pending" => Self::OnlineEventPending,
             "host_list_unavailable" => Self::HostListUnavailable,
             _ => return None,
         })
@@ -131,13 +146,10 @@ impl fmt::Display for ScannerWakeupReason {
             (NightlyDue, _) => write!(f, "nightly maintenance due"),
             (NightlyBackoff, _) => write!(f, "nightly maintenance backoff"),
             (NightlyCappedByFloor, _) => write!(f, "nightly maintenance capped by wakeup floor"),
-            (NothingDueCeiling, _) => {
-                write!(f, "nothing due, using wakeup ceiling as safety net")
+            (NothingDue, _) => write!(f, "nothing due anywhere"),
+            (OnlineEventPending, Some(hosts)) => {
+                write!(f, "waiting for online event from: {hosts}")
             }
-            (SafetyCeiling, _) => write!(
-                f,
-                "safety-net ceiling (next real due date is later, catches config changes)"
-            ),
             (HostListUnavailable, _) => {
                 write!(f, "host list unavailable, retrying at wakeup floor")
             }
@@ -197,7 +209,10 @@ pub async fn set_scanner_status(
         }
     }
     if let Err(e) = con
-        .expire::<_, ()>(SCANNER_STATUS_KEY, SCANNER_STATUS_TTL_SECS as i64)
+        .expire::<_, ()>(
+            SCANNER_STATUS_KEY,
+            status_ttl_secs(last_execution, next_wakeup),
+        )
         .await
     {
         warn!("Failed to set TTL on scanner status: {e}");
@@ -242,4 +257,40 @@ pub async fn get_scanner_status(redis_client: &redis::Client) -> Option<ScannerS
         next_wakeup,
         next_wakeup_reason: ScannerWakeupReason { category, subject },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    #[test]
+    fn status_ttl_grows_with_a_far_out_next_wakeup() {
+        let last_execution = Local::now();
+        let next_wakeup = last_execution + Duration::days(5);
+        let ttl = status_ttl_secs(last_execution, next_wakeup);
+        assert_eq!(
+            ttl,
+            Duration::days(5).num_seconds() + SCANNER_STATUS_TTL_GRACE_SECS
+        );
+    }
+
+    #[test]
+    fn status_ttl_floors_when_next_wakeup_is_effectively_now() {
+        let now = Local::now();
+        assert_eq!(status_ttl_secs(now, now), SCANNER_STATUS_TTL_FLOOR_SECS);
+    }
+
+    #[test]
+    fn status_ttl_floors_instead_of_going_negative_when_next_wakeup_precedes_last_execution() {
+        let last_execution = Local::now();
+        // Shouldn't happen in practice (next_wakeup is always computed after last_execution),
+        // but a negative span must still clamp to the floor, not produce a negative/zero TTL
+        // that would make the Redis key expire (or fail to `EXPIRE`) immediately.
+        let next_wakeup = last_execution - Duration::hours(1);
+        assert_eq!(
+            status_ttl_secs(last_execution, next_wakeup),
+            SCANNER_STATUS_TTL_FLOOR_SECS
+        );
+    }
 }

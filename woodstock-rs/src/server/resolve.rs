@@ -10,6 +10,7 @@ use redis::{
     from_redis_value, AsyncCommands, FromRedisValue, RedisError, RedisResult, ToRedisArgs, Value,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 #[cfg(feature = "mdns")]
 use std::collections::HashSet;
 use std::{
@@ -24,9 +25,9 @@ use crate::config::{HOST_ONLINE_CHANNEL, REDIS_WOODSTOCK_KEY_DNS};
 /// The interval in seconds for direct DNS update checks.
 const DIRECT_DNS_UPDATE_INTERVAL: i64 = 120;
 
-/// Payload published on [`HOST_ONLINE_CHANNEL`] when a host transitions from offline to
-/// online, so the scheduler can react immediately instead of waiting for its periodic
-/// safety-net wakeup.
+/// Payload appended (as the `payload` field of a stream entry, JSON-encoded) to
+/// [`HOST_ONLINE_CHANNEL`] when a host transitions from offline to online, so the scheduler
+/// can react immediately instead of waiting for an offline-due host's next periodic retry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostOnlineEvent {
     pub hostname: String,
@@ -244,31 +245,32 @@ impl SocketAddrResolver {
 
         // Read the previous state first: this is how we tell a genuine offline->online
         // transition apart from a routine heartbeat re-registration (see below). A Redis
-        // error here must NOT be treated as "no previous entry" (= was offline) — that
-        // would misread a transient read failure as a genuine transition and publish a
-        // spurious online event; instead skip transition detection for this call only.
+        // error here must NOT be treated as "no previous entry" (= was offline, i.e. a real
+        // transition) — that would misread a transient read failure as a genuine transition
+        // and publish a spurious online event; instead skip transition detection for this
+        // call only by treating it the same as "was already online" (`Some`, `is_online:
+        // true`), the one previous-state value that always suppresses the publish below.
         let previous_result: std::result::Result<Option<SocketAddrInformation>, redis::RedisError> =
             con.hget(REDIS_WOODSTOCK_KEY_DNS, &hostname).await;
-        if let Err(ref e) = previous_result {
-            warn!(
-                "Failed to read previous registration state for {hostname}, skipping online-transition detection this cycle: {e}"
-            );
-        }
-        let previous_known = previous_result.is_ok();
-        let previous = previous_result.unwrap_or(None);
+        let previous = match previous_result {
+            Ok(previous) => previous,
+            Err(e) => {
+                warn!(
+                    "Failed to read previous registration state for {hostname}, skipping online-transition detection this cycle: {e}"
+                );
+                Some(SocketAddrInformation {
+                    is_online: true,
+                    ..information.clone()
+                })
+            }
+        };
 
         let _: () = con
             .hset(REDIS_WOODSTOCK_KEY_DNS, &hostname, information)
             .await?;
 
-        Self::publish_online_transition(
-            &self.redis,
-            &hostname,
-            information,
-            previous.as_ref(),
-            previous_known,
-        )
-        .await;
+        Self::publish_online_transition(&self.redis, &hostname, information, previous.as_ref())
+            .await;
 
         if information.source == SocketAddrInformationSource::MDNS {
             return Ok(());
@@ -287,11 +289,18 @@ impl SocketAddrResolver {
         Ok(())
     }
 
-    /// Publishes on [`HOST_ONLINE_CHANNEL`] only when `information` marks the *transition*
+    /// Appends to [`HOST_ONLINE_CHANNEL`] only when `information` marks the *transition*
     /// from offline to online — never on a routine heartbeat re-registration (agents call
     /// `register_client` roughly every [`DIRECT_DNS_UPDATE_INTERVAL`] seconds), and never
     /// when `information.is_online` is false (a transition to offline must not be reported
     /// as the host coming online).
+    ///
+    /// Unlike the previous state, whether the previous state was *known* no longer gates
+    /// this: a host registering for the very first time (never seen before, or the Redis
+    /// hash was flushed) is just as much a transition into "online" as one that was
+    /// previously recorded offline — treating "unknown" as "not online" here (instead of
+    /// silently skipping the event) is what lets the scheduler's event-driven path pick up
+    /// a host on its very first contact.
     ///
     /// Best-effort: any failure here is only logged — it must never make
     /// [`Self::register_service`] (and therefore the caller's registration) fail. Also
@@ -304,9 +313,8 @@ impl SocketAddrResolver {
         hostname: &str,
         information: &SocketAddrInformation,
         previous: Option<&SocketAddrInformation>,
-        previous_known: bool,
     ) {
-        if !information.is_online || !previous_known {
+        if !information.is_online {
             return;
         }
         let was_online = previous.is_some_and(|p| p.is_online);
@@ -325,14 +333,25 @@ impl SocketAddrResolver {
 
         match redis.get_multiplexed_async_connection().await {
             Ok(mut con) => {
-                if let Err(e) = con.publish::<_, _, ()>(HOST_ONLINE_CHANNEL, payload).await {
-                    warn!("Failed to publish host-online event for {hostname}: {e}");
+                // Capped so a scheduler that's down for a while (and therefore not
+                // consuming/acking) can't let this stream grow unbounded — durability of
+                // recent events matters here, not keeping every event ever published.
+                let result: RedisResult<Option<String>> = con
+                    .xadd_maxlen(
+                        HOST_ONLINE_CHANNEL,
+                        redis::streams::StreamMaxlen::Approx(10_000),
+                        "*",
+                        &[("payload", payload)],
+                    )
+                    .await;
+                if let Err(e) = result {
+                    warn!("Failed to append host-online event for {hostname}: {e}");
                 } else {
-                    info!("Host {hostname} just came online, published on {HOST_ONLINE_CHANNEL}");
+                    info!("Host {hostname} just came online, appended to {HOST_ONLINE_CHANNEL}");
                 }
             }
             Err(e) => warn!(
-                "Failed to get Redis connection to publish host-online event for {hostname}: {e}"
+                "Failed to get Redis connection to append host-online event for {hostname}: {e}"
             ),
         }
     }
@@ -354,6 +373,22 @@ impl SocketAddrResolver {
     pub async fn get_informations(&self, hostname: &str) -> Result<Option<SocketAddrInformation>> {
         let mut con = self.redis.get_multiplexed_async_connection().await?;
         let result = con.hget(REDIS_WOODSTOCK_KEY_DNS, hostname).await?;
+
+        Ok(result)
+    }
+
+    /// Retrieves every hostname's cached information in one round trip (`HGETALL` on
+    /// [`REDIS_WOODSTOCK_KEY_DNS`]) instead of one [`Self::get_informations`] call per host —
+    /// for callers that need the online/offline state of many hosts at once (e.g. the
+    /// scheduler's per-iteration wakeup computation), a single hash read scales with one
+    /// Redis round trip instead of N.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection to Redis fails or if the retrieval operation fails.
+    pub async fn get_all_informations(&self) -> Result<HashMap<String, SocketAddrInformation>> {
+        let mut con = self.redis.get_multiplexed_async_connection().await?;
+        let result = con.hgetall(REDIS_WOODSTOCK_KEY_DNS).await?;
 
         Ok(result)
     }

@@ -69,7 +69,6 @@ pub struct Schedule {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicationScheduler {
-    pub wakeup_schedule: String,
     pub nightly_schedule: String,
     pub default_schedule: Schedule,
     /// Floor under the scanner's dynamic sleep, so a host/profile/nightly trigger stuck
@@ -362,7 +361,6 @@ mod tests {
     #[test]
     fn application_scheduler_cadence_fields_default_when_absent() {
         let yaml = r"
-wakeupSchedule: '0 0 * * * * *'
 nightlySchedule: '0 0 0 * * * *'
 defaultSchedule:
   activated: true
@@ -383,7 +381,6 @@ defaultSchedule:
     #[test]
     fn application_scheduler_cadence_fields_round_trip_when_set() {
         let yaml = r"
-wakeupSchedule: '0 0 * * * * *'
 nightlySchedule: '0 0 0 * * * *'
 defaultSchedule:
   activated: true
@@ -396,5 +393,21 @@ retryBackoffOnRefusalSecs: 60
         assert_eq!(scheduler.wakeup_floor_secs, 10);
         assert_eq!(scheduler.retry_backoff_after_success_secs, 120);
         assert_eq!(scheduler.retry_backoff_on_refusal_secs, 60);
+    }
+
+    /// A `scheduler.yml` written before `wakeupSchedule` was removed still has that key on
+    /// disk until an admin edits the file — it must be silently ignored, not rejected, since
+    /// `ApplicationScheduler` has no `#[serde(deny_unknown_fields)]`.
+    #[test]
+    fn application_scheduler_ignores_leftover_wakeup_schedule_key() {
+        let yaml = r"
+wakeupSchedule: '0 0 * * * * *'
+nightlySchedule: '0 0 0 * * * *'
+defaultSchedule:
+  activated: true
+  backupPeriod: 86400
+";
+        let scheduler: ApplicationScheduler = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(scheduler.nightly_schedule, "0 0 0 * * * *");
     }
 }

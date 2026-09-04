@@ -36,7 +36,7 @@ Fields (`woodstock-rs/src/config/archiving.rs`):
 |---|---|
 | `name` | Unique profile id, also used as the on-disk/job identifier. |
 | `hostSelection` | `{mode: all}`, `{mode: glob, pattern: "..."}`, `{mode: include, hosts: [...]}`, or `{mode: exclude, hosts: [...]}`. |
-| `scheduleCron` | 7-field cron expression (sec min hour day month weekday year), same syntax as `wakeup_schedule`/`nightly_schedule`. |
+| `scheduleCron` | 7-field cron expression (sec min hour day month weekday year), same syntax as `nightly_schedule`. |
 | `destination` | Root path the archive is written under. |
 | `format` | An internally-tagged object: `{ type: dir }`, or `{ type: tar \| tar_gz \| tar_xz \| tar_zstd, checksum: bool, compressionLevel: int }` for the tar family (both `checksum` and `compressionLevel` are optional and default to `false`/omitted — they only exist on tar-family formats, `dir` cannot carry them at all). `tar_bz2` is not supported — `bzip2` isn't an enabled `async-compression` feature; add it if ever needed. |
 | `enabled` | Whether the profile fires on its schedule. A disabled profile can still be triggered manually (see below). |

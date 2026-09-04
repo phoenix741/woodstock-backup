@@ -1,5 +1,5 @@
 //! Scheduler Binary: drives hosts, archive profiles, and nightly maintenance through a
-//! single dynamic-wakeup loop plus an event-driven Pub/Sub subscriber (see
+//! single dynamic-wakeup loop plus an event-driven Redis Stream subscriber (see
 //! `run_scanner_loop`/`run_host_online_subscriber` below) — instead of separate Apalis
 //! crons. Each category (host, archive profile, nightly) carries its own cron/period and
 //! its own persisted "last run" state (backup timestamps for hosts, `ArchiveRunStatus` for
@@ -13,21 +13,20 @@
 //! "last run" state). Multiple active instances at once duplicate scheduling work
 //! (harmless but wasteful), never an actual backup.
 
-use apalis_cron::Schedule;
 use chrono::{DateTime, Duration as ChronoDuration, Local, TimeZone};
 use color_eyre::eyre::Result;
 use eyre::eyre;
-use futures::StreamExt;
 use redis::AsyncCommands;
 use std::{
     path::{Path, PathBuf},
-    str::FromStr,
     sync::Arc,
 };
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use woodstock::archiving::ArchiveRunStatus;
-use woodstock::config::{ArchivingConfig, Configuration, Scheduler, HOST_ONLINE_CHANNEL};
+use woodstock::config::{
+    ArchivingConfig, Configuration, Scheduler, HOST_ONLINE_CHANNEL, HOST_ONLINE_CONSUMER_GROUP,
+};
 use woodstock::server::resolve::HostOnlineEvent;
 use woodstock::utils::cron_due::next_due_at;
 use woodstock_server_rs::{
@@ -43,11 +42,24 @@ use woodstock_server_rs::{
     logger::init_logging,
 };
 
-/// Fallback safety-net ceiling used only if `wakeupSchedule` fails to parse as a cron
-/// expression. Under normal operation the ceiling is the next tick of `wakeupSchedule`
-/// itself (see [`compute_next_wakeup`]) — that field's role shifted from "the scanner's
-/// fixed cadence" to "the safety-net upper bound for hosts that never self-register".
-const WAKEUP_CEILING_FALLBACK_SECS: i64 = 3600;
+/// Consumer name the scheduler identifies itself as when reading [`HOST_ONLINE_CHANNEL`]'s
+/// consumer group. Static rather than per-restart-unique: the scheduler runs as a single
+/// instance (see this module's doc comment), so a fresh process reusing the same name is
+/// exactly what lets it reclaim entries a previous instance left pending on crash (see
+/// [`reclaim_pending_online_events`]) instead of orphaning them under a throwaway name.
+const HOST_ONLINE_CONSUMER_NAME: &str = "scheduler";
+
+/// How long an entry may sit delivered-but-unacked before a fresh consumer instance reclaims
+/// it on startup — long enough that one normal processing attempt (a Redis round-trip plus
+/// one `try_schedule_host` call) never looks abandoned, short enough that a crash right
+/// after delivery doesn't leave the event stuck for long once the scheduler comes back.
+const PENDING_RECLAIM_MIN_IDLE_MS: usize = 30_000;
+
+/// Sleep used only when the scanner has genuinely nothing scheduled anywhere (no active host
+/// schedule, no enabled archive profile, nightly maintenance disabled) — not a periodic
+/// safety net for real due dates, which are never overridden (see [`compute_next_wakeup`]).
+/// Exists purely so `tokio::time::sleep` always gets a bounded duration.
+const NO_WORK_FALLBACK_SECS: i64 = 24 * 3600;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -88,8 +100,8 @@ async fn main() -> Result<()> {
         redis_client.clone(),
     )));
 
-    // Listener of host-online events (transition offline -> online).
-    // Publish from woodstock-rs/src/server/resolve.rs
+    // Reader of host-online events (transition offline -> online), appended to
+    // HOST_ONLINE_CHANNEL from woodstock-rs/src/server/resolve.rs
     let subscriber_handle = tokio::spawn(run_host_online_subscriber(
         redis_client.clone(),
         state.clone(),
@@ -108,7 +120,6 @@ async fn main() -> Result<()> {
         archiving_config.clone(),
         woodstock_config.path.jobs_path.clone(),
         scheduler.nightly_schedule.clone(),
-        scheduler.wakeup_schedule.clone(),
         scheduling_config,
     ));
 
@@ -132,12 +143,19 @@ async fn main() -> Result<()> {
     }
 }
 
-/// Subscribes to [`HOST_ONLINE_CHANNEL`] and immediately runs the scheduling decision for
-/// any host that just transitioned from offline to online (see
-/// `SocketAddrResolver::register_service`), instead of waiting for the scanner's next
-/// dynamic wakeup. Runs forever: any Redis/connection error just logs a warning and
-/// retries after a short delay — this path is a responsiveness improvement on top of the
-/// scanner loop's safety net, never the only way a host gets backed up.
+/// Reads [`HOST_ONLINE_CHANNEL`] (a Redis Stream, consumer group [`HOST_ONLINE_CONSUMER_GROUP`])
+/// and immediately runs the scheduling decision for any host that just transitioned from
+/// offline to online (see `SocketAddrResolver::register_service`), instead of waiting for
+/// the scanner's next dynamic wakeup for it.
+///
+/// A Stream (not Pub/Sub) is used deliberately: the consumer group's read cursor is
+/// persisted by Redis itself, so a scheduler restart or a reconnect gap can never silently
+/// drop an event the way a `PUBLISH`/`SUBSCRIBE` channel would — see
+/// [`reclaim_pending_online_events`] for the other half of that guarantee (entries delivered
+/// but never acked because the process died mid-handling).
+///
+/// Runs forever: any Redis/connection error just logs a warning and retries after a short
+/// delay.
 async fn run_host_online_subscriber(
     redis_client: redis::Client,
     state: Arc<ApiWorkerState>,
@@ -145,73 +163,222 @@ async fn run_host_online_subscriber(
     scheduling_config: SchedulingConfig,
 ) {
     loop {
-        let mut pubsub = match redis_client.get_async_pubsub().await {
-            Ok(pubsub) => pubsub,
+        let mut con = match redis_client.get_multiplexed_async_connection().await {
+            Ok(con) => con,
             Err(e) => {
-                warn!("Failed to open Redis pubsub for {HOST_ONLINE_CHANNEL}: {e}");
+                warn!("Failed to get Redis connection for {HOST_ONLINE_CHANNEL}: {e}");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 continue;
             }
         };
 
-        if let Err(e) = pubsub.subscribe(HOST_ONLINE_CHANNEL).await {
-            warn!("Failed to subscribe to {HOST_ONLINE_CHANNEL}: {e}");
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            continue;
-        }
-        info!("Subscribed to {HOST_ONLINE_CHANNEL} for event-driven backups");
-
-        let mut messages = pubsub.into_on_message();
-        while let Some(msg) = messages.next().await {
-            let payload: String = match msg.get_payload() {
-                Ok(payload) => payload,
-                Err(e) => {
-                    warn!("Bad payload on {HOST_ONLINE_CHANNEL}: {e}");
-                    continue;
-                }
-            };
-            let event: HostOnlineEvent = match serde_json::from_str(&payload) {
-                Ok(event) => event,
-                Err(e) => {
-                    warn!("Failed to parse HostOnlineEvent from {HOST_ONLINE_CHANNEL}: {e}");
-                    continue;
-                }
-            };
-
-            info!(
-                "Host {} just came online, checking for a due backup",
-                event.hostname
-            );
-            // Bypass any recorded cooldown: the host coming online is exactly the new
-            // information that invalidates a previous `SkippedUnreachable` backoff.
-            match try_schedule_host(
-                &state.job_utility,
-                &producers,
-                &redis_client,
-                &event.hostname,
-                false,
-                Trigger::OnlineEvent,
-                &scheduling_config,
-            )
-            .await
-            {
-                Ok(outcome) => {
-                    info!(
-                        "Event-driven scheduling for {}: {:?}",
-                        event.hostname, outcome
-                    )
-                }
-                Err(e) => warn!("Event-driven scheduling failed for {}: {e}", event.hostname),
+        // Idempotent: BUSYGROUP just means the group already exists (a previous run, or a
+        // previous instance) — its persisted last-delivered ID is exactly what we want to
+        // keep using across restarts, so this must never reset it.
+        let create_group: redis::RedisResult<()> = con
+            .xgroup_create_mkstream(HOST_ONLINE_CHANNEL, HOST_ONLINE_CONSUMER_GROUP, "0")
+            .await;
+        if let Err(e) = create_group {
+            if !e.to_string().contains("BUSYGROUP") {
+                warn!(
+                    "Failed to create consumer group {HOST_ONLINE_CONSUMER_GROUP} on {HOST_ONLINE_CHANNEL}: {e}"
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
             }
         }
 
-        // The pubsub stream ended (connection dropped, or the server closed a subscriber
-        // it still accepted — e.g. hitting maxclients, or a proxy dropping idle
-        // subscribers): loop back and resubscribe, with the same short delay as the
-        // connect/subscribe error paths above, so a server that keeps closing the
-        // subscription right after accepting it can't turn this into a tight busy-loop.
-        warn!("Redis pubsub stream for {HOST_ONLINE_CHANNEL} ended, reconnecting");
+        reclaim_pending_online_events(
+            &mut con,
+            &state,
+            &producers,
+            &redis_client,
+            &scheduling_config,
+        )
+        .await;
+
+        info!(
+            "Reading {HOST_ONLINE_CHANNEL} (group {HOST_ONLINE_CONSUMER_GROUP}) for event-driven backups"
+        );
+
+        loop {
+            let opts = redis::streams::StreamReadOptions::default()
+                .group(HOST_ONLINE_CONSUMER_GROUP, HOST_ONLINE_CONSUMER_NAME)
+                .block(30_000)
+                .count(16);
+
+            let reply: redis::RedisResult<Option<redis::streams::StreamReadReply>> = con
+                .xread_options(&[HOST_ONLINE_CHANNEL], &[">"], &opts)
+                .await;
+
+            let reply = match reply {
+                Ok(reply) => reply,
+                Err(e) => {
+                    warn!("Failed to read {HOST_ONLINE_CHANNEL}: {e}, reconnecting");
+                    break;
+                }
+            };
+
+            // `BLOCK` timed out with nothing new: loop back and block-read again, forever,
+            // until an entry actually arrives.
+            let Some(reply) = reply else {
+                continue;
+            };
+
+            for stream_key in reply.keys {
+                for entry in stream_key.ids {
+                    handle_and_ack_online_entry(
+                        &mut con,
+                        &entry,
+                        &state,
+                        &producers,
+                        &redis_client,
+                        &scheduling_config,
+                    )
+                    .await;
+                }
+            }
+        }
+
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
+}
+
+/// On startup/reconnect, reclaims and processes any entry left "pending" (delivered by a
+/// previous consumer instance's `XREADGROUP` but never acked — e.g. the process crashed
+/// between delivery and finishing `try_schedule_host`) before reading new entries. Without
+/// this, a crash at exactly the wrong moment would silently drop the one online event a
+/// since-fixed host relied on to get backed up again.
+async fn reclaim_pending_online_events(
+    con: &mut redis::aio::MultiplexedConnection,
+    state: &Arc<ApiWorkerState>,
+    producers: &Arc<Mutex<Producers>>,
+    redis_client: &redis::Client,
+    scheduling_config: &SchedulingConfig,
+) {
+    let mut start = "0-0".to_string();
+    loop {
+        let reply: redis::RedisResult<redis::streams::StreamAutoClaimReply> = con
+            .xautoclaim_options(
+                HOST_ONLINE_CHANNEL,
+                HOST_ONLINE_CONSUMER_GROUP,
+                HOST_ONLINE_CONSUMER_NAME,
+                PENDING_RECLAIM_MIN_IDLE_MS,
+                start.clone(),
+                redis::streams::StreamAutoClaimOptions::default().count(16),
+            )
+            .await;
+
+        let reply = match reply {
+            Ok(reply) => reply,
+            Err(e) => {
+                warn!("Failed to reclaim pending {HOST_ONLINE_CHANNEL} entries: {e}");
+                return;
+            }
+        };
+
+        // `claimed` can be empty on a batch that only scanned entries not yet past
+        // `PENDING_RECLAIM_MIN_IDLE_MS` — that does NOT mean the scan is done, only
+        // `next_stream_id == "0-0"` does (checked below). Returning early here on an empty
+        // batch would abandon any later, genuinely-idle-enough entries still further along
+        // the pending list.
+        for entry in &reply.claimed {
+            handle_and_ack_online_entry(
+                con,
+                entry,
+                state,
+                producers,
+                redis_client,
+                scheduling_config,
+            )
+            .await;
+        }
+
+        // "0-0" means XAUTOCLAIM has cycled back to the start: nothing left to reclaim.
+        if reply.next_stream_id == "0-0" {
+            return;
+        }
+        start = reply.next_stream_id;
+    }
+}
+
+/// Runs [`handle_host_online_entry`] then acks `entry` — shared by the normal read loop and
+/// [`reclaim_pending_online_events`], the only two places that ever hand an entry back to
+/// `XACK`, so ack error-handling only needs to be gotten right in one place.
+async fn handle_and_ack_online_entry(
+    con: &mut redis::aio::MultiplexedConnection,
+    entry: &redis::streams::StreamId,
+    state: &Arc<ApiWorkerState>,
+    producers: &Arc<Mutex<Producers>>,
+    redis_client: &redis::Client,
+    scheduling_config: &SchedulingConfig,
+) {
+    handle_host_online_entry(entry, state, producers, redis_client, scheduling_config).await;
+    let ack: redis::RedisResult<()> = con
+        .xack(
+            HOST_ONLINE_CHANNEL,
+            HOST_ONLINE_CONSUMER_GROUP,
+            &[&entry.id],
+        )
+        .await;
+    if let Err(e) = ack {
+        warn!(
+            "Failed to ack {HOST_ONLINE_CHANNEL} entry {}: {e}",
+            entry.id
+        );
+    }
+}
+
+/// Parses one stream entry's `payload` field into a [`HostOnlineEvent`] and, if valid, runs
+/// the scheduling decision for that host, bypassing any recorded cooldown — the host coming
+/// online is exactly the new information that invalidates a previous `SkippedUnreachable`
+/// backoff. Shared body of the normal read loop and [`reclaim_pending_online_events`], via
+/// [`handle_and_ack_online_entry`].
+async fn handle_host_online_entry(
+    entry: &redis::streams::StreamId,
+    state: &Arc<ApiWorkerState>,
+    producers: &Arc<Mutex<Producers>>,
+    redis_client: &redis::Client,
+    scheduling_config: &SchedulingConfig,
+) {
+    let Some(payload) = entry.get::<String>("payload") else {
+        warn!(
+            "Missing payload on {HOST_ONLINE_CHANNEL} entry {}",
+            entry.id
+        );
+        return;
+    };
+    let event: HostOnlineEvent = match serde_json::from_str(&payload) {
+        Ok(event) => event,
+        Err(e) => {
+            warn!(
+                "Failed to parse HostOnlineEvent from {HOST_ONLINE_CHANNEL} entry {}: {e}",
+                entry.id
+            );
+            return;
+        }
+    };
+
+    info!(
+        "Host {} just came online, checking for a due backup",
+        event.hostname
+    );
+    match try_schedule_host(
+        &state.job_utility,
+        producers,
+        redis_client,
+        &event.hostname,
+        false,
+        Trigger::OnlineEvent,
+        scheduling_config,
+    )
+    .await
+    {
+        Ok(outcome) => info!(
+            "Event-driven scheduling for {}: {:?}",
+            event.hostname, outcome
+        ),
+        Err(e) => warn!("Event-driven scheduling failed for {}: {e}", event.hostname),
     }
 }
 
@@ -430,7 +597,6 @@ async fn run_scanner_loop(
     archiving_config: Arc<ArchivingConfig>,
     jobs_path: PathBuf,
     nightly_schedule: String,
-    wakeup_ceiling_cron: String,
     scheduling_config: SchedulingConfig,
 ) {
     loop {
@@ -491,14 +657,13 @@ async fn run_scanner_loop(
             &archiving_config,
             &jobs_path,
             &nightly_schedule,
-            &wakeup_ceiling_cron,
             &scheduling_config,
         )
         .await;
 
         // `hosts` was empty because listing failed, not because there are genuinely no
-        // hosts — don't let that empty list push the computed wakeup out to the ceiling
-        // (up to an hour); retry listing at the usual floor instead.
+        // hosts — don't let that empty list push the computed wakeup out to
+        // `NO_WORK_FALLBACK_SECS`; retry listing at the usual floor instead.
         if !hosts_list_ok {
             let retry_floor =
                 Local::now() + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
@@ -535,11 +700,22 @@ async fn run_scanner_loop(
 /// too-early wake doesn't even ping the host), and for archive/nightly a too-early wake
 /// finds nothing due either.
 ///
-/// `wakeup_ceiling_cron` is applied once, globally, as a final safety-net cap on the result
-/// — not per category — for the one case actual due-dates can't cover: a config change (new
-/// host, re-activated schedule, shortened `backupPeriod`, a new/edited archive profile, an
-/// edited `nightlySchedule`) made between now and the computed wakeup, which the scanner can
-/// only notice by waking up and re-reading configuration.
+/// A due host whose last known state in the resolver cache is *offline* is excluded from
+/// this computation entirely: it has a reliable signal of its own — `run_host_online_subscriber`
+/// reacts to [`HOST_ONLINE_CHANNEL`] the instant it registers again — so there is nothing to
+/// gain by also waking the scanner up for it on a timer (that would just rediscover "still
+/// offline" and go back to sleep, the exact busy-poll this split exists to avoid). A due host
+/// whose state is online or *unknown* (never self-registered — the normal case for a host
+/// reachable only by fixed IP, see `HostConfiguration.addresses`) has no such signal to lean
+/// on, so it keeps the original behavior: a real candidate that, if an attempt is refused,
+/// gets bumped forward by `retry_backoff_on_refusal_secs` — keep trying until the machine is
+/// found.
+///
+/// There is no longer a periodic ceiling clamping the result: a real due date, however far
+/// out, is never overridden. [`NO_WORK_FALLBACK_SECS`] only applies once at the very end, for
+/// the degenerate case where nothing at all is due (see there) — it must not be read as a
+/// config-change safety net. A config change (new host, re-activated schedule, edited archive
+/// profile or nightly cron) is only picked up once the scheduler process restarts.
 async fn compute_next_wakeup(
     state: &ApiWorkerState,
     redis_client: &redis::Client,
@@ -547,27 +723,26 @@ async fn compute_next_wakeup(
     archiving_config: &ArchivingConfig,
     jobs_path: &Path,
     nightly_schedule: &str,
-    wakeup_ceiling_cron: &str,
     scheduling_config: &SchedulingConfig,
 ) -> (DateTime<Local>, ScannerWakeupReason) {
     use ScannerWakeupReasonCategory::*;
 
     let now = Local::now();
     let floor = now + ChronoDuration::seconds(scheduling_config.wakeup_floor_secs);
-    let ceiling_dt = match Schedule::from_str(wakeup_ceiling_cron) {
-        Ok(schedule) => schedule
-            .after(&now)
-            .next()
-            .unwrap_or(now + ChronoDuration::seconds(WAKEUP_CEILING_FALLBACK_SECS)),
-        Err(e) => {
-            warn!(
-                "Invalid wakeupSchedule cron expression {wakeup_ceiling_cron:?} ({e}), falling back to a {WAKEUP_CEILING_FALLBACK_SECS}s ceiling"
-            );
-            now + ChronoDuration::seconds(WAKEUP_CEILING_FALLBACK_SECS)
-        }
-    };
 
     let mut winner: Option<(DateTime<Local>, ScannerWakeupReason)> = None;
+    let mut pending_offline_hosts: Vec<String> = Vec::new();
+
+    // One round trip for every host's cached resolver state instead of one per host: the
+    // scanner's iteration cadence is exactly what this whole rework tries to keep low, so an
+    // O(n) Redis fan-out here would work against that goal on a host list of any size.
+    let resolver_informations = match state.resolver.get_all_informations().await {
+        Ok(informations) => informations,
+        Err(e) => {
+            warn!("Scanner: failed to read resolver cache, treating every host as reachability-unknown: {e}");
+            std::collections::HashMap::new()
+        }
+    };
 
     for host in hosts {
         let due = match state.job_utility.get_time_to_next_backup(host).await {
@@ -578,6 +753,14 @@ async fn compute_next_wakeup(
                 continue;
             }
         };
+
+        let known_offline = resolver_informations
+            .get(host)
+            .is_some_and(|info| !info.is_online);
+        if known_offline {
+            pending_offline_hosts.push(host.clone());
+            continue;
+        }
 
         let mut candidate = now + due;
         let mut reason = ScannerWakeupReason::new(HostDue, host.clone());
@@ -596,6 +779,14 @@ async fn compute_next_wakeup(
         if winner.as_ref().is_none_or(|(cur, _)| candidate < *cur) {
             winner = Some((candidate, reason));
         }
+    }
+
+    if !pending_offline_hosts.is_empty() {
+        debug!(
+            "Scanner: {} host(s) due but known offline, waiting for their online event instead of polling: {}",
+            pending_offline_hosts.len(),
+            pending_offline_hosts.join(", ")
+        );
     }
 
     match archiving_config.list_profiles().await {
@@ -666,14 +857,20 @@ async fn compute_next_wakeup(
     }
 
     match winner {
-        None => (
-            ceiling_dt.max(floor),
-            ScannerWakeupReason::without_subject(NothingDueCeiling),
-        ),
-        Some((candidate, _reason)) if candidate > ceiling_dt => (
-            ceiling_dt.max(floor),
-            ScannerWakeupReason::without_subject(SafetyCeiling),
-        ),
         Some(winner) => winner,
+        // Nothing is due anywhere. If it's because every due host is known-offline (and
+        // therefore excluded above, waiting on its own event), say so — this is not "nothing
+        // configured", it's "nothing to poll for"; otherwise report the genuinely empty case.
+        // Either way `NO_WORK_FALLBACK_SECS` only bounds `tokio::time::sleep`'s argument, it
+        // is not a recheck promise: the online-event subscriber runs independently of this
+        // loop and doesn't need it to fire.
+        None if !pending_offline_hosts.is_empty() => (
+            now + ChronoDuration::seconds(NO_WORK_FALLBACK_SECS),
+            ScannerWakeupReason::new(OnlineEventPending, pending_offline_hosts.join(", ")),
+        ),
+        None => (
+            now + ChronoDuration::seconds(NO_WORK_FALLBACK_SECS),
+            ScannerWakeupReason::without_subject(NothingDue),
+        ),
     }
 }

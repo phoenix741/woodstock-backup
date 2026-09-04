@@ -42,12 +42,6 @@ impl Scheduler {
 
     fn fallback_schedule() -> ApplicationScheduler {
         ApplicationScheduler {
-            // Applied once, globally, as a safety-net cap on the scanner's dynamic sleep —
-            // not a per-host polling cadence anymore (see `compute_next_wakeup` in
-            // `server-rs/src/bin/scheduler.rs`). Real due dates already drive the wakeup;
-            // this only bounds how long a config change (new host, re-activated schedule,
-            // shortened backupPeriod) can go unnoticed.
-            wakeup_schedule: "0 0 * * * * *".into(),
             nightly_schedule: "0 0 0 * * * *".into(),
             default_schedule: Schedule {
                 activated: Some(true),

@@ -59,8 +59,8 @@ pub enum ScannerWakeupReasonCategory {
     NightlyDue,
     NightlyBackoff,
     NightlyCappedByFloor,
-    NothingDueCeiling,
-    SafetyCeiling,
+    NothingDue,
+    OnlineEventPending,
     HostListUnavailable,
 }
 

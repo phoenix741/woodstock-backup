@@ -182,14 +182,12 @@ impl QueryRoot {
             .filter(|j| j.status == crate::jobs::progress::JobStatus::Failed)
             .count();
 
-        // `wakeupSchedule` is only a safety-net ceiling on the scheduler's dynamic-wakeup
-        // loop now (see `bin/scheduler.rs`'s module doc), not a fixed polling cadence, so it
-        // can no longer stand in for "next wakeup". The real value — the earliest due-date
-        // across every host, archive profile, and nightly maintenance — is computed from
-        // live state inside the separate scheduler process (`compute_next_wakeup`), which
-        // persists its last computed status to Redis after every iteration (see
-        // `set_scanner_status`) precisely so this resolver can read it back instead of
-        // guessing.
+        // There is no config field that stands in for "next wakeup" (see `bin/scheduler.rs`'s
+        // module doc): the real value — the earliest due-date across every host, archive
+        // profile, and nightly maintenance — is computed from live state inside the separate
+        // scheduler process (`compute_next_wakeup`), which persists its last computed status
+        // to Redis after every iteration (see `set_scanner_status`) precisely so this
+        // resolver can read it back instead of guessing.
         let scanner_status =
             crate::jobs::scanner_status::get_scanner_status(&state.redis_client).await;
         let (last_execution, next_wakeup, next_wakeup_reason) = match scanner_status {

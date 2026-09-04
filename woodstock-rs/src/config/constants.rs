@@ -81,8 +81,17 @@ pub const DEFAULT_BACKUP_TIMEOUT_SECS: u64 = 12 * 3600; // 12h
 /// This key is used in Redis to store and retrieve DNS entries for remote clients.
 pub const REDIS_WOODSTOCK_KEY_DNS: &str = "woodstock_dns";
 
-/// Redis Pub/Sub channel a host's registration transitions from offline to online on.
+/// Redis Stream a host's registration transitions from offline to online are appended to.
 ///
-/// Published (best-effort) by `SocketAddrResolver::register_service` so the scheduler
-/// can react immediately instead of waiting for its periodic safety-net wakeup.
+/// Written (best-effort, `XADD`) by `SocketAddrResolver::register_service` so the scheduler
+/// can react immediately instead of polling every offline-but-due host on a timer. Unlike a
+/// Pub/Sub channel, a Stream persists entries and a consumer group tracks a durable read
+/// cursor per group — the scheduler survives a restart or a reconnect gap without missing an
+/// event, which a plain `PUBLISH`/`SUBSCRIBE` channel cannot guarantee.
 pub const HOST_ONLINE_CHANNEL: &str = "woodstock:host:online";
+
+/// Consumer group name the scheduler reads [`HOST_ONLINE_CHANNEL`] under. The scheduler runs
+/// as a single instance (see `server-rs/src/bin/scheduler.rs`'s module doc), so one group
+/// with one consumer is enough — the group's persisted last-delivered ID is what survives a
+/// scheduler restart.
+pub const HOST_ONLINE_CONSUMER_GROUP: &str = "scheduler";

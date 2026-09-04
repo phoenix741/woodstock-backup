@@ -2,15 +2,15 @@
 
 Woodstock Backup no longer wakes up on a fixed interval to scan every host, nor does it poll archive profiles or nightly maintenance on their own separate fixed ticks. Instead, hosts, archive profiles, and nightly maintenance are all driven by the same single scheduler loop:
 
-* A backup starts **as soon as a host comes back online** (self-registration or mDNS), if it is due — no need to wait for a periodic scan.
+* A backup starts **as soon as a host comes back online** (self-registration or mDNS), if it is due — no need to wait for a periodic scan. This is delivered over a durable Redis Stream, not Pub/Sub, so a scheduler restart or a brief reconnect never silently drops the event.
 * Otherwise, the scheduler sleeps until the next *real* deadline across all hosts, archive profiles, and the nightly maintenance trigger — computed from each host's `backupPeriod`, each archive profile's own cron in `archiving.yml`, and `nightlySchedule` respectively — not on a fixed cadence.
+* A host that is **due but known offline** is not polled on a timer at all: it is excluded from the sleep computation entirely and relies solely on the online event above. A host that is due and whose reachability is *unknown* (typically a fixed-IP host with no self-registration) is still retried periodically on a short backoff until it's found — see `retryBackoffOnRefusalSecs` below.
 
-`wakeupSchedule` keeps its place in the configuration file, but its role changed: it is no longer any category's cadence, it is now a **global safety-net ceiling**, applied once to the whole loop rather than per host or per archive profile — the scheduler still wakes up at least this often, purely to catch a config change (a new host, a re-activated schedule, a shortened `backupPeriod`, a new or edited archive profile, an edited `nightlySchedule`) that fell between two computed due dates. It does not poll host reachability: that already happens exactly when a host becomes due, or instantly through the online event.
+There is no periodic safety-net wakeup anymore: a real due date, however far out, is never overridden. This means a config change (a new host, a re-activated schedule, a shortened `backupPeriod`, a new or edited archive profile, an edited `nightlySchedule`) is only picked up once the scheduler process **restarts** — restart the `scheduler` service after any such change. A Redis-based live-notification mechanism to avoid that restart is planned but not yet implemented.
 
 You can update the default scheduler configuration instead of modifying individual host schedulers.
 
 ```yaml
-wakeupSchedule: "0 0 * * * * *"
 nightlySchedule: "0 0 0 * * * *"
 defaultSchedule:
   activated: true
@@ -38,12 +38,11 @@ Inside the configuration file, you have the following properties:
 
 | Field           | Default value  | Description                                                           |
 | --------------- | -------------  | --------------------------------------------------------------------- |
-| wakeupSchedule  | `0 0 * * * * *` | 7-part cron expression (with seconds): global safety-net ceiling — the scheduler wakes up at least this often even if nothing looks due, purely to notice config changes. Not a polling cadence for hosts, archive profiles, or nightly maintenance — see the note above. |
 | nightlySchedule | `0 0 0 * * * *`    | 7-part cron expression (with seconds) for the nightly maintenance run (orphaned chunk cleanup). Checked against its own last-run state on every scheduler wakeup, same as archive profiles — not a separate fixed tick. |
 | defaultSchedule | See above          | The default backup scheduler configuration, used as a fallback for any field a host's own `schedule` doesn't set (including `blackout`) |
 | wakeupFloorSecs | `30`  | Floor under the scanner's dynamic sleep, so a host/archive profile/nightly trigger stuck permanently "due" (e.g. an unreachable host) can never turn the loop into a busy-poll. |
 | retryBackoffAfterSuccessSecs | `300` (5 min) | Cooldown recorded for a host after a successful enqueue, so the scanner doesn't immediately re-consider it before the job it just enqueued has had a chance to start. |
-| retryBackoffOnRefusalSecs | `900` (15 min) | Cooldown recorded for a host after a refused scheduling attempt (unreachable, already running, or blocked by an active pool fsck lock). A host coming back online is already covered instantly by the event-driven path, so this only governs how often an offline-and-due host is retried in the meantime. |
+| retryBackoffOnRefusalSecs | `900` (15 min) | Cooldown recorded for a host after a refused scheduling attempt (already running, blocked by an active pool fsck lock, or unreachable while its reachability isn't otherwise tracked — e.g. a fixed-IP host). A host known offline is not retried on this backoff at all — it relies entirely on the online event, so this setting no longer governs it. |
 
 ## The Scheduler
 

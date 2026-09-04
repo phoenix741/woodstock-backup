@@ -103,16 +103,27 @@ The planner. Must run as a single instance — see the module-level doc comment 
     * *Nightly*: `check_and_enqueue_nightly` checks `nightlySchedule` against a Redis-persisted
       last-run timestamp (same `next_due_at` mechanism) and enqueues
       `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup when due.
-    * The sleep is bounded by a floor (anti busy-poll) and a global safety-net ceiling — the
-      old `wakeupSchedule` cron, now applied once across all three categories to catch config
-      changes (new host, re-activated schedule, shortened `backupPeriod`, an added/edited
-      archive profile, an edited `nightlySchedule`) that fall between two computed due dates,
-      rather than to poll any of them, which real due dates already drive.
-  * **Event-driven subscriber** (`run_host_online_subscriber`): subscribes to the Redis
-    Pub/Sub channel `HOST_ONLINE_CHANNEL`, published by `SocketAddrResolver::register_service`
-    on a genuine offline→online transition (not every heartbeat). On receipt it runs the same
-    `try_schedule_host`, bypassing the cooldown gate, so a host that just came back online is
-    backed up immediately instead of waiting for the next scan.
+    * The sleep is bounded only by the anti-busy-poll floor — no periodic ceiling. A real due
+      date, however far out, is never overridden: `compute_next_wakeup` excludes a due host
+      entirely from the computation when its last known state in the resolver cache is
+      *offline* (it relies solely on the event-driven subscriber below instead of a timer);
+      a due host whose state is *online or unknown* (typically a fixed-IP host that never
+      self-registers) keeps the previous behavior — a real candidate, bumped forward by
+      `retryBackoffOnRefusalSecs` on a refused attempt, so it's retried until found. A config
+      change (new host, re-activated schedule, shortened `backupPeriod`, an added/edited
+      archive profile, an edited `nightlySchedule`) is only picked up on scheduler restart —
+      real due dates already drive every wakeup, so there is no periodic rescan to catch one
+      early.
+  * **Event-driven subscriber** (`run_host_online_subscriber`): reads the Redis Stream
+    `HOST_ONLINE_CHANNEL` (consumer group `HOST_ONLINE_CONSUMER_GROUP`), appended to by
+    `SocketAddrResolver::register_service` on a genuine offline→online transition (not every
+    heartbeat). A Stream, not Pub/Sub, is used deliberately: the consumer group's read cursor
+    is durable, so a scheduler restart or a reconnect gap can't silently drop an event the
+    way `PUBLISH`/`SUBSCRIBE` could — `reclaim_pending_online_events` additionally reclaims
+    any entry delivered to a previous instance but never acked (e.g. a crash mid-handling) on
+    startup. On receipt it runs the same `try_schedule_host`, bypassing the cooldown gate, so
+    a host that just came back online is backed up immediately instead of waiting for the
+    next scan.
 * **Blackout windows**: `Schedule.blackout` (per-host, falling back to
   `ApplicationScheduler.default_schedule.blackout`) defines recurring time ranges during
   which `try_schedule_host` refuses to start a new backup, unless
