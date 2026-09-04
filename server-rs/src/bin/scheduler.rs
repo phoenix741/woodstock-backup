@@ -33,7 +33,8 @@ use woodstock::utils::cron_due::next_due_at;
 use woodstock_server_rs::{
     jobs::{
         decision::{
-            get_next_attempt, try_schedule_host, SchedulingConfig, SchedulingOutcome, Trigger,
+            get_next_attempt, set_next_attempt, try_schedule_host, SchedulingConfig,
+            SchedulingOutcome, Trigger,
         },
         producers::Producers,
         state::ApiWorkerState,
@@ -216,6 +217,18 @@ async fn run_host_online_subscriber(
 /// for hosts (real persisted completion state, not tick-stream replay).
 const NIGHTLY_LAST_RUN_KEY: &str = "woodstock:schedule:nightly:last-run";
 
+/// Cooldown identifier for nightly maintenance, passed to [`get_next_attempt`]/
+/// [`set_next_attempt`] — the same "next attempt allowed" store hosts use, under a
+/// distinct, non-hostname-shaped key so a failure here backs off instead of retrying on
+/// every scanner iteration (see `check_and_enqueue_nightly`).
+const NIGHTLY_ATTEMPT_KEY: &str = "nightly-maintenance";
+
+/// Cooldown identifier for one archive profile, passed to [`get_next_attempt`]/
+/// [`set_next_attempt`] — see [`NIGHTLY_ATTEMPT_KEY`].
+fn archive_profile_attempt_key(profile_name: &str) -> String {
+    format!("archive-profile:{profile_name}")
+}
+
 async fn get_nightly_last_run(redis_client: &redis::Client) -> Option<DateTime<Local>> {
     let mut con = match redis_client.get_multiplexed_async_connection().await {
         Ok(con) => con,
@@ -250,10 +263,18 @@ async fn set_nightly_last_run(redis_client: &redis::Client, at: DateTime<Local>)
 /// Checks every enabled archive profile's due-ness and enqueues a run for those that are
 /// due — the scanner-loop equivalent of the former `cron-archive` Apalis worker's body,
 /// now driven by [`next_due_at`] instead of a fixed 5-minute tick.
+///
+/// A failure to enqueue, or to persist `last_run` after a successful enqueue, records a
+/// cooldown (mirroring `try_schedule_host`'s refusal backoff for hosts) instead of leaving
+/// the profile permanently "due": without it, the next scanner iteration would recompute
+/// the exact same due-ness and retry as fast as `wakeup_floor_secs` until the underlying
+/// failure clears.
 async fn check_and_enqueue_due_archives(
     archiving_config: &ArchivingConfig,
     jobs_path: &Path,
     producers: &Arc<Mutex<Producers>>,
+    redis_client: &redis::Client,
+    scheduling_config: &SchedulingConfig,
     now: DateTime<Local>,
 ) {
     let profiles = match archiving_config.list_profiles().await {
@@ -267,6 +288,13 @@ async fn check_and_enqueue_due_archives(
     for profile in profiles {
         if !profile.enabled {
             continue;
+        }
+
+        let attempt_key = archive_profile_attempt_key(&profile.name);
+        if let Some(retry_at) = get_next_attempt(redis_client, &attempt_key).await {
+            if retry_at > now {
+                continue;
+            }
         }
 
         let status = ArchiveRunStatus::load(jobs_path, &profile.name)
@@ -308,10 +336,26 @@ async fn check_and_enqueue_due_archives(
                         "Failed to persist run status for archive profile '{}': {e}",
                         profile.name
                     );
+                    set_next_attempt(
+                        redis_client,
+                        &attempt_key,
+                        now + ChronoDuration::seconds(
+                            scheduling_config.retry_backoff_on_refusal_secs,
+                        ),
+                        scheduling_config,
+                    )
+                    .await;
                 }
             }
             Err(e) => {
                 tracing::error!("Failed to enqueue archive profile '{}': {e}", profile.name);
+                set_next_attempt(
+                    redis_client,
+                    &attempt_key,
+                    now + ChronoDuration::seconds(scheduling_config.retry_backoff_on_refusal_secs),
+                    scheduling_config,
+                )
+                .await;
             }
         }
     }
@@ -320,12 +364,22 @@ async fn check_and_enqueue_due_archives(
 /// Checks the nightly maintenance trigger's due-ness (via [`next_due_at`] against
 /// [`NIGHTLY_LAST_RUN_KEY`]) and enqueues `CleanupRefcnt` if due — the scanner-loop
 /// equivalent of the former `cron-nightly` Apalis worker's body.
+///
+/// A failed enqueue records a cooldown under [`NIGHTLY_ATTEMPT_KEY`] instead of leaving the
+/// trigger permanently "due" — see [`check_and_enqueue_due_archives`]'s doc for why.
 async fn check_and_enqueue_nightly(
     redis_client: &redis::Client,
     producers: &Arc<Mutex<Producers>>,
     nightly_schedule: &str,
+    scheduling_config: &SchedulingConfig,
     now: DateTime<Local>,
 ) {
+    if let Some(retry_at) = get_next_attempt(redis_client, NIGHTLY_ATTEMPT_KEY).await {
+        if retry_at > now {
+            return;
+        }
+    }
+
     let last_run = get_nightly_last_run(redis_client).await;
     let due = match next_due_at(nightly_schedule, last_run, now) {
         Ok(Some(due_at)) => due_at <= now,
@@ -346,7 +400,16 @@ async fn check_and_enqueue_nightly(
             drop(prod);
             set_nightly_last_run(redis_client, now).await;
         }
-        Err(e) => tracing::error!("Failed to enqueue nightly cleanup refcnt: {e}"),
+        Err(e) => {
+            tracing::error!("Failed to enqueue nightly cleanup refcnt: {e}");
+            set_next_attempt(
+                redis_client,
+                NIGHTLY_ATTEMPT_KEY,
+                now + ChronoDuration::seconds(scheduling_config.retry_backoff_on_refusal_secs),
+                scheduling_config,
+            )
+            .await;
+        }
     }
 }
 
@@ -396,8 +459,23 @@ async fn run_scanner_loop(
         }
 
         let now = Local::now();
-        check_and_enqueue_due_archives(&archiving_config, &jobs_path, &producers, now).await;
-        check_and_enqueue_nightly(&redis_client, &producers, &nightly_schedule, now).await;
+        check_and_enqueue_due_archives(
+            &archiving_config,
+            &jobs_path,
+            &producers,
+            &redis_client,
+            &scheduling_config,
+            now,
+        )
+        .await;
+        check_and_enqueue_nightly(
+            &redis_client,
+            &producers,
+            &nightly_schedule,
+            &scheduling_config,
+            now,
+        )
+        .await;
 
         let (next_wakeup, reason) = compute_next_wakeup(
             &state,
@@ -515,6 +593,16 @@ async fn compute_next_wakeup(
 
                 let mut candidate = due_at;
                 let mut reason = format!("archive profile '{}' due at {due_at}", profile.name);
+                let attempt_key = archive_profile_attempt_key(&profile.name);
+                if let Some(next_attempt) = get_next_attempt(redis_client, &attempt_key).await {
+                    if next_attempt > candidate {
+                        candidate = next_attempt;
+                        reason = format!(
+                            "archive profile '{}' backoff until {next_attempt}",
+                            profile.name
+                        );
+                    }
+                }
                 if candidate < floor {
                     candidate = floor;
                     reason = format!("archive profile '{}' capped by wakeup floor", profile.name);
@@ -532,6 +620,12 @@ async fn compute_next_wakeup(
         Ok(Some(due_at)) => {
             let mut candidate = due_at;
             let mut reason = format!("nightly maintenance due at {due_at}");
+            if let Some(next_attempt) = get_next_attempt(redis_client, NIGHTLY_ATTEMPT_KEY).await {
+                if next_attempt > candidate {
+                    candidate = next_attempt;
+                    reason = format!("nightly maintenance backoff until {next_attempt}");
+                }
+            }
             if candidate < floor {
                 candidate = floor;
                 reason = "nightly maintenance capped by wakeup floor".into();

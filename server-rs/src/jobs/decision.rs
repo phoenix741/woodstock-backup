@@ -64,6 +64,13 @@ impl SchedulingConfig {
     }
 }
 
+/// Key under which a "next attempt allowed" cooldown is recorded. Despite the `host`
+/// parameter name (the overwhelming majority of callers), this is really keyed on any
+/// scanner-loop item identifier — `bin/scheduler.rs` reuses the same cooldown store for
+/// archive profiles and nightly maintenance under their own distinct, non-hostname-shaped
+/// identifiers (`archive-profile:<name>`, `nightly-maintenance`), so the same
+/// busy-poll-on-repeated-failure protection applies to every category the scanner drives,
+/// not just hosts.
 fn next_attempt_key(host: &str) -> String {
     format!("woodstock:schedule:next-attempt:{host}")
 }
@@ -199,7 +206,7 @@ pub async fn try_schedule_host(
     }
 }
 
-async fn set_next_attempt(
+pub async fn set_next_attempt(
     redis_client: &redis::Client,
     host: &str,
     at: DateTime<Local>,
