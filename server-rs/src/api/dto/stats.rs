@@ -89,11 +89,37 @@ pub struct HostStatistics {
 pub struct GqlStatistics;
 
 #[derive(SimpleObject, Clone)]
+#[graphql(complex)]
 pub struct ServerInformations {
     pub hostname: String,
     pub uptime: u64,
     #[graphql(name = "woodstockVersion")]
     pub woodstock_version: String,
+}
+
+/// A single registered service instance (`api_server`, `client_api_server`, `scheduler` or
+/// `job_worker`), read from the Redis service registry — see
+/// `woodstock::utils::service_registry`.
+#[derive(SimpleObject, Clone)]
+#[graphql(rename_fields = "camelCase")]
+pub struct GqlServiceInfo {
+    pub service_type: String,
+    pub instance_id: String,
+    pub version: String,
+    pub hostname: String,
+    pub started_at: u64,
+}
+
+impl From<woodstock::utils::service_registry::ServiceInfo> for GqlServiceInfo {
+    fn from(info: woodstock::utils::service_registry::ServiceInfo) -> Self {
+        Self {
+            service_type: info.service_type,
+            instance_id: info.instance_id,
+            version: info.version,
+            hostname: info.hostname,
+            started_at: info.started_at,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

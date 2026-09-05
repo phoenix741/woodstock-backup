@@ -41,6 +41,7 @@ eyre = { workspace = true }
 futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
+hostname = { workspace = true }
 hyper-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 lru = { workspace = true }

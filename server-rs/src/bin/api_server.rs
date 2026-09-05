@@ -40,6 +40,12 @@ async fn main() -> Result<()> {
         }
     };
 
+    woodstock::utils::service_registry::register_service(
+        woodstock_config.redis_url(),
+        "api_server",
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
+
     debug!("Generate certificate");
     state.certificate_service.generate_certificate().await?;
 

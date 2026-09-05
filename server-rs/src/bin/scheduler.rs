@@ -83,6 +83,12 @@ async fn main() -> Result<()> {
     let redis_url = woodstock_config.redis_url();
     info!("Connecting to Redis at: {}", redis_url);
 
+    woodstock::utils::service_registry::register_service(
+        redis_url.clone(),
+        "scheduler",
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
+
     let archiving_config = Arc::new(ArchivingConfig::new(woodstock_config.clone()));
 
     // Producers to enqueue jobs when a host, archive profile, or nightly maintenance

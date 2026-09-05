@@ -29,6 +29,12 @@ async fn main() -> Result<()> {
 
     let state = Arc::new(ApiWorkerState::new(woodstock_config.clone()).await?);
 
+    woodstock::utils::service_registry::register_service(
+        woodstock_config.redis_url(),
+        "job_worker",
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
+
     let job_log_layer = JobLogLayer::new(
         woodstock_config.path.hosts_path.clone(),
         woodstock_config.path.jobs_path.clone(),

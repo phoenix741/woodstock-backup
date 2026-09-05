@@ -32,5 +32,7 @@ pub mod path;
 pub mod restore_metadata;
 /// Serde deserializers: date/time helpers and flexible numeric/string deserializers
 pub mod serde;
+/// Redis-backed registry of running server-side services (versions, instance count).
+pub mod service_registry;
 /// HashMap with automatic expiration of entries based on time.
 pub mod timed_hashmap;

@@ -184,7 +184,7 @@ prometheus = "0.14"
 lru.workspace = true
 
 # Hostname helper
-gethostname = "1"
+hostname = { workspace = true }
 
 sysinfo = { workspace = true }
 

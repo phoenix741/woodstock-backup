@@ -348,7 +348,9 @@ impl QueryRoot {
     }
 
     async fn informations(&self, _ctx: &Context<'_>) -> GqlResult<GqlServerInformations> {
-        let hostname = gethostname::gethostname().to_string_lossy().to_string();
+        let hostname = hostname::get()
+            .map(|h| h.to_string_lossy().to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
         let uptime = sysinfo::System::uptime();
         let woodstock_version = env!("CARGO_PKG_VERSION").to_string();
         Ok(GqlServerInformations {

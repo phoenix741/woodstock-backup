@@ -3,8 +3,8 @@ use chrono::{DateTime, Local};
 
 use super::super::scalars::BigIntScalar;
 use crate::api::dto::{
-    BackupShareRecord, BackupStatusDto, FileDescription, FileManifestTypeDto, Host,
-    HostAvailibilityState, HostConfiguration, RetentionCategoryDto,
+    BackupShareRecord, BackupStatusDto, FileDescription, FileManifestTypeDto, GqlServiceInfo, Host,
+    HostAvailibilityState, HostConfiguration, RetentionCategoryDto, ServerInformations,
 };
 use crate::api::ApiServerState;
 use crate::graphql::scalars::BufferScalar;
@@ -134,6 +134,19 @@ impl BackupEx {
             .await
             .map_err(super::util::map_err)?;
         Ok(res.into_iter().map(Into::into).collect())
+    }
+}
+
+#[ComplexObject]
+impl ServerInformations {
+    /// Every backend service currently registered in Redis (`api_server`,
+    /// `client_api_server`, `scheduler`, `job_worker` instances), for the About page.
+    async fn services(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<GqlServiceInfo>> {
+        let state = ctx.data::<ApiServerState>()?;
+        let services = woodstock::utils::service_registry::list_services(&state.config.redis_url())
+            .await
+            .map_err(super::util::map_err)?;
+        Ok(services.into_iter().map(Into::into).collect())
     }
 }
 
