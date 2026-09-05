@@ -22,6 +22,7 @@ pub struct HostConfiguration {
     pub port: u16,
     pub operations: HostConfigOperation,
     pub schedule: Option<Schedule>,
+    pub no_online_detection: bool,
 }
 
 impl From<woodstock::config::HostConfiguration> for HostConfiguration {
@@ -31,6 +32,7 @@ impl From<woodstock::config::HostConfiguration> for HostConfiguration {
             port: config.port,
             operations: HostConfigOperation::from(config.operations),
             schedule: config.schedule.map(|s| Schedule::from(s)),
+            no_online_detection: config.no_online_detection,
         }
     }
 }

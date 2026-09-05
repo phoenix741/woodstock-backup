@@ -4,7 +4,7 @@
       <div class="d-flex align-center">
         <span class="text-overline">{{ device?.name }}</span>
         <v-chip class="ml-2" :color="availabilityColor" size="small" rounded>
-          {{ device?.availibilityState }}
+          {{ availabilityLabel }}
         </v-chip>
       </div>
       <v-chip class="ml-2" label size="small" color="grey"> Agent v{{ agentVersion }} </v-chip>
@@ -81,7 +81,15 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useDevice } from '@/utils/devices';
-import { getAvailabilityColor, getState, getStateColor, getStateText, toDateTime, toDuration } from '../hosts.utils';
+import {
+  getAvailabilityColor,
+  getAvailabilityLabel,
+  getState,
+  getStateColor,
+  getStateText,
+  toDateTime,
+  toDuration,
+} from '../hosts.utils';
 
 const props = defineProps<{
   deviceId: string;
@@ -90,6 +98,7 @@ const props = defineProps<{
 const { device, isDeviceFetching } = useDevice(props.deviceId);
 
 const availabilityColor = computed(() => getAvailabilityColor(device.value?.availibilityState));
+const availabilityLabel = computed(() => getAvailabilityLabel(device.value?.availibilityState));
 
 const agentVersion = computed(
   () => device.value?.agentVersion ?? device?.value?.lastBackup?.agentVersion ?? 'Unknown Version',

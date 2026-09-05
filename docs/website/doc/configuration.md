@@ -40,6 +40,7 @@ operations:
 | port         | 3657             | Port used to connect to the host.                                                                                 |
 | operations   |                  | List of operations to execute on the host.                                                                        |
 | schedule     |                  | The scheduler configuration for the backup.                                                                       |
+| noOnlineDetection | false        | Set to `true` for a host that has no way to signal its own online/offline transitions (typically a fixed-IP host on a separate/unreachable network, e.g. an `addresses`-only host that never self-registers via mDNS or the client API). Without it, the scheduler treats a due host with no recent online signal as offline and stops polling it, waiting instead for an online event that a host like this will never produce — it would never be backed up again. With it set, the host is retried on a short backoff (`retryBackoffOnRefusalSecs`, see [Updating the Scheduler](./scheduler.md)) until it's found, same as before. |
 
 ### The scheduler
 

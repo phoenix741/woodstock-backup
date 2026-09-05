@@ -96,6 +96,26 @@ export function getStatusIcon(status: unknown): string {
 }
 
 /**
+ * Get human-readable text for a host availability state (for display in chips).
+ * `UNKNOWN` is deliberately not labeled "Unknown": it covers both a host that has simply never
+ * self-registered (e.g. a fixed-IP host, see `HostConfiguration.noOnlineDetection`) and one
+ * whose online/offline signal briefly expired — neither is really "unknown", they're just not
+ * tracked as online or offline by the scheduler.
+ */
+export function getAvailabilityLabel(availibilityState: HostAvailibilityState | undefined | null): string {
+  switch (availibilityState) {
+    case 'ONLINE':
+      return 'Online';
+    case 'OFFLINE':
+      return 'Offline';
+    case 'UNKNOWN':
+      return 'Not tracked';
+    default:
+      return 'Not tracked';
+  }
+}
+
+/**
  * Get color for host availability state
  */
 export function getAvailabilityColor(availibilityState: HostAvailibilityState | undefined | null): string {

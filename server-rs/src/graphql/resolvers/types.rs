@@ -261,6 +261,14 @@ impl Host {
         Ok(last.and_then(|b| b.agent_version))
     }
 
+    /// Mirrors exactly the discriminant `compute_next_wakeup` (`server-rs/src/bin/scheduler.rs`)
+    /// uses to decide whether a due host is excluded from the wakeup computation: no resolver
+    /// entry, or one marked offline, means `Offline` — a self-registering host's entry expires
+    /// on its own shortly after it actually goes offline, so an absent entry is the normal shape
+    /// of "offline", not a rare corner case. The one exception is a host configured
+    /// `noOnlineDetection: true` (typically a fixed-IP host that structurally never
+    /// self-registers): for that host alone, an absent entry means `Unknown` instead, matching
+    /// the scheduler keeping it in the reachability-unknown/polled path rather than excluding it.
     async fn availibility_state(
         &self,
         ctx: &Context<'_>,
@@ -281,7 +289,7 @@ impl Host {
             .get_public_host_configuration(&self.name)
             .await
             .map_err(super::util::map_err)?;
-        if config.addresses.is_some() {
+        if config.no_online_detection {
             return Ok(Some(HostAvailibilityState::Unknown));
         }
 

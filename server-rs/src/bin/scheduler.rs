@@ -706,16 +706,27 @@ async fn run_scanner_loop(
 /// too-early wake doesn't even ping the host), and for archive/nightly a too-early wake
 /// finds nothing due either.
 ///
-/// A due host whose last known state in the resolver cache is *offline* is excluded from
-/// this computation entirely: it has a reliable signal of its own — `run_host_online_subscriber`
+/// A due host with *no entry* in the resolver cache, or an entry marked offline, is excluded
+/// from this computation entirely: it has a reliable signal of its own — `run_host_online_subscriber`
 /// reacts to [`HOST_ONLINE_CHANNEL`] the instant it registers again — so there is nothing to
 /// gain by also waking the scanner up for it on a timer (that would just rediscover "still
-/// offline" and go back to sleep, the exact busy-poll this split exists to avoid). A due host
-/// whose state is online or *unknown* (never self-registered — the normal case for a host
-/// reachable only by fixed IP, see `HostConfiguration.addresses`) has no such signal to lean
-/// on, so it keeps the original behavior: a real candidate that, if an attempt is refused,
-/// gets bumped forward by `retry_backoff_on_refusal_secs` — keep trying until the machine is
-/// found.
+/// offline" and go back to sleep, the exact busy-poll this split exists to avoid). No entry is
+/// treated the same as an explicit offline because a `DIRECT`-registered host's resolver entry
+/// expires on its own ~2 minutes after its last heartbeat (see `DIRECT_DNS_UPDATE_INTERVAL` in
+/// `resolve.rs`) — by the time a host is actually offline for any length of time, its entry has
+/// already disappeared rather than staying around as an explicit `is_online: false`.
+///
+/// The one exception is a host whose config sets [`HostConfiguration::no_online_detection`]
+/// (`woodstock-rs/src/config/model.rs`) — typically a fixed-IP host on a separate/unreachable
+/// network (e.g. an OVH server) that structurally never self-registers, so it can never produce
+/// an online event to wait for. Such a host always stays a real candidate: a due-but-unreachable
+/// attempt gets bumped forward by `retry_backoff_on_refusal_secs` instead — keep trying until
+/// the machine is found.
+///
+/// If the resolver cache itself can't be read (Redis error), every host fails open (treated as
+/// present, not offline) rather than being excluded — a transient Redis error must not look like
+/// every host going offline at once and stall every backup until each host coincidentally
+/// re-registers.
 ///
 /// There is no longer a periodic ceiling clamping the result: a real due date, however far
 /// out, is never overridden. [`NO_WORK_FALLBACK_SECS`] only applies once at the very end, for
@@ -742,11 +753,15 @@ async fn compute_next_wakeup(
     // One round trip for every host's cached resolver state instead of one per host: the
     // scanner's iteration cadence is exactly what this whole rework tries to keep low, so an
     // O(n) Redis fan-out here would work against that goal on a host list of any size.
-    let resolver_informations = match state.resolver.get_all_informations().await {
-        Ok(informations) => informations,
+    let (resolver_informations, resolver_read_ok) = match state
+        .resolver
+        .get_all_informations()
+        .await
+    {
+        Ok(informations) => (informations, true),
         Err(e) => {
-            warn!("Scanner: failed to read resolver cache, treating every host as reachability-unknown: {e}");
-            std::collections::HashMap::new()
+            warn!("Scanner: failed to read resolver cache, treating every host as present (reachability-unknown) rather than offline: {e}");
+            (std::collections::HashMap::new(), false)
         }
     };
 
@@ -760,9 +775,25 @@ async fn compute_next_wakeup(
             }
         };
 
-        let known_offline = resolver_informations
-            .get(host)
-            .is_some_and(|info| !info.is_online);
+        // Absent entry counts as offline (see doc comment above): a `DIRECT` host's entry
+        // expires on its own shortly after it actually goes offline, so by the time it's due
+        // again there is usually no entry left, not an explicit `is_online: false`.
+        let mut known_offline = resolver_read_ok
+            && resolver_informations
+                .get(host)
+                .is_none_or(|info| !info.is_online);
+
+        if known_offline {
+            match state.hosts.get_host(host).await {
+                Ok(config) => known_offline = !config.no_online_detection,
+                Err(e) => {
+                    warn!(
+                        "Scanner: failed to load host config for {host}, keeping it excluded as offline: {e}"
+                    );
+                }
+            }
+        }
+
         if known_offline {
             pending_offline_hosts.push(host.clone());
             continue;

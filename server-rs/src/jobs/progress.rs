@@ -1219,6 +1219,7 @@ mod tests {
                 post_commands: None,
             },
             schedule: None,
+            no_online_detection: false,
         }
     }
 
