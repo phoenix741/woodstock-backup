@@ -49,7 +49,12 @@ tracing = { workspace = true }
 percent-encoding = "^2.3"
 prost = "^0.14"
 rand = { workspace = true }
-redis = { workspace = true, features = ["aio", "tokio-comp", "streams"] }
+redis = { workspace = true, features = [
+  "aio",
+  "tokio-comp",
+  "streams",
+  "safe_iterators",
+] }
 rsa = "^0.9"
 serde = { workspace = true }
 serde_json = { workspace = true }
