@@ -128,27 +128,28 @@ Sessions are valid for a predetermined time or until explicitly terminated.
 
 ## Diagram: Authentication Sequence
 
-@startuml
-participant Client
-participant Server
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
 
-Client -> Server: Establish mTLS Connection
-Server --> Client: mTLS Connection Established
+    Client->>Server: Establish mTLS Connection
+    Server-->>Client: mTLS Connection Established
 
-Client -> Server: Send Authentication Request
-Server -> Server: Generate JWT Token
-Server -> Client: Send JWT Token
+    Client->>Server: Send Authentication Request
+    Server->>Server: Generate JWT Token
+    Server->>Client: Send JWT Token
 
-Client -> Client: Verify JWT Signature
-Client -> Client: Validate JWT Claims
-Client -> Client: Verify Password Hash
+    Client->>Client: Verify JWT Signature
+    Client->>Client: Validate JWT Claims
+    Client->>Client: Verify Password Hash
 
-Client -> Server: Send Session Token (HS256 JWT)
-Server -> Server: Verify Session Token
-Server -> Client: Session Token Valid
+    Client->>Server: Send Session Token (HS256 JWT)
+    Server->>Server: Verify Session Token
+    Server->>Client: Session Token Valid
 
-Client -> Server: Send Authenticated Request (Include session_id in metadata)
-Server -> Server: Process Request if Session is Valid
+    Client->>Server: Send Authenticated Request (Include session_id in metadata)
+    Server->>Server: Process Request if Session is Valid
 
-Client -> Server: Session Termination (Expiration/Manual/Timeout)
-@enduml
+    Client->>Server: Session Termination (Expiration/Manual/Timeout)
+```
