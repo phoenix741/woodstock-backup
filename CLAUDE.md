@@ -63,7 +63,7 @@ Four independent server binaries (all in `server-rs/src/bin/`), a standalone age
 - **`cli-rs`**: builds `ws_console` (raw data inspection/repair — see below), `ws_restore` (restore without a running server), `ws_sync` (low-level sync utilities).
 - **`woodstock-rs`**: the shared library — source of truth for data structures. No business logic should live outside it if it concerns data structures. Key modules: `src/pool/` (CAS storage, sharded 3-level hex paths, refcounts, integrity checks), `src/manifest/` (FileManifest / IndexManifest, Protobuf-serialized), `src/proto/` (generated from `woodstock.proto`), `src/config/`, `src/events/` (audit log), `src/server/` (state machines: `SaveMachine`, `RestoreMachine`, `RemoveMachine`, `FsckMachine`, `PoolCleanerMachine`, `HashConverterMachine`), `src/statistics/`, `src/utils/` (hashing, encryption, compression, `mangle`/`path_to_vec`, Redis distributed locks).
 
-Full details, including the GraphQL/REST layer breakdown inside `server-rs`: `docs/developer_guide/CODE_MAP.md`, `docs/developer_guide/ARCHITECTURE.md`, `docs/developer_guide/DATA_STRUCTURES.md`, `docs/developer_guide/ARCHIVING.md`, `docs/developer_guide/RETENTION.md`, `docs/developer_guide/CLIENT_AGENT.md`.
+Full details, including the GraphQL/REST layer breakdown inside `server-rs`: `docs/developer_guide/CODE_MAP.md`, `docs/developer_guide/ARCHITECTURE.md`, `docs/developer_guide/DATA_STRUCTURES.md`, `docs/developer_guide/ARCHIVING.md`, `docs/developer_guide/RETENTION.md`, `docs/developer_guide/CLIENT_AGENT.md`, `docs/developer_guide/AUTHENTICATION.md` (optional OIDC login, admin role, per-host `owners`).
 
 ### Typical backup flow
 
