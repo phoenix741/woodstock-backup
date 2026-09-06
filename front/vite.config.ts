@@ -48,6 +48,14 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      // OIDC login/logout/callback routes (server-rs/src/auth/routes.rs) — without this,
+      // `/auth/login` hits the Vite dev server instead of api_server, and its SPA fallback
+      // serves index.html for that path (no matching Vue route -> blank page) instead of
+      // proxying through to the real redirect.
+      '^/auth': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
 });
