@@ -1220,6 +1220,7 @@ mod tests {
             },
             schedule: None,
             no_online_detection: false,
+            owners: vec![],
         }
     }
 
