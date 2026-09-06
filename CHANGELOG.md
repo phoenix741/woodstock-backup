@@ -1,3 +1,21 @@
+# [2.1.0-alpha.15](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.14...v2.1.0-alpha.15) (2026-09-06)
+
+
+### Bug Fixes
+
+* **deps:** 🐛 enable redis's safe_iterators feature required by service_registry ([bdfed99](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/bdfed991a3e4431b99d2d0e8f3e439ff018f74cc))
+* **scheduler:** 🐛 treat absent resolver entries as offline, add noOnlineDetection host flag ([d83c832](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d83c83259f6a3b8d06eed1a60c9085fb8097f4d0))
+
+
+### Features
+
+* **about:** ✨ show server/scheduler/worker versions in the front ([cb155e9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/cb155e942a75633cf640606dea4da96529362142))
+* **auth:** ✨ add host ownership (owners) to host configuration ([826ef8f](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/826ef8f12f79a34460e3fd2ebde3eac86fcc598f))
+* **auth:** ✨ add local Keycloak setup for development ([b6b2324](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/b6b23247eb5a5bb9200b74b79f8490236dee41e6))
+* **auth:** ✨ add login/logout UI and admin-only navigation ([30cbb35](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/30cbb350de78d7ad1ed8859e8a1a7bd7611c6a58))
+* **auth:** ✨ add OpenID Connect client and session middleware ([1dafa75](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1dafa75cc094094c46a3329d0cb98605da2fb895))
+* **auth:** ✨ enforce host ownership across REST, GraphQL, and subscriptions ([1f91297](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1f912974ba82aa733c5084af3050d553718d4517))
+
 # [2.1.0-alpha.14](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.13...v2.1.0-alpha.14) (2026-09-04)
 
 
