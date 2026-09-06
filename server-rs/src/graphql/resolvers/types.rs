@@ -7,6 +7,7 @@ use crate::api::dto::{
     HostAvailibilityState, HostConfiguration, RetentionCategoryDto, ServerInformations,
 };
 use crate::api::ApiServerState;
+use crate::auth::authz::CurrentUser;
 use crate::graphql::scalars::BufferScalar;
 
 #[derive(Clone)]
@@ -141,7 +142,10 @@ impl BackupEx {
 impl ServerInformations {
     /// Every backend service currently registered in Redis (`api_server`,
     /// `client_api_server`, `scheduler`, `job_worker` instances), for the About page.
+    /// Admin-only: this enumerates internal infrastructure (hostnames, instance IDs,
+    /// versions) that isn't scoped to any host a restricted user might own.
     async fn services(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<GqlServiceInfo>> {
+        ctx.data::<CurrentUser>()?.require_admin()?;
         let state = ctx.data::<ApiServerState>()?;
         let services = woodstock::utils::service_registry::list_services(&state.config.redis_url())
             .await

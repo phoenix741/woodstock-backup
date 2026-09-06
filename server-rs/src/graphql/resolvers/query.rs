@@ -12,6 +12,7 @@ use crate::api::dto::{
     ServerInformations as GqlServerInformations,
 };
 use crate::api::ApiServerState;
+use crate::auth::authz::CurrentUser;
 use crate::graphql::resolvers::types::BackupEx;
 use crate::graphql::scalars::BigIntScalar;
 
@@ -25,6 +26,7 @@ pub struct QueryRoot;
 impl QueryRoot {
     async fn hosts(&self, ctx: &Context<'_>) -> GqlResult<Vec<Host>> {
         let state = ctx.data::<ApiServerState>()?;
+        let user = ctx.data::<CurrentUser>()?;
         let hosts = state
             .hosts_service
             .list_hosts()
@@ -33,12 +35,14 @@ impl QueryRoot {
 
         Ok(hosts
             .into_iter()
+            .filter(|name| user.can_see_host(name))
             .map(|name| Host { name: ID(name) })
             .collect())
     }
 
     async fn host(&self, ctx: &Context<'_>, hostname: String) -> GqlResult<Host> {
         let state = ctx.data::<ApiServerState>()?;
+        ctx.data::<CurrentUser>()?.require_can_see_host(&hostname)?;
         let hosts = state
             .hosts_service
             .list_hosts()
@@ -56,6 +60,7 @@ impl QueryRoot {
 
     async fn backups(&self, ctx: &Context<'_>, hostname: String) -> GqlResult<Vec<BackupEx>> {
         let state = ctx.data::<ApiServerState>()?;
+        ctx.data::<CurrentUser>()?.require_can_see_host(&hostname)?;
         let hosts = state
             .hosts_service
             .list_hosts()
@@ -91,6 +96,7 @@ impl QueryRoot {
     /// Récupère tous les backups ayant échoué (avec error_message non null)
     async fn failed_backups(&self, ctx: &Context<'_>) -> GqlResult<Vec<BackupEx>> {
         let state = ctx.data::<ApiServerState>()?;
+        let user = ctx.data::<CurrentUser>()?;
         let hosts = state
             .hosts_service
             .list_hosts()
@@ -99,7 +105,7 @@ impl QueryRoot {
 
         let mut failed_backups = Vec::new();
 
-        for hostname in hosts {
+        for hostname in hosts.into_iter().filter(|h| user.can_see_host(h)) {
             let backups = state
                 .backups_service
                 .get_backups(&hostname)
@@ -124,6 +130,7 @@ impl QueryRoot {
         let backup_id = Uuid::parse_str(&id)
             .map_err(|_| async_graphql::Error::new(format!("Invalid backup UUID: {id}")))?;
         let state = ctx.data::<ApiServerState>()?;
+        ctx.data::<CurrentUser>()?.require_can_see_host(&hostname)?;
         let hosts = state
             .hosts_service
             .list_hosts()
@@ -213,13 +220,18 @@ impl QueryRoot {
 
     async fn queue(&self, ctx: &Context<'_>, input: QueueListInput) -> GqlResult<Vec<Job>> {
         let state = ctx.data::<ApiServerState>()?;
+        let user = ctx.data::<CurrentUser>()?;
         debug!("Listing jobs with input: {:?}", input);
         let jobs = state
             .progress_reader
             .list(input.into())
             .await
             .map_err(super::util::map_err)?;
-        Ok(jobs.into_iter().map(Into::into).collect())
+        Ok(jobs
+            .into_iter()
+            .map(Job::from)
+            .filter(|job| crate::graphql::progress::subscriptions::job_visible(user, job))
+            .collect())
     }
 
     /// Configured archive profiles (from `archiving.yml`), read-only — used
@@ -227,6 +239,9 @@ impl QueryRoot {
     /// no mutation to create/edit profiles; that stays YAML-only.
     #[graphql(name = "archiveProfiles")]
     async fn archive_profiles(&self, ctx: &Context<'_>) -> GqlResult<Vec<ArchiveProfile>> {
+        // Admin-only: a profile's host selection can include hosts the caller doesn't own,
+        // and there's no partial-redaction DTO for it yet.
+        ctx.data::<CurrentUser>()?.require_admin()?;
         let state = ctx.data::<ApiServerState>()?;
         let archiving = woodstock::config::ArchivingConfig::new(state.config.clone());
         let profiles = archiving
@@ -298,6 +313,18 @@ impl QueryRoot {
         }
 
         let mut list: Vec<MergedApplicationEvent> = merged.into_values().collect();
+
+        let user = ctx.data::<CurrentUser>()?;
+        // Backup/Restore/Delete events carry a hostname (`EventBackupInformation`) and are
+        // visible only for hosts the caller owns; Pool/PoolCleaned/HashConversion events
+        // are global maintenance events with no host to check ownership against, so they
+        // are admin-only.
+        list.retain(|event| match &event.information {
+            Some(EventInformation::EventBackupInformation(info)) => {
+                user.can_see_host(&info.hostname)
+            }
+            _ => user.is_admin,
+        });
 
         if let Some(filter) = filter.as_ref() {
             list.retain(|event| {
@@ -505,11 +532,15 @@ impl GqlStatistics {
 
     async fn hosts(&self, ctx: &Context<'_>) -> GqlResult<Vec<GqlHostStatistics>> {
         let state = ctx.data::<ApiServerState>()?;
+        let user = ctx.data::<CurrentUser>()?;
         let hosts = state
             .hosts_service
             .list_hosts()
             .await
-            .map_err(super::util::map_err)?;
+            .map_err(super::util::map_err)?
+            .into_iter()
+            .filter(|h| user.can_see_host(h))
+            .collect::<Vec<_>>();
         use std::path::PathBuf;
         use woodstock::statistics::{load_history, read_statistics};
         use woodstock::statistics::{HistoricalPoolStatistics, PoolStatistics};

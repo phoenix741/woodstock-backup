@@ -13,6 +13,7 @@ use tracing::{debug, Instrument};
 use uuid::Uuid;
 
 use crate::api::{dto::Backup, ApiError, ApiResult, ApiServerState};
+use crate::auth::authz::CurrentUser;
 
 /// List backups for a host
 #[utoipa::path(
@@ -24,8 +25,10 @@ use crate::api::{dto::Backup, ApiError, ApiResult, ApiServerState};
 )]
 pub async fn list_host_backups(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path(name): Path<String>,
 ) -> ApiResult<Json<Vec<Backup>>> {
+    current_user.require_can_see_host(&name)?;
     // Validate host exists
     let hosts = state
         .hosts_service
@@ -64,8 +67,10 @@ pub async fn list_host_backups(
 )]
 pub async fn create_host_backup(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path(name): Path<String>,
 ) -> ApiResult<StatusCode> {
+    current_user.require_can_see_host(&name)?;
     let hosts = state
         .hosts_service
         .list_hosts()
@@ -110,8 +115,10 @@ pub async fn create_host_backup(
 )]
 pub async fn remove_host_backup(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
+    current_user.require_can_see_host(&name)?;
     let hosts = state
         .hosts_service
         .list_hosts()
@@ -167,9 +174,11 @@ pub async fn remove_host_backup(
 )]
 pub async fn get_backup_log(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id)): Path<(String, String)>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> ApiResult<Response> {
+    current_user.require_can_see_host(&name)?;
     let tailable = params
         .get("tailable")
         .and_then(|v| v.parse::<bool>().ok())
@@ -211,9 +220,11 @@ pub async fn get_backup_log(
 )]
 pub async fn get_backup_error_log(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id)): Path<(String, String)>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> ApiResult<Response> {
+    current_user.require_can_see_host(&name)?;
     let tailable = params
         .get("tailable")
         .and_then(|v| v.parse::<bool>().ok())
@@ -255,8 +266,10 @@ pub async fn get_backup_error_log(
 )]
 pub async fn get_backup_xfer_log(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id, share)): Path<(String, String, String)>,
 ) -> ApiResult<Response> {
+    current_user.require_can_see_host(&name)?;
     // Stream log lines from manifest journal; use a channel to avoid lifetime issues
     use tokio_stream::wrappers::ReceiverStream;
     debug!("Getting xfer log for backup {id} on host {name} (share: {share})");

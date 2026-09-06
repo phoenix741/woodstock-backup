@@ -3,8 +3,21 @@ use uuid::Uuid;
 
 use crate::api::dto::{ArchiveRunResponse, JobResponse, RestoreInput};
 use crate::api::ApiServerState;
+use crate::auth::authz::CurrentUser;
 use crate::jobs::progress::{JobKind, JobStatus};
 use crate::jobs::types::RestoreJobData;
+
+/// Every mutation below that acts on a specific host must call this (or
+/// `CurrentUser::require_admin`) before touching anything — the resolvers here run behind
+/// `session_middleware`, so `ctx.data::<CurrentUser>()` is always populated (implicit
+/// unrestricted admin when authentication is disabled).
+fn require_can_see_host(ctx: &Context<'_>, hostname: &str) -> GqlResult<()> {
+    Ok(ctx.data::<CurrentUser>()?.require_can_see_host(hostname)?)
+}
+
+fn require_admin(ctx: &Context<'_>) -> GqlResult<()> {
+    Ok(ctx.data::<CurrentUser>()?.require_admin()?)
+}
 
 #[derive(Default)]
 pub struct MutationRoot;
@@ -12,6 +25,7 @@ pub struct MutationRoot;
 #[Object]
 impl MutationRoot {
     async fn create_backup(&self, ctx: &Context<'_>, hostname: String) -> GqlResult<JobResponse> {
+        require_can_see_host(ctx, &hostname)?;
         let state = ctx.data::<ApiServerState>()?;
         let hosts = state
             .hosts_service
@@ -47,6 +61,12 @@ impl MutationRoot {
         profile: String,
         host: Option<String>,
     ) -> GqlResult<ArchiveRunResponse> {
+        match &host {
+            Some(h) => require_can_see_host(ctx, h)?,
+            // No specific host: fans out across the profile's full host selection, which a
+            // non-admin user cannot be assumed to own in its entirety.
+            None => require_admin(ctx)?,
+        }
         let state = ctx.data::<ApiServerState>()?;
         let mut producers = state.producers.lock().await;
 
@@ -74,6 +94,7 @@ impl MutationRoot {
         hostname: String,
         id: String,
     ) -> GqlResult<JobResponse> {
+        require_can_see_host(ctx, &hostname)?;
         let state = ctx.data::<ApiServerState>()?;
 
         let backup_id = Uuid::parse_str(&id)
@@ -117,6 +138,7 @@ impl MutationRoot {
         ctx: &Context<'_>,
         input: RestoreInput,
     ) -> GqlResult<JobResponse> {
+        require_can_see_host(ctx, &input.hostname)?;
         let state = ctx.data::<ApiServerState>()?;
 
         let hosts = state
@@ -205,6 +227,21 @@ impl MutationRoot {
         ) {
             return Ok(false);
         }
+
+        let user = ctx.data::<CurrentUser>()?;
+        let allowed = match &event.kind {
+            JobKind::Backup(pd) => user.can_see_host(&pd.data.host),
+            JobKind::Restore(pd) => user.can_see_host(&pd.data.host),
+            JobKind::Archive(pd) => user.can_see_any_host(&pd.data.hostnames),
+            // Fsck is a global pool operation — cancelling it is an admin action.
+            JobKind::Fsck(_) => user.is_admin,
+            JobKind::Remove(_) | JobKind::CleanupRefcnt(_) | JobKind::Stats(_) => user.is_admin,
+        };
+        if !allowed {
+            return Err(async_graphql::Error::from(crate::api::ApiError::Forbidden(
+                "You are not allowed to cancel this job".to_string(),
+            )));
+        }
         if !matches!(event.status, JobStatus::Created | JobStatus::Started) {
             return Ok(false);
         }
@@ -218,6 +255,7 @@ impl MutationRoot {
 
     #[graphql(name = "cleanupPool")]
     async fn cleanup_pool(&self, ctx: &Context<'_>) -> GqlResult<JobResponse> {
+        require_admin(ctx)?;
         let state = ctx.data::<ApiServerState>()?;
         let mut producers = state.producers.lock().await;
         let id = producers
@@ -234,6 +272,7 @@ impl MutationRoot {
         #[graphql(name = "fix")] fix: bool,
         #[graphql(name = "verifyChunks")] verify_chunks: bool,
     ) -> GqlResult<JobResponse> {
+        require_admin(ctx)?;
         let state = ctx.data::<ApiServerState>()?;
         let mut producers = state.producers.lock().await;
         let dry_run = !fix;
@@ -246,6 +285,7 @@ impl MutationRoot {
 
     #[graphql(name = "clearCache")]
     async fn clear_cache(&self, ctx: &Context<'_>) -> GqlResult<JobResponse> {
+        require_admin(ctx)?;
         let state = ctx.data::<ApiServerState>()?;
         state
             .server_service
@@ -261,6 +301,7 @@ impl MutationRoot {
     /// configurée pour l'hôte, puis enqueue un job `Remove` pour chacune.
     #[graphql(name = "purgeRetention")]
     async fn purge_retention(&self, ctx: &Context<'_>, hostname: String) -> GqlResult<JobResponse> {
+        require_can_see_host(ctx, &hostname)?;
         let state = ctx.data::<ApiServerState>()?;
 
         let hosts = state

@@ -21,6 +21,7 @@ use crate::api::{
     dto::{ClientType, HostConfiguration, HostInformation},
     ApiError, ApiResult, ApiServerState,
 };
+use crate::auth::authz::CurrentUser;
 use crate::client_api::config::ClientApiConfig;
 
 // Plus de writer custom: on utilise un duplex tokio (backpressure) et async-zip.
@@ -141,6 +142,7 @@ async fn find_client(client_type: &ClientType, version: &str) -> Result<Vec<u8>>
 )]
 pub async fn get_hosts(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
 ) -> ApiResult<Json<Vec<HostInformation>>> {
     let host_names = state.hosts_service.list_hosts().await.map_err(|e| {
         tracing::error!("Failed to list hosts: {}", e);
@@ -148,7 +150,10 @@ pub async fn get_hosts(
     })?;
 
     let mut hosts_info = Vec::new();
-    for host_name in host_names {
+    for host_name in host_names
+        .into_iter()
+        .filter(|name| current_user.can_see_host(name))
+    {
         match state.hosts_service.get_host_information(&host_name).await {
             Ok(host_info) => hosts_info.push(host_info),
             Err(e) => {
@@ -176,8 +181,10 @@ pub async fn get_hosts(
 )]
 pub async fn get_host(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path(name): Path<String>,
 ) -> ApiResult<Json<HostConfiguration>> {
+    current_user.require_can_see_host(&name)?;
     match state
         .hosts_service
         .get_public_host_configuration(&name)
@@ -216,10 +223,16 @@ pub async fn get_host(
 )]
 pub async fn get_host_client_download(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path(name): Path<String>,
     Query(query): Query<ClientDownloadQuery>,
     headers: HeaderMap,
 ) -> ApiResult<Response> {
+    // Admin-only: this hands out an agent enrollment bundle (mTLS client cert + password),
+    // which would let a mere host "owner" mint fresh agent credentials for it — a
+    // privilege distinct from (and beyond) seeing its backups.
+    current_user.require_admin()?;
+
     // First, verify that the host exists
     let host_information = match state
         .hosts_service

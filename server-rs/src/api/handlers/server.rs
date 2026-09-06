@@ -3,6 +3,7 @@
 use axum::{extract::State, http::StatusCode, response::Response};
 
 use crate::api::{ApiError, ApiResult, ApiServerState};
+use crate::auth::authz::CurrentUser;
 
 /// Clear server cache
 #[utoipa::path(
@@ -13,7 +14,11 @@ use crate::api::{ApiError, ApiResult, ApiServerState};
         (status = 200, description = "Cache cleared successfully")
     )
 )]
-pub async fn clear_cache(State(state): State<ApiServerState>) -> ApiResult<StatusCode> {
+pub async fn clear_cache(
+    State(state): State<ApiServerState>,
+    current_user: CurrentUser,
+) -> ApiResult<StatusCode> {
+    current_user.require_admin()?;
     state
         .server_service
         .clear_cache()
@@ -31,7 +36,12 @@ pub async fn clear_cache(State(state): State<ApiServerState>) -> ApiResult<Statu
         (status = 200, description = "Application log content", content_type = "text/plain")
     )
 )]
-pub async fn get_application_log(State(state): State<ApiServerState>) -> ApiResult<Response> {
+pub async fn get_application_log(
+    State(state): State<ApiServerState>,
+    current_user: CurrentUser,
+) -> ApiResult<Response> {
+    // Server-wide log, can reveal other users' hostnames — admin only.
+    current_user.require_admin()?;
     let log_content = state
         .server_service
         .read_log_file("application.log")
@@ -54,7 +64,11 @@ pub async fn get_application_log(State(state): State<ApiServerState>) -> ApiResu
         (status = 200, description = "Exceptions log content", content_type = "text/plain")
     )
 )]
-pub async fn get_exceptions_log(State(state): State<ApiServerState>) -> ApiResult<Response> {
+pub async fn get_exceptions_log(
+    State(state): State<ApiServerState>,
+    current_user: CurrentUser,
+) -> ApiResult<Response> {
+    current_user.require_admin()?;
     let log_content = state
         .server_service
         .read_log_file("exceptions.log")
