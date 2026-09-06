@@ -44,6 +44,11 @@ This folder contains the technical documentation for developers who want to cont
     * Tar-family export vs. incremental `dir` mirroring.
     * Manual trigger (CLI, Tasks UI, USB-hotplug udev recipe) and `ws_console archive` subcommands.
 
+8. **[Authentication](AUTHENTICATION.md)**
+    * Optional OpenID Connect login (Keycloak, Azure AD, any OIDC provider) via a Backend-For-Frontend flow.
+    * Admin role vs. per-host ownership (`owners` in `<hostname>.yml`).
+    * Keycloak example, local Docker Compose setup, configuration reference.
+
 ## Packaging & Deployment
 
 ### Debian / Ubuntu

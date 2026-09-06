@@ -150,6 +150,26 @@ pub struct HostConfiguration {
     pub port: u16,
     pub operations: HostConfigOperation,
     pub schedule: Option<Schedule>,
+    /// Set for a host that has no way to signal its own online/offline transitions to the
+    /// scheduler (typically a fixed-IP host on a separate/unreachable network, e.g. an OVH
+    /// server that never self-registers via mDNS or the client API). Without this flag, the
+    /// scheduler treats "no entry in the resolver cache" as "known offline" and excludes the
+    /// host from its wakeup computation entirely — correct for a host that *can* self-register
+    /// but currently doesn't, wrong for one that structurally never will. Setting this to
+    /// `true` keeps the host in the reachability-unknown/polled path instead: due-but-unreachable
+    /// attempts keep retrying on the normal short backoff rather than waiting forever for an
+    /// online event that will never come.
+    #[serde(default)]
+    pub no_online_detection: bool,
+
+    /// Identities (matched against the configured OIDC identity claim, e.g.
+    /// `preferred_username`, case-insensitively) allowed to see and act on this host when
+    /// authentication is enabled. Empty (the default, e.g. for a `<hostname>.yml` written
+    /// before this field existed) means the host is visible to admins only — not to
+    /// everyone — which is the secure default. A host may have several owners (e.g. a
+    /// shared family PC, or a workstation used by several employees).
+    #[serde(default)]
+    pub owners: Vec<String>,
 }
 
 fn default_port() -> u16 {
@@ -409,5 +429,34 @@ defaultSchedule:
 ";
         let scheduler: ApplicationScheduler = serde_yaml_ng::from_str(yaml).unwrap();
         assert_eq!(scheduler.nightly_schedule, "0 0 0 * * * *");
+    }
+
+    /// A `<hostname>.yml` written before `owners` existed has no such key on disk — it must
+    /// still parse, defaulting to an empty (admin-only) owner list, not be rejected.
+    #[test]
+    fn host_configuration_missing_owners_defaults_to_empty() {
+        let yaml = r"
+password: secret
+operations:
+  operation:
+    shares: []
+";
+        let host: HostConfiguration = serde_yaml_ng::from_str(yaml).unwrap();
+        assert!(host.owners.is_empty());
+    }
+
+    #[test]
+    fn host_configuration_owners_round_trip_when_set() {
+        let yaml = r"
+password: secret
+operations:
+  operation:
+    shares: []
+owners:
+  - alice
+  - Bob
+";
+        let host: HostConfiguration = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(host.owners, vec!["alice".to_string(), "Bob".to_string()]);
     }
 }

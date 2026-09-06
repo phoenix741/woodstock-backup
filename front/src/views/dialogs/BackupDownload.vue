@@ -72,6 +72,7 @@
 import { ClientType } from '@/utils/client';
 import { ref } from 'vue';
 import { useServerInformation } from '@/utils/server';
+import { useAuth } from '@/composables/useAuth';
 
 import AgentLinuxMD from './AgentLinux.md';
 import AgentLinuxDebianMD from './AgentLinuxDeb.md';
@@ -108,9 +109,19 @@ function downloadClientAgent() {
   // Download client at /api/hosts/{name}/client
   const deviceId = props.deviceId;
 
-  // Fetch the agent
-  fetch(`/api/hosts/${deviceId}/client?client=${client.value}`)
-    .then((response) => response.blob())
+  // Fetch the agent — admin-only server-side (this bundle carries fresh agent enrollment
+  // credentials), so a non-admin gets a 401/403 here rather than a zip.
+  fetch(`/api/hosts/${deviceId}/client?client=${client.value}`, { credentials: 'include' })
+    .then((response) => {
+      if (response.status === 401) {
+        useAuth().redirectToLogin();
+        throw new Error('Not authenticated');
+      }
+      if (!response.ok) {
+        throw new Error(`Failed to download agent: HTTP ${response.status}`);
+      }
+      return response.blob();
+    })
     .then((blob) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -119,6 +130,7 @@ function downloadClientAgent() {
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
-    });
+    })
+    .catch((e) => console.error('Failed to download agent', e));
 }
 </script>

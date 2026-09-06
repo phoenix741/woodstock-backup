@@ -15,6 +15,7 @@ the documentation will explain how the software works internally for development
 - [Installation](/doc/installation)
 - [Agent](/doc/agent)
 - [Configuration](/doc/configuration)
+- [Authentication](/doc/authentication)
 - [Update the scheduler](/doc/scheduler)
 - [FAQ](/doc/faq)
 - [Roadmap](/doc/roadmap)

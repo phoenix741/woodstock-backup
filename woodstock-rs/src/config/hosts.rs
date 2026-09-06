@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -230,6 +231,41 @@ impl Hosts {
         if let Some(conn) = &self.redis_conn {
             cache_invalidate(conn, &host_config_key(hostname)).await;
         }
+    }
+
+    /// Returns the set of hostnames whose `owners` list contains `identity` (matched
+    /// case-insensitively). Used to resolve what a non-admin authenticated user is allowed
+    /// to see; benefits from the same per-host cache as [`Self::get_host`], so this does not
+    /// add Redis round-trips beyond what listing/loading hosts already costs. This is called
+    /// on every request from a non-admin user (see `auth::middleware::resolve_current_user`
+    /// in `server-rs`), so the per-host lookups are fanned out concurrently rather than
+    /// awaited one at a time — otherwise latency would scale with the total number of
+    /// configured hosts instead of the cost of a single lookup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `hosts.yml` cannot be read.
+    pub async fn list_hosts_owned_by(&self, identity: &str) -> Result<HashSet<String>> {
+        let identity = identity.to_lowercase();
+        let hostnames = self.list_hosts().await?;
+        let configs = futures::future::join_all(
+            hostnames
+                .into_iter()
+                .map(|hostname| async move { (hostname.clone(), self.get_host(&hostname).await) }),
+        )
+        .await;
+
+        Ok(configs
+            .into_iter()
+            .filter_map(|(hostname, config)| {
+                let config = config.ok()?;
+                config
+                    .owners
+                    .iter()
+                    .any(|owner| owner.to_lowercase() == identity)
+                    .then_some(hostname)
+            })
+            .collect())
     }
 
     /// Fusionne le schedule global avec celui du host (host override global).

@@ -59,7 +59,7 @@ eyre = { workspace = true }
 futures = { workspace = true }
 globset = { workspace = true }
 hex = { workspace = true }
-hostname = "^0.4"
+hostname = { workspace = true }
 if-addrs = "0.15.0"
 jsonwebtoken = { workspace = true }
 rand = { workspace = true }

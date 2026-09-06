@@ -25,8 +25,50 @@
       <br />
 
       <p class="text-justify">Distributed under the MIT license</p>
+
+      <br />
+      <h2>System</h2>
+      <br />
+      <v-table density="compact">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Instances</th>
+            <th>Version(s)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="service in services" :key="service.serviceType">
+            <td>{{ service.serviceType }}</td>
+            <td>{{ service.count }}</td>
+            <td>{{ service.versions }}</td>
+          </tr>
+        </tbody>
+      </v-table>
     </div>
   </v-container>
 </template>
 
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+import { useSystemInfo } from '@/utils/systemInfo';
+import { computed } from 'vue';
+
+const { services: rawServices } = useSystemInfo();
+
+const services = computed(() => {
+  const byType = new Map<string, Set<string>>();
+  for (const service of rawServices.value) {
+    const versions = byType.get(service.serviceType) ?? new Set<string>();
+    versions.add(service.version);
+    byType.set(service.serviceType, versions);
+  }
+
+  return Array.from(byType.entries())
+    .map(([serviceType, versions]) => ({
+      serviceType,
+      count: rawServices.value.filter((service) => service.serviceType === serviceType).length,
+      versions: Array.from(versions).join(', '),
+    }))
+    .sort((a, b) => a.serviceType.localeCompare(b.serviceType));
+});
+</script>

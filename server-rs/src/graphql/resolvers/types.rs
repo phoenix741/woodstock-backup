@@ -3,10 +3,11 @@ use chrono::{DateTime, Local};
 
 use super::super::scalars::BigIntScalar;
 use crate::api::dto::{
-    BackupShareRecord, BackupStatusDto, FileDescription, FileManifestTypeDto, Host,
-    HostAvailibilityState, HostConfiguration, RetentionCategoryDto,
+    BackupShareRecord, BackupStatusDto, FileDescription, FileManifestTypeDto, GqlServiceInfo, Host,
+    HostAvailibilityState, HostConfiguration, RetentionCategoryDto, ServerInformations,
 };
 use crate::api::ApiServerState;
+use crate::auth::authz::CurrentUser;
 use crate::graphql::scalars::BufferScalar;
 
 #[derive(Clone)]
@@ -138,6 +139,22 @@ impl BackupEx {
 }
 
 #[ComplexObject]
+impl ServerInformations {
+    /// Every backend service currently registered in Redis (`api_server`,
+    /// `client_api_server`, `scheduler`, `job_worker` instances), for the About page.
+    /// Admin-only: this enumerates internal infrastructure (hostnames, instance IDs,
+    /// versions) that isn't scoped to any host a restricted user might own.
+    async fn services(&self, ctx: &Context<'_>) -> async_graphql::Result<Vec<GqlServiceInfo>> {
+        ctx.data::<CurrentUser>()?.require_admin()?;
+        let state = ctx.data::<ApiServerState>()?;
+        let services = woodstock::utils::service_registry::list_services(&state.config.redis_url())
+            .await
+            .map_err(super::util::map_err)?;
+        Ok(services.into_iter().map(Into::into).collect())
+    }
+}
+
+#[ComplexObject]
 impl FileDescription {
     async fn r#type(&self) -> FileManifestTypeDto {
         self.stats
@@ -248,6 +265,14 @@ impl Host {
         Ok(last.and_then(|b| b.agent_version))
     }
 
+    /// Mirrors exactly the discriminant `compute_next_wakeup` (`server-rs/src/bin/scheduler.rs`)
+    /// uses to decide whether a due host is excluded from the wakeup computation: no resolver
+    /// entry, or one marked offline, means `Offline` — a self-registering host's entry expires
+    /// on its own shortly after it actually goes offline, so an absent entry is the normal shape
+    /// of "offline", not a rare corner case. The one exception is a host configured
+    /// `noOnlineDetection: true` (typically a fixed-IP host that structurally never
+    /// self-registers): for that host alone, an absent entry means `Unknown` instead, matching
+    /// the scheduler keeping it in the reachability-unknown/polled path rather than excluding it.
     async fn availibility_state(
         &self,
         ctx: &Context<'_>,
@@ -268,7 +293,7 @@ impl Host {
             .get_public_host_configuration(&self.name)
             .await
             .map_err(super::util::map_err)?;
-        if config.addresses.is_some() {
+        if config.no_online_detection {
             return Ok(Some(HostAvailibilityState::Unknown));
         }
 

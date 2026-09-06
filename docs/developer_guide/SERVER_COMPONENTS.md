@@ -105,15 +105,21 @@ The planner. Must run as a single instance — see the module-level doc comment 
       `MaintenanceJobData::CleanupRefcnt` for orphaned chunk cleanup when due.
     * The sleep is bounded only by the anti-busy-poll floor — no periodic ceiling. A real due
       date, however far out, is never overridden: `compute_next_wakeup` excludes a due host
-      entirely from the computation when its last known state in the resolver cache is
-      *offline* (it relies solely on the event-driven subscriber below instead of a timer);
-      a due host whose state is *online or unknown* (typically a fixed-IP host that never
-      self-registers) keeps the previous behavior — a real candidate, bumped forward by
-      `retryBackoffOnRefusalSecs` on a refused attempt, so it's retried until found. A config
-      change (new host, re-activated schedule, shortened `backupPeriod`, an added/edited
-      archive profile, an edited `nightlySchedule`) is only picked up on scheduler restart —
-      real due dates already drive every wakeup, so there is no periodic rescan to catch one
-      early.
+      entirely from the computation when it has *no entry* in the resolver cache or its entry
+      is marked offline (it relies solely on the event-driven subscriber below instead of a
+      timer) — a self-registering host's resolver entry expires on its own shortly after it
+      actually goes offline (`DIRECT_DNS_UPDATE_INTERVAL`, ~2 min), so "no entry" is the normal
+      shape of "offline", not a corner case. The one exception is a host configured
+      `noOnlineDetection: true` in its `<hostname>.yml` (`HostConfiguration::no_online_detection`)
+      — typically a fixed-IP host on a separate/unreachable network that structurally never
+      self-registers and so can never produce an online event: it always stays a real
+      candidate, bumped forward by `retryBackoffOnRefusalSecs` on a refused attempt, so it's
+      retried until found. If the resolver cache itself can't be read (Redis error), every host
+      fails open (treated as present, not excluded) rather than being mistaken for a mass
+      offline event. A config change (new host, re-activated schedule, shortened
+      `backupPeriod`, an added/edited archive profile, an edited `nightlySchedule`, or
+      `noOnlineDetection`) is only picked up on scheduler restart — real due dates already
+      drive every wakeup, so there is no periodic rescan to catch one early.
   * **Event-driven subscriber** (`run_host_online_subscriber`): reads the Redis Stream
     `HOST_ONLINE_CHANNEL` (consumer group `HOST_ONLINE_CONSUMER_GROUP`), appended to by
     `SocketAddrResolver::register_service` on a genuine offline→online transition (not every

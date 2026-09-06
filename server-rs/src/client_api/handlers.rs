@@ -37,7 +37,13 @@ impl ClientApiState {
     pub async fn new(config: Arc<Configuration>) -> EyreResult<Self> {
         let redis_url = config.redis_url();
         info!("Connect to Redis URL for DNS resolution: {}", redis_url);
-        let redis_client = redis::Client::open(redis_url)?;
+        let redis_client = redis::Client::open(redis_url.clone())?;
+
+        woodstock::utils::service_registry::register_service(
+            redis_url,
+            "client_api_server",
+            env!("CARGO_PKG_VERSION").to_string(),
+        );
 
         let scheduler = Arc::new(Scheduler::new(config.clone()));
         let hosts = Arc::new(Hosts::new(config.clone(), scheduler.clone()));

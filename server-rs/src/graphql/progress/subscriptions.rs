@@ -3,6 +3,7 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     api::{dto::Job, state::ApiServerState},
+    auth::authz::CurrentUser,
     graphql::resolvers::types::BackupEx,
     jobs::progress::ProgressFilter,
 };
@@ -19,6 +20,15 @@ fn should_emit(event: &BackupChangedEvent, hostname: &str) -> bool {
     event.hostname == hostname && !event.removed
 }
 
+/// Whether `user` may see `job` — host-scoped jobs (Backup/Restore/Remove/Archive) follow
+/// ownership; host-less jobs (Fsck/CleanupRefcnt/Stats — global pool maintenance, same as
+/// the host-less events in `resolvers::query::events`) are admin-only.
+pub(crate) fn job_visible(user: &CurrentUser, job: &Job) -> bool {
+    job.host
+        .as_deref()
+        .map_or(user.is_admin, |h| user.can_see_host(h))
+}
+
 #[derive(Default)]
 pub struct ProgressSubscription;
 
@@ -33,14 +43,30 @@ impl ProgressSubscription {
         host: Option<String>,
         kind: Option<String>,
     ) -> impl Stream<Item = Job> {
+        use futures::stream;
+
         let state = ctx.data_unchecked::<ApiServerState>().clone();
+        let user = ctx.data_unchecked::<CurrentUser>().clone();
+
+        // A specific, non-owned host is rejected upfront; an unfiltered subscription
+        // (`host: None`) fans out across every host's jobs, so it must be filtered
+        // per-item below rather than rejected outright.
+        if let Some(h) = &host {
+            if !user.can_see_host(h) {
+                return stream::empty().boxed();
+            }
+        }
+
         let filter = ProgressFilter {
             host,
             kind,
             ..Default::default()
         };
-        let stream = state.progress_reader.stream(filter).await;
-        stream.map(|event| Job::from(event))
+        let job_stream = state.progress_reader.stream(filter).await;
+        job_stream
+            .map(Job::from)
+            .filter(move |job| futures::future::ready(job_visible(&user, job)))
+            .boxed()
     }
 
     /// Subscription: real backup changes for a given host.
@@ -63,6 +89,11 @@ impl ProgressSubscription {
         use tracing::error;
 
         let state = ctx.data_unchecked::<ApiServerState>().clone();
+        let user = ctx.data_unchecked::<CurrentUser>().clone();
+
+        if !user.can_see_host(&hostname) {
+            return stream::empty().boxed();
+        }
 
         let mut pubsub = match state.redis_client.get_async_pubsub().await {
             Ok(p) => p,

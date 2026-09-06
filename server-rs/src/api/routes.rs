@@ -3,6 +3,7 @@
 //! Implements the /api prefix routing (except /metrics) to match NestJS structure
 
 use axum::{
+    middleware::from_fn_with_state,
     routing::{delete, get, post},
     Router,
 };
@@ -16,6 +17,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::api::{handlers, ApiServerState};
+use crate::auth;
 use crate::graphql::{build_schema, graphql_router};
 
 /// OpenAPI documentation definition
@@ -124,18 +126,30 @@ pub fn create_router(state: ApiServerState, static_path: Option<String>) -> Rout
     let swagger_ui = SwaggerUi::new("/api-docs").url("/api-docs/openapi.json", ApiDoc::openapi());
 
     debug!("Create Graphql routes");
-    // Main router with /api prefix and /metrics exception
     let schema = build_schema(state.clone());
     let gql_router = graphql_router(schema);
+
+    // Every REST (`/api/*`) and GraphQL request must carry a valid session once
+    // authentication is enabled; `session_middleware` is a no-op (implicit unrestricted
+    // admin) while `OIDC_ENABLED=false`, so this changes nothing for existing deployments.
+    // Deliberately NOT applied to `/metrics` (Prometheus scraper), `/auth/*` and
+    // `/api/auth/*` (must be reachable to log in at all), `/api-docs` (Swagger UI), or the
+    // static SPA fallback below (the SPA shell must load unauthenticated so it can itself
+    // redirect to `/auth/login` on a 401 from the API).
+    let protected = Router::new()
+        .nest("/api", api_routes)
+        .merge(gql_router)
+        .layer(from_fn_with_state(
+            state.clone(),
+            auth::middleware::session_middleware,
+        ));
 
     debug!("Create application");
     let app: Router<ApiServerState> = Router::new()
         // Metrics endpoint (no /api prefix as per NestJS configuration)
         .route("/metrics", get(handlers::metrics::get_metrics))
-        // All other routes with /api prefix
-        .nest("/api", api_routes)
-        // GraphQL endpoints at /graphql and /graphql/ws
-        .merge(gql_router)
+        .merge(auth::routes::router())
+        .merge(protected)
         // Swagger UI for API documentation (compat with current utoipa-swagger-ui)
         .merge(swagger_ui)
         // Add tracing middleware

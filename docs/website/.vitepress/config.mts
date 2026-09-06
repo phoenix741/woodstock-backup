@@ -1,16 +1,15 @@
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 import imsize from "markdown-it-imsize";
-import plantuml from "markdown-it-plantuml";
 
 // https://vitepress.dev/reference/site-config
-export default defineConfig({
+export default withMermaid({
   title: "Woodstock Backup",
   description: "Centralized Backup Software (based on BTRFS)",
   markdown: {
     linkify: true,
     config: (md) => {
       md.use(imsize);
-      md.use(plantuml);
     },
   },
   themeConfig: {
@@ -42,6 +41,7 @@ export default defineConfig({
             },
             { text: "Agent", link: "/doc/agent" },
             { text: "Configuration", link: "/doc/configuration" },
+            { text: "Authentication", link: "/doc/authentication" },
             { text: "Scheduler", link: "/doc/scheduler" },
             { text: "FAQ", link: "/doc/faq" },
             { text: "Roadmap", link: "/doc/roadmap" },

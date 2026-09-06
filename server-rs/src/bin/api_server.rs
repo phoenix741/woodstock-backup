@@ -32,13 +32,19 @@ async fn main() -> Result<()> {
     let config = ApiServerConfig::default();
 
     // Create application state
-    let state = match ApiServerState::new(woodstock_config.clone()).await {
+    let state = match ApiServerState::new(woodstock_config.clone(), config.oidc.clone()).await {
         Ok(state) => state,
         Err(e) => {
             error!("Failed to initialize application state: {}", e);
             return Err(e);
         }
     };
+
+    woodstock::utils::service_registry::register_service(
+        woodstock_config.redis_url(),
+        "api_server",
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
 
     debug!("Generate certificate");
     state.certificate_service.generate_certificate().await?;

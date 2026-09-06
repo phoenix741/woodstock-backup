@@ -1,5 +1,6 @@
 // Composables
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuth } from '@/composables/useAuth';
 
 const routes = [
   {
@@ -32,11 +33,18 @@ const routes = [
       {
         path: 'archive',
         name: 'Archive',
+        // Server-side, running/listing archive profiles is admin-only (a profile's host
+        // selection can include hosts the caller doesn't own — see
+        // server-rs/src/graphql/resolvers/query.rs::archive_profiles). Hidden from
+        // restricted users here too, not just from the menu, so navigating here directly
+        // doesn't land on a page of buttons that all fail server-side.
+        meta: { requiresAdmin: true },
         component: () => import(/* webpackChunkName: "archive" */ '@/views/ArchiveView.vue'),
       },
       {
         path: 'archive/:profileName',
         name: 'ArchiveProfile',
+        meta: { requiresAdmin: true },
         component: () => import(/* webpackChunkName: "archive" */ '@/views/ArchiveProfileView.vue'),
       },
       {
@@ -52,6 +60,10 @@ const routes = [
       {
         path: 'pool',
         name: 'Pool',
+        // Cleanup/fsck (server-rs/src/graphql/resolvers/mutation.rs::cleanup_pool /
+        // check_and_fix_pool) are admin-only, global maintenance operations with no host to
+        // scope them to. Hidden from restricted users, same reasoning as Archive above.
+        meta: { requiresAdmin: true },
         component: () => import(/* webpackChunkName: "pool" */ '@/views/PoolView.vue'),
       },
       {
@@ -68,9 +80,29 @@ const routes = [
   },
 ];
 
+declare module 'vue-router' {
+  interface RouteMeta {
+    /** Redirects a restricted (non-admin) user away instead of rendering the page —
+     * the real enforcement is server-side (see the mutations/queries these pages call),
+     * this only avoids showing a page of controls that would all fail. */
+    requiresAdmin?: boolean;
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(process.env.BASE_URL),
   routes,
+});
+
+router.beforeEach(async (to) => {
+  if (!to.meta.requiresAdmin) return true;
+
+  const auth = useAuth();
+  await auth.ensureLoaded();
+  if (auth.enabled.value && !auth.isAdmin.value) {
+    return { name: 'Devices' };
+  }
+  return true;
 });
 
 export default router;

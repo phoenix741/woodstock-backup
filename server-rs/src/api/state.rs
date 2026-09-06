@@ -1,10 +1,12 @@
 //! Application state for the public API server
 
+use super::config::OidcConfig;
 use super::services::{
     BackupsService, CertificateService, FilesService, HostsService, MetricsService, QueueService,
     ServerService,
 };
 use crate::{
+    auth::oidc::OidcClient,
     jobs::{
         producers::Producers,
         progress::{ProgressPublisher, ProgressReader},
@@ -56,6 +58,16 @@ pub struct ApiServerState {
     /// Raw Redis client — used to open pubsub connections on demand
     /// (e.g., `backupUpdated` subscription).
     pub redis_client: redis::Client,
+
+    /// OpenID Connect authentication settings — see `crate::auth`.
+    pub oidc: Arc<OidcConfig>,
+
+    /// OpenID Connect client — built once here and shared so its discovery-document cache
+    /// (`OidcClient`'s internal `OnceCell`) actually amortizes across requests. Building a
+    /// fresh `OidcClient` per `/auth/login`/`/auth/callback` call, as an earlier version of
+    /// this code did, would silently refetch the IdP's discovery document and JWKS over the
+    /// network on every single login attempt.
+    pub oidc_client: Arc<OidcClient>,
 }
 
 impl std::ops::Deref for ApiServerState {
@@ -68,7 +80,7 @@ impl std::ops::Deref for ApiServerState {
 
 impl ApiServerState {
     /// Create new API server state
-    pub async fn new(config: Arc<Configuration>) -> Result<Self> {
+    pub async fn new(config: Arc<Configuration>, oidc: OidcConfig) -> Result<Self> {
         // Initialize metrics
         super::services::metrics::init_metrics()?;
 
@@ -119,6 +131,8 @@ impl ApiServerState {
         // Build progress reader
         let progress_reader = Arc::new(ProgressReader::new(redis_client.clone()).await?);
 
+        let oidc_client = Arc::new(OidcClient::new(oidc.clone()));
+
         Ok(Self {
             shared,
 
@@ -132,6 +146,8 @@ impl ApiServerState {
             producers,
             progress_reader,
             redis_client,
+            oidc: Arc::new(oidc),
+            oidc_client,
         })
     }
 }

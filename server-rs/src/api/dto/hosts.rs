@@ -15,6 +15,10 @@ pub enum ClientType {
     None,
 }
 
+// `owners` (see `woodstock::config::HostConfiguration`) is deliberately not exposed here,
+// same treatment as `password`: it drives server-side authorization, not something every
+// caller of this API should be able to read. A future admin-facing screen for managing
+// ownership should add its own admin-gated type rather than surfacing it here.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, SimpleObject)]
 #[serde(rename_all = "camelCase")]
 pub struct HostConfiguration {
@@ -22,6 +26,7 @@ pub struct HostConfiguration {
     pub port: u16,
     pub operations: HostConfigOperation,
     pub schedule: Option<Schedule>,
+    pub no_online_detection: bool,
 }
 
 impl From<woodstock::config::HostConfiguration> for HostConfiguration {
@@ -31,6 +36,7 @@ impl From<woodstock::config::HostConfiguration> for HostConfiguration {
             port: config.port,
             operations: HostConfigOperation::from(config.operations),
             schedule: config.schedule.map(|s| Schedule::from(s)),
+            no_online_detection: config.no_online_detection,
         }
     }
 }

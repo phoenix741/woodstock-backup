@@ -44,9 +44,7 @@
               {{ item.agentVersion || 'unknown' }}
             </template>
             <template v-slot:[`item.availibility`]="{ item }">
-              <v-chip :color="item.availibilityColor" rounded>{{
-                item.availibilityState?.toLocaleLowerCase() || 'unknown'
-              }}</v-chip>
+              <v-chip :color="item.availibilityColor" rounded>{{ getAvailabilityLabel(item.availibilityState) }}</v-chip>
             </template>
             <template v-slot:bottom>
               <div class="d-flex">
@@ -69,6 +67,7 @@ import HostSuccessFailureChartsComponent from '@/components/hosts/cards/HostSucc
 
 import {
   getAvailabilityColor,
+  getAvailabilityLabel,
   getState,
   getStateColor,
   getStateText,

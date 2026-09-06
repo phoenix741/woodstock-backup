@@ -19,6 +19,7 @@ use woodstock::utils::path::{path_to_vec, unmangle, unmangle_buffer, unmangle_pa
                                                                                      // PathManifest trait not required; we read last_modified from stats
 
 use crate::api::{dto::FileDescription, ApiError, ApiResult, ApiServerState};
+use crate::auth::authz::CurrentUser;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct FilesQuery {
@@ -42,9 +43,11 @@ pub struct FilesQuery {
 )]
 pub async fn list_files_or_shares(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id)): Path<(String, String)>,
     Query(q): Query<FilesQuery>,
 ) -> ApiResult<Json<Vec<FileDescription>>> {
+    current_user.require_can_see_host(&name)?;
     let backup_id = uuid::Uuid::parse_str(&id).map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let Some(_backup) = state
         .backups_service
@@ -103,10 +106,12 @@ fn sanitize_filename(s: &str) -> String {
 )]
 pub async fn download_archive(
     State(state): State<ApiServerState>,
+    current_user: CurrentUser,
     Path((name, id)): Path<(String, String)>,
     Query(q): Query<DownloadQuery>,
     _headers: axum::http::HeaderMap,
 ) -> ApiResult<Response> {
+    current_user.require_can_see_host(&name)?;
     // viewer créé dans la tâche d'écriture pour limiter l'usage mémoire
     let base_in_archive = sanitize_filename(&format!("{}_{}", q.share_path, q.path));
     let base_in_archive_header = base_in_archive.clone();

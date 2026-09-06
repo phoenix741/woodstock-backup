@@ -1,6 +1,6 @@
 ---
 name: technical-documentation
-description: Expert en documentation technique pour créer une documentation claire, structurée et navigable. Utilisez ce skill lors de la création ou mise à jour de documentation technique, d'architecture, d'API, de guides utilisateurs ou de documentation de code.
+description: Expert en documentation technique (architecture, API, ADR, doc interne, doc de code) pour créer une documentation claire, structurée et navigable. Utilisez ce skill pour la documentation développeur/interne (docs/developer_guide/, doc/internal/), PAS pour la documentation utilisateur finale publiée sur docs/website/doc/ (VitePress) — pour celle-ci, utilisez le skill `user-documentation`.
 license: MIT
 ---
 
@@ -17,7 +17,11 @@ Ce skill transforme GitHub Copilot en expert en documentation technique, capable
 - Guides de contribution
 - Documentation de migration
 - Diagrammes techniques
-- Troubleshooting et FAQ
+- Troubleshooting et FAQ développeur/interne
+
+> Portée : `docs/developer_guide/`, `doc/internal/`, commentaires de code. Pour
+> `docs/website/doc/` (site utilisateur final), utiliser le skill
+> `user-documentation` à la place.
 
 ## Principes de documentation
 
@@ -191,7 +195,17 @@ npm install
 
 ### 4. Diagrammes et Visualisations
 
-Utilisez Mermaid pour les diagrammes intégrés :
+**Mermaid uniquement** pour tout schéma (flowchart, séquence, classe, ER, état).
+Rendu nativement par GitHub/Gitea et par le site VitePress (`vitepress-plugin-mermaid`),
+sans dépendance à un serveur tiers pour la génération de l'image — contrairement à
+PlantUML (dont l'usage a été retiré du projet : il envoyait le contenu du diagramme
+à un serveur public `plantuml.com` pour le rendu, un point de fragilité et de fuite
+d'information pour des diagrammes internes/sécurité). Ne pas réintroduire PlantUML.
+
+Ne jamais remplacer un schéma par une description en texte brut ou un dessin
+ASCII (boîtes en `+--+`, flèches en `-->` tapées à la main) : illisible, non
+maintenable, et ne rend nulle part comme un vrai diagramme. Si une relation ou
+un flux mérite un schéma, c'est un bloc `mermaid`, pas du texte formaté à la main.
 
 ```markdown
 ## Architecture du système
@@ -347,40 +361,16 @@ Pour Woodstock Backup, inclure systématiquement :
 - Lien vers le code source quand pertinent
 - Mention des technologies clés : Rust, gRPC (Tonic), Axum, BTRFS, Rsync, mTLS
 
-#### Site de documentation de ce dépôt
+#### Documentation utilisateur finale (docs/website)
 
-- La documentation utilisateur publiée vit sous `docs/website/doc/`
-- `index.md` sert de porte d'entrée et doit pointer vers toute nouvelle page importante
-- `agent.md` couvre l'installation et la configuration du client agent
-- `configuration.md` couvre la configuration serveur et les fichiers de host
-- `roadmap.md` doit être mise à jour quand une fonctionnalité sort du statut roadmap
-- `internal/` documente l'implémentation et les choix techniques
-
-Pour une fonctionnalité qui change le comportement du backup, mettre à jour au minimum :
-
-- la documentation utilisateur visible (`agent.md` ou `configuration.md` selon le cas)
-- l'index si une nouvelle page est ajoutée
-- la documentation interne si l'architecture ou le cycle de vie change
-- la roadmap si l'état d'avancement de la fonctionnalité a changé
-
-Quand une fonctionnalité est partiellement livrée, documenter clairement :
-
-- ce qui fonctionne déjà
-- ce qui reste en limitation connue
-- ce qui n'est pas encore configurable
-
-Ne pas présenter comme configurable une option qui existe dans le schéma mais n'est pas encore branchée
-de bout en bout.
-
-#### Documentation des snapshots
-
-Pour les snapshots dans Woodstock Backup, documenter systématiquement :
-
-- les backends supportés par plateforme
-- le comportement de fallback quand la snapshot n'est pas disponible
-- le moment où la snapshot est créée et nettoyée
-- les limites de chemin, par exemple VSS sur lettres de lecteur locales uniquement
-- la différence entre comportement actuel et contrôle de politique futur
+La documentation utilisateur publiée (`docs/website/doc/`, site VitePress) a son
+propre skill dédié : **`user-documentation`**. Utiliser ce skill-ci (technical-documentation)
+pour tout ce qui est archi/API/ADR/dev, y compris `doc/internal/` et
+`docs/developer_guide/` ; utiliser `user-documentation` dès qu'il s'agit de
+rédiger, réviser ou vérifier une page destinée à l'utilisateur final
+(installation, configuration, agent, authentification, scheduler, FAQ,
+roadmap, migration) ou de la référencer dans le sidebar de
+`docs/website/.vitepress/config.mts`.
 
 #### Exemples Contextualisés
 
@@ -512,9 +502,7 @@ npx cspell "docs/**/*.md"
 
 ### Diagrammes
 
-- **Mermaid** : Diagrammes intégrés (flowchart, sequence, class, ER)
-- **PlantUML** : Diagrammes UML complexes
-- **Draw.io** : Diagrammes personnalisés (exporter en SVG)
+- **Mermaid** : seul format de diagramme utilisé dans ce projet (flowchart, sequence, class, ER). Rendu natif GitHub/Gitea + VitePress (`vitepress-plugin-mermaid`), pas de PlantUML (retiré, voir section 4).
 
 ### Preview
 
