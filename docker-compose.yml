@@ -31,6 +31,19 @@ services:
       - LOG_LEVEL=debug
       - BACKUP_PATH=/backups
       - STATIC_PATH=/app/static
+      # OpenID Connect authentication (optional) — see docs/developer_guide/AUTHENTICATION.md.
+      # Disabled by default so `docker compose up` keeps today's open-access behavior.
+      # Set OIDC_ENABLED=true (and bring up the `keycloak` service) to test the login flow.
+      - OIDC_ENABLED=false
+      - OIDC_ISSUER_URL=http://keycloak:8080/realms/woodstock
+      - OIDC_CLIENT_ID=woodstock-backup
+      # Public client (PKCE only) in the imported realm — leave OIDC_CLIENT_SECRET unset.
+      - OIDC_REDIRECT_BASE_URL=http://localhost:3000
+      # Plain http:// above -> the session cookie can't be Secure. Browsers special-case
+      # http://localhost, but testing from any other host/IP needs this explicitly false,
+      # or the cookie is silently dropped and login loops forever. Never set false over a
+      # real network.
+      - OIDC_COOKIE_SECURE=false
     volumes:
       - "backups_storage:/backups"
 
@@ -145,6 +158,19 @@ services:
       timeout: 3s
       retries: 5
       start_period: 5s
+
+  # Keycloak, for testing OIDC authentication locally (see
+  # docs/developer_guide/AUTHENTICATION.md). Not required unless OIDC_ENABLED=true above.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    ports:
+      - "8081:8080"
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+    volumes:
+      - "./docker/keycloak/woodstock-realm.json:/opt/keycloak/data/import/woodstock-realm.json:ro"
 
   prometheus:
     image: prom/prometheus:latest
