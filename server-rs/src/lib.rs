@@ -7,6 +7,7 @@
 //! - job processing (background tasks and cron jobs)
 
 pub mod api;
+pub mod auth;
 pub mod client_api;
 pub mod error;
 pub mod graphql;

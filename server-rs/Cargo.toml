@@ -82,6 +82,9 @@ futures-util = { workspace = true }
 
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
+axum-extra = { version = "0.12", default-features = false, features = [
+  "cookie",
+] }
 tower = { workspace = true, features = ["full"] }
 tower-http = { version = "0.7", features = [
   "cors",
@@ -145,6 +148,15 @@ thiserror = "2.0.18"
 reqwest = { workspace = true, default-features = false, features = [
   "json",
   "rustls-no-provider",
+] }
+
+# OpenID Connect client (Authorization Code + PKCE) — discovery, PKCE, ID
+# token signature/claims verification (iss/aud/exp/nonce) all delegated to
+# this crate, none of it hand-rolled. Bundles its own reqwest (isolated from
+# the workspace's reqwest above, different major version, no interaction).
+openidconnect = { version = "4.0", default-features = false, features = [
+  "reqwest",
+  "rustls-tls",
 ] }
 
 # Archive generation

@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let config = ApiServerConfig::default();
 
     // Create application state
-    let state = match ApiServerState::new(woodstock_config.clone()).await {
+    let state = match ApiServerState::new(woodstock_config.clone(), config.oidc.clone()).await {
         Ok(state) => state,
         Err(e) => {
             error!("Failed to initialize application state: {}", e);
