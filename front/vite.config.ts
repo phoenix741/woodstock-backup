@@ -28,7 +28,11 @@ export default defineConfig({
   ],
   define: {
     'process.env': {},
-    __APP_VERSION__: JSON.stringify(appVersion),
+    // CI computes the real next release version before the tag/commit exists (semantic-release
+    // dry-run in the `prerelease` job) and passes it here — the front build otherwise runs before
+    // `package.json` is bumped by the actual `semantic-release` run, so `appVersion` would always
+    // lag one release behind.
+    __APP_VERSION__: JSON.stringify(process.env.VITE_APP_VERSION || appVersion),
   },
   resolve: {
     alias: {
