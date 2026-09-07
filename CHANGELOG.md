@@ -1,3 +1,10 @@
+# [2.1.0-alpha.16](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.15...v2.1.0-alpha.16) (2026-09-07)
+
+
+### Bug Fixes
+
+* **front:** 🐛 stop shipping a stale build version, redesign footer ([70ff9a4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/70ff9a48e13596baa459c96059ec3f868d324a50))
+
 # [2.1.0-alpha.15](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.14...v2.1.0-alpha.15) (2026-09-06)
 
 
