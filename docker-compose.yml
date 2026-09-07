@@ -34,7 +34,7 @@ services:
       # OpenID Connect authentication (optional) — see docs/developer_guide/AUTHENTICATION.md.
       # Disabled by default so `docker compose up` keeps today's open-access behavior.
       # Set OIDC_ENABLED=true (and bring up the `keycloak` service) to test the login flow.
-      - OIDC_ENABLED=false
+      - OIDC_ENABLED=true
       - OIDC_ISSUER_URL=http://keycloak:8080/realms/woodstock
       - OIDC_CLIENT_ID=woodstock-backup
       # Public client (PKCE only) in the imported realm — leave OIDC_CLIENT_SECRET unset.
