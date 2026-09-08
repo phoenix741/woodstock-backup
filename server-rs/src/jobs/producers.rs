@@ -11,6 +11,7 @@ use woodstock::config::{ArchivingConfig, BackupStatus, Backups, Hosts};
 use woodstock::server::backup::retention::get_backups_to_delete;
 
 use crate::jobs::progress::{JobKind, ProgressPublisher};
+use crate::jobs::redis_retry;
 use crate::jobs::types::*;
 
 /// Contrat minimal pour les producteurs, pour faciliter les tests
@@ -65,17 +66,23 @@ impl Producers {
         let key = backup_unique_key(host);
         // Fenêtre de 30 secondes pour éviter le rebond
         let ttl_ms: u64 = 30_000;
-        let mut conn = self
-            .redis_client
-            .get_multiplexed_tokio_connection()
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
-
-        let ok: Option<String> = redis::cmd("SET")
-            .arg(&[&key, "1", "NX", "PX", &ttl_ms.to_string()])
-            .query_async(&mut conn)
-            .await
-            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+        let redis_client = self.redis_client.clone();
+        // Retries a fresh connection+SET up to 2 more times on a transient Redis hiccup
+        // (e.g. `broken pipe`) before giving up, instead of silently losing the enqueue.
+        let context = format!("enqueue_backup_unique({host})");
+        let ok: Option<String> = redis_retry::retry_transient(&context, || {
+            let redis_client = redis_client.clone();
+            let key = key.clone();
+            async move {
+                let mut conn = redis_client.get_multiplexed_tokio_connection().await?;
+                redis::cmd("SET")
+                    .arg(&[&key, "1", "NX", "PX", &ttl_ms.to_string()])
+                    .query_async(&mut conn)
+                    .await
+            }
+        })
+        .await
+        .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         if ok.is_some() {
             let config =

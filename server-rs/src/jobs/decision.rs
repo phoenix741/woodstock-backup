@@ -191,9 +191,24 @@ pub async fn try_schedule_host(
 
     let job_id = {
         let mut prod = producers.lock().await;
-        prod.enqueue_backup_unique(host, force)
-            .await
-            .map_err(|e| eyre::eyre!("Failed to enqueue backup for host {host}: {e}"))?
+        match prod.enqueue_backup_unique(host, force).await {
+            Ok(job_id) => job_id,
+            // Unlike the refusal branches above, this error already went through its own
+            // immediate retry (see `redis_retry::retry_transient` in
+            // `enqueue_backup_unique`) — if it still failed, record the same short cooldown
+            // so the periodic scanner retries this host shortly instead of losing it until
+            // its next natural due date or a future online event.
+            Err(e) => {
+                set_next_attempt(
+                    redis_client,
+                    host,
+                    Local::now() + Duration::seconds(config.retry_backoff_on_refusal_secs),
+                    config,
+                )
+                .await;
+                return Err(eyre::eyre!("Failed to enqueue backup for host {host}: {e}"));
+            }
+        }
     };
 
     match job_id {

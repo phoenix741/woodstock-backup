@@ -1,6 +1,7 @@
 //! Job progress publication via Redis (Pub/Sub + hash snapshot)
 //! Inspired by the BullMQ `job.progress()` API but externalized in Redis.
 
+use crate::jobs::redis_retry;
 use crate::jobs::types::{
     ArchiveJobData, ArchiveRunJobData, BackupJobData, BackupQueueJob, CleanupRefcntJobData,
     FsckJobData, MaintenanceJobData, RemoveJobData, RestoreJobData, StatsJobData,
@@ -780,39 +781,21 @@ impl ProgressPublisher {
             _ => PROGRESS_TTL_ACTIVE_SECS,
         };
 
-        // A held `ConnectionManager` can hand back one stale/dead connection
-        // after a network hiccup (it reconnects in the background, but the
-        // in-flight command on the old socket still fails). Retry a couple
-        // of times with a short delay so a transient error here doesn't
-        // permanently orphan the job's progress tracking.
-        const RETRY_DELAYS_MS: [u64; 2] = [50, 200];
-        let mut attempt = 0;
-        loop {
-            let write_result: redis::RedisResult<()> = async {
-                let mut g = self.conn.lock().await;
-                let _: () = g.hset_multiple(&key, &field_refs).await?;
-                let _: () = g.expire(&key, ttl as i64).await?;
-                let _: () = g.publish(PROGRESS_CHANNEL, &event_json).await?;
-                Ok(())
-            }
-            .await;
-
-            match write_result {
-                Ok(()) => return Ok(()),
-                Err(err) if attempt < RETRY_DELAYS_MS.len() => {
-                    warn!(
-                        "publish_internal({}): redis write failed (attempt {}/{}), retrying: {}",
-                        ev.job_id,
-                        attempt + 1,
-                        RETRY_DELAYS_MS.len() + 1,
-                        err
-                    );
-                    tokio::time::sleep(Duration::from_millis(RETRY_DELAYS_MS[attempt])).await;
-                    attempt += 1;
-                }
-                Err(err) => return Err(err.into()),
-            }
-        }
+        // A held `ConnectionManager` can hand back one stale/dead connection after a
+        // network hiccup (it reconnects in the background, but the in-flight command on
+        // the old socket still fails) — retry_transient retries a couple of times with a
+        // short delay so a transient error here doesn't permanently orphan the job's
+        // progress tracking.
+        let context = format!("publish_internal({})", ev.job_id);
+        redis_retry::retry_transient(&context, || async {
+            let mut g = self.conn.lock().await;
+            let _: () = g.hset_multiple(&key, &field_refs).await?;
+            let _: () = g.expire(&key, ttl as i64).await?;
+            let _: () = g.publish(PROGRESS_CHANNEL, &event_json).await?;
+            Ok(())
+        })
+        .await
+        .map_err(Into::into)
     }
 
     async fn can_publish_progress(&self, job_id: &str) -> bool {
