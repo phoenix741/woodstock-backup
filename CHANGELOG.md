@@ -1,3 +1,10 @@
+# [2.1.0-alpha.17](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.16...v2.1.0-alpha.17) (2026-09-08)
+
+
+### Bug Fixes
+
+* **scheduler:** retry transient Redis failures before dropping a backup ([9268524](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9268524ddb266a9f7f5b22357e409e55a561c2fe))
+
 # [2.1.0-alpha.16](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.15...v2.1.0-alpha.16) (2026-09-07)
 
 
