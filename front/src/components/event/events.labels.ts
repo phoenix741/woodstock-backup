@@ -7,6 +7,7 @@ const eventTypeLabels: Record<EventType, string> = {
   [EventType.PoolChecked]: 'Pool Checked',
   [EventType.PoolCleaned]: 'Pool Cleaned',
   [EventType.HashConversion]: 'Hash Conversion',
+  [EventType.Archive]: 'Archive',
 };
 
 const eventStatusLabels: Record<EventStatus, string> = {

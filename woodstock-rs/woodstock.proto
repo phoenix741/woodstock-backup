@@ -13,6 +13,7 @@ enum EventType {
   EVENT_TYPE_POOL_CHECKED    = 4;
   EVENT_TYPE_POOL_CLEANED    = 6;
   EVENT_TYPE_HASH_CONVERSION = 7;
+  EVENT_TYPE_ARCHIVE         = 8;
 }
 
 enum EventStep {
@@ -67,6 +68,16 @@ message HashConversionInformation {
   ChunkAlgorithm algorithm = 2;
 }
 
+message EventArchiveInformation {
+  string          profile_name = 1;
+  uint64          hosts_total  = 2;
+  uint64          hosts_done   = 3;
+  repeated string failed_hosts = 4;
+  uint64          file_count   = 5;
+  uint64          archive_size = 6;
+  bool            cancelled    = 7;
+}
+
 message Event {
   reserved 9;
 
@@ -84,6 +95,7 @@ message Event {
     EventPoolCleanedInformation pool_cleaned    = 10;
     EventPoolInformation        pool            = 11;
     HashConversionInformation   hash_conversion = 13;
+    EventArchiveInformation     archive         = 14;
   }
 }
 

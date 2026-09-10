@@ -21,6 +21,7 @@ use woodstock::archiving::{
     ArchiveHostExecutionState, ArchiveHostState, ArchiveProgressCounters, ArchiveState,
 };
 use woodstock::config::{Context, DEFAULT_CHANNEL_BUFFER_SIZE};
+use woodstock::events::{create_event_archive_end, create_event_archive_start};
 use woodstock::server::backup::remove_machine::RemoveBackupMachine;
 use woodstock::server::backup::remove_state::RemoveState;
 use woodstock::server::backup::restore_machine::{RestoreBackupMachine, ShareSelection};
@@ -992,6 +993,8 @@ impl JobExecutors {
             attempt.current()
         );
 
+        let context = Context::default();
+
         let redis_client = redis::Client::open(state.config.redis_url())
             .wrap_err("Failed to open Redis client for cancel-marker checks")?;
         if is_cancel_requested(&redis_client, &task_id.to_string())
@@ -1088,6 +1091,22 @@ impl JobExecutors {
                 })
                 .collect(),
         };
+
+        let event_id = uuid::Uuid::new_v4();
+        let event_id_bytes = event_id.as_bytes().to_vec();
+        if let Err(e) = create_event_archive_start(
+            &state.config,
+            &state.config.path.events_path,
+            &event_id_bytes,
+            context.source,
+            &job.profile_name,
+            hosts_total,
+        )
+        .await
+        {
+            error!("[{}] Failed to log archive start event: {}", task_id, e);
+        }
+
         self.publish_archive_progress(&task_id, &run_state).await;
 
         // One token for the whole run, not per host: cancelling stops the
@@ -1216,6 +1235,24 @@ impl JobExecutors {
         }
 
         cancel_watcher.finish().await;
+
+        if let Err(e) = create_event_archive_end(
+            &state.config,
+            &state.config.path.events_path,
+            &event_id_bytes,
+            context.source,
+            &job.profile_name,
+            hosts_total,
+            run_state.hosts_done,
+            &run_state.failed_hosts,
+            run_state.file_count,
+            run_state.archive_size,
+            run_state.cancelled,
+        )
+        .await
+        {
+            error!("[{}] Failed to log archive end event: {}", task_id, e);
+        }
 
         if !run_state.failed_hosts.is_empty() {
             warn!(

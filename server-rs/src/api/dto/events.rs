@@ -12,6 +12,7 @@ pub enum EventType {
     PoolChecked,
     PoolCleaned,
     HashConversion,
+    Archive,
 }
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
@@ -96,12 +97,30 @@ pub struct EventHashConversionInformation {
     pub algorithm: ChunkAlgorithm,
 }
 
+#[derive(SimpleObject, Clone)]
+pub struct EventArchiveInformation {
+    #[graphql(name = "profileName")]
+    pub profile_name: String,
+    #[graphql(name = "hostsTotal")]
+    pub hosts_total: i32,
+    #[graphql(name = "hostsDone")]
+    pub hosts_done: i32,
+    #[graphql(name = "failedHosts")]
+    pub failed_hosts: Vec<String>,
+    #[graphql(name = "fileCount")]
+    pub file_count: i32,
+    #[graphql(name = "archiveSize")]
+    pub archive_size: BigIntScalar,
+    pub cancelled: bool,
+}
+
 #[derive(Union, Clone)]
 pub enum EventInformation {
     EventBackupInformation(EventBackupInformation),
     EventPoolInformation(EventPoolInformation),
     EventPoolCleanedInformation(EventPoolCleanedInformation),
     EventHashConversionInformation(EventHashConversionInformation),
+    EventArchiveInformation(EventArchiveInformation),
 }
 
 #[derive(SimpleObject, Clone)]
@@ -203,6 +222,17 @@ impl From<woodstock::Event> for ApplicationEvent {
                     algorithm: woodstock::ChunkAlgorithm::try_from(h.algorithm)
                         .unwrap_or(woodstock::ChunkAlgorithm::Blake3)
                         .into(),
+                }),
+            ),
+            woodstock::event::Information::Archive(a) => Some(
+                EventInformation::EventArchiveInformation(EventArchiveInformation {
+                    profile_name: a.profile_name,
+                    hosts_total: a.hosts_total as i32,
+                    hosts_done: a.hosts_done as i32,
+                    failed_hosts: a.failed_hosts,
+                    file_count: a.file_count as i32,
+                    archive_size: BigIntScalar(a.archive_size),
+                    cancelled: a.cancelled,
                 }),
             ),
         });

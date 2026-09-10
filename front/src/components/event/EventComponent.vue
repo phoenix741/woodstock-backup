@@ -54,6 +54,10 @@
           v-else-if="event.information?.__typename === 'EventHashConversionInformation'"
           :information="event.information"
         ></EventHashConversionComponent>
+        <EventArchiveInformationComponent
+          v-else-if="event.information?.__typename === 'EventArchiveInformation'"
+          :information="event.information"
+        ></EventArchiveInformationComponent>
 
         <template v-if="event.errorMessages?.length">
           <v-alert type="error" dense class="mt-2">
@@ -85,11 +89,13 @@ import EventBackupInformationComponent from './EventBackupInformationComponent.v
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
 import EventPoolInformationComponent from './EventPoolInformationComponent.vue';
 import EventHashConversionComponent from './EventHashConversionComponent.vue';
+import EventArchiveInformationComponent from './EventArchiveInformationComponent.vue';
 import {
   EventBackupInformationFragment,
   EventPoolCleanedInformationFragment,
   EventPoolInformationFragment,
   EventHashConversionInformationFragment,
+  EventArchiveInformationFragment,
 } from './events.fragment';
 import { eventSourceLabel, eventStatusLabel } from './events.labels';
 import type { MergedApplicationEvent } from './events.model';
@@ -126,6 +132,11 @@ const icon = computed(() => {
         return `mdi-delete`;
       }
       return `mdi-delete-clock`;
+    case EventType.Archive:
+      if (props.event.endDate) {
+        return `mdi-archive-check`;
+      }
+      return `mdi-archive`;
     default:
       return undefined;
   }
@@ -203,6 +214,11 @@ const title = computed(() => {
         return `Hash conversion completed`;
       }
       return `Hash conversion initiated`;
+    case EventType.Archive:
+      if (props.event.endDate) {
+        return `Archive run completed`;
+      }
+      return `Archive run initiated`;
     default:
       return `Event of type ${props.event.type}`;
   }
@@ -249,6 +265,10 @@ const subtitle = computed(() => {
     case 'EventHashConversionInformation': {
       const hashConversionInformation = useFragment(EventHashConversionInformationFragment, props.event.information);
       return `${toNumber(hashConversionInformation?.count)} hashes converted`;
+    }
+    case 'EventArchiveInformation': {
+      const archiveInformation = useFragment(EventArchiveInformationFragment, props.event.information);
+      return `${archiveInformation?.profileName} - ${toNumber(archiveInformation?.hostsDone)}/${toNumber(archiveInformation?.hostsTotal)} host(s)`;
     }
     default:
       return '';

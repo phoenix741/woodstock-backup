@@ -18,6 +18,7 @@
       "JobRestoreTaskState"
     ],
     "EventInformation": [
+      "EventArchiveInformation",
       "EventBackupInformation",
       "EventHashConversionInformation",
       "EventPoolCleanedInformation",

@@ -23,6 +23,9 @@ export const MergedApplicationEventFragment = graphql(/* GraphQL */ `
       ... on EventHashConversionInformation {
         ...EventHashConversionInformation
       }
+      ... on EventArchiveInformation {
+        ...EventArchiveInformation
+      }
     }
   }
 `);
@@ -62,5 +65,17 @@ export const EventHashConversionInformationFragment = graphql(/* GraphQL */ `
   fragment EventHashConversionInformation on EventHashConversionInformation {
     count
     algorithm
+  }
+`);
+
+export const EventArchiveInformationFragment = graphql(/* GraphQL */ `
+  fragment EventArchiveInformation on EventArchiveInformation {
+    profileName
+    hostsTotal
+    hostsDone
+    failedHosts
+    fileCount
+    archiveSize
+    cancelled
   }
 `);
