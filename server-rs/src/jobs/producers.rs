@@ -5,7 +5,7 @@ use std::sync::Arc;
 use apalis::prelude::*;
 use apalis_redis::RedisStorage;
 use chrono::Local;
-use tracing::instrument;
+use tracing::{debug, instrument, warn};
 use uuid::Uuid;
 use woodstock::config::{ArchivingConfig, BackupStatus, Backups, Hosts};
 use woodstock::server::backup::retention::get_backups_to_delete;
@@ -70,19 +70,20 @@ impl Producers {
         // Retries a fresh connection+SET up to 2 more times on a transient Redis hiccup
         // (e.g. `broken pipe`) before giving up, instead of silently losing the enqueue.
         let context = format!("enqueue_backup_unique({host})");
-        let ok: Option<String> = redis_retry::retry_transient(&context, || {
-            let redis_client = redis_client.clone();
-            let key = key.clone();
-            async move {
-                let mut conn = redis_client.get_multiplexed_tokio_connection().await?;
-                redis::cmd("SET")
-                    .arg(&[&key, "1", "NX", "PX", &ttl_ms.to_string()])
-                    .query_async(&mut conn)
-                    .await
-            }
-        })
-        .await
-        .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
+        let (ok, retries): (Option<String>, u32) =
+            redis_retry::retry_transient_with_attempts(&context, || {
+                let redis_client = redis_client.clone();
+                let key = key.clone();
+                async move {
+                    let mut conn = redis_client.get_multiplexed_tokio_connection().await?;
+                    redis::cmd("SET")
+                        .arg(&[&key, "1", "NX", "PX", &ttl_ms.to_string()])
+                        .query_async(&mut conn)
+                        .await
+                }
+            })
+            .await
+            .map_err(|e| Error::from(Box::<dyn std::error::Error + Send + Sync>::from(e)))?;
 
         if ok.is_some() {
             let config =
@@ -119,8 +120,22 @@ impl Producers {
                 .await;
 
             Ok(Some(parts.task_id.to_string()))
+        } else if retries == 0 {
+            // Genuine contention: the dedup key was already held on our very first attempt —
+            // an equivalent job was legitimately enqueued recently by someone else.
+            debug!("{context}: skipped, an equivalent job was already enqueued recently");
+            Ok(None)
         } else {
-            // Rien à faire, un job équivalent a déjà été enqueued récemment
+            // Reached `None` only after at least one retry: the first SET NX may have
+            // actually landed server-side, with only its reply lost to us (the scenario
+            // retry_transient exists to paper over) — in that case this host's due backup
+            // was silently dropped for this cycle, not legitimately deduplicated. Can't tell
+            // the two apart from here, so flag it loudly instead of staying silent.
+            warn!(
+                "{context}: SET NX returned no-op after {retries} retry(ies) — possibly a lost \
+                 acknowledgment from an earlier successful attempt, which would silently drop \
+                 this host's due backup for this cycle instead of genuine contention"
+            );
             Ok(None)
         }
     }
