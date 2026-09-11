@@ -84,6 +84,7 @@ import { EventStatus, EventType } from '@/generated/graphql';
 import filesize from '@/utils/filesize';
 import { formatDateValue, formatDurationValue } from '@/utils/formatting';
 import { usePool } from '@/utils/pool';
+import { useAuth } from '@/composables/useAuth';
 import { computed, ref } from 'vue';
 import EventBackupInformationComponent from './EventBackupInformationComponent.vue';
 import EventPoolCleanedInformationComponent from './EventPoolCleanedInformationComponent.vue';
@@ -275,7 +276,16 @@ const subtitle = computed(() => {
   }
 });
 
+const auth = useAuth();
+// checkAndFixPool is admin-only server-side (and PoolChecked events never reach a
+// non-admin anyway) — kept here too for defense in depth / UI consistency. Not
+// admin-gated when auth is disabled, same "unrestricted" default as the server.
+const isAdmin = computed(() => !auth.enabled.value || auth.isAdmin.value);
+
 const shoudFix = computed(() => {
+  if (!isAdmin.value) {
+    return false;
+  }
   switch (props.event?.information?.__typename) {
     case 'EventPoolInformation': {
       const poolInformation = useFragment(EventPoolInformationFragment, props.event.information);
