@@ -39,6 +39,7 @@
   </v-dialog>
 
   <div class="pa-4">
+    <span v-if="downloadError" class="text-caption text-error mr-3">{{ downloadError }}</span>
     <v-btn color="primary" prepend-icon="mdi-monitor" append-icon="mdi-menu-down" rounded="pill" divided>
       <div class="text-none font-weight-regular">Download agent</div>
 
@@ -91,6 +92,12 @@ const client = ref(getDefaultClient());
 // Dialog state
 const isDialogActive = ref(false);
 
+// Feedback for a download that failed after the dialog already closed (e.g. a non-admin
+// hitting the admin-only server-side check) — same inline-caption, auto-clearing pattern as
+// AbstractTaskCard.vue's cancelFeedback, since there's no toast/snackbar composable in this
+// project to reuse instead.
+const downloadError = ref<string>();
+
 function getDefaultClient() {
   const { userAgent } = window.navigator;
   if (userAgent.indexOf('Win') !== -1) return ClientType.Windows;
@@ -117,6 +124,9 @@ function downloadClientAgent() {
         useAuth().redirectToLogin();
         throw new Error('Not authenticated');
       }
+      if (response.status === 403) {
+        throw new Error('You do not have permission to download the agent.');
+      }
       if (!response.ok) {
         throw new Error(`Failed to download agent: HTTP ${response.status}`);
       }
@@ -131,6 +141,10 @@ function downloadClientAgent() {
       a.click();
       window.URL.revokeObjectURL(url);
     })
-    .catch((e) => console.error('Failed to download agent', e));
+    .catch((e) => {
+      console.error('Failed to download agent', e);
+      downloadError.value = e instanceof Error ? e.message : 'Failed to download agent';
+      setTimeout(() => (downloadError.value = undefined), 5000);
+    });
 }
 </script>
