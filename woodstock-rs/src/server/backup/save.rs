@@ -483,6 +483,17 @@ impl<Clt: Client> BackupSave<Clt> {
                 // agent won't find it in its index, so it reports it as `Add` instead of
                 // silently skipping it as unmodified. `create_backup` reclassifies it back
                 // to `Modify` so it still goes through the normal per-chunk dedup path.
+                //
+                // Known limitation: this also makes the entry invisible to the diff engine
+                // (`manifest/diff.rs` only synthesizes `Remove` for entries present in the
+                // agent's index with `mark_viewed == false`). If the file is *deleted*
+                // client-side before the next backup, the agent never reports it (nothing to
+                // walk) and the server never marks it unviewed (it was withheld from the
+                // index in the first place) — no `Add` and no `Remove` are produced, so the
+                // stale manifest entry (and its refcount) persists indefinitely, and a future
+                // restore of that path fails because the chunk data genuinely doesn't exist.
+                // A real fix requires distinguishing "needs re-verification" from "entry
+                // unknown" at the wire-protocol level; not attempted here.
                 if has_known_missing {
                     let has_missing_chunk = {
                         let missing = missing_pool_chunks.lock().await;
