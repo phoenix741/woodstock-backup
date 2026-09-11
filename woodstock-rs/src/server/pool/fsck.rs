@@ -465,6 +465,7 @@ impl PoolFsck {
         seen: &HashSet<[u8; 32]>,
         progress_tx: Option<mpsc::Sender<FsckMissingCount>>,
         cancel_token: &CancellationToken,
+        dry_run: bool,
     ) -> Result<FsckMissingCount> {
         info!("Starting missing chunks verification");
 
@@ -482,8 +483,15 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let result =
-            check_missing(refcnt, seen, internal_tx, self.config.clone(), cancel_token).await?;
+        let result = check_missing(
+            refcnt,
+            seen,
+            internal_tx,
+            self.config.clone(),
+            cancel_token,
+            dry_run,
+        )
+        .await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in missing chunks progression task: {}", e);

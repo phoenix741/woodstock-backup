@@ -394,7 +394,13 @@ impl FsckMachine {
         // Execute verification
         let result = self
             .fsck
-            .verify_missing(refcnt, seen, Some(progress_tx), &self.cancel_token)
+            .verify_missing(
+                refcnt,
+                seen,
+                Some(progress_tx),
+                &self.cancel_token,
+                self.dry_run,
+            )
             .await;
 
         // Wait for progression task to complete
