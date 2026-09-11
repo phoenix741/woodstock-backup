@@ -3,7 +3,7 @@
 use console::{style, Term};
 use eyre::{eyre, Result, WrapErr};
 use indicatif::HumanBytes;
-use tracing::info;
+use tracing::{error, info};
 use woodstock::archiving::{
     dir_sync::{diff_host_dir_archive, sync_host_dir_archive},
     tar_writer::{archive_path_for, checksum_path_for, sha256_hex_of_file, write_host_tar_archive},
@@ -129,6 +129,8 @@ pub async fn run_archive_profile(
     }
 
     let cancel_token = crate::cancel::cancellation_token_with_ctrl_c();
+    let hosts_total = hosts.len();
+    let mut failed_hosts = Vec::new();
 
     for hostname in hosts {
         let Some(backup) = state.backups.get_last_backup(&hostname).await else {
@@ -136,63 +138,88 @@ pub async fn run_archive_profile(
             continue;
         };
 
-        match profile.format {
-            ArchiveFormat::Tar(_)
-            | ArchiveFormat::TarGz(_)
-            | ArchiveFormat::TarXz(_)
-            | ArchiveFormat::TarZstd(_) => {
-                let output = write_host_tar_archive(
-                    &state.backups,
-                    &state.config.path.pool_path,
-                    &hostname,
-                    &backup,
-                    &profile.destination,
-                    profile.format,
-                    None,
-                    cancel_token.clone(),
-                )
-                .await
-                .wrap_err_with(|| format!("Failed to archive host '{hostname}'"))?;
+        // Errors are caught and logged per host rather than propagated with `?` — a manual
+        // export across many hosts should keep going on the ones it can still reach, same as
+        // the scheduled equivalent (`handle_archive_run`), instead of a single problem host
+        // silently aborting every host after it with no indication the rest were skipped.
+        let host_result: Result<()> = async {
+            match profile.format {
+                ArchiveFormat::Tar(_)
+                | ArchiveFormat::TarGz(_)
+                | ArchiveFormat::TarXz(_)
+                | ArchiveFormat::TarZstd(_) => {
+                    let output = write_host_tar_archive(
+                        &state.backups,
+                        &state.config.path.pool_path,
+                        &hostname,
+                        &backup,
+                        &profile.destination,
+                        profile.format,
+                        None,
+                        cancel_token.clone(),
+                    )
+                    .await
+                    .wrap_err_with(|| format!("Failed to archive host '{hostname}'"))?;
 
-                info!("Archived {hostname} -> {:?}", output.archive_path);
-                if let Some(checksum_path) = output.checksum_path {
-                    info!("Checksum written to {checksum_path:?}");
+                    info!("Archived {hostname} -> {:?}", output.archive_path);
+                    if let Some(checksum_path) = output.checksum_path {
+                        info!("Checksum written to {checksum_path:?}");
+                    }
+                }
+                ArchiveFormat::Dir => {
+                    let output = sync_host_dir_archive(
+                        &state.backups,
+                        &state.config.path.pool_path,
+                        &hostname,
+                        &backup,
+                        &profile.destination,
+                        None,
+                        cancel_token.clone(),
+                    )
+                    .await
+                    .wrap_err_with(|| format!("Failed to sync host '{hostname}'"))?;
+
+                    info!(
+                        "Synced {hostname} -> {:?} (+{} ~{} -{}{})",
+                        output.destination,
+                        output.added,
+                        output.modified,
+                        output.removed,
+                        if output.skipped > 0 || output.cancelled {
+                            format!(
+                                ", {} skipped{}",
+                                output.skipped,
+                                if output.cancelled { ", cancelled" } else { "" }
+                            )
+                        } else {
+                            String::new()
+                        }
+                    );
                 }
             }
-            ArchiveFormat::Dir => {
-                let output = sync_host_dir_archive(
-                    &state.backups,
-                    &state.config.path.pool_path,
-                    &hostname,
-                    &backup,
-                    &profile.destination,
-                    None,
-                    cancel_token.clone(),
-                )
-                .await
-                .wrap_err_with(|| format!("Failed to sync host '{hostname}'"))?;
+            Ok(())
+        }
+        .await;
 
-                info!(
-                    "Synced {hostname} -> {:?} (+{} ~{} -{}{})",
-                    output.destination,
-                    output.added,
-                    output.modified,
-                    output.removed,
-                    if output.skipped > 0 || output.cancelled {
-                        format!(
-                            ", {} skipped{}",
-                            output.skipped,
-                            if output.cancelled { ", cancelled" } else { "" }
-                        )
-                    } else {
-                        String::new()
-                    }
-                );
-            }
+        if let Err(err) = host_result {
+            error!("{err:#}");
+            failed_hosts.push(hostname);
+        }
+
+        if cancel_token.is_cancelled() {
+            break;
         }
     }
 
-    Ok(())
+    if failed_hosts.is_empty() {
+        Ok(())
+    } else {
+        Err(eyre!(
+            "Archive profile '{profile_name}' completed with {}/{hosts_total} host(s) failed: {}",
+            failed_hosts.len(),
+            failed_hosts.join(", ")
+        ))
+    }
 }
 
 /// Dry-runs a `dir`-mode profile's next sync for one host: prints what would
