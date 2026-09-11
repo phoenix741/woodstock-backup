@@ -3,6 +3,7 @@
 //! Uses the `posix_acl` crate to interface with the underlying POSIX Access
 //! Control List system.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use eyre::Result;
@@ -52,15 +53,46 @@ pub fn read_acl(file: &Path) -> Result<Vec<FileManifestAcl>> {
 
 /// Restores Access Control Lists to a file on Unix systems.
 ///
-/// First reads the current ACLs of the file and then modifies them, rather
-/// than creating an entirely new ACL list — this preserves any
-/// system-specific ACL entries that might not be part of the saved ACLs.
+/// First reads the current ACLs of the file and then modifies them, rather than creating an
+/// entirely new ACL list — this preserves the base `UserObj`/`GroupObj`/`Other`/`Mask`
+/// entries (always merge-set, never removed: every valid ACL requires them, and they aren't
+/// individually "revocable" the way a named grant is) plus any other system-specific entry
+/// not covered by named users/groups. Named `User`/`Group` entries are restored
+/// declaratively, though: one present on the destination but absent from `acls` is a grant
+/// that was revoked since the backup was taken, and is removed rather than left in place —
+/// otherwise a "restore" could end up more permissive than the snapshot it's restoring.
 ///
 /// # Errors
 /// Returns an error if the file does not exist, the process lacks
 /// permission to modify its ACLs, or the underlying POSIX ACL calls fail.
 pub fn restore_acl(file: &Path, acls: &[FileManifestAcl]) -> Result<()> {
     let mut acls_writer: PosixACL = PosixACL::read_acl(file)?;
+
+    let mut desired_users = HashSet::new();
+    let mut desired_groups = HashSet::new();
+    for acl in acls {
+        match acl.qualifier() {
+            FileManifestAclQualifier::UserId => {
+                desired_users.insert(acl.id);
+            }
+            FileManifestAclQualifier::GroupId => {
+                desired_groups.insert(acl.id);
+            }
+            _ => {}
+        }
+    }
+
+    for entry in acls_writer.entries() {
+        match entry.qual {
+            Qualifier::User(id) if !desired_users.contains(&id) => {
+                acls_writer.remove(Qualifier::User(id));
+            }
+            Qualifier::Group(id) if !desired_groups.contains(&id) => {
+                acls_writer.remove(Qualifier::Group(id));
+            }
+            _ => {}
+        }
+    }
 
     for acl in acls {
         let qualifier = match acl.qualifier() {
