@@ -28,7 +28,11 @@ use crate::{
     proto::{CompressedWriter, ProtobufWriter},
     refresh_cache_request,
     server::progression::FileListProgression,
-    utils::{chunk_hasher::get_empty_hash, compression::CompressionFormat},
+    utils::{
+        chunk_hasher::get_empty_hash,
+        compression::CompressionFormat,
+        lock_redis::{FileLockOperation, LockOperation, PoolLockRedis},
+    },
     ChunkAlgorithm, ChunkHashRequest, ChunkInformation, EntryState, EntryType, EventSource,
     EventStatus, ExecuteCommandReply, FileManifest, FileManifestJournalEntry, PoolRefCount,
     PoolUnused, RefreshCacheRequest, Share, ShareSnapshotResult, SnapshotMethod,
@@ -44,6 +48,12 @@ use super::{super::client::Client, super::progression::BackupProgression};
 #[derive(Default)]
 struct MissingChunkTracker {
     entries: HashMap<Vec<u8>, PoolUnused>,
+    /// Hashes healed (re-confirmed present) during this backup — tracked separately from
+    /// `entries` so `close()` can merge just these fixes into the current on-disk snapshot
+    /// instead of overwriting it wholesale with this backup's own view of the full missing
+    /// set, which could otherwise discard a fix a concurrent backup (different host) made
+    /// to an entry this backup never touched.
+    healed_hashes: HashSet<Vec<u8>>,
     healed: bool,
 }
 
@@ -199,6 +209,7 @@ impl<Clt: Client> BackupSave<Clt> {
                 "Chunk {} confirmed present, clearing missing flag",
                 hex::encode(hash)
             );
+            tracker.healed_hashes.insert(hash.to_vec());
             tracker.healed = true;
         }
     }
@@ -1209,18 +1220,17 @@ impl<Clt: Client> BackupSave<Clt> {
         // the pool at this point, and a subsequent `client.close()` failure (tolerated by the
         // caller, which logs it and continues) must not cause that fix to be lost.
         let tracker = self.missing_pool_chunks.lock().await;
-        if tracker.healed {
-            if let Err(e) = save_missing_pool_chunks(
-                &self.config.path.pool_path,
-                tracker.entries.values(),
-                self.compression_format,
-            )
-            .await
-            {
+        let healed_hashes = if tracker.healed {
+            Some(tracker.healed_hashes.clone())
+        } else {
+            None
+        };
+        drop(tracker);
+        if let Some(healed_hashes) = healed_hashes {
+            if let Err(e) = self.heal_missing_chunks_file(&healed_hashes).await {
                 error!("Failed to update missing-chunks file after healing: {e}");
             }
         }
-        drop(tracker);
 
         // The outcome itself (Completed / Aborted / Cancelled / Failed) is
         // recorded separately via `save_backup(status)`, which drives
@@ -1229,6 +1239,33 @@ impl<Clt: Client> BackupSave<Clt> {
         self.client.close(aborted).await?;
 
         Ok(())
+    }
+
+    /// Merges `healed_hashes` into the pool's durable "missing chunks" snapshot under an
+    /// exclusive file lock, instead of overwriting it wholesale with this backup's own view.
+    /// Two backups for different hosts can run `close()` concurrently — a full replace would
+    /// let whichever writes last silently discard the other's fixes to entries it never
+    /// touched. Serialized against `check_missing`'s own full-replace write via the same
+    /// lock (see its call site for the symmetric rationale).
+    async fn heal_missing_chunks_file(&self, healed_hashes: &HashSet<Vec<u8>>) -> Result<()> {
+        let pool_path = &self.config.path.pool_path;
+        let missing_path = pool_path.join("missing");
+
+        let _lock = PoolLockRedis::new_with_path(
+            &self.config.redis_url(),
+            &missing_path,
+            LockOperation::File(FileLockOperation::Write),
+        )
+        .await?
+        .lock_exclusive()
+        .await?;
+
+        let mut current = load_missing_pool_chunks(pool_path).await;
+        for hash in healed_hashes {
+            current.remove(hash);
+        }
+
+        save_missing_pool_chunks(pool_path, current.values(), self.compression_format).await
     }
 
     /// Reconstructs in-memory progression stats from on-disk data after a server crash.

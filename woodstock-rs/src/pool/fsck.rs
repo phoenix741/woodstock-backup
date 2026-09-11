@@ -16,7 +16,10 @@ use crate::{
     config::{Backups, Configuration, Hosts, FSCK_PROGRESS_BATCH_SIZE},
     pool::PoolChunkWrapper,
     proto::{CompressedWriter, ProtobufReader, ProtobufWriter},
-    utils::compression::CompressionFormat,
+    utils::{
+        compression::CompressionFormat,
+        lock_redis::{FileLockOperation, LockOperation, PoolLockRedis},
+    },
     PoolRefCount, PoolUnused,
 };
 use uuid::Uuid;
@@ -524,14 +527,34 @@ pub async fn check_missing(
     // scan itself was cancelled part-way, in which case the partial `still_missing` list
     // isn't trustworthy enough to persist.
     if !cancelled {
-        if let Err(e) = save_missing_chunks(
-            &config.path.pool_path,
-            still_missing.iter(),
-            config.compression_format,
-        )
-        .await
-        {
-            error!("Failed to save missing-chunks file: {e}");
+        // Exclusive file lock: serializes this full-replace write against a concurrent
+        // backup's merge-write of the same file in `BackupSave::close` (see its own lock
+        // for why a merge is needed there instead of a full replace).
+        let lock = async {
+            PoolLockRedis::new_with_path(
+                &config.redis_url(),
+                &config.path.pool_path.join("missing"),
+                LockOperation::File(FileLockOperation::Write),
+            )
+            .await?
+            .lock_exclusive()
+            .await
+        }
+        .await;
+
+        match lock {
+            Ok(_lock) => {
+                if let Err(e) = save_missing_chunks(
+                    &config.path.pool_path,
+                    still_missing.iter(),
+                    config.compression_format,
+                )
+                .await
+                {
+                    error!("Failed to save missing-chunks file: {e}");
+                }
+            }
+            Err(e) => error!("Failed to lock missing-chunks file for writing: {e}"),
         }
     }
 
