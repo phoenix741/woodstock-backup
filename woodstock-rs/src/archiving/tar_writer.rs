@@ -190,12 +190,30 @@ pub async fn write_host_tar_archive(
     // file.
     tokio::fs::rename(&temp_path, &archive_path).await?;
 
-    let archive_size = tokio::fs::metadata(&archive_path).await?.len();
+    // From here on the archive itself is complete and valid at `archive_path` — a failure
+    // in these purely informational steps (stat for reporting, checksum sidecar) must not
+    // make the caller treat the whole run as failed: that would misreport a successful
+    // archive as `Failed` and could cause a needless full re-archive on the next run.
+    let archive_size = match tokio::fs::metadata(&archive_path).await {
+        Ok(meta) => meta.len(),
+        Err(e) => {
+            warn!("Failed to stat completed archive {:?}: {e}", archive_path);
+            0
+        }
+    };
 
-    let checksum_path = if let Some(hex_digest) = checksum_hex {
-        Some(write_checksum_file(&archive_path, &hex_digest).await?)
-    } else {
-        None
+    let checksum_path = match checksum_hex {
+        Some(hex_digest) => match write_checksum_file(&archive_path, &hex_digest).await {
+            Ok(path) => Some(path),
+            Err(e) => {
+                warn!(
+                    "Failed to write checksum sidecar for {:?}: {e}",
+                    archive_path
+                );
+                None
+            }
+        },
+        None => None,
     };
 
     Ok(TarArchiveOutput {
