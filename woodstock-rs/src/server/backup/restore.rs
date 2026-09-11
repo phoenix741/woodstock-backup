@@ -356,6 +356,9 @@ impl<Clt: Client> BackupRestore<Clt> {
 
     /// Closes the restoration process.
     ///
+    /// `failure_message` is `Some(..)` when the transfer itself failed (as opposed to being
+    /// cancelled) — it drives both the agent-side abort signal and the logged event status.
+    ///
     /// # Returns
     ///
     /// * `Ok(())` if the operation succeeds.
@@ -364,22 +367,29 @@ impl<Clt: Client> BackupRestore<Clt> {
     /// # Errors
     ///
     /// Returns an error if the closure fails.
-    pub async fn close(&self) -> Result<()> {
+    pub async fn close(&self, failure_message: Option<&str>) -> Result<()> {
         info!("Close restore");
 
-        self.client.close(self.cancel_token.is_cancelled()).await?;
+        let cancelled = self.cancel_token.is_cancelled();
+        // A real failure also needs to tell the agent to finalize/abort its snapshot, same
+        // as a user cancel — only a clean, fully successful restore should not.
+        self.client
+            .close(cancelled || failure_message.is_some())
+            .await?;
 
-        // Restore has no persisted `Backup.status` (unlike a backup), so this
-        // event log entry is the only durable record of whether the user
-        // cancelled it — check the same token consulted throughout the
-        // transfer loop.
-        let event_status = if self.cancel_token.is_cancelled() {
-            EventStatus::Cancelled
+        // Restore has no persisted `Backup.status` (unlike a backup), so this event log
+        // entry is the only durable record of whether the user cancelled it, or it failed
+        // outright — check the same token consulted throughout the transfer loop.
+        let (event_status, error_messages) = if cancelled {
+            (EventStatus::Cancelled, Vec::new())
+        } else if let Some(message) = failure_message {
+            (EventStatus::GenericError, vec![message.to_string()])
         } else {
-            EventStatus::Success
+            (EventStatus::Success, Vec::new())
         };
 
-        self.create_event_restore_end(&[], event_status).await?;
+        self.create_event_restore_end(&[], event_status, error_messages)
+            .await?;
 
         Ok(())
     }
@@ -440,6 +450,7 @@ impl<Clt: Client> BackupRestore<Clt> {
         &self,
         shares: &[&str],
         status: EventStatus,
+        error_messages: Vec<String>,
     ) -> Result<()> {
         let event = Event {
             id: self.uuid.clone(),
@@ -450,7 +461,7 @@ impl<Clt: Client> BackupRestore<Clt> {
                 .as_secs(),
             source: self.source as i32,
             user: String::new(),
-            error_messages: Vec::new(),
+            error_messages,
             status: status as i32,
 
             information: Some(Information::Backup(EventBackupInformation {

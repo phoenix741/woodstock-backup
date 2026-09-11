@@ -285,45 +285,74 @@ impl<Clt: Client> RestoreBackupMachine<Clt> {
 
         self.execute_authentication().await?;
 
-        for selection in share_selection {
+        // Tracks a real transfer failure (as opposed to a user cancel) so it still reaches
+        // `self.client.close()` below — an error propagated via `?` straight out of these
+        // loops used to skip closing the connection entirely, leaving the agent's snapshot
+        // session un-finalized and no failure event logged (unlike a clean cancel, which
+        // always reaches `close()`).
+        let mut failure: Option<eyre::Report> = None;
+
+        'prepare: for selection in share_selection {
             let share = selection.share.as_ref();
             let selection = &selection.selection;
 
-            self.prepare_restoration(share, selection).await?;
+            if let Err(err) = self.prepare_restoration(share, selection).await {
+                error!("Error preparing restoration for share {}: {}", share, err);
+                failure = Some(err);
+                break 'prepare;
+            }
 
             // Checked here too, not just between the actual transfers below —
             // otherwise a cancel arriving during preparation (scanning every
             // manifest entry to compute progress_max for every share) would
             // wait for all shares to finish preparing before taking effect.
             if self.cancel_token.is_cancelled() {
-                break;
+                break 'prepare;
             }
         }
 
-        for selection in share_selection {
-            // Checked before each share starts (not just after) — covers a
-            // cancel that arrived during preparation above, and skips any
-            // share not yet started. A share already in progress when the
-            // cancel arrives stops on its own via the per-file check inside
-            // `BackupRestore::restore`.
-            if self.cancel_token.is_cancelled() {
-                break;
+        if failure.is_none() {
+            'transfer: for selection in share_selection {
+                // Checked before each share starts (not just after) — covers a
+                // cancel that arrived during preparation above, and skips any
+                // share not yet started. A share already in progress when the
+                // cancel arrives stops on its own via the per-file check inside
+                // `BackupRestore::restore`.
+                if self.cancel_token.is_cancelled() {
+                    break 'transfer;
+                }
+
+                let share = selection.share.as_ref();
+                let selection = &selection.selection;
+
+                if let Err(err) = self
+                    .restore_files(&destination_directory, share, selection)
+                    .await
+                {
+                    error!("Error restoring files for share {}: {}", share, err);
+                    failure = Some(err);
+                    break 'transfer;
+                }
             }
-
-            let share = selection.share.as_ref();
-            let selection = &selection.selection;
-
-            self.restore_files(&destination_directory, share, selection)
-                .await?;
         }
 
-        if let Err(err) = self.client.close().await {
+        let failure_message = failure.as_ref().map(std::string::ToString::to_string);
+        if let Err(err) = self.client.close(failure_message.as_deref()).await {
             error!("Error closing the connection: {}", err);
             {
                 let mut progression_state = self.progression_state.lock().await;
                 progression_state.set_error(format!(
                     "Erreur lors de la fermeture de la connexion: {err}",
                 ));
+            }
+            self.send_progress().await;
+            return Err(err);
+        }
+
+        if let Some(err) = failure {
+            {
+                let mut progression_state = self.progression_state.lock().await;
+                progression_state.set_error(err.to_string());
             }
             self.send_progress().await;
             return Err(err);
