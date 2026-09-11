@@ -1,3 +1,10 @@
+# [2.1.0-alpha.19](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.18...v2.1.0-alpha.19) (2026-09-11)
+
+
+### Bug Fixes
+
+* **front:** clean up footer link layout and styling ([2c2d73c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/2c2d73c879b113d6d006947323956389caad8f58))
+
 # [2.1.0-alpha.18](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.17...v2.1.0-alpha.18) (2026-09-10)
 
 
