@@ -246,6 +246,19 @@ impl MutationRoot {
             return Ok(false);
         }
 
+        // Re-check right before writing the marker: Apalis retries reuse the same task_id,
+        // so if the attempt this mutation observed above finishes/fails and gets requeued
+        // in the time it takes this resolver to run, a stale marker would cancel that
+        // unrelated retry instead of the attempt the caller actually meant to stop. This
+        // narrows the race window to the gap between this read and the write below — it
+        // does not eliminate it.
+        let Some(recent_event) = state.progress_reader.get(&task_id).await else {
+            return Ok(false);
+        };
+        if !matches!(recent_event.status, JobStatus::Created | JobStatus::Started) {
+            return Ok(false);
+        }
+
         crate::jobs::progress::request_cancel(&state.redis_client, &task_id)
             .await
             .map_err(|e| async_graphql::Error::new(e.to_string()))?;
