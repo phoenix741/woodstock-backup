@@ -58,6 +58,7 @@
               color="error"
               prepend-icon="mdi-stop-circle-outline"
               :loading="cancelling"
+              :disabled="cancelling"
               @click="confirmDialog = true"
             >
               Cancel task
@@ -75,7 +76,7 @@
         </v-card-text>
         <v-card-actions class="justify-end">
           <v-btn variant="text" @click="confirmDialog = false">Keep running</v-btn>
-          <v-btn color="error" variant="flat" :loading="cancelling" @click="onCancel">Cancel task</v-btn>
+          <v-btn color="error" variant="flat" :loading="cancelling" :disabled="cancelling" @click="onCancel">Cancel task</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -141,7 +142,7 @@ const confirmDialog = ref(false);
 const cancelFeedback = ref<string | undefined>(undefined);
 
 async function onCancel() {
-  if (!props.jobId) return;
+  if (!props.jobId || cancelling.value) return;
   cancelFeedback.value = undefined;
   try {
     const result = await mutate({ taskId: props.jobId });
