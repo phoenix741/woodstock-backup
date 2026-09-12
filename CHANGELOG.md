@@ -1,3 +1,31 @@
+# [2.1.0-alpha.20](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.19...v2.1.0-alpha.20) (2026-09-12)
+
+
+### Bug Fixes
+
+* **archiving:** don't fail a tar archive job over post-rename stat/checksum errors ([9ed0be5](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9ed0be5cf4d8720729f9ed9227d72df87f9103a5)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **archiving:** stop dir-archive restore from truncating the destination before the copy succeeds ([5e02c3a](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5e02c3af0fd0d0c3fc059fbbc5a50ef0bf17069d)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **backup:** protect the last backup by number, not start_date ([2f58ba9](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/2f58ba92b9415022a92f470c10bdf5e30e7ac9f7)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **backup:** report Aborted status correctly and preserve Cancelled on resume ([d73ac29](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/d73ac2995c312f5d6d8e48a1e164ff767ca08e2e)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **cli:** continue archiving remaining hosts after one fails ([8042e01](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/8042e01859c6a0a94be34ac93cb8360cf376ef92)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **front:** fix NaN% on fsck progress bars before progressMax is known ([5dce0e3](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5dce0e3766863f22184c6ef11bfddd75fc5a17fc)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **front:** guard cancel-task button against double submission ([c0d6884](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/c0d6884f72c8612c83a93e85c4ab27cfbd1bdb3e)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **front:** reset Run archive dialog state when closed ([614868f](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/614868ffda958ccb5f9fe355e7e9094537872e3b)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **front:** show visible feedback when agent download fails ([1aa320d](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/1aa320d23f5bb36227cbe2f2203242d6c0db11ac)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **jobs:** log when enqueue_backup_unique's no-op may be a lost ack, not real contention ([3e95c99](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/3e95c9974441f6d64c7abaf5e090eff981b16547)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **jobs:** narrow the cancelJob/retry race window ([15ae095](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/15ae095745f4b776f4a3aceb6e4ab270886ab2c6)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **pool:** don't let a cancelled fsck run mask already-detected corruption ([72bfe04](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/72bfe04e2a8028e16a0e4c1d853623bfe7a628f9)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **pool:** make fsck --dry-run actually read-only for missing-chunk checks ([f99b1c4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f99b1c4a944cb860b0941fcbd7a39c64034384ae)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **pool:** stop concurrent backups from clobbering each other's missing-chunks fixes ([247480b](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/247480bae69ac73fa3a89596b77c22ee56ac590b)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **restore:** log a failure event and tell the agent to abort on real errors ([f47aae0](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f47aae0f734030e37d6af6ca4cd398ef258f9f6f)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **restore:** remove revoked named ACL entries instead of merge-only restore ([725924e](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/725924e017b32997b2f6aeafacec6316e2fc1dcc)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **restore:** stop symlink restore from following the link ([49988da](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/49988daa3cca3e9a65eb3612f187653fe5a57f36)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **scheduler:** persist archive profile last_run at job completion, not enqueue ([5a026ca](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/5a026ca2416413534623318e54da7f2293cbdac4)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **security:** gate Fix button on Events page to admins (defense in depth) ([12e739c](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/12e739c8f20d3e605d874bf061111a5724910386)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **security:** hide Clear cache button from non-admin users ([3286e75](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/3286e758804d4ae58947199cad0a7abbaee063da)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **security:** make pool/disk statistics and health status admin-only ([9a02762](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/9a0276220a1a9ab7ae8a9b8e86a938b534c7110b)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+* **security:** restrict archive run/cancel to admin users ([f002ec4](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/commit/f002ec4c5bfd3671be3cd5a85a32c4c3647fda75)), closes [#115](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/issues/115)
+
 # [2.1.0-alpha.19](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/compare/v2.1.0-alpha.18...v2.1.0-alpha.19) (2026-09-11)
 
 
