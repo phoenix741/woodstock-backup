@@ -61,12 +61,10 @@ impl MutationRoot {
         profile: String,
         host: Option<String>,
     ) -> GqlResult<ArchiveRunResponse> {
-        match &host {
-            Some(h) => require_can_see_host(ctx, h)?,
-            // No specific host: fans out across the profile's full host selection, which a
-            // non-admin user cannot be assumed to own in its entirety.
-            None => require_admin(ctx)?,
-        }
+        // Archive is an admin-only feature end-to-end — even a single-host override must go
+        // through an admin, not just that host's owner (mirrors `archive_profiles`'s own
+        // require_admin() and the admin-gated /archive routes in the frontend).
+        require_admin(ctx)?;
         let state = ctx.data::<ApiServerState>()?;
         let mut producers = state.producers.lock().await;
 
@@ -232,7 +230,9 @@ impl MutationRoot {
         let allowed = match &event.kind {
             JobKind::Backup(pd) => user.can_see_host(&pd.data.host),
             JobKind::Restore(pd) => user.can_see_host(&pd.data.host),
-            JobKind::Archive(pd) => user.can_see_any_host(&pd.data.hostnames),
+            // Archive is an admin-only feature end-to-end — a single archive job can span
+            // hosts the caller doesn't own, so cancelling it is an admin action (same as Fsck).
+            JobKind::Archive(_) => user.is_admin,
             // Fsck is a global pool operation — cancelling it is an admin action.
             JobKind::Fsck(_) => user.is_admin,
             JobKind::Remove(_) | JobKind::CleanupRefcnt(_) | JobKind::Stats(_) => user.is_admin,
@@ -243,6 +243,19 @@ impl MutationRoot {
             )));
         }
         if !matches!(event.status, JobStatus::Created | JobStatus::Started) {
+            return Ok(false);
+        }
+
+        // Re-check right before writing the marker: Apalis retries reuse the same task_id,
+        // so if the attempt this mutation observed above finishes/fails and gets requeued
+        // in the time it takes this resolver to run, a stale marker would cancel that
+        // unrelated retry instead of the attempt the caller actually meant to stop. This
+        // narrows the race window to the gap between this read and the write below — it
+        // does not eliminate it.
+        let Some(recent_event) = state.progress_reader.get(&task_id).await else {
+            return Ok(false);
+        };
+        if !matches!(recent_event.status, JobStatus::Created | JobStatus::Started) {
             return Ok(false);
         }
 

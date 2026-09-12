@@ -50,7 +50,7 @@
               <div class="d-flex">
                 <div class="flex-1-0 text-left"></div>
                 <div class="text-right pa-2">
-                  <v-btn class="ml-1" color="primary" variant="text" @click="clearCache()">Clear cache</v-btn>
+                  <v-btn v-if="isAdmin" class="ml-1" color="primary" variant="text" @click="clearCache()">Clear cache</v-btn>
                 </div>
               </div>
             </template>
@@ -82,12 +82,17 @@ import { type VDataTable } from 'vuetify/components';
 
 import { useDevices } from '../utils/devices';
 import { useDiskUsageStats } from '../utils/stats';
+import { useAuth } from '@/composables/useAuth';
 
 type ReadonlyHeaders = VDataTable['$props']['headers'];
 
 const router = useRouter();
 const { devices, isDeviceFetching, devicesByState, clearCache } = useDevices();
 const { devicesBySize, isStatsFetching } = useDiskUsageStats();
+const auth = useAuth();
+// clearCache is admin-only server-side — not admin-gated when auth is disabled, same
+// "unrestricted" default as the server.
+const isAdmin = computed(() => !auth.enabled.value || auth.isAdmin.value);
 
 function navigateTo(event: PointerEvent, { item }: { item: Record<string, unknown> }) {
   router.push(`/backups/${item.name}`);

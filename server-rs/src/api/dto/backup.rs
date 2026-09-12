@@ -121,6 +121,22 @@ impl From<BackupStatus> for BackupStatusDto {
                     removing_stage: None,
                 }
             }
+            // Same wire shape as `Aborting`: the Cancelled-vs-Aborted origin only matters for
+            // what this resolves to on completion, not for how the transient state displays.
+            BackupStatus::CancellingFinalization(stage) => {
+                let aborting_stage = match stage {
+                    FinishingStatus::ToCompact => AbortingStageDto::ToCompact,
+                    FinishingStatus::ToCountRef => AbortingStageDto::ToCountRef,
+                    FinishingStatus::ToAddInPool => AbortingStageDto::ToAddInPool,
+                };
+                BackupStatusDto {
+                    status_type: BackupStatusTypeDto::Aborting,
+                    finishing_stage: None,
+                    aborting_stage: Some(aborting_stage),
+                    failed_stage: None,
+                    removing_stage: None,
+                }
+            }
             BackupStatus::Aborted => BackupStatusDto {
                 status_type: BackupStatusTypeDto::Aborted,
                 finishing_stage: None,
@@ -504,6 +520,7 @@ pub enum BackupExecutionState {
     Waiting,
     Skipped,
     Cancelled,
+    Aborted,
     Authenticate,
     Initialization,
     PreCommands,
@@ -523,6 +540,7 @@ impl From<woodstock::server::backup::save_state::BackupExecutionState> for Backu
             Src::Waiting => BackupExecutionState::Waiting,
             Src::Skipped => BackupExecutionState::Skipped,
             Src::Cancelled => BackupExecutionState::Cancelled,
+            Src::Aborted => BackupExecutionState::Aborted,
             Src::Authenticate => BackupExecutionState::Authenticate,
             Src::Initialization => BackupExecutionState::Initialization,
             Src::PreCommands(_) => BackupExecutionState::PreCommands,

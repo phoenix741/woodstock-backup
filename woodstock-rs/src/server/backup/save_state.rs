@@ -32,6 +32,10 @@ pub enum BackupExecutionState {
     /// not to run it this time and will retry later — a cancelled job is
     /// not retried.
     Cancelled,
+    /// A critical error (host unreachable, auth failure, mid-stream
+    /// disconnect, lock loss) aborted the backup after it had already
+    /// started running. Distinct from `Cancelled` (user-initiated).
+    Aborted,
     Authenticate,
     Initialization,
     PreCommands(ExecuteCommandOperation),

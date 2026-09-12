@@ -235,22 +235,26 @@ const progressPercent = computed(() => {
 
 const refcntProgressionPercent = computed(() => {
   if (!progress?.refcntProgression) return 0;
-  return (progress.refcntProgression.progressCurrent / progress.refcntProgression.progressMax) * 100;
+  const { progressCurrent, progressMax } = progress.refcntProgression;
+  return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
 });
 
 const unusedProgressionPercent = computed(() => {
   if (!progress?.unusedProgression) return 0;
-  return (progress.unusedProgression.progressCurrent / progress.unusedProgression.progressMax) * 100;
+  const { progressCurrent, progressMax } = progress.unusedProgression;
+  return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
 });
 
 const missingProgressionPercent = computed(() => {
   if (!progress?.missingProgression) return 0;
-  return (progress.missingProgression.progressCurrent / progress.missingProgression.progressMax) * 100;
+  const { progressCurrent, progressMax } = progress.missingProgression;
+  return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
 });
 
 const chunkProgressionPercent = computed(() => {
   if (!progress?.chunkProgression) return 0;
-  return (progress.chunkProgression.progressCurrent / progress.chunkProgression.progressMax) * 100;
+  const { progressCurrent, progressMax } = progress.chunkProgression;
+  return progressMax > 0 ? (progressCurrent / progressMax) * 100 : 0;
 });
 
 const progressMessage = computed(() => {

@@ -499,6 +499,11 @@ async fn check_and_enqueue_due_archives(
             .await
         {
             Ok(job_ids) => {
+                // last_run is intentionally NOT persisted here: this only records that the
+                // job was successfully handed to Apalis, not that it actually ran — a
+                // worker crash before pickup would otherwise silently skip this profile for
+                // the rest of its cron cycle. It's persisted instead at the job's actual
+                // completion, in `handle_archive_run` (server-rs/src/jobs/workers.rs).
                 if job_ids.is_empty() {
                     info!(
                         "Archive profile '{}' due: no host matched its selection, nothing enqueued",
@@ -506,24 +511,6 @@ async fn check_and_enqueue_due_archives(
                     );
                 } else {
                     info!("Archive profile '{}' due: enqueued 1 job", profile.name);
-                }
-                let new_status = ArchiveRunStatus {
-                    last_run: Some(now),
-                };
-                if let Err(e) = new_status.save(jobs_path, &profile.name).await {
-                    tracing::error!(
-                        "Failed to persist run status for archive profile '{}': {e}",
-                        profile.name
-                    );
-                    set_next_attempt(
-                        redis_client,
-                        &attempt_key,
-                        now + ChronoDuration::seconds(
-                            scheduling_config.retry_backoff_on_refusal_secs,
-                        ),
-                        scheduling_config,
-                    )
-                    .await;
                 }
             }
             Err(e) => {

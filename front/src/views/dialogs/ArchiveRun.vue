@@ -57,7 +57,7 @@
 <script lang="ts" setup>
 import { RunArchiveDocument } from '@/generated/graphql';
 import { useMutation } from '@vue/apollo-composable';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps<{
   profileName: string;
@@ -77,6 +77,17 @@ const hostOverride = ref('');
 const errorMessage = ref('');
 
 const { mutate } = useMutation(RunArchiveDocument);
+
+// The dialog isn't unmounted on close (always rendered inside this component), so its
+// state would otherwise still show the previous run's Success/Error card — or a stale
+// hostOverride — the next time it's opened.
+watch(dialog, (isOpen) => {
+  if (!isOpen) {
+    dialogState.value = RunDialogState.Waiting;
+    hostOverride.value = '';
+    errorMessage.value = '';
+  }
+});
 
 const runArchive = async () => {
   dialogState.value = RunDialogState.InProgress;

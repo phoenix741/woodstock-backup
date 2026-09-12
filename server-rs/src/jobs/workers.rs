@@ -18,7 +18,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn, Instrument};
 use woodstock::archiving::{
-    ArchiveHostExecutionState, ArchiveHostState, ArchiveProgressCounters, ArchiveState,
+    ArchiveHostExecutionState, ArchiveHostState, ArchiveProgressCounters, ArchiveRunStatus,
+    ArchiveState,
 };
 use woodstock::config::{Context, DEFAULT_CHANNEL_BUFFER_SIZE};
 use woodstock::events::{create_event_archive_end, create_event_archive_start};
@@ -979,6 +980,40 @@ impl JobExecutors {
     /// that were already written successfully.
     #[instrument(skip_all, fields(job_type="archive", profile=%job.profile_name, hosts=job.hostnames.len(), task_id=%task_id))]
     pub async fn handle_archive_run(
+        &self,
+        task_id: TaskId,
+        state: Data<Arc<ApiWorkerState>>,
+        job: ArchiveRunJobData,
+        attempt: Attempt,
+    ) -> Result<()> {
+        let profile_name = job.profile_name.clone();
+        let jobs_path = state.config.path.jobs_path.clone();
+
+        let result = self
+            .handle_archive_run_inner(task_id.clone(), state, job, attempt)
+            .await;
+
+        // Persisted here — actual completion of this attempt (success, partial per-host
+        // failure, or a hard error below) — rather than at scheduler enqueue time: advancing
+        // last_run before the job even ran meant a worker crash before pickup silently
+        // skipped the whole cron cycle with no archive ever attempted. Unconditional (not
+        // gated on the result) to preserve the original "attempted this cycle" semantics —
+        // last_run tracks when this profile was last processed, not when it last succeeded;
+        // Apalis's own retry/backoff already governs whether a failed attempt runs again.
+        let new_status = ArchiveRunStatus {
+            last_run: Some(Local::now()),
+        };
+        if let Err(e) = new_status.save(&jobs_path, &profile_name).await {
+            error!(
+                "[{}] Failed to persist run status for archive profile '{}': {e}",
+                task_id, profile_name
+            );
+        }
+
+        result
+    }
+
+    async fn handle_archive_run_inner(
         &self,
         task_id: TaskId,
         state: Data<Arc<ApiWorkerState>>,

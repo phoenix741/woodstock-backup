@@ -97,6 +97,9 @@ fn message_from_state(state: &BackupExecutionState) -> String {
         BackupExecutionState::Cancelled => {
             format!("[0/10] {}Cancelled by user", Emoji("🛑 ", ""))
         }
+        BackupExecutionState::Aborted => {
+            format!("[0/10] {}Aborted (critical error)", Emoji("💥 ", ""))
+        }
         BackupExecutionState::Initialization => {
             format!("[2/10] {}Create backup directory", Emoji("🔨 ", ""))
         }

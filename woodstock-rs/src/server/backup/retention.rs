@@ -160,7 +160,11 @@ pub fn classify_backups(
     let last_terminal_id = categories
         .keys()
         .filter_map(|id| backups.iter().find(|b| b.id == *id))
-        .max_by_key(|b| b.start_date)
+        // Sort key must match `get_last_backup` (`number`, not `start_date`) — they can
+        // diverge for migrated/imported backups, and protecting the wrong backup here
+        // defeats the whole point: `get_backups_to_delete` would delete the one
+        // `get_last_backup` actually hands out as `previous_id`.
+        .max_by_key(|b| b.number)
         .map(|b| b.id);
     if let Some(last_id) = last_terminal_id {
         if categories.get(&last_id) == Some(&RetentionCategory::Surplus) {
@@ -189,10 +193,10 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
-    fn make_backup(id: Uuid, status: BackupStatus, start_date: DateTime<Local>) -> Backup {
+    fn make_backup(id: Uuid, number: usize, status: BackupStatus, start_date: DateTime<Local>) -> Backup {
         Backup {
             id,
-            number: 0,
+            number,
             status,
             start_date,
             end_date: Some(start_date + Duration::minutes(30)),
@@ -243,27 +247,33 @@ mod tests {
 
         // Hourly: >= t0 - 24h
         let id_t0 = Uuid::now_v7();
-        let b_t0 = make_backup(id_t0, BackupStatus::Completed, t0);
+        let b_t0 = make_backup(id_t0, 6, BackupStatus::Completed, t0);
 
         let id_h1 = Uuid::now_v7();
         // 2 hours ago -> same day -> hourly bucket
-        let b_h1 = make_backup(id_h1, BackupStatus::Completed, t0 - Duration::hours(2));
+        let b_h1 = make_backup(id_h1, 5, BackupStatus::Completed, t0 - Duration::hours(2));
 
         // Daily: >= t0 - 7d
         let id_daily0 = Uuid::now_v7();
         // 2 days ago -> daily bucket
-        let b_daily0 = make_backup(id_daily0, BackupStatus::Completed, t0 - Duration::days(2));
+        let b_daily0 = make_backup(id_daily0, 4, BackupStatus::Completed, t0 - Duration::days(2));
 
         // Weekly: >= t0 - 28d
         let id_weekly0 = Uuid::now_v7();
         // 14 days ago -> weekly bucket
-        let b_weekly0 = make_backup(id_weekly0, BackupStatus::Completed, t0 - Duration::days(14));
+        let b_weekly0 = make_backup(
+            id_weekly0,
+            3,
+            BackupStatus::Completed,
+            t0 - Duration::days(14),
+        );
 
         // Monthly: >= t0 - 12m (approx 365d)
         let id_monthly0 = Uuid::now_v7();
         // 60 days ago -> monthly bucket
         let b_monthly0 = make_backup(
             id_monthly0,
+            2,
             BackupStatus::Completed,
             t0 - Duration::days(60),
         );
@@ -273,6 +283,7 @@ mod tests {
         // 400 days ago -> yearly bucket
         let b_yearly0 = make_backup(
             id_yearly0,
+            1,
             BackupStatus::Completed,
             t0 - Duration::days(400),
         );
@@ -292,18 +303,20 @@ mod tests {
     fn test_calendar_monthly_bucket() {
         let t0 = now_fixed(); // 2026-03-07
 
-        let mut backups = vec![make_backup(Uuid::now_v7(), BackupStatus::Completed, t0)];
+        let mut backups = vec![make_backup(Uuid::now_v7(), 3, BackupStatus::Completed, t0)];
 
         // Let's create two backups in the Monthly zone (older than 28 days but newer than 12 months)
         // They will be positioned in January and February exactly 29 days apart.
         // E.g., Feb 14 and Jan 16.
         let b_feb = make_backup(
             Uuid::now_v7(),
+            2,
             BackupStatus::Completed,
             Local.with_ymd_and_hms(2026, 2, 5, 12, 0, 0).unwrap(),
         );
         let b_jan = make_backup(
             Uuid::now_v7(),
+            1,
             BackupStatus::Completed,
             Local.with_ymd_and_hms(2026, 1, 16, 12, 0, 0).unwrap(),
         );
@@ -322,19 +335,22 @@ mod tests {
     fn test_yearly_limit() {
         let t0 = now_fixed();
 
-        let b_t0 = make_backup(Uuid::now_v7(), BackupStatus::Completed, t0);
+        let b_t0 = make_backup(Uuid::now_v7(), 4, BackupStatus::Completed, t0);
         let b_old1 = make_backup(
             Uuid::now_v7(),
+            3,
             BackupStatus::Completed,
             t0 - Duration::days(400),
         );
         let b_old2 = make_backup(
             Uuid::now_v7(),
+            2,
             BackupStatus::Completed,
             t0 - Duration::days(800),
         );
         let b_old3 = make_backup(
             Uuid::now_v7(),
+            1,
             BackupStatus::Completed,
             t0 - Duration::days(1200),
         );
@@ -362,10 +378,13 @@ mod tests {
 
         let b_completed = make_backup(
             Uuid::now_v7(),
+            1,
             BackupStatus::Completed,
             t0 - Duration::hours(2),
         );
-        let b_cancelled = make_backup(Uuid::now_v7(), BackupStatus::Cancelled, t0);
+        // Higher `number` than b_completed — the newer backup by the sort key that actually
+        // matters (`get_last_backup` sorts by `number`, not `start_date`).
+        let b_cancelled = make_backup(Uuid::now_v7(), 2, BackupStatus::Cancelled, t0);
 
         let backups = vec![b_completed.clone(), b_cancelled.clone()];
         let result = classify_backups(&backups, &full_policy(), t0);
@@ -385,6 +404,40 @@ mod tests {
         assert!(
             !to_delete.contains(&b_cancelled.id),
             "get_backups_to_delete must not select the protected Cancelled backup"
+        );
+    }
+
+    /// Regression: the "last backup" protection must key off `number`, matching
+    /// `get_last_backup`, not `start_date` — the two can diverge (migrated/imported
+    /// backups, clock skew), and protecting by `start_date` alone would upgrade the wrong
+    /// backup, leaving the one `get_last_backup` actually hands out as `previous_id`
+    /// deletable as `Surplus`.
+    #[test]
+    fn test_last_backup_protection_uses_number_not_start_date() {
+        let t0 = now_fixed();
+
+        // Later start_date but the *lower* number — e.g. a clock adjustment between the two
+        // runs. If protection sorted by start_date (the old, buggy key), this one would be
+        // picked as "last" instead of the correct, higher-numbered backup below.
+        let b_later_date_lower_number =
+            make_backup(Uuid::now_v7(), 1, BackupStatus::Completed, t0);
+        let b_earlier_date_higher_number = make_backup(
+            Uuid::now_v7(),
+            2,
+            BackupStatus::Cancelled,
+            t0 - Duration::hours(2),
+        );
+
+        let backups = vec![
+            b_later_date_lower_number.clone(),
+            b_earlier_date_higher_number.clone(),
+        ];
+        let result = classify_backups(&backups, &full_policy(), t0);
+
+        assert_eq!(
+            result[&b_earlier_date_higher_number.id],
+            RetentionCategory::LastBackup,
+            "the backup with the highest number must be protected, regardless of start_date"
         );
     }
 }

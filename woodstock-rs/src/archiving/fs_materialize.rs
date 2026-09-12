@@ -81,11 +81,26 @@ pub async fn materialize_entry(entry: &FileManifest, path: &Path, pool_path: &Pa
             // dangling one) rather than the link itself.
         }
         FileManifestType::RegularFile | FileManifestType::Unknown => {
-            let mut file = open_for_write_retrying_on_eacces(path).await?;
+            // Content is written to a temp sibling first, then atomically renamed onto
+            // `path` — renaming only needs write access to the parent directory, not to
+            // `path` itself, so this sidesteps EACCES on a destination stuck at a
+            // restrictive mode (e.g. git's real 0o444 loose objects) entirely, and — unlike
+            // opening `path` directly with `truncate` — never risks leaving a partially
+            // written, truncated file in `path`'s place if the copy fails partway.
+            let temp_path = temp_sibling_path(path);
+            let mut temp_file = tokio::fs::File::create(&temp_path).await?;
 
             let reader = entry.open_from_pool(pool_path);
             tokio::pin!(reader);
-            tokio::io::copy(&mut reader, &mut file).await?;
+            let copy_result = tokio::io::copy(&mut reader, &mut temp_file).await;
+            drop(temp_file);
+
+            if let Err(err) = copy_result {
+                let _ = tokio::fs::remove_file(&temp_path).await;
+                return Err(err.into());
+            }
+
+            tokio::fs::rename(&temp_path, path).await?;
 
             set_permissions(path, entry).await;
             restore_xattr_and_acl(path, entry).await;
@@ -188,17 +203,11 @@ pub async fn remove_entry(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Async wrapper around [`crate::utils::files::open_for_write_retrying_on_eacces`]
-/// (shared with `client-rs`'s synchronous real-restore path) — run via
-/// `spawn_blocking` since the retry does a blocking `chmod` on the failure
-/// path.
-async fn open_for_write_retrying_on_eacces(path: &Path) -> Result<tokio::fs::File> {
-    let owned_path = path.to_path_buf();
-    let std_file = tokio::task::spawn_blocking(move || {
-        crate::utils::files::open_for_write_retrying_on_eacces(&owned_path)
-    })
-    .await??;
-    Ok(tokio::fs::File::from_std(std_file))
+/// A unique temp path in the same directory as `path`, for the temp-write-then-rename
+/// pattern used when materializing regular file content (see the `RegularFile` arm above).
+fn temp_sibling_path(path: &Path) -> std::path::PathBuf {
+    let filename = path.file_name().unwrap_or_default().to_string_lossy();
+    path.with_file_name(format!(".{filename}.{}.tmp", uuid::Uuid::new_v4()))
 }
 
 async fn set_permissions(path: &Path, entry: &FileManifest) {
@@ -504,6 +513,43 @@ mod tests {
         // final mode afterward — the file must end up back at 0o444, not
         // stuck at the retry's temporary 0o600 unlock.
         assert_eq!(unix_mode_bits(&path), 0o444);
+    }
+
+    /// Regression: a copy that fails partway through must leave the destination's original
+    /// content untouched, not a truncated/partial file — the whole point of the
+    /// temp-write-then-rename pattern in the `RegularFile` arm.
+    #[tokio::test]
+    async fn failed_copy_does_not_touch_existing_destination_content() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("regular");
+        let pool_path = tmp.path().join("pool");
+
+        std::fs::write(&path, b"original content must survive").unwrap();
+
+        let mut entry = regular_file_entry(0o644, SourceOs::Unix);
+        // References a chunk that doesn't exist anywhere under `pool_path` — the pool
+        // directory isn't even created — forcing `open_from_pool`'s reader to error out
+        // partway through the copy.
+        entry.chunks = vec![vec![0xAB; 32]];
+
+        let result = materialize_entry(&entry, &path, &pool_path).await;
+        assert!(result.is_err(), "a missing pool chunk must surface as an error");
+
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"original content must survive",
+            "a failed copy must not truncate or otherwise modify the existing destination file"
+        );
+
+        let leftover_temp_files: Vec<_> = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().contains(".tmp"))
+            .collect();
+        assert!(
+            leftover_temp_files.is_empty(),
+            "the temp file must be cleaned up on failure, not left behind"
+        );
     }
 
     /// Non-regression: a Unix-sourced entry's captured mode is still applied

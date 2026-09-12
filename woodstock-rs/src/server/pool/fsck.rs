@@ -148,8 +148,9 @@ impl PoolFsck {
     /// # Arguments
     /// * `id` - The identifier of the event.
     /// * `information` - Additional information about the reference count operation.
-    /// * `cancelled` - Whether the run was cancelled by the user; takes priority over any
-    ///   error counts found in `information`, since those are incidental to an interrupted run.
+    /// * `cancelled` - Whether the run was cancelled by the user. Only reflected in the
+    ///   persisted status when no corruption was found: real error counts in `information`
+    ///   take priority so a cancel doesn't hide corruption already detected before it landed.
     ///
     /// # Returns
     /// * `Ok(())` if the event was successfully created.
@@ -174,14 +175,14 @@ impl PoolFsck {
             source: source as i32,
             user: String::new(),
             error_messages: Vec::new(),
-            status: if cancelled {
-                EventStatus::Cancelled
-            } else if information.refcount_error > 0
+            status: if information.refcount_error > 0
                 || information.chunk_error > 0
                 || information.missing > 0
                 || information.in_nothing > 0
             {
                 EventStatus::GenericError
+            } else if cancelled {
+                EventStatus::Cancelled
             } else {
                 EventStatus::Success
             } as i32,
@@ -464,6 +465,7 @@ impl PoolFsck {
         seen: &HashSet<[u8; 32]>,
         progress_tx: Option<mpsc::Sender<FsckMissingCount>>,
         cancel_token: &CancellationToken,
+        dry_run: bool,
     ) -> Result<FsckMissingCount> {
         info!("Starting missing chunks verification");
 
@@ -481,8 +483,15 @@ impl PoolFsck {
             .in_current_span(),
         );
 
-        let result =
-            check_missing(refcnt, seen, internal_tx, self.config.clone(), cancel_token).await?;
+        let result = check_missing(
+            refcnt,
+            seen,
+            internal_tx,
+            self.config.clone(),
+            cancel_token,
+            dry_run,
+        )
+        .await?;
 
         if let Err(e) = progress_thread.await {
             error!("Error in missing chunks progression task: {}", e);

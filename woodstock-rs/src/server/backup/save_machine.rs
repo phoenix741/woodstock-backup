@@ -94,6 +94,21 @@ impl BackupPhase {
                 BackupStatus::Aborted,
             ),
 
+            // Interrupted while finalizing a backup the user had cancelled — same recovery
+            // path as `Aborting`, but resolves back to `Cancelled`, not `Aborted`.
+            Some(BackupStatus::CancellingFinalization(FinishingStatus::ToCompact)) => (
+                Self::Recover(Box::new(Self::Compact)),
+                BackupStatus::Cancelled,
+            ),
+            Some(BackupStatus::CancellingFinalization(FinishingStatus::ToCountRef)) => (
+                Self::Recover(Box::new(Self::CountReferences)),
+                BackupStatus::Cancelled,
+            ),
+            Some(BackupStatus::CancellingFinalization(FinishingStatus::ToAddInPool)) => (
+                Self::Recover(Box::new(Self::AddToPool)),
+                BackupStatus::Cancelled,
+            ),
+
             // Hard failure at a specific phase — retry it (with recovery first).
             Some(BackupStatus::Failed(FailedStatus::Compact)) => (
                 Self::Recover(Box::new(Self::Compact)),
@@ -155,14 +170,31 @@ pub struct SaveBackupMachine<Clt: Client> {
 impl<Clt: Client> SaveBackupMachine<Clt> {
     /// Determines the appropriate status to save based on the current context.
     ///
-    /// If the backup is already aborted, returns `Aborting(stage)` to track
-    /// where the aborted backup stopped. Otherwise returns `Finishing(stage)`.
+    /// If the backup is already aborted, returns `Aborting(stage)` (or
+    /// `CancellingFinalization(stage)` if the origin was a user cancel, so a
+    /// later resume can restore `Cancelled` instead of collapsing to
+    /// `Aborted`) to track where the aborted backup stopped. Otherwise
+    /// returns `Finishing(stage)`.
     fn get_status_for_stage(current_status: &BackupStatus, stage: FinishingStatus) -> BackupStatus {
         if current_status.is_aborted() {
-            BackupStatus::Aborting(stage)
+            if Self::is_cancelled_origin(current_status) {
+                BackupStatus::CancellingFinalization(stage)
+            } else {
+                BackupStatus::Aborting(stage)
+            }
         } else {
             BackupStatus::Finishing(stage)
         }
+    }
+
+    /// Whether `status` traces back to a user cancel rather than a critical
+    /// error — used by `get_status_for_stage` to pick between the
+    /// `Aborting`/`CancellingFinalization` finalization markers.
+    fn is_cancelled_origin(status: &BackupStatus) -> bool {
+        matches!(
+            status,
+            BackupStatus::Cancelled | BackupStatus::CancellingFinalization(_)
+        )
     }
 
     /// Determines the status to persist when a finalization phase itself fails.
@@ -1093,16 +1125,18 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         );
 
         // Tracks whether the status actually persisted via `save_backup` (at
-        // whichever exit point) ended up `Cancelled`, since `current_status`
-        // itself gets moved into that call. `BackupState.execution_state`
-        // otherwise always reads `Completed` once the machine finishes
-        // running — regardless of outcome — so a cancelled-mid-run backup
-        // needs this override to avoid showing "Completed" on the task card
-        // while `Backup.status` correctly says `Cancelled`. Every `break` out
-        // of the loop below reassigns this before it's read afterward — the
-        // lint can't see that across the loop's multiple exit points.
+        // whichever exit point) ended up `Cancelled` or `Aborted`, since
+        // `current_status` itself gets moved into that call.
+        // `BackupState.execution_state` otherwise always reads `Completed`
+        // once the machine finishes running — regardless of outcome
+        // (`process_add_references_to_pool_result` sets it unconditionally
+        // on success) — so a cancelled/aborted backup needs this override to
+        // avoid showing "Completed" on the task card while `Backup.status`
+        // correctly says `Cancelled`/`Aborted`. Every `break` out of the loop
+        // below reassigns this before it's read afterward — the lint can't
+        // see that across the loop's multiple exit points.
         #[allow(unused_assignments)]
-        let mut ended_cancelled = false;
+        let mut ended_execution_state: Option<BackupExecutionState> = None;
 
         // State machine main loop
         loop {
@@ -1143,7 +1177,8 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                             FinishingStatus::ToCompact,
                             FailedStatus::Compact,
                         );
-                        ended_cancelled = current_status == BackupStatus::Cancelled;
+                        ended_execution_state =
+                            Self::terminal_execution_state_override(&current_status);
                         self.client.save_backup(failed_status).await?;
                         break;
                     }
@@ -1161,7 +1196,8 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                                 FinishingStatus::ToCountRef,
                                 FailedStatus::RefCount,
                             );
-                            ended_cancelled = current_status == BackupStatus::Cancelled;
+                            ended_execution_state =
+                                Self::terminal_execution_state_override(&current_status);
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1180,7 +1216,8 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                                 FinishingStatus::ToAddInPool,
                                 FailedStatus::InPool,
                             );
-                            ended_cancelled = current_status == BackupStatus::Cancelled;
+                            ended_execution_state =
+                                Self::terminal_execution_state_override(&current_status);
                             self.client.save_backup(failed_status).await?;
                             break;
                         }
@@ -1192,7 +1229,8 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
                         "Backup state machine completed for {}/{} with status {:?}",
                         self.hostname, self.backup_id, current_status
                     );
-                    ended_cancelled = current_status == BackupStatus::Cancelled;
+                    ended_execution_state =
+                        Self::terminal_execution_state_override(&current_status);
                     self.client.save_backup(current_status).await?;
                     break;
                 }
@@ -1200,10 +1238,23 @@ impl<Clt: Client> SaveBackupMachine<Clt> {
         }
 
         let mut state = self.progression_state.lock().await.clone();
-        if ended_cancelled {
-            state.execution_state = BackupExecutionState::Cancelled;
+        if let Some(execution_state) = ended_execution_state {
+            state.execution_state = execution_state;
         }
         Ok(state)
+    }
+
+    /// Maps a terminal `BackupStatus` to the `BackupExecutionState` override needed so the
+    /// live task card doesn't read "Completed" for a cancelled/aborted backup — every phase
+    /// handler that persists a terminal status via `save_backup` otherwise leaves
+    /// `execution_state` however the last successful phase left it (or `Completed`, set
+    /// unconditionally by `process_add_references_to_pool_result` on success).
+    fn terminal_execution_state_override(status: &BackupStatus) -> Option<BackupExecutionState> {
+        match status {
+            BackupStatus::Cancelled => Some(BackupExecutionState::Cancelled),
+            BackupStatus::Aborted => Some(BackupExecutionState::Aborted),
+            _ => None,
+        }
     }
 }
 
@@ -1375,16 +1426,18 @@ mod tests {
     #[test]
     fn test_finalization_failure_while_cancelled_stays_resumable_instead_of_collapsing() {
         // Regression: a Cancelled backup whose own finalization phase then fails must
-        // keep a resumable `Aborting(stage)` marker, not collapse straight to the
-        // terminal `Cancelled` status — otherwise nothing ever resumes it and the
-        // refcount for chunks already written to the pool is never applied.
+        // keep a resumable marker, not collapse straight to the terminal `Cancelled`
+        // status — otherwise nothing ever resumes it and the refcount for chunks
+        // already written to the pool is never applied. It must be the
+        // `CancellingFinalization` marker specifically (not the origin-agnostic
+        // `Aborting`), so a later resume restores `Cancelled`, not `Aborted`.
         assert_eq!(
             SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
                 &BackupStatus::Cancelled,
                 FinishingStatus::ToCompact,
                 FailedStatus::Compact,
             ),
-            BackupStatus::Aborting(FinishingStatus::ToCompact)
+            BackupStatus::CancellingFinalization(FinishingStatus::ToCompact)
         );
         assert_eq!(
             SaveBackupMachine::<crate::server::client::grpc::BackupGrpcClient>::status_after_finalization_failure(
@@ -1392,7 +1445,41 @@ mod tests {
                 FinishingStatus::ToAddInPool,
                 FailedStatus::InPool,
             ),
-            BackupStatus::Aborting(FinishingStatus::ToAddInPool)
+            BackupStatus::CancellingFinalization(FinishingStatus::ToAddInPool)
+        );
+    }
+
+    #[test]
+    fn test_resuming_cancelling_finalization_restores_cancelled_not_aborted() {
+        // The other half of the regression above: once the interrupted finalization
+        // resumes and completes, it must resolve back to `Cancelled` — collapsing to
+        // `Aborted` would misreport a deliberate user cancel as a critical failure.
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::CancellingFinalization(
+                FinishingStatus::ToCompact
+            ))),
+            (
+                BackupPhase::Recover(Box::new(BackupPhase::Compact)),
+                BackupStatus::Cancelled
+            )
+        );
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::CancellingFinalization(
+                FinishingStatus::ToCountRef
+            ))),
+            (
+                BackupPhase::Recover(Box::new(BackupPhase::CountReferences)),
+                BackupStatus::Cancelled
+            )
+        );
+        assert_eq!(
+            BackupPhase::from_existing(Some(BackupStatus::CancellingFinalization(
+                FinishingStatus::ToAddInPool
+            ))),
+            (
+                BackupPhase::Recover(Box::new(BackupPhase::AddToPool)),
+                BackupStatus::Cancelled
+            )
         );
     }
 

@@ -390,6 +390,7 @@ impl QueryRoot {
     /// Gets the health status of the storage pool.
     /// Checks for dirty state (crashed refcnt operations).
     async fn pool_health(&self, ctx: &Context<'_>) -> GqlResult<PoolHealthStatusDto> {
+        ctx.data::<CurrentUser>()?.require_admin()?;
         let state = ctx.data::<ApiServerState>()?;
 
         let pool = PoolManager::new(state.config.clone());
@@ -416,6 +417,8 @@ impl QueryRoot {
 #[Object(name = "Statistics")]
 impl GqlStatistics {
     async fn disk_usage(&self, ctx: &Context<'_>) -> GqlResult<GqlDiskUsage> {
+        // Server-wide disk usage, not scoped to any host a restricted user might own.
+        ctx.data::<CurrentUser>()?.require_admin()?;
         let state = ctx.data::<ApiServerState>()?;
         let usage = woodstock::statistics::instant_stats::get_space(&state.config.path.pool_path)
             .map_err(super::util::map_err)?;
@@ -457,6 +460,8 @@ impl GqlStatistics {
     }
 
     async fn pool_usage(&self, ctx: &Context<'_>) -> GqlResult<GqlPoolUsage> {
+        // Server-wide pool usage, not scoped to any host a restricted user might own.
+        ctx.data::<CurrentUser>()?.require_admin()?;
         let state = ctx.data::<ApiServerState>()?;
         use woodstock::statistics::{load_history, read_statistics};
         let stats = read_statistics(&state.config.path.pool_path).await;

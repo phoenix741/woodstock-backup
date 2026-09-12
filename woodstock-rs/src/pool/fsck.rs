@@ -16,7 +16,10 @@ use crate::{
     config::{Backups, Configuration, Hosts, FSCK_PROGRESS_BATCH_SIZE},
     pool::PoolChunkWrapper,
     proto::{CompressedWriter, ProtobufReader, ProtobufWriter},
-    utils::compression::CompressionFormat,
+    utils::{
+        compression::CompressionFormat,
+        lock_redis::{FileLockOperation, LockOperation, PoolLockRedis},
+    },
     PoolRefCount, PoolUnused,
 };
 use uuid::Uuid;
@@ -467,6 +470,7 @@ pub async fn check_missing(
     progress_tx: mpsc::Sender<FsckMissingCount>,
     config: Arc<Configuration>,
     cancel_token: &CancellationToken,
+    dry_run: bool,
 ) -> Result<FsckMissingCount> {
     let previously_missing = load_missing_chunks(&config.path.pool_path).await;
 
@@ -521,17 +525,37 @@ pub async fn check_missing(
 
     // Refresh the durable `missing` snapshot every run (informational, not a mutation of
     // pool state) so the next check can tell a recurring miss from a new one — unless this
-    // scan itself was cancelled part-way, in which case the partial `still_missing` list
-    // isn't trustworthy enough to persist.
-    if !cancelled {
-        if let Err(e) = save_missing_chunks(
-            &config.path.pool_path,
-            still_missing.iter(),
-            config.compression_format,
-        )
-        .await
-        {
-            error!("Failed to save missing-chunks file: {e}");
+    // scan itself was cancelled part-way (the partial `still_missing` list isn't trustworthy
+    // enough to persist) or this is a dry run, which must not write anything.
+    if !dry_run && !cancelled {
+        // Exclusive file lock: serializes this full-replace write against a concurrent
+        // backup's merge-write of the same file in `BackupSave::close` (see its own lock
+        // for why a merge is needed there instead of a full replace).
+        let lock = async {
+            PoolLockRedis::new_with_path(
+                &config.redis_url(),
+                &config.path.pool_path.join("missing"),
+                LockOperation::File(FileLockOperation::Write),
+            )
+            .await?
+            .lock_exclusive()
+            .await
+        }
+        .await;
+
+        match lock {
+            Ok(_lock) => {
+                if let Err(e) = save_missing_chunks(
+                    &config.path.pool_path,
+                    still_missing.iter(),
+                    config.compression_format,
+                )
+                .await
+                {
+                    error!("Failed to save missing-chunks file: {e}");
+                }
+            }
+            Err(e) => error!("Failed to lock missing-chunks file for writing: {e}"),
         }
     }
 
@@ -582,5 +606,39 @@ mod tests {
         let loaded = load_missing_chunks(pool_path).await;
         assert_eq!(loaded.len(), 1);
         assert!(loaded.contains_key(&vec![0x2]));
+    }
+
+    #[tokio::test]
+    async fn check_missing_dry_run_does_not_persist() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = Arc::new(Configuration::from_backup_path(dir.path().to_path_buf()));
+
+        let mut refcnt = Refcnt::new(&config.path.pool_path);
+        refcnt.apply(
+            &PoolRefCount {
+                sha256: vec![0xAB; 32],
+                size: 10,
+                compressed_size: 5,
+                ref_count: 1,
+            },
+            &crate::pool::RefcntApplySens::Increase,
+        );
+
+        // Nothing on disk was walked, so the tracked entry is reported missing.
+        let seen: HashSet<[u8; 32]> = HashSet::new();
+        let (tx, _rx) = mpsc::channel(10);
+        let cancel_token = CancellationToken::new();
+
+        let result = check_missing(&refcnt, &seen, tx, config.clone(), &cancel_token, true)
+            .await
+            .unwrap();
+
+        assert_eq!(result.missing, 1);
+
+        let missing_path = config.path.pool_path.join("missing");
+        assert!(
+            !missing_path.exists(),
+            "dry_run must not write the missing-chunks snapshot"
+        );
     }
 }

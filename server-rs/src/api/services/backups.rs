@@ -66,7 +66,10 @@ impl BackupsService {
     /// Get the last backup for a host
     pub async fn get_last_backup(&self, hostname: &str) -> Result<Option<Backup>> {
         let backups = self.get_backups(hostname).await?;
-        Ok(backups.into_iter().max_by_key(|b| b.start_date))
+        // Sort by sequential number, not start_date — matches
+        // woodstock::config::Backups::get_last_backup, the source of truth this should agree
+        // with (it feeds previous_id for the next incremental backup).
+        Ok(backups.into_iter().max_by_key(|b| b.number))
     }
 
     pub async fn get_time_since_last_backup(&self, hostname: &str) -> Option<chrono::Duration> {

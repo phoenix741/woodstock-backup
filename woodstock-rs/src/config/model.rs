@@ -211,11 +211,19 @@ pub enum BackupStatus {
     Finishing(FinishingStatus),
     Completed,
     Aborting(FinishingStatus),
+    /// Interrupted while finalizing a backup the user had explicitly
+    /// cancelled — the `Cancelled`-origin counterpart of `Aborting`. Kept as
+    /// a separate variant (rather than adding a field to `Aborting`) so
+    /// already-persisted `Aborting(stage)` records deserialize unchanged
+    /// across an upgrade. Resolves back to `Cancelled`, not `Aborted`, once
+    /// finalization completes.
+    CancellingFinalization(FinishingStatus),
     Aborted,
     /// Terminal state for a backup deliberately stopped by the user (as
     /// opposed to `Aborted`, which covers critical errors and lock loss).
-    /// Winds down through the same `Aborting(stage)` finalization pipeline
-    /// as `Aborted` — only the final persisted status differs.
+    /// Winds down through the same `Aborting`/`CancellingFinalization(stage)`
+    /// finalization pipeline as `Aborted` — only the final persisted status
+    /// differs.
     Cancelled,
     Failed(FailedStatus),
     Removing(RemovingStatus),
@@ -240,6 +248,7 @@ impl BackupStatus {
         matches!(
             self,
             BackupStatus::Aborting(_)
+                | BackupStatus::CancellingFinalization(_)
                 | BackupStatus::Aborted
                 | BackupStatus::Cancelled
                 | BackupStatus::Failed(_)

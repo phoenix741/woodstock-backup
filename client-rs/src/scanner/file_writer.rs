@@ -67,6 +67,11 @@ pub fn create_file_from_manifest(file_manifest: &FileManifest) -> Result<()> {
         woodstock::FileManifestType::Symlink => {
             let symlink = vec_to_path(&file_manifest.symlink);
             create_symlink(&path, &symlink)?;
+            // Not restoring permissions/xattr/acl here: chmod and the xattr/acl open()
+            // calls below follow symlinks, so they would silently affect the link's
+            // target (or fail on a dangling one) rather than the link itself. Mirrors
+            // fs_materialize.rs::materialize_entry's Symlink arm.
+            return Ok(());
         }
         _ => {
             open_for_write_retrying_on_eacces(&path)?;
