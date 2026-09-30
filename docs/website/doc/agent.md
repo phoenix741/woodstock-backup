@@ -41,6 +41,12 @@ When you add a new host in the Woodstock Backup interface, the system automatica
 - Certificates needed for authentication.
 - The agent executable for your operating system (for some platforms).
 
+Pre-built binaries and installers for all platforms are also published on the
+[project's releases page](https://gogs.shadoware.org/ShadowareOrg/woodstock-backup/releases).
+Windows binaries and installers are digitally signed using a free code-signing
+certificate provided by the [SignPath Foundation](https://signpath.org/),
+so automatic updates can be verified as authentic.
+
 ## Windows Installation
 
 ### Prerequisites
