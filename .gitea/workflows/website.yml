@@ -23,6 +23,11 @@ jobs:
       RUNNER_TOOL_CACHE: /toolcache # Runner Tool Cache
     runs-on: ubuntu-latest
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y git-lfs
+
       - name: Checkout project
         uses: actions/checkout@v3
         with:
