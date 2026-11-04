@@ -95,7 +95,7 @@ reqwest = { workspace = true, features = ["rustls"] }
 
 # Archive generation
 # Tests use sync zip reader (zip), runtime uses async_zip
-zip = { version = "^8.2", features = ["deflate"] }
+zip = { version = "^9.0", features = ["deflate"] }
 async_zip = { version = "0.0.18", features = ["deflate", "tokio"] }
 tokio-util = { workspace = true, features = ["io", "io-util"] }
 tokio-stream = { workspace = true }
